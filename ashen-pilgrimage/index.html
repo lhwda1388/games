@@ -41,6 +41,7 @@
   --color-unique-dark: oklch(52% 0.11 60);
   --color-rust: oklch(48% 0.09 45);
   --color-outline: oklch(7% 0.01 30);
+  --color-void-glass: oklch(9% 0.01 30 / .72);
   /* 막별 타일셋 */
   --color-t-town-floor: oklch(36% 0.04 105);
   --color-t-town-floor2: oklch(32% 0.04 100);
@@ -90,10 +91,74 @@ canvas { display: block; cursor: crosshair; touch-action: none; }
 #panel button:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
 #panel button:active:not(:disabled) { transform: translateY(1px); }
 #panel button:disabled { opacity: .45; cursor: default; }
+/* 인벤토리: 장비 인형(3×3) + 가방 격자(5×4). 칸 테두리·글자 = 등급색 */
+#panel.inv { width: min(640px, calc(100% - 32px)); }
+#panel.inv p { margin-bottom: 16px; }
+.inv-body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: start; }
+.inv-doll { display: grid; grid-template-columns: repeat(3, 64px); grid-template-areas: ". helm amulet" "weapon armor ring" "gloves boots ."; gap: 6px; }
+.inv-bag { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+#panel .cell {
+  position: relative; aspect-ratio: 1; min-width: 0; padding: 2px; display: grid; place-items: center;
+  font-size: 12px; text-align: center; word-break: keep-all;
+  color: var(--rar, var(--color-dim)); border-color: var(--rar, var(--color-wall));
+}
+#panel .cell.empty { border-style: dashed; background: var(--color-void); }
+#panel .cell.empty:disabled { opacity: .6; }
+#panel .cell[data-cmp]::after { content: attr(data-cmp); position: absolute; top: 2px; right: 4px; font-size: 10px; color: var(--color-blood); }
+#panel .cell[data-cmp="▲"]::after { color: var(--color-rot); }
+#panel .cell:hover:not(:disabled) { border-color: var(--color-gold); }
+.inv-detail { min-height: 7.5em; margin: 16px 0; padding-top: 12px; border-top: 1px solid var(--color-wall); }
+.inv-detail .inv-name { font: 700 17px/1.4 var(--font-display); }
+#panel .inv-detail p { margin: 4px 0 0; font-size: 14px; line-height: 1.6; }
+.inv-detail .inv-meta, .inv-detail .inv-hint { color: var(--color-dim); }
+.inv-diff { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.inv-diff .up { color: var(--color-rot); }
+.inv-diff .down { color: var(--color-blood); }
+.inv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#panel .inv-actions button { flex: 1 1 auto; white-space: nowrap; }
+/* 터치 메뉴: 터치 기기(html.touch)에서만, 왼쪽 위 세로 줄 */
+#touch { display: none; }
+html.touch {
+  & #touch { position: fixed; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; }
+  & #touch button {
+    min-width: 52px; min-height: 44px; padding: 0 8px; font: 700 13px/1 var(--font-body); white-space: nowrap;
+    color: var(--color-ink); background: var(--color-void-glass); border: 1px solid var(--color-wall-top);
+    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  }
+  & #touch button[hidden] { display: none; }
+  & #touch button:active { transform: translateY(1px); background: var(--color-floor-2); }
+  & #touch button:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+  & #panel button, & #chat-in { touch-action: manipulation; }
+}
+canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* 채팅 (멀티플레이): 오른쪽 아래, 평소엔 클릭이 게임으로 지나가고 입력 중에만 잡는다 */
+#chat {
+  position: fixed; right: 16px; bottom: 112px; width: min(340px, calc(100% - 32px));
+  font: 400 13px/1.5 var(--font-body); color: var(--color-ink); pointer-events: none;
+}
+#chat[hidden] { display: none; }
+#chat-log { max-height: 9em; overflow-y: auto; margin: 0; padding: 6px 10px; list-style: none; background: var(--color-void-glass); scrollbar-width: thin; }
+#chat-log:empty { display: none; }
+#chat-log b { color: var(--color-gold); font-weight: 700; }
+#chat.typing { pointer-events: auto; }
+#chat-in {
+  box-sizing: border-box; width: 100%; margin-top: 4px; padding: 8px 10px; font: inherit;
+  color: var(--color-ink); background: var(--color-void); border: 1px solid var(--color-wall-top);
+}
+#chat-in:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 0; }
+@media (max-width: 560px) { .inv-body { grid-template-columns: minmax(0, 1fr); justify-items: center; } .inv-bag { width: 100%; } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<nav id="touch" aria-label="메뉴">
+  <button data-a="inv">가방</button><button data-a="skills">스킬</button><button data-a="tp">귀환</button>
+  <button data-a="map">지도</button><button data-a="chat" hidden>채팅</button>
+</nav>
+<div id="chat" hidden>
+  <ol id="chat-log" aria-live="polite" aria-label="채팅 기록"></ol>
+  <input id="chat-in" maxlength="80" autocomplete="off" placeholder="Enter 보내기 · Esc 취소" aria-label="채팅 입력" hidden>
+</div>
 <div id="panel" role="dialog" aria-modal="true" aria-labelledby="p-title" hidden>
   <h2 id="p-title"></h2>
   <p id="p-text"></p>
@@ -460,6 +525,7 @@ let player = { x: 0, y: 0, r: 12, ...freshPlayer() };
 let heroes = [player], net = null, pvp = false, uid = 0;
 function as(h, fn) { const prev = player; player = h || prev; try { return fn(); } finally { player = prev; } }
 // PvP 상대: 마을은 안전 지대
+const heroName = h => `P${heroes.indexOf(h) + 1} ${CLASSES[h.cls].name}`;
 const foes = () => pvp && floor ? heroes.filter(h => h !== player && !h.dead) : [];
 const sum = k => Math.min(STATS[k][3] ?? Infinity, Object.values(player.eq).reduce((s, it) => s + (it?.st[k] || 0), 0));
 const hasFx = f => Object.values(player.eq).some(it => it?.fx === f);
@@ -480,7 +546,12 @@ const ring = (x, y, size, col, dur) => fx.push({ kind: 'ring', x, y, size, col, 
 // src: 'p' 플레이어 공격(치명타·흡수·고유효과 적용), 'ally' 소환수, 'fx' 고유효과 연쇄 방지
 function hurtMonster(m, d, src = 'p') {
   // ponytail: PvP 피해 ×0.5 고정 (치명타·흡수 없음). 밸런스가 안 맞으면 이 숫자만 조절
-  if (m.cls) { if (foes().includes(m)) as(m, () => hurtPlayer(d * .5)); return; }
+  if (m.cls) {
+    if (!foes().includes(m)) return;
+    as(m, () => hurtPlayer(d * .5));
+    if (m.dead) { player.kills = (player.kills || 0) + 1; log(`${heroName(player)} → ${heroName(m)} 처치 (${player.kills}킬)`, 'blood', true); }
+    return;
+  }
   if (!monsters.includes(m)) return;
   const crit = src === 'p' && Math.random() * 100 < 5 + sum('crit');
   if (m.cursed > 0) d *= 2;
@@ -537,7 +608,8 @@ function hurtPlayer(d) {
   if (player.dead) return;
   const n = Math.max(1, Math.round(d * 100 / (100 + def() * 3) * (1 - sum('res') / 100)));
   player.hp -= n; player.flash = .12; float(player.x, player.y - 36, n, 'blood');
-  shake += 4; burst(player.x, player.y - 10, 'blood', 5); sfx('hurt');
+  if (player._c) player._shake = (player._shake || 0) + 4; else shake += 4;
+  burst(player.x, player.y - 10, 'blood', 5); sfx('hurt');
   if (hasFx('frost') && Math.random() < .2) { for (const m of monsters) if (dist(m, player) < 140) m.slow = 3; ring(player.x, player.y, 140, 'magic', .4); sfx('ice'); }
   if (player.hp <= 0) { player.hp = 0; player.dead = true; player.whirl = 0; log('당신은 쓰러졌다…', 'blood'); }
 }
@@ -549,6 +621,7 @@ function aoe(x, y, rad, d, onHit, src = 'p') {
   for (const m of [...monsters, ...foes()]) if (dist(m, { x, y }) < rad + m.r) { onHit?.(m); hurtMonster(m, d, src); }
 }
 function burst(x, y, col, n, spd = 120) {
+  if (net?.host && net.bursts.length < 40) net.bursts.push([x, y, col, n, spd]);
   for (let i = 0; i < n; i++) parts.push({ x, y, vx: rnd(-1, 1) * spd, vy: rnd(-1.3, .2) * spd, life: rnd(.3, .7), col, s: rnd(2, 4) });
   if (parts.length > 500) parts.splice(0, parts.length - 500);
 }
@@ -675,6 +748,7 @@ function openPanel(title, text, btns = [], locked = false, titleColor) {
     player._btns = list.map(o => o.fn);
     return netSend(player._c, { t: 'panel', a: [title, text, list.map(({ label, disabled, sub, color }) => ({ label, disabled, sub, color })), locked, titleColor] });
   }
+  panel.classList.remove('inv');
   const t = document.getElementById('p-title');
   t.textContent = title; t.style.color = titleColor || '';
   document.getElementById('p-text').textContent = text;
@@ -710,7 +784,7 @@ function drawPreviews(now) {
 }
 function closePanel() {
   if (player._c) return netSend(player._c, { t: 'close', a: [] });
-  panel.hidden = true; previews = [];
+  panel.hidden = true; previews = []; panel.classList.remove('inv');
 }
 
 function talk(npc) {
@@ -808,7 +882,8 @@ function startGame(state, c) {
   dl = state?.dl || 0; levels = {}; portal = null; floor = 0; msgs = []; allies = [];
   enter(0); closePanel();
   if (!state) actIntro();
-  log('좌클릭: 이동/공격 · Q W E R: 스킬 · 우클릭: 마지막 스킬 · 1/2: 물약 · T: 귀환 · K: 스킬 · I: 인벤토리 · Tab: 지도 · M: 소리', 'dim');
+  log(touch ? '탭: 이동/공격 · 스킬 칸 탭: 시전(가까운 적 자동 조준) · 구슬 탭: 물약 · 왼쪽 버튼: 메뉴'
+    : '좌클릭: 이동/공격 · Q W E R: 스킬 · 우클릭: 마지막 스킬 · 1/2(구슬 클릭): 물약 · T: 귀환 · K: 스킬 · I: 인벤토리 · Tab: 지도 · M: 소리', 'dim');
 }
 // next(state, cls): 고른 캐릭터로 무엇을 할지 (혼자 시작 / 방 만들기 / 참가)
 function title(next = startGame, head = '잿빛 순례') {
@@ -835,6 +910,9 @@ function mpMenu() {
 
 // ---------- 입력 ----------
 const mouse = { x: 0, y: 0, down: false };
+// 손가락 기기면 터치 UI. ?touch로 데스크톱에서도 켜 볼 수 있다. CSS는 html.touch로 따라간다
+const touch = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
+document.documentElement.classList.toggle('touch', touch);
 const cam = { x: 0, y: 0 };
 const world = () => ({ x: mouse.x + cam.x, y: mouse.y + cam.y });
 let hover = null;
@@ -860,8 +938,9 @@ const CMD = {
   drag(w) { if (!player.target && !player.dead) player.dest = pt(w); },
   cast(i, w) { if (i >= 0 && i < 4) cast(i | 0, pt(w)); },
   pot: k => usePot(k === 'mp' ? 'mp' : 'hp'),
-  tp: townPortal, skills: skillPanel, inv: inventory,
+  tp: townPortal, skills: skillPanel, inv: invCmd,
   btn: i => player._btns?.[i]?.(),
+  chat: t => say(t),
 };
 function doCmd(k, ...a) { if (net?.guest) netSend(net.conn, { t: k, a }); else CMD[k](...a); }
 const idOf = o => o && (o.id ??= ++uid);
@@ -873,7 +952,11 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   mouse.x = e.clientX; mouse.y = e.clientY;
   if (e.button === 2) return paused() || doCmd('cast', player.active, world());
+  const hud = !paused() && !player.dead && hudHit(e.clientX, e.clientY);
+  if (hud) return hud();
   mouse.down = true; onPress();
+  // 게스트는 왕복 지연이 있으니 누른 곳을 바로 표시 (스냅샷이 fx를 덮어써도 남도록 local)
+  if (net?.guest && !paused()) fx.push({ kind: 'ring', x: world().x, y: world().y, size: 14, col: 'gold', t: 0, dur: .35, local: true });
 });
 cv.addEventListener('pointermove', e => {
   mouse.x = e.clientX; mouse.y = e.clientY;
@@ -881,6 +964,13 @@ cv.addEventListener('pointermove', e => {
 });
 addEventListener('pointerup', () => mouse.down = false);
 addEventListener('keydown', e => {
+  if (document.activeElement === chatIn) {   // 입력 중엔 게임 키를 막는다. 한글 조합 중 Enter는 무시
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter') { const t = chatIn.value; chatIn.value = ''; chatIn.blur(); if (t.trim()) doCmd('chat', t); }
+    if (e.key === 'Escape') chatIn.blur();
+    return;
+  }
+  if (e.code === 'Enter' && net && !paused()) { e.preventDefault(); return openChat(); }
   if (e.code === 'Escape' && !panelLocked) return closePanel();
   if (e.code === 'KeyM') { muted = !muted; log(muted ? '소리 꺼짐' : '소리 켜짐', 'dim'); }
   if (paused()) return;
@@ -890,7 +980,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Digit2') doCmd('pot', 'mp');
   if (e.code === 'KeyT') doCmd('tp');
   if (e.code === 'KeyK') doCmd('skills');
-  if (e.code === 'KeyI') doCmd('inv');
+  if (e.code === 'KeyI') inventory();
   if (e.code === 'Tab') { e.preventDefault(); showMap = !showMap; }
   if (e.code === 'Space') { e.preventDefault(); doCmd('cast', player.active, world()); }
 });
@@ -928,33 +1018,117 @@ function addToBag(it) {
   if (player.bag.length >= BAG) { player.gold += price(it); log(`가방이 가득 차서 ${it.name}을(를) 팔았다 +${price(it)} 금화`, 'dim'); return; }
   player.bag.push(it); log(`획득: ${it.name}`, RAR[it.rar]);
 }
-function compare(it) {
-  const d = score(it) - score(player.eq[it.slot]);
-  return d > 0 ? '▲ 착용 중인 것보다 좋음' : d < 0 ? '▼ 착용 중인 것보다 나쁨' : '= 비슷함';
-}
 function statLine() {
   const base = player.lvl + sum('dmg');
   return `피해 ${base + 2}~${base + 5} · 방어 ${def()} · 치명타 ${5 + sum('crit')}% · 흡수 ${sum('ls')}%\n`
     + `공격 속도 +${sum('as')}% · 이동 속도 +${sum('ms') + (hasFx('wind') ? 25 : 0)}% · 저항 ${sum('res')}% · 마법 발견 +${sum('mf')}%`;
 }
-function inventory() {
-  const p = player;
-  openPanel(`인벤토리 (${p.bag.length}/${BAG})`, `${statLine()}\n금화 ${p.gold}${floor === 0 ? '' : '  ·  판매는 마을에서만 가능'}`, [
-    ...SLOTS.map(([k, n]) => { const it = p.eq[k];
-      return { label: `${n}: ${it ? it.name : '—'}`, color: it && P[RAR[it.rar]], disabled: !it,
-        sub: it ? `${desc(it)} · 눌러서 해제` : '비어 있음', fn: () => { unequip(k); inventory(); } }; }),
-    ...p.bag.map((it, i) => ({ label: it.name, color: P[RAR[it.rar]], sub: `${SLOTN[it.slot]} · ${desc(it)} · ${compare(it)}`, fn: () => itemPanel(i) })),
-  ]);
+// ---------- 인벤토리: 장비 인형 + 가방 격자 ----------
+// 화면은 각자 자기 영웅(게스트는 받은 사본)으로 그리고, 바꾸는 동작만 doCmd('inv', ...)로 보낸다
+const SLOTKEYS = SLOTS.map(([k]) => k);
+const worse = it => it.rar < 3 && score(it) <= score(player.eq[it.slot]);   // 일괄 판매 대상 — 고유 등급은 남긴다
+// 착용 중인 것과 스탯별 차이
+function diffs(it) {
+  const cur = player.eq[it.slot], keys = new Set([...Object.keys(it.st), ...Object.keys(cur?.st || {})]);
+  return [...keys].map(k => [k, (it.st[k] || 0) - (cur?.st[k] || 0)]).filter(([, d]) => d)
+    .map(([k, d]) => ({ t: `${STATS[k][0]} ${d > 0 ? '+' : '−'}${Math.abs(d)}${STATS[k][2] || ''}`, up: d > 0 }));
 }
-function itemPanel(i) {
-  const p = player, it = p.bag[i], cur = p.eq[it.slot], town = floor === 0;
-  openPanel(it.name, `${SLOTN[it.slot]} · ${RARN[it.rar]}\n${desc(it)}\n\n착용 중: ${cur ? `${cur.name} (${desc(cur)})` : '없음'}`, [
-    ['장착', () => { p.bag.splice(i, 1); if (cur) p.bag.push(cur); p.eq[it.slot] = it; clampStats(); inventory(); }],
-    { label: `판매 +${price(it)} 금화`, disabled: !town, sub: town ? '' : '마을에서만 팔 수 있다',
-      fn: () => { p.bag.splice(i, 1); p.gold += price(it); inventory(); } },
-    ['버리기', () => { p.bag.splice(i, 1); items.push({ x: p.x + rnd(-16, 16), y: p.y + rnd(-16, 16), kind: 'eq', item: it }); inventory(); }],
-    ['뒤로', inventory],
-  ], false, P[RAR[it.rar]]);
+// 호스트에서 실행되는 동작. 게스트가 보낸 번호가 그새 바뀐 가방을 가리키지 않도록 이름도 맞춰 본다
+const INV = {
+  equip(i) { const p = player, it = p.bag[i], cur = p.eq[it.slot]; p.bag.splice(i, 1); if (cur) p.bag.push(cur); p.eq[it.slot] = it; clampStats(); },
+  sell(i) { if (floor) return; const p = player, it = p.bag[i]; p.bag.splice(i, 1); p.gold += price(it); sfx('gold'); },
+  drop(i) { const p = player, [it] = p.bag.splice(i, 1); items.push({ x: p.x + rnd(-16, 16), y: p.y + rnd(-16, 16), kind: 'eq', item: it }); },
+  sort() { player.bag.sort((a, b) => SLOTKEYS.indexOf(a.slot) - SLOTKEYS.indexOf(b.slot) || b.rar - a.rar || score(b) - score(a)); },
+  sellBad() {
+    if (floor) return;
+    const p = player, bad = p.bag.filter(worse), g = bad.reduce((s, it) => s + price(it), 0);
+    if (!bad.length) return;
+    p.bag = p.bag.filter(it => !worse(it)); p.gold += g; sfx('gold'); log(`장비 ${bad.length}개 판매 +${g} 금화`, 'gold');
+  },
+};
+function invCmd(a, x, name) {
+  if (!Object.hasOwn(INV, a)) return;
+  if (a === 'sort' || a === 'sellBad') return INV[a]();
+  if (a === 'unequip') return Object.hasOwn(SLOTN, x) && player.eq[x] && unequip(x);
+  if (player.bag[x]?.name === name) INV[a](x);
+}
+
+let invKey = null, invSel = null;
+function inventory() {
+  if (player._c) return netSend(player._c, { t: 'inv', a: [] });   // 상점의 '장비 판매' 등: 게스트 화면에서 연다
+  openPanel('인벤토리', '', []);
+  panel.classList.add('inv'); invKey = null; invSel = null;
+  renderInv();
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+// 매 프레임 불리지만 가방·장비·금화·장소가 바뀌었을 때만 다시 그린다 (게스트는 스냅샷으로 바뀜)
+function renderInv() {
+  const p = player, key = JSON.stringify([p.bag, p.eq, p.gold, floor]);
+  if (key === invKey) return;
+  invKey = key;
+  const town = floor === 0, box = document.getElementById('p-btns'), refocus = document.activeElement?.dataset.k;
+  document.getElementById('p-title').textContent = `인벤토리 (${p.bag.length}/${BAG})`;
+  document.getElementById('p-text').textContent = `${statLine()}\n금화 ${p.gold}${town ? '' : '  ·  판매는 마을에서만'}`;
+  const cell = (k, it, label) => {
+    const b = el('button', 'cell' + (it ? '' : ' empty'), label);
+    b.dataset.k = k;
+    if (it) b.style.setProperty('--rar', `var(--color-${RAR[it.rar]})`);
+    b.onfocus = () => { invSel = k; renderDetail(); };
+    if (!touch) b.onpointerenter = b.onfocus;   // 터치는 누른 칸만 고른다 (지나가며 바뀌면 아래 버튼이 사라짐)
+    return b;
+  };
+  const doll = el('div', 'inv-doll');
+  for (const [k, n] of SLOTS) {
+    const b = cell('e' + k, p.eq[k], n);
+    b.style.gridArea = k; b.disabled = !p.eq[k];
+    b.onclick = () => doCmd('inv', 'unequip', k);
+    doll.append(b);
+  }
+  const bag = el('div', 'inv-bag');
+  for (let i = 0; i < BAG; i++) {
+    const it = p.bag[i], b = cell('b' + i, it, it ? SLOTN[it.slot] : '');
+    if (!it) { b.disabled = true; b.setAttribute('aria-label', '빈 칸'); bag.append(b); continue; }
+    b.setAttribute('aria-label', it.name);
+    const d = score(it) - score(p.eq[it.slot]);
+    if (d) b.dataset.cmp = d > 0 ? '▲' : '▼';
+    b.onclick = e => touch ? (invSel = 'b' + i, renderDetail(), document.getElementById('inv-detail').scrollIntoView({ block: 'nearest' }))
+      : doCmd('inv', e.shiftKey ? 'sell' : e.ctrlKey || e.metaKey ? 'drop' : 'equip', i, it.name);
+    bag.append(b);
+  }
+  const body = el('div', 'inv-body'); body.append(doll, bag);
+  const detail = el('div', 'inv-detail'); detail.id = 'inv-detail'; detail.setAttribute('aria-live', 'polite');
+  const bad = p.bag.filter(worse), g = bad.reduce((s, it) => s + price(it), 0);
+  const acts = el('div', 'inv-actions');
+  const btn = (label, fn, off) => { const b = el('button', null, label); b.onclick = fn; b.disabled = !!off; acts.append(b); };
+  btn('정렬', () => doCmd('inv', 'sort'), p.bag.length < 2);
+  btn(town ? `나쁜 장비 모두 판매 · ${bad.length}개 +${g}` : '나쁜 장비 판매는 마을에서', () => doCmd('inv', 'sellBad'), !town || !bad.length);
+  btn('닫기', closePanel);
+  box.replaceChildren(body, detail, acts);
+  renderDetail();
+  if (refocus) box.querySelector(`[data-k="${refocus}"]`)?.focus();
+}
+function renderDetail() {
+  const box = document.getElementById('inv-detail'), p = player;
+  if (!box) return;
+  const it = invSel?.[0] === 'e' ? p.eq[invSel.slice(1)] : invSel ? p.bag[+invSel.slice(1)] : null;
+  if (!it) return box.replaceChildren(el('p', 'inv-hint', touch ? '가방 칸을 누르면 자세히 보이고, 아래 버튼으로 장착·판매합니다.\n장비 칸 누르기: 해제'
+    : '칸에 마우스를 올리면 자세히 보입니다.\n가방: 클릭 장착 · Shift+클릭 판매(마을) · Ctrl+클릭 버리기 · 장비 칸 클릭: 해제'));
+  const name = el('strong', 'inv-name', it.name); name.style.color = `var(--color-${RAR[it.rar]})`;
+  const rows = [name, el('p', 'inv-meta', `${SLOTN[it.slot]} · ${RARN[it.rar]} · ${desc(it)}`)];
+  if (invSel[0] === 'b') {
+    const ch = el('p', 'inv-diff'), ds = diffs(it);
+    if (!p.eq[it.slot]) ch.append(el('span', 'up', '빈 칸에 장착'));
+    else if (!ds.length && !it.fx) ch.append(el('span', null, '착용 중인 것과 같음'));
+    for (const d of ds) ch.append(el('span', d.up ? 'up' : 'down', d.t));
+    const i = +invSel.slice(1);
+    if (touch) {
+      const acts = el('div', 'inv-actions');
+      const btn = (label, a, off) => { const b = el('button', null, label); b.disabled = off; b.onclick = () => doCmd('inv', a, i, it.name); acts.append(b); };
+      btn('장착', 'equip', false); btn(floor ? '판매는 마을에서' : `판매 +${price(it)}`, 'sell', !!floor); btn('버리기', 'drop', false);
+      rows.push(ch, acts);
+    } else rows.push(ch, el('p', 'inv-hint', `클릭 장착 · Shift+클릭 판매 +${price(it)}${floor ? ' (마을에서만)' : ''} · Ctrl+클릭 버리기`));
+  } else rows.push(el('p', 'inv-hint', touch ? '누르면 가방으로 해제' : '클릭하면 가방으로 해제'));
+  box.replaceChildren(...rows);
 }
 function unequip(k) {
   if (player.bag.length >= BAG) return log('가방이 가득 찼다', 'blood');
@@ -971,7 +1145,7 @@ function pickup(it) {
 // ---------- 업데이트 ----------
 function update(dt) {
   if (!net && (player.dead || paused())) return;   // 혼자일 때만 창을 열면 시간이 멈춤
-  for (const h of heroes) if (!h.dead) as(h, () => updateHero(dt));
+  for (const h of heroes) { h.sayT = (h.sayT || 0) - dt; if (!h.dead) as(h, () => updateHero(dt)); }
   updateWorld(dt);
 }
 const isFoe = t => monsters.includes(t) || foes().includes(t);
@@ -1116,7 +1290,7 @@ function updateWorld(dt) {
         if (s.aoe) { end = true; break; }
         s.hit.add(m);
         if (s.freeze) { stun(m, s.freeze); m.iced = s.freeze; }
-        hurtMonster(m, s.dmg);
+        hurtMonster(m, m.cls ? s.dmg * .7 : s.dmg);   // ponytail: PvP 원거리 ×0.7 (근접 대비). 해보고 조절
         if (!s.pierce) end = true;
       }
       end = end || wall;
@@ -1141,7 +1315,7 @@ function updateWorld(dt) {
   fx = fx.filter(f => f.t < f.dur);
   for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 420 * dt; q.life -= dt; }
   parts = parts.filter(q => q.life > 0);
-  for (const k of corpses) k.t += dt;
+  for (const k of corpses) k.t = Math.min(1, k.t + dt);
   for (const t of texts) { t.life -= dt; t.y -= 30 * dt; }
   texts = texts.filter(t => t.life > 0);
   for (const m of msgs) m.life -= dt;
@@ -1765,6 +1939,13 @@ function label(text, x, y, col, active) {
   ctx.fillStyle = col; ctx.fillText(text, lx + 5, y + 13);
   return [lx, y, tw, 18];
 }
+function bubble(text, x, y, alpha) {
+  ctx.font = `400 14px ${FB}`; ctx.textAlign = 'left'; ctx.globalAlpha = alpha;
+  const t = text.length > 40 ? text.slice(0, 39) + '…' : text, w = ctx.measureText(t).width + 16, lx = Math.round(x - w / 2);
+  ctx.fillStyle = P.bone; ctx.fillRect(lx, y - 26, w, 24); poly(P.bone, x - 5, y - 2, x + 5, y - 2, x, y + 5);
+  ctx.fillStyle = P.void; ctx.fillText(t, lx + 8, y - 9);
+  ctx.globalAlpha = 1;
+}
 function drawLabels() {
   ctx.font = `400 13px ${FB}`; ctx.textAlign = 'left';
   for (const it of items) {
@@ -1776,7 +1957,8 @@ function drawLabels() {
     const off = o.type === 'npc' ? 62 : o.type.includes('ortal') ? 62 : 40;
     label(o.name, o.x - cam.x, o.y - cam.y - off, o.type === 'npc' ? P.gold : o.type === 'actPortal' ? P.fire : P.ink, hover === o);
   }
-  for (const h of heroes) if (h !== player) label(`${CLASSES[h.cls].name} Lv ${h.lvl}`, h.x - cam.x, h.y - cam.y - 76, pvp ? P.blood : P.rot, hover === h);
+  for (const h of heroes) if (h.sayT > 0 && h.say) bubble(h.say, h.x - cam.x, h.y - cam.y - (h === player ? 80 : 100), Math.min(1, h.sayT));
+  for (const h of heroes) if (h !== player) label(`${heroName(h)} Lv ${h.lvl}${pvp ? ` · ${h.kills || 0}킬` : ''}`, h.x - cam.x, h.y - cam.y - 76, pvp ? P.blood : P.rot, hover === h);
 }
 
 // 디아블로2식 겹쳐 보는 지도: 본 곳만, 몬스터는 표시하지 않음
@@ -1811,8 +1993,33 @@ function orb(cx, cy, r, frac, col, text) {
   ctx.fillStyle = P.ink; ctx.font = `700 14px ${FB}`; ctx.textAlign = 'center'; ctx.fillText(text, cx, cy + 5);
 }
 
+// HUD 배치: 그리기와 탭 판정(hudHit)이 같은 좌표를 쓴다. 좁은 화면에선 구슬·스킬 칸이 함께 줄어든다
+const orbR = () => Math.min(56, vw / 10);
+function skillRect(i) {
+  const R = orbR(), gap = 6, z = Math.min(44, (vw - 4 * R - 48 - 3 * gap) / 4), x0 = vw / 2 - (4 * z + 3 * gap) / 2;
+  return { x: x0 + i * (z + gap), y: vh - HUDH + 22, z };
+}
+// 스킬 칸 탭 = 시전, 구슬 탭 = 물약 (마우스로 눌러도 같다)
+function hudHit(x, y) {
+  if (y < vh - HUDH) return null;
+  const R = orbR(), cy = vh - R - 12;
+  if (Math.hypot(x - (R + 16), y - cy) < R) return () => doCmd('pot', 'hp');
+  if (Math.hypot(x - (vw - R - 16), y - cy) < R) return () => doCmd('pot', 'mp');
+  for (let i = 0; i < 4; i++) { const r = skillRect(i); if (x >= r.x && x <= r.x + r.z && y >= r.y && y <= r.y + r.z) return () => tapCast(i); }
+  return null;
+}
+// 조준 없이 시전: 순간이동·도약은 마지막으로 누른 곳, 나머지는 노리던 적 → 가장 가까운 보이는 적 → 바라보는 쪽
+function tapCast(i) {
+  const id = cls().skills[i], p = player;
+  let w = world();
+  if (id !== 'teleport' && id !== 'leap') {
+    const t = isFoe(p.target) ? p.target : [...monsters, ...foes()].filter(visible).sort((a, b) => dist(a, p) - dist(b, p))[0];
+    w = t ? { x: t.x, y: t.y } : { x: p.x + Math.cos(p.face) * 150, y: p.y + Math.sin(p.face) * 150 };
+  }
+  doCmd('cast', i, w);
+}
 function drawHUD() {
-  const p = player, by = vh - HUDH, R = Math.min(56, vw / 9);
+  const p = player, by = vh - HUDH, R = orbR();
   ctx.fillStyle = P.void; ctx.fillRect(0, by, vw, HUDH);
   ctx.fillStyle = P['wall-top']; ctx.fillRect(0, by, vw, 2);
   orb(R + 16, vh - R - 12, R, p.hp / mhp(), 'blood', `${Math.ceil(p.hp)}/${mhp()}`);
@@ -1824,7 +2031,7 @@ function drawHUD() {
 
   // 스킬 슬롯
   cls().skills.forEach((id, i) => {
-    const s = SK[id], r = p.sk[id], x = vw / 2 + (i - 2) * 52 + 4, y = by + 22, z = 44;
+    const s = SK[id], r = p.sk[id], { x, y, z } = skillRect(i);
     ctx.fillStyle = P['floor-2']; ctx.fillRect(x, y, z, z);
     ctx.strokeStyle = i === p.active ? P.gold : P.wall; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, z - 2, z - 2);
     ctx.globalAlpha = r ? (p.mp >= s.mp ? 1 : .45) : .3;
@@ -1836,13 +2043,14 @@ function drawHUD() {
     ctx.globalAlpha = 1;
   });
   ctx.textAlign = 'center'; ctx.font = `400 13px ${FB}`; ctx.fillStyle = P.dim;
-  ctx.fillText(`${cls().name} Lv ${p.lvl} · 1 체력 ×${p.hpPot} · 2 마나 ×${p.mpPot} · T 귀환 ×${p.tp} · I 가방 ${p.bag.length}/${BAG} · Tab 지도 · 금화 ${p.gold}`, vw / 2, by + 88);
+  ctx.fillText(vw < 640 ? `Lv ${p.lvl} · 물약 ${p.hpPot}/${p.mpPot} · 귀환 ${p.tp} · 금화 ${p.gold}`
+    : `${cls().name} Lv ${p.lvl} · 1 체력 ×${p.hpPot} · 2 마나 ×${p.mpPot} · T 귀환 ×${p.tp} · I 가방 ${p.bag.length}/${BAG} · Tab 지도 · 금화 ${p.gold}`, vw / 2, by + 88);
   if (p.pts) { ctx.fillStyle = P.gold; ctx.font = `700 13px ${FB}`; ctx.fillText(`K — 스킬 포인트 ${p.pts}`, vw / 2, by - 12); }
 
   // 장비
   ctx.textAlign = 'left'; ctx.font = `400 13px ${FB}`;
   ctx.font = `400 12px ${FB}`;
-  SLOTS.forEach(([k, n], i) => {
+  if (!touch) SLOTS.forEach(([k, n], i) => {   // 터치에선 이 자리에 메뉴 버튼이 온다
     const it = p.eq[k];
     ctx.fillStyle = P.dim; ctx.fillText(n, 14, 22 + i * 17);
     ctx.fillStyle = it ? P[RAR[it.rar]] : P.dim; ctx.fillText(it ? it.name : '—', 62, 22 + i * 17);
@@ -1852,7 +2060,7 @@ function drawHUD() {
   ctx.fillText(floorName(floor) + (dl ? ` · ${DIFF[dl]}` : ''), vw - 14, 26);
   ctx.font = `400 12px ${FB}`; ctx.fillStyle = actDone ? P.gold : P.dim;
   ctx.fillText(actDone ? '완료 — 차원문을 통해 나아가라' : ACTS[act].quest, vw - 14, 46);
-  if (net) { ctx.fillStyle = pvp ? P.blood : P.rot; ctx.fillText(`${pvp ? 'PvP' : '협동'} · 방 코드 ${net.code} · ${heroes.length}명${pvp && !floor ? ' · 마을은 안전 지대' : ''}`, vw - 14, 64); }
+  if (net) { ctx.fillStyle = pvp ? P.blood : P.rot; ctx.fillText(`${pvp ? 'PvP' : '협동'} · 방 코드 ${net.code} · ${heroes.length}명${pvp ? ` · 내 처치 ${player.kills || 0}` : ''}${pvp && !floor ? ' · 마을은 안전 지대' : ''} · Enter 채팅`, vw - 14, 64); }
 
   ctx.textAlign = 'left';
   msgs.forEach((m, i) => {
@@ -1886,6 +2094,38 @@ function drawHUD() {
   }
 }
 
+// ---------- 채팅 (멀티플레이) ----------
+const chatBox = document.getElementById('chat'), chatLog = document.getElementById('chat-log'), chatIn = document.getElementById('chat-in');
+const showChatBtn = () => { document.querySelector('#touch [data-a="chat"]').hidden = !net; };
+function openChat() { chatBox.hidden = false; chatBox.classList.add('typing'); chatIn.hidden = false; chatIn.focus(); }
+chatIn.addEventListener('blur', () => { chatBox.classList.remove('typing'); chatIn.hidden = true; });
+function addChat(name, text) {
+  const li = el('li'); li.append(el('b', null, name + ' '), text);   // textContent로만 — 받은 글은 HTML로 해석하지 않는다
+  chatLog.append(li); chatBox.hidden = false;
+  while (chatLog.children.length > 50) chatLog.firstChild.remove();
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+// 호스트에서 실행: 말한 영웅 머리 위에 4초간 말풍선, 모두의 채팅창에 기록
+function say(text) {
+  text = String(text).replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (!text) return;
+  player.say = text; player.sayT = 4;
+  const name = heroName(player);
+  addChat(name, text);
+  for (const h of heroes) if (h._c) netSend(h._c, { t: 'chat', a: [name, text] });
+}
+
+// 터치 메뉴 버튼 → 키보드 단축키와 같은 동작
+document.getElementById('touch').addEventListener('click', e => {
+  const a = e.target.closest('button')?.dataset.a;
+  if (!a || (paused() && a !== 'map')) return;
+  if (a === 'inv') inventory();
+  else if (a === 'map') showMap = !showMap;
+  else if (a === 'chat') openChat();
+  else doCmd(a);
+  e.target.blur();
+});
+
 // ---------- 멀티플레이 (PeerJS P2P · 호스트 권한) ----------
 // 호스트가 게임 전체를 돌리고 20Hz로 상태를 보낸다. 게스트는 입력 명령만 보내고 받은 상태를 그린다.
 // ponytail: 매번 전체 상태를 JSON으로 보냄(수십 KB). 대역폭이 문제되면 바뀐 것만 보내기
@@ -1895,14 +2135,17 @@ const loadPeer = () => window.Peer ? Promise.resolve() : new Promise((ok, fail) 
   document.head.append(sc);
 });
 // 순환 참조(대상·주인)와 캐시(_로 시작)는 빼고, 실수는 소수 둘째 자리까지. lastMove는 "몇 ms 전"으로 바꿔 보냄
-const SKIP = new Set(['target', 'dest', 'path', 'pend', 'hit', 'owner', 'by', 'rect', 'whirlTo']);
-function netSend(c, o) {
-  if (!c?.open) return;
+// 그리는 데 안 쓰는 타이머도 뺀다. 그리는 타이머는 0 아래로 내려가면 0 — 가만히 있는 몬스터가 매번 "바뀐 것"이 되지 않게
+const SKIP = new Set(['target', 'dest', 'path', 'pend', 'hit', 'owner', 'by', 'rect', 'whirlTo',
+  'cd', 'spd', 'atkCd', 'repath', 'heal', 'nova', 'summon', 'lunge', 'dash', 'whirlTick']);
+const TIMERS = new Set(['swing', 'flash', 'stun', 'slow', 'iced', 'cursed', 'sayT']);
+function enc(o) {
   const now = performance.now();
-  c.send(JSON.stringify(o, (k, v) => k[0] === '_' || SKIP.has(k) ? undefined
-    : k === 'lastMove' ? now - v : typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v));
+  return JSON.stringify(o, (k, v) => k[0] === '_' || SKIP.has(k) ? undefined
+    : k === 'lastMove' ? Math.min(500, Math.round(now - v)) : TIMERS.has(k) && v < 0 ? 0 : typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v);
 }
-const netFail = msg => openPanel('연결 끊김', msg, [['처음으로', () => location.reload()]], true);
+const netSend = (c, o) => c?.open && c.send(enc(o));
+const netFail = msg => (net?.joined && save(), openPanel('연결 끊김', msg, [['처음으로', () => location.reload()]], true));
 const onJson = (conn, fn) => conn.on('data', raw => { let m; try { m = JSON.parse(raw); } catch { return; } fn(m); });
 
 async function hostGame(state, c, isPvp) {
@@ -1910,7 +2153,8 @@ async function hostGame(state, c, isPvp) {
   try { await loadPeer(); } catch (e) { return log(e.message, 'blood'); }
   const code = Math.random().toString(36).slice(2, 6).toUpperCase(), peer = new Peer(ROOM + code);
   pvp = isPvp;
-  net = { host: true, code, peer, sfx: new Set(), t: 0, n: 0, map: null };
+  setTimeout(showChatBtn);
+  net = { host: true, code, peer, sfx: new Set(), bursts: [], t: 0, n: 0 };
   peer.on('open', () => log(`방 코드 ${code} — 친구에게 알려주세요`, 'gold'));
   peer.on('error', e => log('연결 오류: ' + e.type, 'blood'));
   peer.on('connection', conn => {
@@ -1930,21 +2174,34 @@ function hostRecv(conn, m) {
     h.eq = { ...base.eq, ...h.eq }; h.sk = { ...base.sk, ...h.sk }; if (!Array.isArray(h.bag)) h.bag = [];
     for (const k of ['lvl', 'xp', 'next', 'gold', 'hpPot', 'mpPot', 'tp', 'pts']) if (!Number.isFinite(h[k])) h[k] = base[k];
     h.hp = as(h, mhp); h.mp = as(h, mmp);
-    conn._h = h; heroes.push(h); net.map = null;
+    conn._h = h; heroes.push(h);
     return log(`${CLASSES[c].name} Lv ${h.lvl}이(가) 합류했다`, 'gold', true);
   }
   if (conn._h && Object.hasOwn(CMD, m.t)) as(conn._h, () => CMD[m.t](...m.a));
 }
+// 목록마다 따로 인코딩해서, 그 게스트에게 지난번과 달라진 목록만 보낸다 (가만히 있는 아이템·시체·NPC는 안 보냄)
 function hostTick(now) {
-  if (heroes.length < 2) return net.sfx.clear();
+  if (heroes.length < 2) { net.sfx.clear(); net.bursts = []; return; }
   if (now - net.t < 50) return;
   net.t = now;
   for (const o of [...monsters, ...allies, ...items, ...objs, ...heroes]) idOf(o);
-  const s = { t: 's', act, floor, dl, actDone, maxFloor, pvp, heroes, monsters, allies, items, objs, shots, zones, fx, texts, corpses, sfx: [...net.sfx] };
-  if (net.map !== map) { net.map = map; s.map = map.map(r => r.join('')); }
-  if (s.map || ++net.n % 20 === 0) { s.seen = seen.map(r => r.map(Number).join('')); s.decals = decals; }   // 1초마다
-  net.sfx.clear();
-  for (const h of heroes) if (h._c) netSend(h._c, { ...s, you: h.id });
+  const lists = Object.fromEntries(Object.entries({ act, floor, dl, actDone, maxFloor, pvp, heroes, allies, items, objs, shots, zones, fx, texts, corpses,
+    ...(++net.n % 20 === 0 && { seen: seen.map(r => r.map(Number).join('')), decals }) }).map(([k, v]) => [k, enc(v)]));   // seen·핏자국은 1초마다
+  const always = `"sfx":${enc([...net.sfx])},"bursts":${enc(net.bursts)}`;
+  net.sfx.clear(); net.bursts = [];
+  for (const h of heroes) {
+    if (!h._c) continue;
+    const last = h._last ||= {}, out = [always, `"you":${h.id}`, `"shake":${Math.round(Math.max(shake, h._shake || 0))}`];
+    if (h._map !== map) {   // 새 층(또는 막 합류): 지도와 밝힌 곳 전체
+      h._map = map; out.push(`"map":${enc(map.map(r => r.join('')))}`);
+      lists.seen ??= enc(seen.map(r => r.map(Number).join(''))); lists.decals ??= enc(decals);
+    }
+    for (const k in lists) if (last[k] !== lists[k] || k === 'seen' || k === 'decals') { last[k] = lists[k]; out.push(`"${k}":${lists[k]}`); }
+    const mons = enc(monsters.filter(m => dist(m, h) < 800));   // 그 게스트 주변 몬스터만
+    if (last.monsters !== mons) { last.monsters = mons; out.push(`"monsters":${mons}`); }
+    h._shake = 0;
+    if (h._c.open) h._c.send(`{"t":"s",${out.join(',')}}`);
+  }
 }
 
 async function joinGame(state, c) {
@@ -1956,19 +2213,22 @@ async function joinGame(state, c) {
   peer.on('error', e => netFail(e.type === 'peer-unavailable' ? `방 ${code}을(를) 찾을 수 없습니다.` : '연결 오류: ' + e.type));
   peer.on('open', () => {
     const conn = peer.connect(ROOM + code, { serialization: 'raw', reliable: true });
-    net = { guest: true, code, peer, conn };
+    net = { guest: true, code, peer, conn }; showChatBtn();
     conn.on('open', () => netSend(conn, { t: 'join', a: [sh] }));
     onJson(conn, guestRecv);
-    conn.on('close', () => netFail('호스트와 연결이 끊겼습니다.'));
+    conn.on('close', () => net.dead || (net.dead = true, netFail('호스트와 연결이 끊겼습니다.')));
   });
 }
 function guestRecv(m) {
   if (m.t === 'log') return log(...m.a);
   if (m.t === 'close') return closePanel();
+  if (m.t === 'inv') return inventory();
+  if (m.t === 'chat') return addChat(String(m.a[0]), String(m.a[1]));
   if (m.t === 'panel') { const [t, x, b, l, c] = m.a; return openPanel(t, x, b.map((o, i) => ({ ...o, fn: () => doCmd('btn', i) })), l, c); }
   if (m.t !== 's') return;
   const was = floor, now = performance.now();
-  ({ act, floor, dl, actDone, maxFloor, pvp } = m);
+  net.last = now;
+  ({ act = act, floor = floor, dl = dl, actDone = actDone, maxFloor = maxFloor, pvp = pvp } = m);
   if (m.map) { map = m.map.map(r => [...r].map(Number)); setTiles(); }
   if (m.seen) seen = m.seen.map(r => [...r].map(c => c === '1'));
   if (m.decals) decals = m.decals;
@@ -1983,20 +2243,33 @@ function guestRecv(m) {
     }
     return arr;
   };
-  heroes = keep(heroes, m.heroes); monsters = keep(monsters, m.monsters); allies = keep(allies, m.allies);
-  items = keep(items, m.items); objs = keep(objs, m.objs); corpses = keep(corpses, m.corpses);
-  shots = m.shots; zones = m.zones; fx = m.fx; texts = m.texts;
+  // 안 온 목록은 바뀌지 않은 것 — 그대로 둔다
+  if (m.heroes) heroes = keep(heroes, m.heroes);
+  if (m.monsters) monsters = keep(monsters, m.monsters);
+  if (m.allies) allies = keep(allies, m.allies);
+  if (m.items) items = keep(items, m.items);
+  if (m.objs) objs = keep(objs, m.objs);
+  if (m.corpses) corpses = keep(corpses, m.corpses);
+  if (m.fx) fx = [...m.fx, ...fx.filter(f => f.local && f.t < f.dur)];
+  ({ shots = shots, zones = zones, texts = texts } = m);
   player = heroes.find(h => h.id === m.you) || player;
   for (const k of m.sfx) sfx(k);
+  for (const b of m.bursts) burst(...b);
+  shake = Math.max(shake, m.shake);
+  if (now - (net.saved || 0) > 10000) { net.saved = now; save(); }   // 호스트가 갑자기 나가도 10초 이상 잃지 않게
   if (!net.joined) { net.joined = true; closePanel(); log(`방 ${net.code}에 합류했다`, 'gold'); }
   if (floor === 0 && was !== 0) save();
 }
 function guestTick(dt) {
+  // 호스트 창이 그냥 닫히면 WebRTC가 끊김을 알아채는 데 수십 초 걸린다 — 스냅샷이 15초 끊기면 끝난 것으로 본다 (방장이 잠깐 다른 탭에 가도 버티도록 넉넉히)
+  if (net.joined && !net.dead && performance.now() - net.last > 15000) { net.dead = true; net.conn.close(); netFail('호스트의 응답이 없습니다.'); }
   const k = Math.min(1, dt * 15);
   for (const o of [...heroes, ...monsters, ...allies]) if (o._tx != null) { o.x += (o._tx - o.x) * k; o.y += (o._ty - o.y) * k; }
   for (const s of shots) { s.x += s.vx * dt; s.y += s.vy * dt; }
   for (const f of fx) f.t += dt;
   for (const t of texts) { t.life -= dt; t.y -= 30 * dt; }
+  for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 420 * dt; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0);
   for (const m of msgs) m.life -= dt;
   msgs = msgs.filter(m => m.life > 0);
   lightR = floor ? 300 + (hasFx('lamp') ? 120 : 0) : 560; dark = floor ? .9 : .5;
@@ -2023,6 +2296,7 @@ function frame(now) {
   drawMap();
   drawHUD();
   drawPreviews(now);
+  if (!panel.hidden && panel.classList.contains('inv')) renderInv();
   requestAnimationFrame(frame);
 }
 
