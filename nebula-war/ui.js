@@ -1,1248 +1,1567 @@
-// 네뷸라 워 — 규칙 기반 AI. sim 상태를 읽기만 하고 사람과 같은 명령을 낸다.
-// DOM·Math.random·Date·g.rng 금지(결정론). 적은 S.visible + 기억(mem.bld)으로만 안다.
+// 네뷸라 워 — 입력 → 명령, 선택, 부대 지정, 카메라, HUD 갱신.
+// DOM 전용. 시뮬레이션 상태는 읽기만 하고, 바꾸는 건 전부 명령(takeCommands)으로 내보낸다.
 //
-//   create(g, p, { level, seed, board, pers, cast }) → ai   (cast: 0 = 마법 끔 — 테스트 전용)        ai.think(g) → cmds[]  (판단 틱이 아니면 [])
-//   fromRoster(g, players, seed) → ais[]   (q.ai 있는 자리만, 팀마다 board 공유)
-//   collect(g, ais, cmds) → cmds           (플레이어 번호 순으로 이어 붙인다)
-//   view(g, p, mem) → { tick, p, me, own, allies, foes, res, known }   (foes = 보이는 적만, 같은 패스에서 기억 갱신)
-const NW_AI = (function nwAI() {
-  const S = typeof NW_SIM !== 'undefined' ? NW_SIM : require('./sim.js');
-  const D = S.D, TFP = S.TFP;
-  const CAST = typeof NW_AI_CAST !== 'undefined' ? NW_AI_CAST : require('./ai-cast.js');
-
-  // ---- ① 표 ----
-  const LEVELS = { // every: 판단 간격(틱), wpc: 수정 1개당 일꾼 ×2, gas: 가스 건물당 일꾼, acc: 빌드 진행 확률(%),
-                   // scoutAt: 정찰 출발 일꾼 수, micro: 0 없음·1 집중사격/사거리 뒤로·2 +다친 유닛 빼기·카이팅·상성, retreat: 적/아군 가치 비가 이 값(%) 넘으면 후퇴(0 = 안 함), attack: 공격 기준 배율(%),
-                   // maxProd: 생산 건물 상한, patrol: 순찰 주기(틱, 0 = 안 함)
-                   // cast: 시전(ai-cast.js) — lvl 규칙 최소 난이도, every 판단 n번에 1번, max 판단당 시전 명령, clump 뭉침 최소 수,
-                   //       ff 아군 피해 회피(1 가치 비율·2 반경 안 0), reserve 결정적 마법 마나 남기기, toggles 교전 끝나면 토글 끄기, synergy 전술 연계
-    easy:   { every: 16, wpc: 3, gas: 2, acc: 60,  scoutAt: 13, micro: 0, retreat: 0,   attack: 130, maxProd: 3, patrol: 0,
-              cast: { lvl: 1, every: 4, max: 1 } },
-    normal: { every: 8,  wpc: 4, gas: 3, acc: 90,  scoutAt: 10, micro: 1, retreat: 150, attack: 100, maxProd: 5, patrol: 3000,
-              cast: { lvl: 2, every: 1, max: 3, clump: 4, ff: 1 } },
-    hard:   { every: 4,  wpc: 5, gas: 3, acc: 100, scoutAt: 9,  micro: 2, retreat: 125, attack: 100, maxProd: 7, patrol: 2000,
-              cast: { lvl: 3, every: 1, max: 6, clump: 3, ff: 2, reserve: true, toggles: true, synergy: true } },
+// NW_UI.create({ canvas, minimap, hud, sim, data, me, getState, render }) -> U
+//   U.view            렌더러에 넘기는 view ({me, camX, camY, sel, drag, ghost, vw, vh})
+//   U.takeCommands()  이번 틱 명령 배열(비움)
+//   U.update(state)   매 프레임: 카메라 스크롤, 고스트, 상단 바, 선택 정보, 명령 카드
+//   U.onEvents(evs)   매 틱: 죽은 엔티티를 선택/부대에서 뺀다
+//   U.start() / U.stop()  게임 시작(선택·부대 초기화, 본진으로 카메라) / 입력 끄기
+//   U.setSpectate(on, asObserver) / U.setVision(플레이어 번호|'all')  관전(탈락 후·리플레이): 명령 차단(선택·카메라만), 시야 기준 플레이어 전환
+// 편의 기능(sim 에 명령을 보내지 않고 상태·이벤트만 읽는다):
+//   공격받음 알림 — onEvents 의 attack 이벤트(틱 단위)로 판단, 화면 밖이면 가장자리 화살표·미니맵 핑(view.pings)·알림 줄·알림음.
+//     같은 지역(반경 12타일) 10초(sim 200틱) 쿨다운. Space = 마지막 알림 위치로 카메라.
+//   노는 일꾼 — 명령 없는 내 일꾼(가스 건물 안은 gather 명령이라 자동 제외). 버튼/F1 = 다음(순환), Shift = 전부.
+//   명령 카드 툴팁 — hover(250ms)·키보드 focus(즉시), aria-describedby="nw-tip".
+const NW_UI = (() => {
+  const REASON = {
+    crystal: '크리스탈이 부족합니다', nebula: '성운 가스가 부족합니다', supply: '보급이 부족합니다', tech: '먼저 필요한 건물을 지어야 합니다',
+    larva: '유충이 없습니다', queue: '대기열이 가득 찼습니다', blocked: '놓을 수 없는 자리입니다',
+    creep: '균사층 위에만 지을 수 있습니다', power: '레이 라인 위에만 지을 수 있습니다', vent: '가스 분출구 위에만 지을 수 있습니다',
+    max: '이미 최고 단계입니다', busy: '지금 하는 작업이 끝나야 합니다', addon: '부속 건물이 이미 붙어 있습니다',
+    unpowered: '레이 라인 밖이라 작동하지 않습니다', land: '내릴 수 없는 자리입니다', repair: '수리할 수 있는 대상이 아닙니다',
+    energy: '마나가 부족합니다', research: '먼저 연구를 마쳐야 합니다', space: '수송 칸이 부족합니다', target: '그 대상에는 쓸 수 없습니다',
+    pair: '같은 유닛을 둘 이상 선택해야 합니다', vis: '시야 안에만 쓸 수 있습니다',
   };
-  // 자원 기준값(공격 가치·저축·잉여 수정/네뷸라) 배율 — 5bbc37e 재조정에서 비용·채집량이 함께 ×1.25
-  const ECO = 1.25;
-  // 관리자 상수(타일·틱·%) — 튜닝 손잡이
-  const K = {
-    DEFEND_R: 14,    // 자기 건물 이만큼 안의 보이는 적 유닛 = 방어
-    RETREAT_R: 12,   // 후퇴 판단: 병력 중심 이 반경 안 적·아군 가치
-    CALM: 600,       // 후퇴 후 재공격까지 틱
-    RALLY_R: 6,      // 집결점 도착·목표 사이트 도착 반경
-    MICRO_CMDS: 6,   // 전술 판단당 명령 상한
-    PULL_HP: 30, BACK_HP: 60, PULL_HIT: 40, PULL_HP_MUT: 50, BACK_HP_MUT: 80, // 다친 유닛 빼기: hp% 미만·최근 피격 틱, 복귀 hp%
-    KITE_RANGE: 96, MELEE: 32,              // 카이팅 사거리 하한(px), 근접 판정(px)
-    UNSEEN_R: 12, UNSEEN_WIN: 240, DETECT_FOR: 6000, // 안 보이는 적: 반경, 사건 창(틱), 탐지 건물 유지 틱
-    ASSIST_HIT: 60, ASSIST_HOLD: 120,       // 사람 팀원 지원: 피격 인정 틱, 해제 틱
-    DRY: 4,                                 // 기지 주변 수정 덩이가 이 이하면 확장 우선
-    OVERWHELM: 3,                           // 후퇴 안 함: 전체 병력 ≥ 근처 적 가치 × 이 배 × 후퇴 비율
-    CELL: 8,                                // 끝판 탐색 칸 한 변(타일)
-    STUCK: 900,                             // 공격 목표에 이 틱 동안 진척이 없으면 건너뜀
-    SPLIT: 4,                               // 공격 중 습격: 병력이 습격 가치의 이 배 이상이면 일부만 방어
-    LEAD_WAIT: 1200,                        // 팀원 단독 개시: 리더가 이 틱 동안 공격을 개시하지 않으면 팀원이 기준 충족 시 직접
-    ASSIST_R: 10, ASSIST_MIN: 150,          // 사람 팀원 지원: 피격 지점 이 반경 안 보이는 적 가치가 이 이상일 때만
-    X_GIVEUP: 1500,                         // 확장('x') 단계가 이 틱 동안 연속 실패(자리 없음)하면 건너뜀
-    CAST_CMDS: 6,                           // 시전 명령 판단당 절대 상한(난이도 값은 LEVELS.cast.max)
-    CASTER_BEHIND: 2, CASTER_FAR: 6,        // 무기 없는 시전 유닛: 병력 중심에서 집결점 쪽 이 타일 뒤, 이 타일 넘게 벌어지면 재명령
-    CASTER_FRONT: 33,                       // 공격 중 시전 유닛이 따라갈 병력 = 목표에 가까운 이 % (최소 1기)
+  // 3a: 모드 전환 버튼 이름, 수송 칸 크기(sim SLOTS 와 같다), 해금 연구 → 아이콘
+  const MODE_LABEL = { burrow: '휴면', unburrow: '휴면 해제', siege: '정박', unsiege: '정박 해제' };
+  const SLOT_N = { small: 1, medium: 2, large: 4 };
+  const UNLOCK_SVG = { optcloak: 'optcloak', mindstorm: 'mindstorm', burrow: 'burrow', transport: 'load', detect: 'detect' };
+  const upSvg = ef => ef.unlock ? UNLOCK_SVG[ef.unlock] || 'unlock' : ef.dmgPerLevel ? 'weapon' : 'armor';
+  // 능력 아이콘 = art-icons.js 픽셀 그림(SPR 'spell@id'). 능력을 해금하는 연구도 같은 그림.
+  const spellSprite = id => NW_SIM.D.abilities[id] && NW_ART.SPR['spell@' + id] ? 'spell@' + id : null;
+  // 능력 한 줄 설명(툴팁) — 도감과 같은 출처(codex.js)
+  const SPELL_DESC = NW_CODEX.SPELL_DESC;
+
+  // 일꾼 건설 메뉴: [기본(B), 고급(V)]. 부속(addonOf)·변태(morphFrom)·중립 건물은 일꾼이 짓지 않으므로 넣지 않는다.
+  const BUILD = {
+    legion:  [['hq', 'depot', 'pump', 'garrison', 'workshop', 'drillhall', 'pillbox', 'flak'], ['motorpool', 'arsenal', 'airfield', 'labs']],
+    swarm:   [['nest', 'siphon', 'vat', 'mutapit', 'tendril', 'wyrmpit'], ['roost', 'matronden', 'blightmound', 'behemothcave']],
+    elysian: [['sanctum', 'resonator', 'distiller', 'portal', 'anvil', 'wardspire', 'synapse', 'wellspring'],
+              ['constructbay', 'assemblybay', 'lookout', 'skygate', 'fleetspire', 'citadel', 'sagelibrary', 'wardencourt']],
   };
-  const LEVEL_NAMES = { easy: '쉬움', normal: '보통', hard: '어려움' };
-  const NAMES = { // 종족별 AI 이름(자체 명칭, 표시 전용)
-    legion: ['볼크 대령', '하딘 소령', '레이스 중령', '카브 장군', '오렌 대위', '텔마 준장'],
-    swarm: ['심연모', '갈퀴 여왕', '포식 의지', '울음 군락', '검은 산란', '굶주린 둥지'],
-    elysian: ['세레이아', '아우렐', '노바린', '이실렌', '카에도르', '벨리아'],
+  const SVG = {
+    move: '<path d="M4 12h15M13 6l6 6-6 6"/>',
+    stop: '<rect x="6" y="6" width="12" height="12"/>',
+    hold: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/>',
+    patrol: '<path d="M4 9h15l-4-4M20 15H5l4 4"/>',
+    attack: '<circle cx="12" cy="12" r="6"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/>',
+    build: '<path d="M3 20h18M5 20V11h14v9M9 11V6h6v5"/>',
+    back: '<path d="M20 12H5M10 6l-6 6 6 6"/>',
+    rally: '<path d="M6 21V4h11l-3 4 3 4H6"/>',
+    build2: '<path d="M3 20h18M5 20V11h14v9M9 11V6h6v5M12 13v5M9.5 15.5h5"/>',
+    repair: '<path d="M15 4a4 4 0 0 0 5 5l-10 10-4-1-1-4z"/>',
+    lift: '<path d="M12 20V7M6 12l6-6 6 6M4 3h16"/>',
+    land: '<path d="M12 3v13M6 11l6 6 6-6M4 21h16"/>',
+    next: '<path d="M6 6l6 6-6 6M12 6l6 6-6 6"/>',
+    weapon: '<path d="M4 20l3-3M6 14l4 4M9 15L20 4v4L12 16z"/>',
+    armor: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 14l3-3 3 3"/>',
+    research: '<path d="M9 3h6M10 3v6l-5 11h14L14 9V3M8 15h8"/>',
+    // 3a: 능력 · 모드 · 수송 · 해금 연구
+    heal: '<path d="M9 4h6v5h5v6h-5v5H9v-5H4V9h5z"/>',
+    mindstorm: '<path d="M6 14a4 4 0 0 1 1-8 5 5 0 0 1 9 1 3.5 3.5 0 0 1 1 7z"/><path d="M13 13l-3 4h4l-3 5"/>',
+    optcloak: '<path d="M2 12c3-5 7-7 10-7s7 2 10 7c-3 5-7 7-10 7s-7-2-10-7z"/><circle cx="12" cy="12" r="3"/><path d="M4 21L20 3"/>',
+    scan: '<path d="M12 2v11M8 4l4 9 4-9"/><ellipse cx="12" cy="18" rx="8" ry="3"/>',
+    detect: '<path d="M2 12c3-5 7-7 10-7s7 2 10 7c-3 5-7 7-10 7s-7-2-10-7z"/><circle cx="12" cy="12" r="3"/>',
+    burrow: '<path d="M12 3v9M8 8l4 4 4-4"/><path d="M3 20c3-5 15-5 18 0z"/>',
+    unburrow: '<path d="M12 13V4M8 8l4-4 4 4"/><path d="M3 20c3-5 15-5 18 0z"/>',
+    siege: '<path d="M3 16h14v-4H5zM9 12V9h5v3M14 10h8"/><path d="M5 16l-3 5M15 16l3 5"/>',
+    unsiege: '<path d="M3 15h14v-4H5zM9 11V8h5v3M14 9h4"/><circle cx="6" cy="18" r="2"/><circle cx="14" cy="18" r="2"/>',
+    load: '<path d="M4 12v8h16v-8"/><path d="M12 3v11M8 10l4 4 4-4"/>',
+    unload: '<path d="M4 12v8h16v-8"/><path d="M12 15V3M8 7l4-4 4 4"/>',
+    merge: '<path d="M4 4l8 8 8-8M12 12v9"/>',
+    unlock: '<rect x="5" y="11" width="14" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0"/>',
   };
-  // 성향: build = 순서 있는 누적 목표(첫 미충족 단계를 진행). 'w' 일꾼 수, 'b' 건물(같은 id 반복 = n개째, 부속은 본체가 build),
-  // 'm' 변태, 'gas' 가스 건물 수, 'x' 확장 수, 'u' 유닛 수(큐 포함), 'up' 연구 1단계. 이후 mix 비율 생산·research 순서 연구·expandAt 확장.
-  const PERS = { legion: {}, swarm: {}, elysian: {} }; // 종족당 3개(키 고정)
-  PERS.legion.rush = { name: '보병 러시',
-    build: [['w', 9], ['b', 'depot'], ['w', 10], ['b', 'garrison'], ['b', 'garrison'], ['w', 12], ['gas', 1], ['b', 'drillhall'],
-      ['u', 'trooper', 6], ['b', 'depot'], ['up', 'legion_trooper_range'], ['b', 'workshop'], ['w', 16], ['b', 'garrison'], ['b', 'uplink']],
-    mix: { trooper: 3, scorcher: 1 }, attack: { value: 600, tick: 3600 }, expandAt: 9000,
-    research: ['legion_infantry_weapons', 'legion_infantry_armor'],
-    casters: { corpsman: { per: 6, max: 4 } }, spells: ['legion_smoke'] };
-  PERS.legion.mech = { name: '기갑 확장',
-    build: [['w', 10], ['b', 'depot'], ['w', 13], ['x', 1], ['b', 'garrison'], ['gas', 1], ['u', 'trooper', 3], ['w', 16], ['b', 'motorpool'],
-      ['b', 'depot'], ['b', 'garage'], ['gas', 2], ['b', 'arsenal'], ['b', 'motorpool'], ['up', 'legion_vehicle_weapons']],
-    mix: { hound: 1, bastion: 2, strider: 2 }, attack: { value: 2000, tick: 9000 }, expandAt: 12000,
-    research: ['legion_vehicle_plating', 'legion_strider_range', 'legion_hound_speed'],
-    spells: ['legion_hound_drones'] };
-  PERS.legion.air = { name: '공중 함대',
-    build: [['w', 10], ['b', 'depot'], ['b', 'garrison'], ['gas', 1], ['u', 'trooper', 4], ['w', 14], ['b', 'motorpool'], ['b', 'depot'],
-      ['b', 'airfield'], ['gas', 2], ['b', 'tower'], ['b', 'arsenal'], ['b', 'airfield'], ['b', 'labs'], ['b', 'drillhall'], ['b', 'intel'], ['b', 'gravlab'],
-      ['up', 'legion_ship_weapons'], ['b', 'uplink'], ['b', 'silo']], // 정비 학교 + 위장 공방(관측수·방전탄·망토), 중계 안테나(정찰), 투하 크레인(고철 낙하)
-    mix: { phantom: 6, lancer: 2, dreadnought: 1, shade: 1 }, attack: { value: 1800, tick: 8000 }, expandAt: 10000,
-    research: ['legion_ship_plating'],
-    casters: { surveyor: { per: 6, max: 2 } }, spells: ['legion_tow', 'legion_discharge', 'legion_optcloak', 'legion_repairdrones'] };
-  PERS.swarm.skitter = { name: '스키터 러시',
-    build: [['w', 9], ['b', 'vat'], ['w', 10], ['gas', 1], ['u', 'skitter', 6], ['up', 'swarm_skitter_speed'], ['b', 'mutapit'], ['x', 1], ['w', 14], ['b', 'nest']],
-    mix: { skitter: 1 }, attack: { value: 450, tick: 3000 }, expandAt: 7000,
-    research: ['swarm_melee', 'swarm_carapace'] };
-  PERS.swarm.macro = { name: '확장 물량',
-    build: [['w', 10], ['x', 1], ['w', 12], ['b', 'vat'], ['gas', 1], ['u', 'skitter', 4], ['w', 16], ['b', 'wyrmpit'], ['gas', 2], ['b', 'mutapit'],
-      ['up', 'swarm_missile'], ['m', 'grandnest'], ['x', 2], ['b', 'matronden'], ['m', 'apexnest'], ['b', 'behemothcave'], ['b', 'blightmound']],
-    mix: { spinewyrm: 4, behemoth: 1, skitter: 2 }, attack: { value: 2200, tick: 9000 }, expandAt: 12000,
-    research: ['swarm_spinewyrm_range', 'swarm_carapace', 'swarm_melee'],
-    casters: { matron: { per: 6, max: 3 }, blighter: { per: 8, max: 3 } }, spells: ['swarm_mat', 'swarm_rot'] };
-  PERS.swarm.air = { name: '비행 물량',
-    build: [['w', 10], ['b', 'vat'], ['gas', 1], ['u', 'skitter', 4], ['w', 13], ['m', 'grandnest'], ['x', 1], ['gas', 2], ['b', 'roost'], ['up', 'swarm_flyer_attacks']],
-    mix: { wingsting: 1 }, attack: { value: 1600, tick: 7000 }, expandAt: 10000,
-    research: ['swarm_flyer_carapace'] };
-  PERS.elysian.oath = { name: '오스블레이드 압박',
-    build: [['w', 8], ['b', 'resonator'], ['w', 10], ['b', 'portal'], ['b', 'portal'], ['w', 12], ['b', 'resonator'], ['gas', 1],
-      ['u', 'oathblade', 4], ['b', 'anvil'], ['up', 'elysian_ground_weapons'], ['b', 'synapse'], ['b', 'citadel'], ['b', 'sagelibrary'], ['up', 'elysian_oathblade_speed']],
-    mix: { oathblade: 3, arcwalker: 1 }, attack: { value: 800, tick: 4000 }, expandAt: 9000,
-    research: ['elysian_ground_armor', 'elysian_shields'],
-    casters: { sage: { per: 5, max: 3 } }, spells: ['elysian_mindstorm'] };
-  // 브리프 데이터 + ['b', 'anvil'] — research 의 지상 무기·갑옷 연구가 대장간(anvil)에서만 되므로(성향 데이터 테스트의 at 검사)
-  PERS.elysian.ground = { name: '고급 지상',
-    build: [['w', 9], ['b', 'resonator'], ['w', 12], ['x', 1], ['b', 'portal'], ['gas', 1], ['u', 'oathblade', 2], ['b', 'synapse'], ['gas', 2],
-      ['b', 'constructbay'], ['b', 'assemblybay'], ['b', 'portal'], ['b', 'anvil'], ['b', 'lookout'], ['b', 'citadel'], ['b', 'sagelibrary'], ['up', 'elysian_arcwalker_range']],
-    mix: { arcwalker: 3, oathblade: 2, crucible: 1 }, attack: { value: 2200, tick: 9000 }, expandAt: 12000,
-    research: ['elysian_ground_weapons', 'elysian_ground_armor'],
-    casters: { sage: { per: 6, max: 2 }, watcher: { per: 12, max: 1 } }, spells: ['elysian_mindstorm', 'elysian_echo'] };
-  PERS.elysian.fleet = { name: '함대',
-    build: [['w', 9], ['b', 'resonator'], ['b', 'portal'], ['gas', 1], ['u', 'oathblade', 2], ['w', 13], ['b', 'synapse'], ['gas', 2],
-      ['b', 'skygate'], ['b', 'fleetspire'], ['b', 'skygate'], ['b', 'citadel'], ['b', 'sagelibrary'], ['b', 'wardencourt'], ['up', 'elysian_air_weapons']],
-    mix: { sentinel: 2, skimmer: 1, ark: 1 }, attack: { value: 2000, tick: 9000 }, expandAt: 11000,
-    research: ['elysian_air_armor'],
-    casters: { warden: { per: 8, max: 2 } }, spells: ['elysian_prism'] };
-  const AA = { legion: 'trooper', swarm: 'spinewyrm', elysian: 'arcwalker' }; // 종족 대공 기본 유닛(상성 생산)
-  const FILL = { legion: 'trooper', swarm: 'skitter', elysian: 'oathblade' }; // 수정 전용 기본 유닛(네뷸라가 막혀 수정이 쌓일 때)
-  const DET = { legion: 'flak', swarm: 'puffer', elysian: 'wardspire' }; // 종족 탐지 건물(안 보이는 적에게 맞을 때)
-  const SUPPLY = { legion: 'depot', swarm: 'bloater', elysian: 'resonator' }; // 보급: 스웜은 유닛(train), 나머지는 건물(build)
-  const NEAR = 10 * TFP; // 기지 주변 = 10타일(sim nearbyCrystal 과 같은 반경)
-  const GAS = {}; // 종족 → 분출구 건물(onVent)
-  for (const b of Object.values(D.buildings)) if (b.race && b.onVent) GAS[b.race] = b.id;
-  // 부속이 붙는 본체(hq, motorpool, airfield, labs): 오른쪽 2칸을 비워 둔다
-  const ADDON_HOST = new Set(Object.values(D.buildings).filter(b => b.addonOf).map(b => b.addonOf));
+  const svg = k => `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true">${SVG[k] || SVG.research}</svg>`;
+  const ALERT_TEXT = { base: '본진이 공격받고 있습니다', worker: '일꾼이 공격받고 있습니다', unit: '유닛이 공격받고 있습니다' };
+  const ALERT_R = 12, ALERT_COOL_S = 10, EDGE_MS = 2500, PING_MS = 3000, LINE_MS = 3000, TIP_DELAY = 250;
+  const EDGE_SVG = '<svg viewBox="0 0 28 28" aria-hidden="true"><path d="M25 14L5 4l5 10-5 10z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="miter"/></svg>';
+  const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const SCROLL = 24, EDGE = 8, MAX_SEL = 12, DBL = 300, LIFT_PX = 26; // LIFT_PX = render.js LIFT_B(띄운 건물 높이)
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const mmss = tick => { const s = Math.floor(tick / 20); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
 
-  const seedFor = (seed, p) => (seed ^ Math.imul(p + 1, 0x9E3779B1)) | 0;
-  const newMemory = () => ({ bld: new Map(), air: new Map(), ground: new Map() });
-  const newBoard = () => ({ target: null, attackAt: -1, leader: -1, members: [], active: false }); // members: 이 보드를 쓰는 AI 플레이어 번호, active: 리더가 공격 중
-  const rnd = (ai, n) => S.mulberry32(ai.r) % n;
-  const d2 = (a, b) => { const dx = a.x - b.x, dy = a.y - b.y; return dx * dx + dy * dy; };
-
-  // ---- ② 뷰·기억 ----
-  function tileSeen(g, f, b) {
-    for (let j = 0; j < b.h; j++) for (let i = 0; i < b.w; i++) if (f[(b.ty + j) * g.map.w + b.tx + i] === 2) return true;
-    return false;
-  }
-  function view(g, p, mem) {
-    const v = { tick: g.tick, p, me: g.players[p], own: [], allies: [], foes: [], res: [], known: mem.bld };
-    const seen = new Set();
-    for (const e of g.ents) {
-      if (e.owner < 0) { v.res.push(e); continue; }
-      if (e.owner === p) { v.own.push(e); continue; }
-      if (!S.isEnemy(g, p, e.owner)) { v.allies.push(e); continue; }
-      if (!S.visible(g, p, e)) continue;
-      v.foes.push(e);
-      if (e.isB) { seen.add(e.id); mem.bld.set(e.id, { id: e.id, type: e.type, owner: e.owner, tx: e.tx, ty: e.ty, w: e.def.w, h: e.def.h, x: e.x, y: e.y, seen: g.tick }); }
-      else if (!e.def.worker && !e.parent && fighterDef(e.def)) (e.def.air ? mem.air : mem.ground).set(e.id, g.tick); // 전투 유닛만(블로터·일꾼·함재기 제외 — 상성 판단용)
+  // 단축키: id 첫 글자, 이미 쓰였으면 id의 다음 글자(결정론적). 고정 키가 있는 항목은 그대로.
+  function assignKeys(items) {
+    const taken = new Set(items.filter(b => b.key).map(b => b.key));
+    for (const b of items) {
+      if (b.key) continue;
+      for (const ch of b.id.toUpperCase()) if (ch >= 'A' && ch <= 'Z' && !taken.has(ch)) { b.key = ch; break; }
+      taken.add(b.key);
     }
-    for (const [id, b] of mem.bld) if (!seen.has(id) && tileSeen(g, g.fog[p], b)) mem.bld.delete(id); // 그 자리가 보이는데 없다 = 파괴·이동
-    for (const m of [mem.air, mem.ground]) for (const [id, t] of m) if (t < g.tick - 3000) m.delete(id);
-    return v;
+    return items;
   }
 
-  // ---- ③ 공용 도우미 ----
-  // 변태 계보(sim reaches 와 같은 규칙): type 이 id 이거나 morphFrom 을 따라 id 에 닿는가
-  function lineage(type, id) {
-    for (let t = type; t; t = D.buildings[t] && D.buildings[t].morphFrom) if (t === id) return true;
-    return false;
-  }
-  const costOf = what => (D.units[what] || D.buildings[what]).cost;
-  const supply2Of = what => { const u = D.units[what]; return u ? Math.round((u.supply || 0) * 2) * (u.count || 1) : 0; };
-  // 예산 = 현재 자원 − 아직 착공 전인 자기 일꾼 build 명령 비용. n: 이번 판단에 건물마다 낸 train 수,
-  // rects: 착공 전 건설 자리(명령 중 + 이번 판단) [tx, ty, w, h] — 겹치거나 붙여 짓지 않게
-  function bankOf(g, v) {
-    const me = v.me, bank = { crystal: me.crystal, nebula: me.nebula, supply2Free: me.supplyMax2 - me.supplyUsed2, n: new Map(), rects: [] };
-    for (const e of v.own) {
-      if (e.isB || !e.order || e.order.type !== 'build') continue;
-      const d = D.buildings[e.order.what];
-      spend(bank, d.cost); bank.rects.push([e.order.tx, e.order.ty, d.w, d.h]);
-    }
-    return bank;
-  }
-  function spend(bank, cost, supply2 = 0) { bank.crystal -= cost.crystal || 0; bank.nebula -= cost.nebula || 0; bank.supply2Free -= supply2; }
-  const afford = (bank, cost, supply2 = 0) => bank.crystal >= (cost.crystal || 0) && bank.nebula >= (cost.nebula || 0) && bank.supply2Free >= supply2;
-  // canTrain 에 넘길 같은 틱 지출분(예산에서 역산 — 착공 전 건설비도 들어가 더 엄격)
-  const pendOf = (v, bank, b) => ({ crystal: v.me.crystal - bank.crystal, nebula: v.me.nebula - bank.nebula,
-    supply2: (v.me.supplyMax2 - v.me.supplyUsed2) - bank.supply2Free, n: bank.n.get(b.id) || 0 });
-  // 건물 수 = 완성+건설 중(계보 포함) + 그 건물로 build 명령 중인 일꾼 + 그 건물로 변태 중
-  function count(v, id) {
-    let n = 0;
-    for (const e of v.own) {
-      if (e.isB) { if (lineage(e.type, id) || (e.morph && e.morph.to === id)) n++; }
-      else if (e.order && e.order.type === 'build' && e.order.what === id) n++;
-    }
-    return n;
-  }
-  // 유닛 수 = 자기 유닛 + 생산 큐(한 번에 여럿 나오는 유닛은 그 수만큼)
-  function unitCount(v, id) {
-    let n = 0;
-    const per = (D.units[id] && D.units[id].count) || 1;
-    for (const e of v.own) {
-      if (!e.isB) { if (e.type === id) n++; continue; }
-      for (const q of e.queue) if (q.what === id) n += per;
-    }
-    return n;
-  }
-  // 진행 중인 보급 수: 건설 중·착공 전 건설 명령(건물), 생산 큐(스웜 블로터)
-  function supplyPending(v, what) {
-    let n = 0;
-    for (const e of v.own) {
-      if (e.isB) { if (e.type === what && e.buildLeft > 0) n++; for (const q of e.queue) if (q.what === what) n++; }
-      else if (e.order && e.order.type === 'build' && e.order.what === what) n++;
-    }
-    return n;
-  }
-  const supplyBusy = (v, what) => supplyPending(v, what) > 0;
-  const basesOf = v => v.own.filter(b => b.isB && b.def.dropoff && !(b.buildLeft > 0) && !b.lifted);
+  function create(o) {
+    const nameOf = o.nameOf || (i => 'P' + (i + 1)); // 표시 이름(textContent 로만 쓴다)
+    const S = o.sim, D = o.data, R = o.render, canvas = o.canvas, mini = o.minimap, hud = o.hud;
+    let me = o.me, spectate = false, seeAll = false, observer = false; // 관전: 명령 차단 · 시야 기준 me · seeAll = 전체 시야 · observer = 리플레이 시청자(소유 표시를 P 번호로)
+    const TILE = S.TILE, TFP = S.TFP, FP = S.FP;
+    const q = sel => hud.querySelector(sel);
+    const el = { race: q('[data-hud=race]'), crystal: q('[data-hud=crystal]'), crystalWrap: q('[data-hud=crystal-wrap]'),
+      supply: q('[data-hud=supply]'), supplyWrap: q('[data-hud=supply-wrap]'), clock: q('[data-hud=clock]'),
+      nebula: q('[data-hud=nebula]'), nebulaWrap: q('[data-hud=nebula-wrap]'),
+      info: q('[data-hud=info]'), card: q('[data-hud=card]'), notice: q('[data-hud=notice]'),
+      alert: q('[data-hud=alert]'), edges: q('[data-hud=edges]'), idle: q('[data-hud=idle]'), idleIcon: q('[data-hud=idle-icon]'),
+      idleN: q('[data-hud=idle-n]'), tip: q('#nw-tip'), pin: q('[data-hud=pin]'), chip: q('[data-hud=mode-chip]') };
 
-  // 채굴 상자: 기지마다 10타일 안 수정·분출구 각각에 대해 (기지 ∪ 자원) 외접 사각형을 1칸 넓힌 것 [x0, y0, x1, y1](포함).
-  // 자원마다 따로(일꾼 왕복 통로) — 하나로 묶으면 옆 확장 자원까지 끌어들여 기지 주변 전체를 막는다.
-  function miningBoxes(v) {
-    const out = [];
-    for (const b of basesOf(v)) {
-      const bx1 = b.tx + b.def.w - 1, by1 = b.ty + b.def.h - 1;
-      out.push([b.tx - 1, b.ty - 1, bx1 + 1, by1 + 1]);
-      for (const r of v.res) {
-        if (d2(b, r) > NEAR * NEAR) continue;
-        out.push([Math.min(b.tx, r.tx) - 1, Math.min(b.ty, r.ty) - 1, Math.max(bx1, r.tx + r.def.w - 1) + 1, Math.max(by1, r.ty + r.def.h - 1) + 1]);
+    const view = { me, camX: 0, camY: 0, sel: [], drag: null, ghost: null, vw: 0, vh: 0, oy: 0, pings: [] };
+    // 키보드만으로(kbNav): 보이는 전장 가운데의 십자 = 커서. 방향키로 카메라를 옮겨 맞추고 Enter = 그 자리 왼쪽 클릭(선택 · 무장 실행),
+    // 이동 무장 중 Enter = 우클릭 문맥 명령(채집·공격·이동). 마우스를 움직이거나 화면을 만지면 꺼진다. P2P 에선 Enter 가 채팅이라 무장 중에만.
+    let kbNav = false, kbOff = [0, 0]; // kbOff: 카메라가 맵 끝에 닿아 더 못 갈 때 십자가 가운데에서 벗어난 거리
+    const kbCross = document.createElement('i'); kbCross.className = 'kb-cross'; kbCross.hidden = true; kbCross.setAttribute('aria-hidden', 'true');
+    const kbCenter = () => [view.vw / 2 + kbOff[0], view.oy + view.vh / 2 + kbOff[1]];
+    // 방향키 한 축: 벗어난 십자를 먼저 가운데로 되돌리고, 나머지는 카메라, 카메라가 끝에 막힌 만큼 십자를 민다(보이는 전장 안에서).
+    function kbAxis(d, i, lim) {
+      let off = kbOff[i];
+      if (off && Math.sign(d) !== Math.sign(off)) { const n = off + d; if (Math.sign(n) === Math.sign(off)) { kbOff[i] = n; return; } d = n; off = 0; }
+      const k = i ? 'camY' : 'camX', c0 = view[k]; view[k] += d; clampCam();
+      kbOff[i] = clamp(off + d - (view[k] - c0), -lim, lim);
+    }
+    // mode: null | 'move'|'attack'|'patrol'|'rally'|'repair' | {build} | {land: 건물 id}
+    // page: 일꾼 카드 'main'|'build'|'build2', cpage: 건물 카드 페이지(3×3 넘칠 때)
+    let cmds = [], mode = null, page = 'main', cpage = 0, groups = {}, active = false;
+    let lastGroup = { n: -1, t: 0 }, lastClick = { id: 0, t: 0 }, drag = null, mmDrag = false, noticeT = 0;
+    const mouse = { x: 0, y: 0, in: false, onCanvas: false, shift: false };
+    // 알림: alerts = 표시 중({x, y, t0, node}), cool = 쿨다운 기록({x, y, tick}), lastAlert = Space 이동 위치
+    let alerts = [], cool = [], lastAlert = null, alertT = 0, idleLast = 0, idleCount = -1;
+    let tipSlot = -1, tipTimer = 0, tipSig = '';
+    const keys = {};
+
+    const st = () => o.getState();
+    // HUD 치수 토큰(--bar-h · --hud-h · --dock-w · --mini)은 리사이즈 때 한 번만 읽어 캐시한다(매 프레임 getComputedStyle 금지).
+    // --dock-w 는 오른쪽 계기 기둥 폭 + 바깥 여백(--space-2)까지 가린 폭으로 본다.
+    let dims = null;
+    function readDims() {
+      const cs = getComputedStyle(document.documentElement), px = (k, d) => { const v = parseFloat(cs.getPropertyValue(k)); return Number.isFinite(v) ? v : d; };
+      const dock = px('--dock-w', 0);
+      dims = { bar: px('--bar-h', 36), hud: px('--hud-h', 0), dock: dock > 0 ? dock + px('--space-2', 8) : 0, mini: Math.round(px('--mini', 232)),
+        ringR: px('--ring-r', 104), seg: px('--cmd', 56) };
+      if (mini && dims.mini > 0 && (mini.width !== dims.mini || mini.height !== dims.mini)) { mini.width = dims.mini; mini.height = dims.mini; } // 미니맵 내부 해상도 = CSS 크기(정수 배율)
+      return dims;
+    }
+    addEventListener('resize', () => { dims = null; });
+    const hudH = () => (dims || readDims()).hud;
+    const barH = () => (dims || readDims()).bar;
+    const dockW = () => (dims || readDims()).dock;
+    const ringDims = () => dims || readDims();
+    // camY = 화면 맨 위(y=0)의 월드 y. 상단 바(oy)가 위를 덮으므로 camY는 -oy까지 내려가 월드 0행이 바 바로 아래에 온다.
+    // 보이는 월드 영역은 [camX, camX+vw] × [camY+oy, camY+oy+vh] — vw 는 오른쪽 계기 기둥에 가리지 않은 폭.
+    // clampCam 은 camX ≤ 월드 폭 − vw 라서 맵 오른쪽 끝이 기둥 왼쪽 가장자리까지 온다.
+    function viewport() { view.oy = barH(); view.vw = Math.max(0, canvas.width - dockW()); view.vh = Math.max(0, canvas.height - hudH() - view.oy); }
+    function clampCam() {
+      const g = st(); if (!g) return;
+      const WORLD_W = g.map.w * TILE, WORLD_H = g.map.h * TILE; // 월드 크기(px)는 현재 상태의 맵에서
+      view.camX = clamp(view.camX, 0, Math.max(0, WORLD_W - view.vw)); view.camY = clamp(view.camY, -view.oy, Math.max(-view.oy, WORLD_H - view.vh - view.oy));
+    }
+    function centerOn(x, y) { viewport(); view.camX = x - view.vw / 2; view.camY = y - view.vh / 2 - view.oy; clampCam(); }
+    const world = (sx, sy) => [view.camX + sx, view.camY + sy];
+    const push = c => { if (spectate) return; c.player = me; cmds.push(c); };
+    const mine = e => !!e && e.owner === me;
+
+    // 플레이어 시점에서 보이는/알려진 엔티티(렌더러의 그리기 규칙과 같다)
+    function explored(f, e, W) { // W: 맵 가로 타일 수
+      const w = e.def.w || 2, h = e.def.h || 1; // 건물·분출구는 def 크기, 크리스탈은 2×1
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (f[(e.ty + j) * W + e.tx + i] >= 1) return true;
+      return false;
+    }
+    function known(g, e) {
+      if (e.inside) return false; // 탑승 유닛: 고르지도 그리지도 않는다(선택 중이면 update 에서 빠진다)
+      if (seeAll || e.owner === me) return true;
+      if (e.owner < 0) return explored(g.fog[me], e, g.map.w);
+      return S.visible(g, me, e) || (e.isB && explored(g.fog[me], e, g.map.w));
+    }
+    const selEnts = g => view.sel.map(id => S.byId(g, id)).filter(Boolean);
+
+    function setSel(ids) {
+      view.sel = ids.slice(0, MAX_SEL);
+      mode = null; page = 'main'; cpage = 0;
+      selDirty = true; // 선택이 바뀌는 순간 → 링 자동 열기(updateRing)
+    }
+
+    // ---- 알림 줄 / 거부 표시 ----
+    function notify(msg) {
+      el.notice.textContent = msg; el.notice.classList.add('is-on');
+      clearTimeout(noticeT); noticeT = setTimeout(() => el.notice.classList.remove('is-on'), 2000);
+    }
+    function flash(node) {
+      if (!node) return;
+      node.classList.remove('is-error'); void node.offsetWidth; node.classList.add('is-error');
+      clearTimeout(node._t); node._t = setTimeout(() => node.classList.remove('is-error'), 600);
+    }
+    function reject(reason, slotBtn) {
+      notify(REASON[reason] || REASON.blocked);
+      if (reason === 'crystal') flash(el.crystalWrap);
+      if (reason === 'nebula') flash(el.nebulaWrap);
+      flash(slotBtn);
+    }
+
+    // ---- 선택 ----
+    function pick(g, wx, wy) {
+      let unit = null, ud = Infinity, stat = null;
+      for (const e of g.ents) {
+        if (!known(g, e)) continue;
+        if (e.isB || e.isR) {
+          const w = e.def.w || 2, h = e.def.h || 1;
+          if (e.lifted) { // 띄운 건물: 실제 위치 + 높이(렌더와 같게)
+            const x0 = e.x / FP - w * TILE / 2, y0 = e.y / FP - h * TILE / 2 - LIFT_PX;
+            if (wx >= x0 && wx < x0 + w * TILE && wy >= y0 && wy < y0 + h * TILE) unit = unit || e;
+          } else if (wx >= e.tx * TILE && wx < (e.tx + w) * TILE && wy >= e.ty * TILE && wy < (e.ty + h) * TILE) stat = e;
+          continue;
+        }
+        const x = e.x / FP, y = e.y / FP - (e.def.air ? 20 : 0), r = e.def.radius;
+        if (wx < x - r - 6 || wx > x + r + 6 || wy < y - 2 * r - 10 || wy > y + 6) continue;
+        const dx = wx - x, dy = wy - (y - r), d = dx * dx + dy * dy;
+        if (d < ud) { ud = d; unit = e; }
       }
+      return unit || stat;
     }
-    return out;
-  }
-  // 건물 자리: 본진(첫 dropoff 건물) 중심 기준 반경 3→16 정사각 링, 링 안은 위→아래·왼→오른쪽.
-  // 조건: canPlace 가 자원 부족 외엔 통과, 풋프린트 둘레 1칸이 전부 걷기 가능(길막이 방지), 채굴 상자와 겹치지 않음,
-  // 착공 전 자리(bank.rects)와 1칸 이상 떨어짐, 부속 본체면 부속 자리(오른쪽 2×2)도 걷기 가능.
-  // 실패하면 ai.st.spotFail[what] = tick(200틱 재탐색 안 함). 엘리시안 레이 라인 밖 후보만 있었으면 ai.st.spotWhy = 'power'(100틱만 쉼).
-  // 엘리시안: 레이 라인 판정은 호출당 S.powerNet 1회로 만든 net으로 먼저 거른다(후보마다 다시 만들지 않음).
-  // 조율 기둥은 가장 가까운 자기 기둥(건설 중 포함)에서 10~14타일인 자리를 본진 중심에 가까운 순으로 우선(선이 이어지게).
-  function findSpot(ai, g, v, what, bank) {
-    const home = v.own.find(b => b.isB && b.def.dropoff);
-    ai.st.spotWhy = '';
-    if (!home || g.tick - (ai.st.spotFail[what] ?? -1e9) < 200) return null;
-    const def = D.buildings[what], w = def.w, h = def.h, boxes = miningBoxes(v), rects = bank ? bank.rects : [];
-    const ew = ADDON_HOST.has(what) ? w + 2 : w; // 부속 자리까지 포함한 폭
-    const cx = home.tx + (home.def.w >> 1), cy = home.ty + (home.def.h >> 1);
-    // 탐색은 자리 방향 기준(정규 좌표)으로 하고 실제 좌표로 뒤집는다 — 동률 순서가 자리마다 같은 모양(시작 위치 공정성)
-    const fl = flipOf(ai, g), X2 = 2 * home.tx + home.def.w, Y2 = 2 * home.ty + home.def.h;
-    const real = (tx, ty) => [fl & 1 ? X2 - tx - ew : tx, fl & 2 ? Y2 - ty - h : ty];
-    let power = false;
-    const ely = ai.race === 'elysian', net = ely ? S.powerNet(g, ai.p) : null;
-    const ok = (tx, ty) => {
-      if (ely && !S.inNet(net, what, tx, ty)) { power = true; return false; }
-      const r = S.canPlace(g, ai.p, what, tx, ty);
-      if (r === 'power') power = true;
-      if (r !== '' && r !== 'crystal' && r !== 'nebula') return false;
-      for (let j = -1; j <= h; j++) for (let i = -1; i <= ew; i++) {
-        if (j >= 0 && j < h && i >= 0 && i < w) continue;
-        if (!S.walkable(g, tx + i, ty + j)) return false;
+    function onScreen(e) {
+      const x = e.x / FP, y = e.y / FP;
+      const top = view.camY + view.oy;
+      return x >= view.camX && x < view.camX + view.vw && y >= top && y < top + view.vh;
+    }
+    function clickSelect(g, sx, sy, shift) {
+      const [wx, wy] = world(sx, sy), t = pick(g, wx, wy), now = performance.now();
+      if (!t) { if (!shift) setSel([]); return; }
+      if (mine(t) && !shift && lastClick.id === t.id && now - lastClick.t < DBL) { // 더블클릭: 화면 안 같은 종류
+        setSel(g.ents.filter(e => mine(e) && !e.inside && e.type === t.type && onScreen(e)).map(e => e.id));
+        lastClick = { id: 0, t: 0 }; return;
       }
-      for (const [x0, y0, x1, y1] of boxes) if (tx <= x1 && tx + ew - 1 >= x0 && ty <= y1 && ty + h - 1 >= y0) return false;
-      for (const [rx, ry, rw, rh] of rects) if (tx - 1 <= rx + rw - 1 && tx + ew >= rx && ty - 1 <= ry + rh - 1 && ty + h >= ry) return false;
+      lastClick = { id: t.id, t: now };
+      const cur = selEnts(g);
+      if (shift && mine(t) && cur.length && cur.every(mine)) {
+        if (view.sel.includes(t.id)) { setSel(view.sel.filter(id => id !== t.id)); return; }
+        const hasUnits = cur.some(e => !e.isB);
+        if (t.isB && hasUnits) return;                       // 유닛이 있으면 건물 제외
+        const keep = t.isB ? cur : cur.filter(e => !e.isB);  // 유닛을 더하면 건물은 빠진다
+        setSel(keep.map(e => e.id).concat(t.id)); return;
+      }
+      setSel([t.id]);
+    }
+    function boxSelect(g, d, shift) {
+      const x0 = Math.min(d.x0, d.x1) + view.camX, x1 = Math.max(d.x0, d.x1) + view.camX;
+      const y0 = Math.min(d.y0, d.y1) + view.camY, y1 = Math.max(d.y0, d.y1) + view.camY;
+      const inBox = e => { const x = e.x / FP, y = e.y / FP; return x >= x0 && x <= x1 && y >= y0 && y <= y1; };
+      let found = g.ents.filter(e => mine(e) && !e.isB && !e.inside && inBox(e));
+      if (!found.length) found = g.ents.filter(e => mine(e) && e.isB &&
+        e.tx * TILE < x1 && (e.tx + e.def.w) * TILE > x0 && e.ty * TILE < y1 && (e.ty + e.def.h) * TILE > y0);
+      if (!found.length) { if (!shift) setSel([]); return; } // 빈 박스 = 선택 해제
+      if (shift) {
+        const cur = selEnts(g).filter(mine), all = cur.concat(found.filter(e => !view.sel.includes(e.id)));
+        const units = all.filter(e => !e.isB);
+        setSel((units.length ? units : all).map(e => e.id));
+      } else setSel(found.map(e => e.id));
+    }
+
+    // ---- 명령 ----
+    const myUnits = g => selEnts(g).filter(e => mine(e) && !e.isB);
+    const myBlds = g => selEnts(g).filter(e => mine(e) && e.isB);
+    const liftedBlds = g => myBlds(g).filter(e => e.lifted);
+    const movers = g => myUnits(g).concat(liftedBlds(g)); // 띄운 건물도 이동·정지 명령을 받는다
+    const unitIds = g => movers(g).map(e => e.id);
+    const isEnemy = (g, t) => t && S.isEnemy(g, me, t.owner);
+    const engineers = g => myUnits(g).filter(e => e.def.worker && e.def.race === 'legion');
+    const gasBld = t => !!t && t.isB && mine(t) && t.def.onVent && !(t.buildLeft > 0);
+
+    function contextCommand(g, wx, wy) {
+      const units = myUnits(g), blds = myBlds(g);
+      const x = Math.round(wx * FP), y = Math.round(wy * FP);
+      if (!units.length) {
+        const lf = liftedBlds(g);
+        if (lf.length) push({ type: 'move', ids: lf.map(e => e.id), x, y });
+        else if (blds.length) push({ type: 'setRally', ids: blds.map(e => e.id), x, y });
+        return;
+      }
+      const t = pick(g, wx, wy), ids = units.map(e => e.id), eng = engineers(g);
+      if (loadContext(g, units, t)) return;
+      if (isEnemy(g, t)) push({ type: 'attack', ids, target: t.id });
+      else if (t && (t.type === 'crystal' || gasBld(t)) && units.some(e => e.def.worker)) push({ type: 'gather', ids, target: t.id });
+      else if (eng.length && S.canRepair(g, me, t)) { // 문맥 수리: 엔지니어는 수리, 나머지는 그 자리로 이동
+        push({ type: 'repair', ids: eng.map(e => e.id), target: t.id });
+        const rest = units.filter(e => !eng.includes(e)).map(e => e.id);
+        if (rest.length) push({ type: 'move', ids: rest, x, y });
+      } else push({ type: 'move', ids, x, y });
+    }
+    // 3a 수송 문맥: 내 수송선 우클릭 = 선택 지상 유닛 탑승 / 수송선 선택 중 내 지상 유닛 우클릭 = 태우러 감
+    const groundy = e => !e.isB && !e.def.air && !e.def.transport;
+    const carriers = g => myUnits(g).filter(e => e.def.transport);
+    function loadContext(g, units, t) {
+      if (!t || !mine(t) || t.isB) return false;
+      if (t.def.transport && !view.sel.includes(t.id)) {
+        const riders = units.filter(groundy); if (!riders.length) return false;
+        const r = S.canLoad(g, me, t, riders[0]);
+        if (r === 'research') reject('research');
+        else if (riders.every(u => S.canLoad(g, me, t, u) === 'space')) reject('space'); // 한 기도 못 탐(꽉 참)
+        else push({ type: 'load', ids: riders.map(e => e.id), target: t.id });
+        return true;
+      }
+      const cs = units.filter(e => e.def.transport);
+      if (cs.length && groundy(t) && !view.sel.includes(t.id)) {
+        const r = S.canLoad(g, me, cs[0], t);
+        if (r === 'research') reject('research');
+        else if (cs.every(c => S.canLoad(g, me, c, t) === 'space')) reject('space');
+        else push({ type: 'load', ids: cs.map(e => e.id), target: t.id });
+        return true;
+      }
+      return false;
+    }
+    // 3a 시전: 선택 중 그 능력을 가진 내 유닛·완성 건물(전원 시전 — 시전 가능 여부는 sim 이 각자 판정)
+    const casters = (g, what) => selEnts(g).filter(e => mine(e) && !(e.buildLeft > 0) && (e.def.abilities || []).includes(what));
+    const mechDef = d => d.race === 'legion' && !!d.armorUpgrade && d.armorUpgrade !== 'legion_infantry_armor'; // sim mech 와 같다
+    function castOk(g, e, A, t) { // sim castTarget + 치료는 다친 대상만
+      if (!t || !(t.hp > 0) || t.isR || t.inside || (t.stf & S.STF.stasis) || !known(g, t)) return false;
+      const f = A.filter || 'any';
+      if (f === 'enemy' && !S.isEnemy(g, e.owner, t.owner)) return false;
+      if (f === 'ally' && (t.owner < 0 || S.isEnemy(g, e.owner, t.owner) || t.isB)) return false;
+      if (f === 'ally-bio' && (t.owner < 0 || S.isEnemy(g, e.owner, t.owner) || t.isB || t.def.air || mechDef(t.def) || t === e)) return false;
+      return !(A.effect.kind === 'instant' && A.effect.heal) || t.hp < t.hpMax;
+    }
+    function castAt(g, wx, wy, shift) {
+      const what = mode.cast, A = D.abilities[what], cs = casters(g, what), ids = cs.map(e => e.id);
+      if (!cs.length) { mode = null; return; }
+      if (A.target === 'unit') {
+        const t = pick(g, wx, wy);
+        if (!cs.some(e => castOk(g, e, A, t))) { reject('target', slotOf(what)); return; }
+        push({ type: 'cast', ids, what, target: t.id });
+      } else {
+        const tx = Math.floor(wx / TILE), ty = Math.floor(wy / TILE); // sim seen 과 같다: 지점 타일이 내 팀 시야(2)
+        if (A.needVis && A.target === 'point' && !(tx >= 0 && ty >= 0 && tx < g.map.w && ty < g.map.h && g.fog[me] && g.fog[me][ty * g.map.w + tx] === 2)) { reject('vis', slotOf(what)); return; }
+        push({ type: 'cast', ids, what, x: Math.round(wx * FP), y: Math.round(wy * FP) });
+      }
+      if (!shift) mode = null;
+    }
+    function nearestWorker(g, tx, ty) {
+      let best = null, bd = Infinity;
+      for (const e of myUnits(g)) {
+        if (!e.def.worker || !S.canCommand(e, me)) continue; // sim 명령 가능 판정과 동일(건설·탑승·잠복 중 제외)
+        const dx = e.x / TFP - tx, dy = e.y / TFP - ty, d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = e; }
+      }
+      return best;
+    }
+    // 고스트 좌상단 타일. 가스 건물은 커서 근처(4타일) 아는 분출구에 붙는다.
+    function ghostTile(g, wx, wy, what) {
+      const d = D.buildings[what];
+      if (d.onVent) {
+        let best = null, bd = 16;
+        for (const v of g.ents) {
+          if (v.type !== 'vent' || !known(g, v)) continue;
+          const dx = wx / TILE - (v.tx + v.def.w / 2), dy = wy / TILE - (v.ty + v.def.h / 2), dd = dx * dx + dy * dy;
+          if (dd < bd) { bd = dd; best = v; }
+        }
+        if (best) return [best.tx, best.ty];
+      }
+      return [clamp(Math.round(wx / TILE - d.w / 2), 0, g.map.w - d.w), clamp(Math.round(wy / TILE - d.h / 2), 0, g.map.h - d.h)];
+    }
+    function landOk(g, what, tx, ty) {
+      const d = D.buildings[what];
+      for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) if (!S.walkable(g, tx + i, ty + j)) return false;
       return true;
-    };
-    if (ely && what === 'resonator') { // 기둥 사이 10~14타일(반타일 좌표 20~28, 정수 제곱 비교)
-      const P = net.pylons.map(q => [q.x2, q.y2]);
-      for (const b of v.own) if (b.isB && b.def.power && b.buildLeft > 0) P.push([2 * b.tx + b.def.w, 2 * b.ty + b.def.h]);
-      const hx = 2 * home.tx + home.def.w, hy = 2 * home.ty + home.def.h, cands = [];
-      for (let cty = cy - 20; cty <= cy + 20; cty++)
-        for (let ctx = cx - 20; ctx <= cx + 20; ctx++) {
-          const [tx, ty] = real(ctx, cty), x2 = 2 * tx + w, y2 = 2 * ty + h;
-          let near = Infinity;
-          for (const [px, py] of P) near = Math.min(near, (x2 - px) ** 2 + (y2 - py) ** 2);
-          if (near >= 400 && near <= 784) cands.push([(x2 - hx) ** 2 + (y2 - hy) ** 2, cands.length, tx, ty]);
-        }
-      cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]); // 동률: 위→아래·왼→오른쪽(스캔 순서)
-      for (const [, , tx, ty] of cands) if (ok(tx, ty)) return [tx, ty];
     }
-    for (let r = 3; r <= 16; r++)
-      for (let y = cy - r; y <= cy + r; y++)
-        for (let x = cx - r; x <= cx + r; x++) {
-          if (Math.abs(x - cx) !== r && Math.abs(y - cy) !== r) continue;
-          const [tx, ty] = real(x - (w >> 1), y - (h >> 1));
-          if (ok(tx, ty)) return [tx, ty];
-        }
-    if (power) { ai.st.spotWhy = 'power'; ai.st.spotFail[what] = g.tick - 100; } // 레이 라인 밖: 기둥을 짓는 동안 100틱만 쉰다
-    else ai.st.spotFail[what] = g.tick;
-    return null;
-  }
-  // 건설 일꾼: 정찰 아님, 놀거나 채집 중. 수정 채집 중·빈손 우선, 그다음 자리에서 가까운 순(거리², id 순)
-  function builderFor(ai, v, tx, ty, taken) {
-    const at = { x: tx * TFP, y: ty * TFP };
-    let best = null, bk = Infinity;
-    for (const w of v.own) {
-      if (w.isB || !w.def.worker || w.id === ai.st.scout || taken.has(w.id)) continue;
-      if (w.order && w.order.type !== 'gather') continue;
-      const tier = w.order && w.order.kind === 0 && !(w.carry > 0) ? 0 : 1;
-      const k = tier * 1e15 + d2(w, at);
-      if (k < bk) { bk = k; best = w; }
-    }
-    return best;
-  }
-  // 빈 분출구: 자기 기지(본진→확장 순) 12타일 안, 아직 아무것도 안 지었고 착공 전 명령도 없는 것
-  function findGasSpot(ai, g, v, bank) {
-    const what = GAS[ai.race];
-    for (const b of basesOf(v))
-      for (const r of v.res) {
-        if (r.type !== 'vent' || d2(b, r) > 144 * TFP * TFP || g.map.occ[r.ty * g.map.w + r.tx] !== r.id) continue;
-        if (bank.rects.some(([x, y]) => x === r.tx && y === r.ty)) continue;
-        const why = S.canPlace(g, ai.p, what, r.tx, r.ty);
-        if (why === '' || why === 'crystal' || why === 'nebula') return [r.tx, r.ty];
+    function targetClick(g, wx, wy, shift) {
+      const x = Math.round(wx * FP), y = Math.round(wy * FP), ids = unitIds(g);
+      if (mode.cast) { castAt(g, wx, wy, shift); return; }
+      if (mode.unload) { push({ type: 'unload', ids: carriers(g).map(e => e.id), x, y }); if (!shift) mode = null; return; }
+      if (mode.load) {
+        const t = pick(g, wx, wy), cs = carriers(g);
+        if (!t || !mine(t) || !groundy(t) || !cs.length) { reject('target', slotOf('load')); return; }
+        const r = S.canLoad(g, me, cs[0], t);
+        if (r === 'research' || r === 'tech') { reject(r === 'research' ? 'research' : 'target', slotOf('load')); return; }
+        if (cs.every(c => S.canLoad(g, me, c, t) === 'space')) { reject('space', slotOf('load')); return; }
+        push({ type: 'load', ids: cs.map(e => e.id), target: t.id });
+        if (!shift) mode = null;
+        return;
       }
-    return null;
-  }
-  // 확장 자리: 맵 시작 후보(기지 = starts[i]) + 확장(기준점 flip 변환) 중 자기·팀원 기지·착공 전 자리가 없고
-  // 기억·보이는 적 건물이 10타일 안에 없는 곳을 본진에서 가까운 순으로, 각 후보 주변 반경 4 나선에서 놓을 수 있는 첫 타일.
-  function expansionSpot(ai, g, v, bank) {
-    const md = D.maps[g.map.id], W = g.map.w, H = g.map.h, what = D.races[ai.race].base, bw = D.buildings[what].w, bh = D.buildings[what].h;
-    const home = v.own.find(b => b.isB && b.def.dropoff);
-    if (!home) return null;
-    const cands = [...md.starts.map(s => [s.tx, s.ty]),
-      ...md.expansions.map(e => { const f = e.flip ?? (e.mirror ? 3 : 0); return [f & 1 ? W - e.tx - bw : e.tx, f & 2 ? H - e.ty - bh : e.ty]; })];
-    const near = (x, y, tx, ty, r) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r;
-    const foeB = [...v.known.values()];
-    for (const f of v.foes) if (f.isB) foeB.push(f);
-    // 순서: ① 내 자리 쪽(다른 시작 자리 어디보다 내 본진에 더 가까운) 자리 먼저 ② 가까운 순 ③ 동률은 자리 방향 기준(위→왼쪽).
-    // 가운데처럼 여러 시작 자리에서 거리가 같은 자리를 양쪽이 동시에 노리면, 본진 4×3 의 반칸 비대칭 때문에 늘 같은 줄(위쪽)이
-    // 경주에서 이겨 시작 위치 편향이 생겼다. 다툼 자리는 자기 쪽을 다 쓴 뒤로 미룬다.
-    const fl = flipOf(ai, g), me = md.starts[g.players[ai.p].slot], dd = (c, s) => (c[0] - s.tx) ** 2 + (c[1] - s.ty) ** 2;
-    const shared = c => md.starts.some(s => s !== me && (s.tx !== c[0] || s.ty !== c[1]) && dd(c, s) <= dd(c, home));
-    const order = cands.map(c => [c, shared(c) ? 1 : 0, (c[0] - home.tx) ** 2 + (c[1] - home.ty) ** 2, fl & 2 ? H - c[1] : c[1], fl & 1 ? W - c[0] : c[0]])
-      .sort((a, b) => a[1] - b[1] || a[2] - b[2] || a[3] - b[3] || a[4] - b[4]);
-    for (const [[cx, cy]] of order) {
-      if (v.own.some(b => b.isB && b.def.dropoff && near(b.tx, b.ty, cx, cy, 8)) || v.allies.some(b => b.isB && b.def.dropoff && near(b.tx, b.ty, cx, cy, 8))) continue;
-      if (bank && bank.rects.some(([x, y]) => near(x, y, cx, cy, 8))) continue;
-      if (foeB.some(b => near(b.tx, b.ty, cx, cy, 10))) continue;
-      for (let r = 0; r <= 4; r++)
-        for (let dy = -r; dy <= r; dy++)
-          for (let dx = -r; dx <= r; dx++) {
-            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-            const x = cx + (fl & 1 ? -dx : dx), y = cy + (fl & 2 ? -dy : dy); // 나선도 자리 방향 기준
-            const why = S.canPlace(g, ai.p, what, x, y);
-            if (why === '' || why === 'crystal' || why === 'nebula') return [x, y];
+      if (mode.build) {
+        const [tx, ty] = ghostTile(g, wx, wy, mode.build), w = nearestWorker(g, tx, ty);
+        if (!w) { mode = null; return; }
+        const r = S.canPlace(g, me, mode.build, tx, ty, w.id);
+        if (r) { reject(r, slotOf(mode.build)); return; }
+        push({ type: 'build', ids: [w.id], what: mode.build, tx, ty });
+        if (!shift) { mode = null; page = 'main'; }
+        return;
+      }
+      if (mode.land) {
+        const b = S.byId(g, mode.land);
+        if (!b || !b.lifted) { mode = null; return; }
+        const [tx, ty] = ghostTile(g, wx, wy, b.type);
+        if (!landOk(g, b.type, tx, ty)) { reject('land', slotOf('land')); return; }
+        push({ type: 'land', ids: [b.id], tx, ty }); mode = null;
+        return;
+      }
+      if (mode === 'rally') push({ type: 'setRally', ids: myBlds(g).map(e => e.id), x, y });
+      else if (mode === 'repair') {
+        const t = pick(g, wx, wy);
+        if (!S.canRepair(g, me, t)) { reject('repair', slotOf('repair')); return; }
+        push({ type: 'repair', ids: engineers(g).map(e => e.id), target: t.id });
+      } else if (mode === 'attack') {
+        const t = pick(g, wx, wy);
+        if (isEnemy(g, t)) push({ type: 'attack', ids, target: t.id }); else push({ type: 'attackMove', ids, x, y });
+      } else if (mode === 'patrol') push({ type: 'patrol', ids, x, y });
+      else if (mode === 'move') push({ type: 'move', ids, x, y });
+      if (!shift) mode = null;
+    }
+
+    // ---- 명령 카드 ----
+    // 이번 틱에 이미 쌓였지만 sim이 아직 처리하지 않은 명령분. train은 sim의 canTrain(pend)이 직접 반영하고,
+    // 연구·변태·부속·띄우기는 같은 건물(b)·같은 연구(r)를 이번 틱 동안 '진행 중'으로 본다.
+    const freshPend = () => ({ crystal: 0, nebula: 0, supply2: 0, n: {}, b: {}, r: {} });
+    let pend = freshPend();
+    const pay = cost => { pend.crystal += cost.crystal || 0; pend.nebula += cost.nebula || 0; };
+    function short(g, cost) { // 버튼 상태용 자원 확인(크리스탈 먼저 — sim shortOf와 같은 순서), 대기분 포함
+      const p = g.players[me];
+      if (p.crystal - pend.crystal < (cost.crystal || 0)) return 'crystal';
+      if (p.nebula - pend.nebula < (cost.nebula || 0)) return 'nebula';
+      return '';
+    }
+    function buildReason(g, what) {
+      const d = D.buildings[what];
+      for (const r of d.requires || []) if (!S.hasTech(g, me, r)) return 'tech';
+      return short(g, d.cost);
+    }
+    const costParts = c => ['크리스탈 ' + (c.crystal || 0)].concat(c.nebula ? ['가스 ' + c.nebula] : []);
+    function costText(def, key) {
+      const parts = [def.name].concat(costParts(def.cost));
+      if (def.supply) parts.push('보급 ' + def.supply * (def.count || 1));
+      return parts.join(' · ') + ' · [' + key + ']';
+    }
+    // 사유 우선순위: 기술·최고 단계 → 이번 틱 대기 중(busy) → 레이 라인 밖 → 그 밖의 sim 사유(자원 등)
+    const busyNow = (b, r) => r === 'tech' || r === 'max' ? r : pend.b[b.id] ? 'busy' : b.unpowered ? 'unpowered' : r;
+    function trainReason(g, b, w) {
+      return busyNow(b, S.canTrain(g, me, b, w, { crystal: pend.crystal, nebula: pend.nebula, supply2: pend.supply2, n: pend.n[b.id] || 0 }));
+    }
+    function pushTrain(b, w) {
+      const u = D.units[w]; pay(u.cost); pend.supply2 += Math.round((u.supply || 0) * 2) * (u.count || 1);
+      pend.n[b.id] = (pend.n[b.id] || 0) + 1; push({ type: 'train', ids: [b.id], what: w });
+    }
+    const researchReason = (g, b, id) => busyNow(b, S.canResearch(g, me, b, id) || (pend.r[id] ? 'busy' : '') || short(g, D.upgrades[id].cost[g.players[me].up[id] || 0]));
+    const morphReason = (g, b, w) => busyNow(b, S.canMorph(g, me, b, w) || short(g, D.buildings[w].cost));
+    const addonReason = (g, b, w) => busyNow(b, S.canAddon(g, me, b, w) || short(g, D.buildings[w].cost));
+    function trainers(g) { // 같은 종류(첫 선택 건물 기준) 완성 건물
+      const blds = myBlds(g); if (!blds.length) return [];
+      return blds.filter(b => b.type === blds[0].type && !(b.buildLeft > 0));
+    }
+    // 변태 계보까지 포함한 연구 목록(정점지는 성숙지 연구도 한다)
+    function researchesOf(type) {
+      const out = [];
+      for (let t = type; t; t = D.buildings[t].morphFrom) for (const id of D.buildings[t].researches || []) if (!out.includes(id)) out.push(id);
+      return out;
+    }
+    const ADDONS = {}, MORPHS = {};
+    for (const d of Object.values(D.buildings)) {
+      if (d.addonOf) (ADDONS[d.addonOf] = ADDONS[d.addonOf] || []).push(d.id);
+      if (d.morphFrom) (MORPHS[d.morphFrom] = MORPHS[d.morphFrom] || []).push(d.id);
+    }
+    const lvOf = (g, id) => g.players[me].up[id] || 0;
+    const qTotal = (g, owner, it) => it.research ? D.upgrades[it.research].time[Math.min(D.upgrades[it.research].levels - 1, g.players[owner].up[it.research] || 0)] : D.units[it.what].time;
+    // 후보 중 가능한 첫 건물(대기열 짧은 순 → id 순)에 실행, 없으면 첫 사유로 거부
+    function runOn(g, tr, reasonFn, id, act) {
+      const ok = tr.filter(b => !reasonFn(g, b, id)).sort((a, c) => (a.queue.length - c.queue.length) || a.id - c.id);
+      if (ok.length) act(ok[0]); else reject(reasonFn(g, tr[0], id), slotOf(id));
+    }
+    // 건물 카드 항목: 생산 → 변태 → 연구 → 부속 → 띄우기 → 집결지. 3×3을 넘으면 8개씩 페이지 + 9번째 칸 다음/뒤로.
+    function bldItems(g, tr) {
+      const b0 = tr[0], items = [];
+      const best = fn => { const rs = tr.map(fn); return rs.indexOf('') >= 0 ? '' : rs[0]; };
+      for (const w of b0.def.trains || []) items.push({ id: w, sprite: w, label: D.units[w].name, kind: 'train', src: 'unit',
+        reason: best(b => trainReason(g, b, w)), title0: () => costText(D.units[w], '?'),
+        prog: () => { let p = -1; for (const b of tr) for (const it of b.queue) if (it.what === w) p = Math.max(p, 1 - it.left / D.units[w].time); return p; },
+        run: () => {
+          const cand = tr.filter(t => !trainReason(g, t, w))
+            .sort((a, c) => (a.def.larva ? (c.larva - (pend.n[c.id] || 0)) - (a.larva - (pend.n[a.id] || 0)) : (a.queue.length + (pend.n[a.id] || 0)) - (c.queue.length + (pend.n[c.id] || 0))) || a.id - c.id);
+          if (cand.length) pushTrain(cand[0], w); else reject(trainReason(g, tr[0], w), slotOf(w));
+        } });
+      for (const what of b0.def.abilities || []) items.push(abilityItem(g, what, tr));
+      for (const w of MORPHS[b0.type] || []) { const d = D.buildings[w]; items.push({ id: w, sprite: w, label: d.name, kind: 'morph', src: 'bld',
+        reason: best(b => morphReason(g, b, w)), title0: () => '변태: ' + d.name + ' · ' + costParts(d.cost).join(' · '),
+        prog: () => { let p = -1; for (const b of tr) if (b.morph && b.morph.to === w) p = Math.max(p, 1 - b.morph.left / d.time); return p; },
+        run: () => runOn(g, tr, morphReason, w, b => { pay(d.cost); pend.b[b.id] = 1; push({ type: 'morph', ids: [b.id], what: w }); }) }); }
+      for (const id of researchesOf(b0.type)) {
+        const u = D.upgrades[id], lv = lvOf(g, id), maxed = lv >= u.levels, ef = u.effect;
+        const lvTxt = u.levels > 1 ? ' ' + Math.min(lv + 1, u.levels) + '/' + u.levels + '단계' : '';
+        items.push({ id, label: u.name, lv: u.levels > 1 ? Math.min(lv + 1, u.levels) + '/' + u.levels : '', kind: 'research', src: 'up', maxed,
+          sprite: ef.unit || spellSprite(ef.unlock), svg: ef.unit ? null : upSvg(ef),
+          reason: maxed ? 'max' : best(b => researchReason(g, b, id)),
+          title0: () => '연구: ' + u.name + lvTxt + (maxed ? ' · 완료' : ' · ' + costParts(u.cost[lv]).join(' · ')),
+          prog: () => { for (const e of g.ents) if (e.owner === me && e.isB) for (const it of e.queue) if (it.research === id) return 1 - it.left / u.time[Math.min(lv, u.levels - 1)]; return -1; },
+          run: () => maxed ? reject('max', slotOf(id)) : runOn(g, tr, researchReason, id, b => { pay(u.cost[lv]); pend.r[id] = 1; push({ type: 'research', ids: [b.id], what: id }); }) });
+      }
+      for (const w of ADDONS[b0.type] || []) { const d = D.buildings[w]; items.push({ id: w, sprite: w, label: d.name, kind: 'addon', src: 'bld',
+        reason: best(b => addonReason(g, b, w)), title0: () => '부속: ' + d.name + ' · ' + costParts(d.cost).join(' · '),
+        prog: () => { let p = -1; for (const b of tr) { const a = b.addon && S.byId(g, b.addon); if (a && a.type === w && a.buildLeft > 0) p = Math.max(p, 1 - a.buildLeft / d.time); } return p; },
+        run: () => runOn(g, tr, addonReason, w, b => { pay(d.cost); pend.b[b.id] = 1; push({ type: 'build', ids: [b.id], what: w }); }) }); }
+      if (b0.def.lift) items.push({ id: 'lift', key: 'L', svg: 'lift', label: '띄우기', note: '띄운 뒤 이동해서 다른 곳에 내릴 수 있다', reason: best(b => busyNow(b, S.canLift(g, me, b))), title0: () => '띄우기 — 이동해서 다른 곳에 내릴 수 있다',
+        run: () => { const ids = tr.filter(b => !busyNow(b, S.canLift(g, me, b))).map(b => b.id); for (const id of ids) pend.b[id] = 1; if (ids.length) push({ type: 'lift', ids }); } });
+      if (b0.def.trains) items.push({ id: 'rally', svg: 'rally', label: '집결지', note: '생산된 유닛이 모일 곳 · 우클릭으로도 지정', armed: mode === 'rally', title0: () => '집결지 · 우클릭으로도 지정',
+        run: () => { mode = mode === 'rally' ? null : 'rally'; } });
+      return items;
+    }
+    // ---- 3a 명령 카드 항목: 능력 · 모드 전환 · 수송 · 합체 · 유닛 변태 ----
+    const MERGE_U = {}, MORPH_U = {};
+    for (const u of Object.values(D.units)) {
+      if (u.mergeFrom) MERGE_U[u.mergeFrom] = u.id;
+      if (u.morphFrom) (MORPH_U[u.morphFrom] = MORPH_U[u.morphFrom] || []).push(u.id);
+    }
+    const anyOk = rs => rs.includes('') ? '' : rs[0];
+    // 능력 버튼: 왼쪽 위 = 마나 비용. 하나라도 시전 가능하면 활성(전원 시전). 우클릭 = 자동 시전 토글.
+    function abilityItem(g, what, list) {
+      const A = D.abilities[what], c0 = list[0], ids = list.map(e => e.id);
+      const reason = anyOk(list.map(e => S.canCast(g, me, e, what)));
+      const on = !!A.toggle && g.fx.some(f => f.ab === what && f.tgt === c0.id);
+      const auto = !!A.autocast && c0.auto === what;
+      return { id: what, svg: what, sprite: spellSprite(what), label: A.name, lv: A.cost ? String(A.cost) : '', kind: 'ability', src: 'ab', reason, auto, on,
+        armed: on || !!(mode && mode.cast === what), reqUp: A.requires,
+        run: () => {
+          if (reason) { reject(reason, slotOf(what)); return; }
+          if (A.target === 'self') { mode = null; push({ type: 'cast', ids, what }); }
+          else mode = mode && mode.cast === what ? null : { cast: what };
+        },
+        alt: A.autocast ? () => push({ type: 'autocast', ids, what, on: !auto }) : null };
+    }
+    function unitExtras(g, units) {
+      const u0 = units[0], d0 = u0.def, same = units.filter(e => e.type === u0.type), ids = same.map(e => e.id), out = [];
+      for (const what of d0.abilities || []) out.push(abilityItem(g, what, same));
+      for (const m of Object.keys(d0.modes || {})) {
+        if (d0.modes[m].auto) continue; // 자동 정박: 버튼 없음(멈추면 스스로 정박, 움직이면 풀린다)
+        const cur = u0.modeT > 0 ? u0.modeTo === m : u0.mode === m, cmd = cur ? 'un' + m : m;
+        const reason = anyOk(same.map(e => S.canMode(g, me, e, cmd)));
+        out.push({ id: cmd, svg: cmd, label: MODE_LABEL[cmd] || cmd, kind: 'mode', reason, reqUp: cur ? null : d0.modes[m].requires,
+          note: m === 'burrow' ? (cur ? '땅 위로 나온다' : '땅속에 숨는다 · 적에게는 탐지기로만 보인다') : cur ? '다시 움직일 수 있게 된다' : '제자리에 고정 · 사거리가 크게 늘어난다',
+          run: () => { if (reason) reject(reason, slotOf(cmd)); else { mode = null; push({ type: cmd, ids }); } } });
+      }
+      if (d0.transport) {
+        const cs = units.filter(e => e.def.transport), req = d0.transportReq && !g.players[me].up[d0.transportReq] ? 'research' : '';
+        const cargoN = cs.reduce((k, c) => k + S.cargo(g, c).length, 0);
+        out.push({ id: 'load', svg: 'load', label: '태우기', kind: 'mode', reason: req, reqUp: d0.transportReq, armed: !!(mode && mode.load),
+          note: '태울 내 지상 유닛을 클릭 · 지상 유닛을 고르고 수송선을 우클릭해도 탄다',
+          run: () => { if (req) reject(req, slotOf('load')); else mode = mode && mode.load ? null : { load: true }; } });
+        out.push({ id: 'unload', svg: 'unload', label: '내리기', kind: 'mode', reason: req || (cargoN ? '' : 'target'), armed: !!(mode && mode.unload),
+          note: '내릴 지점을 클릭 · 선택 창의 탑승 유닛을 누르면 그 한 기만 내린다',
+          run: () => { if (req) reject(req, slotOf('unload')); else if (!cargoN) reject('target', slotOf('unload')); else mode = mode && mode.unload ? null : { unload: true }; } });
+      }
+      const mg = MERGE_U[u0.type];
+      if (mg) {
+        const ok = same.filter(e => !e.morph && !e.inside && !e.mode && !(e.modeT > 0)), reason = ok.length >= 2 ? '' : 'pair';
+        out.push({ id: 'merge', sprite: mg, label: '합체', kind: 'morph', reason, note: '둘씩 짝지어 ' + D.units[mg].name + '(으)로 합체한다',
+          run: () => { if (reason) reject(reason, slotOf('merge')); else { mode = null; push({ type: 'merge', ids: ok.map(e => e.id) }); } } });
+      }
+      for (const w of MORPH_U[u0.type] || []) {
+        const d = D.units[w], reason = anyOk(same.map(e => S.canMorph(g, me, e, w)));
+        out.push({ id: w, sprite: w, label: d.name, kind: 'morph', src: 'unit', from: u0.type, reason,
+          title0: () => '변태: ' + d.name + ' · ' + costParts(d.cost).join(' · '),
+          prog: () => { let p = -1; for (const e of same) if (e.morph && e.morph.to === w) p = Math.max(p, 1 - e.morph.left / d.time); return p; },
+          run: () => {
+            const ok = same.filter(e => !S.canMorph(g, me, e, w));
+            if (!ok.length) { reject(reason || 'busy', slotOf(w)); return; }
+            mode = null; push({ type: 'morph', ids: ok.map(e => e.id), what: w });
+          } });
+      }
+      return out;
+    }
+    function layout(items) { // 페이지 나누기 + 단축키(페이지가 바뀌어도 같은 항목은 같은 키)
+      const pages = [];
+      if (items.length <= 9) {
+        const ral = items.find(b => b.id === 'rally'), rest = items.filter(b => b !== ral);
+        rest.forEach((b, i) => { b.slot = i; }); if (ral) ral.slot = 8;
+        pages.push(items);
+      } else {
+        for (let i = 0; i < items.length; i += 8) pages.push(items.slice(i, i + 8).map((b, k) => Object.assign(b, { slot: k })));
+        pages.forEach((pg, i) => pg.push(i < pages.length - 1
+          ? { id: 'next', slot: 8, key: 'N', svg: 'next', label: '다음 ' + (i + 1) + '/' + pages.length, title0: () => '다음 명령 ' + (i + 2) + '/' + pages.length, run: () => { cpage = i + 1; } }
+          : { id: 'back', slot: 8, key: 'ESCAPE', keyLabel: 'Esc', svg: 'back', label: '뒤로', title0: () => '처음 명령으로', run: () => { cpage = 0; } }));
+      }
+      assignKeys(pages.flat());
+      for (const b of pages.flat()) {
+        const t = b.title0 ? b.title0() : b.label;
+        b.title = t.includes('[?]') ? t.replace('[?]', '[' + (b.keyLabel || b.key) + ']') : t + ' · [' + (b.keyLabel || b.key) + ']';
+      }
+      cpage = Math.min(cpage, pages.length - 1);
+      return pages[cpage];
+    }
+    function card(g) {
+      if (spectate) return [];
+      const units = myUnits(g);
+      if (units.length) {
+        const workers = units.some(e => e.def.worker), race = g.players[me].race;
+        if ((page === 'build' || page === 'build2') && workers) {
+          const list = BUILD[race][page === 'build' ? 0 : 1].filter(w => D.buildings[w] && !D.buildings[w].neutral && !D.buildings[w].addonOf && !D.buildings[w].morphFrom);
+          const btns = list.map((w, i) => ({ id: w, slot: i, sprite: w, label: D.buildings[w].name, src: 'bld',
+            reason: buildReason(g, w), armed: !!(mode && mode.build === w),
+            run: b => { if (b.reason) reject(b.reason, slotOf(w)); else mode = { build: w }; } }));
+          assignKeys(btns);
+          for (const b of btns) b.title = costText(D.buildings[b.id], b.key);
+          btns.push({ id: 'back', slot: 8, key: 'ESCAPE', keyLabel: 'Esc', svg: 'back', label: '뒤로', title: '뒤로 · [Esc]', run: () => { mode = null; page = 'main'; } });
+          return btns;
+        }
+        if (page !== 'main') page = 'main';
+        const arm = m => () => { mode = mode === m ? null : m; };
+        const btns = [
+          { id: 'move', slot: 0, key: 'M', svg: 'move', label: '이동', run: arm('move'), armed: mode === 'move' },
+          { id: 'stop', slot: 1, key: 'S', svg: 'stop', label: '정지', run: () => { mode = null; push({ type: 'stop', ids: unitIds(g) }); } },
+          { id: 'attack', slot: 2, key: 'A', svg: 'attack', label: '공격', run: arm('attack'), armed: mode === 'attack' },
+          { id: 'patrol', slot: 3, key: 'P', svg: 'patrol', label: '순찰', run: arm('patrol'), armed: mode === 'patrol' },
+          { id: 'hold', slot: 4, key: 'H', svg: 'hold', label: '위치 사수', run: () => { mode = null; push({ type: 'hold', ids: unitIds(g) }); } },
+        ];
+        if (engineers(g).length) btns.push({ id: 'repair', slot: 5, key: 'R', svg: 'repair', label: '수리', note: '우클릭으로도 수리', run: arm('repair'), armed: mode === 'repair' });
+        if (workers) {
+          btns.push({ id: 'build', slot: 6, key: 'B', svg: 'build', label: '기본 건설', run: () => { mode = null; page = 'build'; } });
+          btns.push({ id: 'build2', slot: 7, key: 'V', svg: 'build2', label: '고급 건설', run: () => { mode = null; page = 'build2'; } });
+        }
+        const free = [5, 6, 7, 8].filter(i => !btns.some(b => b.slot === i));
+        for (const it of unitExtras(g, units)) { if (!free.length) break; it.slot = free.shift(); btns.push(it); }
+        assignKeys(btns);
+        for (const b of btns) { const t0 = b.title0 ? b.title0() : b.label; b.title = t0 + ' · [' + b.key + ']' + (b.id === 'repair' ? ' · 우클릭으로도 수리' : ''); }
+        return btns;
+      }
+      const lf = liftedBlds(g);
+      if (lf.length) { // 띄운 건물: 이동·정지·착륙
+        const b0 = lf[0];
+        const btns = [
+          { id: 'move', slot: 0, key: 'M', svg: 'move', label: '이동', run: () => { mode = mode === 'move' ? null : 'move'; }, armed: mode === 'move' },
+          { id: 'stop', slot: 1, key: 'S', svg: 'stop', label: '정지', run: () => { mode = null; push({ type: 'stop', ids: unitIds(g) }); } },
+          { id: 'land', slot: 2, key: 'L', svg: 'land', label: '착륙', note: '내릴 자리를 클릭', armed: !!(mode && mode.land), run: () => { mode = mode && mode.land ? null : { land: b0.id }; } },
+        ];
+        for (const b of btns) b.title = b.label + ' · [' + b.key + ']';
+        return btns;
+      }
+      const tr = trainers(g);
+      if (!tr.length) return [];
+      return layout(bldItems(g, tr));
+    }
+
+    const SLOT_DEG = [250, 290, 330, 10, 50, 130, 170, 210, 90]; // 슬롯 → 화면 각도(0° = 3시, 시계 방향) — index.html #ring .seg[data-slot] 의 --a 와 같다
+    // 명령 링: 칸 9개를 한 번 만들고 칸마다 내용만 바꾼다(클릭 중 DOM 교체 방지). 칸 자리는 CSS 가 슬롯 번호로 고정 각도에 놓는다.
+    const slots = [];
+    let curBtns = [], crumbSig = null, roving = 0, segHold = 0, segHeld = -1; // roving = 링에서 Tab 순서에 들어가는 칸 하나(로빙 tabindex)
+    el.card.innerHTML = '<div class="ring-orbit" aria-hidden="true"></div><p class="ring-crumb" aria-hidden="true"><span class="ring-crumb-t"></span><span class="kbd ring-crumb-k"></span></p>';
+    const crumbT = el.card.querySelector('.ring-crumb-t'), crumbK = el.card.querySelector('.ring-crumb-k');
+    for (let i = 0; i < 9; i++) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn seg'; b.hidden = true; b.tabIndex = -1; b.dataset.slot = i;
+      if (i === 8) b.dataset.tail = '';
+      b.innerHTML = '<span class="seg-lv"></span><span class="seg-icon"></span><span class="seg-name"></span><span class="seg-prog"></span><span class="seg-key" aria-hidden="true"></span>';
+      b.addEventListener('click', ev => {
+        if (segHeld === i) { segHeld = -1; return; } // 길게 눌러 시트를 띄운 손가락을 뗀 클릭 — 실행하지 않는다
+        const d = curBtns.find(x => x.slot === i); if (d && active) { runBtn(d); if (!ev.detail) kbArm(); } // detail 0 = 키보드 Enter/Space
+      });
+      b.addEventListener('mousedown', ev => ev.preventDefault()); // 캔버스 단축키 흐름 유지(포커스 이동 안 함)
+      b.addEventListener('contextmenu', ev => { ev.preventDefault(); if (touchRecent()) return; const d = curBtns.find(x => x.slot === i); if (d && d.alt && active) { d.alt(); flashPress(b); } }); // 자동 시전 토글(터치의 길게 누르기는 시트가 맡는다)
+      // 터치: 길게 누르기(450ms) = 툴팁을 아래 시트로 + 자동 시전 토글 버튼(설계서 §4.8)
+      b.addEventListener('pointerdown', ev => { if (!isTouch(ev)) return; segHeld = -1; clearTimeout(segHold); segHold = setTimeout(() => { segHeld = i; openSheet(i); }, LONG_MS); });
+      b.addEventListener('pointerup', () => clearTimeout(segHold));
+      b.addEventListener('pointercancel', () => clearTimeout(segHold));
+      b.addEventListener('mouseenter', () => { if (touchRecent()) return; clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(i), TIP_DELAY); });
+      b.addEventListener('mouseleave', () => hideTip(i));
+      b.addEventListener('focus', () => { roving = i; showTip(i); }); // 키보드 포커스는 지연 없이
+      b.addEventListener('blur', () => hideTip(i));
+      el.card.appendChild(b); slots.push({ node: b, sig: '' });
+    }
+    const slotOf = id => { const d = curBtns.find(x => x.id === id); return d ? slots[d.slot].node : null; };
+    function runBtn(d) { const g = st(); if (g) d.run(d, g); }
+    // 머리표: 링이 지금 무엇을 보여 주는지 한 줄 — "부대 6 · 캔터 2 · 오스블레이드 4" / "캔터" / "기본 건설" + Esc 뒤로 / "관문 · 1/2". 링 aria-label 도 같은 문구.
+    function crumbOf(g) {
+      const units = myUnits(g);
+      if (units.length) {
+        if (page === 'build' || page === 'build2') return [page === 'build' ? '기본 건설' : '고급 건설', 'Esc 뒤로'];
+        if (units.length === 1) return [units[0].def.name, ''];
+        const n = new Map(); for (const e of units) n.set(e.def.name, (n.get(e.def.name) || 0) + 1);
+        return [['부대 ' + units.length].concat([...n].map(([k, v]) => k + ' ' + v)).join(' · '), ''];
+      }
+      const lf = liftedBlds(g);
+      if (lf.length) return [lf[0].def.name + (lf.length > 1 ? ' ' + lf.length : '') + ' · 떠 있음', ''];
+      const tr = trainers(g), tail = curBtns.find(x => x.slot === 8);
+      if (!tr.length) return ['', ''];
+      const m = tail && tail.id === 'next' && /(\d+)\/(\d+)$/.exec(tail.label);
+      const pg = m ? ' · ' + m[1] + '/' + m[2] : tail && tail.id === 'back' && cpage > 0 ? ' · ' + (cpage + 1) + '/' + (cpage + 1) : '';
+      return [tr[0].def.name + (tr.length > 1 ? ' ' + tr.length : '') + pg, cpage > 0 ? 'Esc 처음으로' : ''];
+    }
+    function renderCard(g) {
+      curBtns = card(g);
+      for (let i = 0; i < 9; i++) {
+        const s = slots[i], d = curBtns.find(x => x.slot === i), n = s.node;
+        if (!d) { if (s.sig) { n.hidden = true; s.sig = ''; n.classList.remove('is-auto', 'is-short'); } continue; }
+        const sig = d.id + '|' + d.key + '|' + d.label + '|' + (d.lv || '');
+        if (sig !== s.sig) {
+          s.sig = sig; n.hidden = false;
+          n.querySelector('.seg-key').textContent = d.keyLabel || d.key;
+          const ic = n.querySelector('.seg-icon'); ic.innerHTML = '';
+          if (d.sprite) ic.appendChild(R.icon(d.sprite, me, 32)); else ic.innerHTML = svg(d.svg);
+          n.querySelector('.seg-name').textContent = d.label;
+          n.querySelector('.seg-lv').textContent = d.lv || '';
+          n.dataset.kind = d.kind || '';
+        }
+        const name = d.label + ' [' + (d.keyLabel || d.key) + ']'; // 자세한 내용은 툴팁(aria-describedby)
+        if (n.getAttribute('aria-label') !== name) n.setAttribute('aria-label', name);
+        n.setAttribute('aria-disabled', d.reason ? 'true' : 'false');
+        n.setAttribute('aria-pressed', d.armed ? 'true' : 'false');
+        n.classList.toggle('is-auto', !!d.auto); n.classList.toggle('is-short', d.reason === 'energy');
+        const prog = d.prog ? d.prog() : -1; // 생산·연구·변태·부속 진행 띠
+        const pe = n.querySelector('.seg-prog');
+        pe.style.transform = 'scaleX(' + Math.max(0, prog) + ')'; pe.hidden = prog < 0;
+      }
+      if (slots[roving].node.hidden) { const f = slots.find(x => !x.node.hidden); roving = f ? slots.indexOf(f) : 0; }
+      for (let i = 0; i < 9; i++) { const t = i === roving ? 0 : -1; if (slots[i].node.tabIndex !== t) slots[i].node.tabIndex = t; }
+      const [ct, ck] = curBtns.length ? crumbOf(g) : ['', ''], csig = ct + '|' + ck;
+      if (csig !== crumbSig) { crumbSig = csig; crumbT.textContent = ct; crumbK.textContent = ck; el.card.setAttribute('aria-label', '명령 링' + (ct ? ' — ' + ct : '')); }
+      refreshTip(g); refreshSheet(g);
+    }
+
+    // ---- 명령 카드 툴팁: 이름 · 비용(크리스탈·가스·보급) · 시간 · 요구 건물 · 단축키 · 비활성 사유 ----
+    const secs = t => Number((t / S.TICK_RATE).toFixed(1));
+    function tipHtml(g, d, touchSheet) {
+      const p = g.players[me], key = d.keyLabel || d.key;
+      let name = d.label, cost = null, supply = 0, time = 0, req = [];
+      if (d.src === 'unit') { const u = D.units[d.id]; cost = u.cost; supply = (u.supply || 0) * (u.count || 1) - (d.from ? D.units[d.from].supply || 0 : 0); time = u.time; req = u.requires || []; }
+      else if (d.src === 'bld') { const b = D.buildings[d.id]; cost = b.cost; time = b.time; req = b.requires || []; }
+      else if (d.src === 'up') {
+        const u = D.upgrades[d.id], lv = Math.min(lvOf(g, d.id), u.levels - 1);
+        if (u.levels > 1) name += ' ' + (lv + 1) + '/' + u.levels + '단계';
+        if (!d.maxed) { cost = u.cost[lv]; time = u.time[lv]; }
+        const r = u.requires || [];
+        req = Array.isArray(r[0]) ? r[lv] || [] : r;
+      }
+      let h = '<p class="tip-name"><span>' + esc(name) + '</span><span class="tip-key"><span class="sr">단축키 </span>' + esc(key) + '</span></p>';
+      if (d.src === 'ab') { // 능력: 마나 · 사거리 · 대상 · 자동 시전/토글 안내
+        const A = D.abilities[d.id], short = d.reason === 'energy';
+        let c = A.cost ? '<span' + (short ? ' class="is-short"' : '') + '><span class="glyph mana" aria-hidden="true">✦</span> 마나 <span class="num">' + A.cost + '</span></span>' : '<span>마나 없음</span>';
+        if (A.cooldown >= S.TICK_RATE) c += '<span>재사용 <span class="num">' + secs(A.cooldown) + '초</span></span>';
+        if (A.range) c += '<span>사거리 <span class="num">' + Math.round(A.range / TILE * 10) / 10 + '</span></span>';
+        c += '<span>' + (A.target === 'unit' ? '대상 지정' : A.target === 'point' ? '지점 지정' : '즉시') + '</span>';
+        h += '<p class="tip-cost">' + c + '</p>';
+        if (SPELL_DESC[d.id]) h += '<p class="tip-desc">' + esc(SPELL_DESC[d.id]) + '</p>';
+        if (A.toggle) h += '<p>' + (d.on ? '켜져 있음 · 다시 누르면 해제' : '켜면 유지하는 동안 마나가 계속 줄어든다') + '</p>';
+        if (A.autocast && !touchSheet) h += '<p>우클릭: 자동 시전 ' + (d.auto ? '끄기 (지금 켜짐)' : '켜기 (지금 꺼짐)') + '</p>';
+      }
+      if (d.reqUp) { const ok = !!g.players[me].up[d.reqUp], nm = D.upgrades[d.reqUp] ? D.upgrades[d.reqUp].name : d.reqUp;
+        h += '<p class="tip-req">요구 연구 <span class="' + (ok ? 'is-ok' : 'is-miss') + '">' + (ok ? '✓ ' : '✕ ') + esc(nm) + '<span class="sr">' + (ok ? ' 완료' : ' 미완료') + '</span></span></p>'; }
+      if (cost) {
+        const part = (glyph, cls, label, v, short) => '<span' + (short ? ' class="is-short"' : '') + '><span class="glyph' + cls + '" aria-hidden="true">' + glyph + '</span> ' + label + ' <span class="num">' + v + '</span></span>';
+        let c = part('◆', '', '크리스탈', cost.crystal || 0, p.crystal - pend.crystal < (cost.crystal || 0));
+        if (cost.nebula) c += part('●', ' gas', '가스', cost.nebula, p.nebula - pend.nebula < cost.nebula);
+        if (supply) c += part('▲', '', '보급', supply, p.supplyUsed2 + Math.round(supply * 2) > p.supplyMax2);
+        if (time) c += '<span>시간 <span class="num">' + secs(time) + '초</span></span>';
+        h += '<p class="tip-cost">' + c + '</p>';
+      } else if (d.maxed) h += '<p>연구 완료</p>';
+      const un = d.src === 'up' && D.upgrades[d.id].effect.unlock;
+      if (un && SPELL_DESC[un]) h += '<p class="tip-desc">해금: ' + esc(D.abilities[un].name) + ' — ' + esc(SPELL_DESC[un]) + '</p>';
+      if (req.length) h += '<p class="tip-req">요구 ' + req.map(r => {
+        const ok = S.hasTech(g, me, r), nm = (D.buildings[r] || D.units[r] || { name: r }).name;
+        return '<span class="' + (ok ? 'is-ok' : 'is-miss') + '">' + (ok ? '✓ ' : '✕ ') + esc(nm) + '<span class="sr">' + (ok ? ' 있음' : ' 없음') + '</span></span>';
+      }).join(' · ') + '</p>';
+      if (d.note) h += '<p>' + esc(d.note) + '</p>';
+      if (d.reason) h += '<p class="tip-why">' + esc(REASON[d.reason] || REASON.blocked) + '</p>';
+      return h;
+    }
+    function showTip(i) { clearTimeout(tipTimer); if (tipSlot !== i) { hideTip(); tipSlot = i; } refreshTip(st()); }
+    function hideTip(i) {
+      clearTimeout(tipTimer);
+      if (i !== undefined && tipSlot !== i) return;
+      if (tipSlot >= 0) slots[tipSlot].node.removeAttribute('aria-describedby');
+      tipSlot = -1; tipSig = ''; el.tip.hidden = true;
+    }
+    function refreshTip(g) {
+      if (tipSlot < 0) return;
+      const d = curBtns.find(x => x.slot === tipSlot), n = slots[tipSlot].node;
+      if (!g || !active || !d) { hideTip(); return; }
+      const html = tipHtml(g, d);
+      if (html !== tipSig) { el.tip.innerHTML = html; tipSig = html; }
+      el.tip.hidden = false; n.setAttribute('aria-describedby', 'nw-tip');
+      // 칸 중심에서 링 바깥 방향으로 칸/2 + 30px(키캡 너머). 바깥 방향이 왼쪽이면 툴팁 오른쪽 끝을, 오른쪽이면 왼쪽 끝을 붙인다 —
+      // 그래서 다른 칸이나 링 안의 선택 유닛을 덮지 않는다. 화면·상단 바·계기 기둥 밖으로 나가면 안쪽으로 밀어 넣는다.
+      const r = n.getBoundingClientRect(), tw = el.tip.offsetWidth, th = el.tip.offsetHeight, M = 8;
+      const a = SLOT_DEG[tipSlot] * Math.PI / 180, co = Math.cos(a), si = Math.sin(a), off = r.width / 2 + 30;
+      let x = r.left + r.width / 2 + co * off - (co < -0.2 ? tw : co > 0.2 ? 0 : tw / 2);
+      let y = r.top + r.height / 2 + si * off - (si < -0.2 ? th : si > 0.2 ? 0 : th / 2);
+      const X1 = Math.max(M, (view.vw || innerWidth) - tw - M), Y0 = barH() + M, Y1 = Math.max(Y0, innerHeight - th - M);
+      x = clamp(x, M, X1); y = clamp(y, Y0, Y1);
+      // 밀어 넣다가 링(바깥 원)을 덮게 되면 — 링이 화면 가장자리 가까이 있을 때 — 링 위나 아래 바깥으로 옮긴다
+      const m = /translate3d\((-?[\d.]+)px, ?(-?[\d.]+)px/.exec(ringXY), rd = ringDims(), Ro = rd.ringR + rd.seg * 0.71 + 4; // 칸 모서리까지
+      if (m && ringSt === 'open') {
+        const cx = +m[1], cy = +m[2], hit = (px, py) => Math.hypot(clamp(cx, px, px + tw) - cx, clamp(cy, py, py + th) - cy) < Ro;
+        if (hit(x, y)) {
+          const tx = clamp(r.left + r.width / 2 - tw / 2, M, X1), up = cy - rd.ringR - rd.seg / 2 - 50 - th, dn = cy + Ro + 8; // 위: 머리표보다 위
+          if (si <= 0 && up >= Y0) { x = tx; y = up; } else if (dn <= Y1) { x = tx; y = dn; } else if (up >= Y0) { x = tx; y = up; }
+        }
+      }
+      el.tip.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+    }
+
+    // ---- 칸 설명 시트(터치 길게 누르기): 툴팁 내용 + 자동 시전 켜기/끄기 + 닫기. 링이 접히거나 칸이 사라지면 닫힌다. ----
+    const sheet = q('[data-hud=seg-sheet]'), sheetBody = sheet.querySelector('.seg-sheet-body'), sheetAuto = sheet.querySelector('[data-act=auto]');
+    let sheetSlot = -1, sheetSig = '';
+    function openSheet(i) { hideTip(); sheetSlot = i; sheetSig = ''; sheet.hidden = false; refreshSheet(st()); }
+    function closeSheet() { if (sheetSlot < 0) return; sheetSlot = -1; sheet.hidden = true; if (sheet.contains(document.activeElement)) document.activeElement.blur(); }
+    function refreshSheet(g) {
+      if (sheetSlot < 0) return;
+      const d = curBtns.find(x => x.slot === sheetSlot);
+      if (!g || !active || !d || ringSt !== 'open') { closeSheet(); return; }
+      const html = tipHtml(g, d, true);
+      if (html !== sheetSig) { sheetSig = html; sheetBody.innerHTML = html; }
+      sheetAuto.hidden = !d.alt;
+      if (d.alt) { const t = d.auto ? '자동 시전 끄기' : '자동 시전 켜기'; if (sheetAuto.textContent !== t) sheetAuto.textContent = t; sheetAuto.setAttribute('aria-pressed', d.auto ? 'true' : 'false'); }
+    }
+    sheetAuto.addEventListener('click', () => { const d = curBtns.find(x => x.slot === sheetSlot); if (d && d.alt && active) { d.alt(); flashPress(slots[d.slot].node); } });
+    sheet.querySelector('[data-act=close]').addEventListener('click', closeSheet);
+    addEventListener('pointerdown', ev => { // 바깥을 누르면 닫는다 — 전장·미니맵을 누른 것이면 그 손가락은 닫기만 한다(유닛이 움직이지 않게)
+      if (sheetSlot < 0 || sheet.contains(ev.target)) return;
+      closeSheet();
+      if (ev.target === canvas || ev.target === mini) { ev.preventDefault(); ev.stopPropagation(); }
+    }, true);
+
+    // ---- 명령 링 상태 · 위치 (설계서 §4.1–4.2) ----
+    // ringSt: 'none' 없음(선택 없음·관전·명령 없음) · 'open' 열림 · 'pin' 핀(접힘 — 선택 중심 위 작은 마름모).
+    // 열림 기준점(anchor)은 여는 순간의 월드 좌표로 고정한다: 유닛이 움직여도 링은 따라가지 않고, 카메라를 움직이면 땅과 함께 움직인다.
+    const RING_AUTO_KEY = 'nw-ring-auto';
+    let ringSt = 'none', anchor = null, selDirty = false, ringXY = '', pinXY = '', pinN = -1, pinT = 0, ringAuto = true;
+    let lastMode = null, chipSig = '', chipW = 0, chipXY = '', noticeXY = '';
+    try { ringAuto = localStorage.getItem(RING_AUTO_KEY) !== '0'; } catch (e) { ringAuto = true; } // 설정 "링 자동 열기"(기본 켬)
+    // 기준점 = 내 선택의 화면 표시 위치 평균(월드 좌표). 공중 유닛·띄운 건물은 그려지는 높이만큼 위.
+    function selCenter(g) {
+      let x = 0, y = 0, n = 0;
+      for (const e of selEnts(g)) { if (!mine(e)) continue; x += e.x / FP; y += e.y / FP - (e.def.air ? 20 : 0) - (e.lifted ? LIFT_PX : 0); n++; }
+      return n ? { x: x / n, y: y / n, n } : null;
+    }
+    function setRing(s, g) {
+      if (s === 'open' && g) { const c = selCenter(g); if (c) anchor = c; } // 열 때마다 기준점을 지금 선택에 다시 잡는다
+      if (s === ringSt) return;
+      ringSt = s;
+      el.card.classList.toggle('is-open', s === 'open');
+      if (s !== 'open' && el.card.contains(document.activeElement)) document.activeElement.blur(); // 접힌 칸에 포커스를 남기지 않는다
+      if (s !== 'open') hideTip();
+    }
+    // 링 그릇을 기준점 − 카메라에 놓되, 칸·키캡·머리표가 보이는 영역(상단 바 아래 · 계기 기둥 왼쪽) 안에 들어오도록 끌어당긴다.
+    function placeRing(sx, sy) {
+      const d = ringDims(), out = d.ringR + d.seg / 2 + 26; // 칸 바깥 끝 + 키캡
+      const x = Math.round(clamp(sx, out, Math.max(out, view.vw - out))), y = Math.round(clamp(sy, view.oy + out + 24, Math.max(view.oy + out + 24, view.oy + view.vh - out)));
+      const t = 'translate3d(' + x + 'px,' + y + 'px,0)';
+      if (t !== ringXY) { ringXY = t; el.card.style.transform = t; }
+      // 거부 문구(.notice)는 링이 열려 있으면 꼬리(6시) 키캡 아래 — 누른 칸 가까이에서 읽힌다
+      placeNotice('translate3d(' + x + 'px,' + Math.round(Math.min(y + d.ringR + d.seg / 2 + 40, innerHeight - 40)) + 'px,0) translateX(-50%)');
+    }
+    function placeNotice(t) { // t = '' → 기본 자리(보이는 영역 아래 가운데)
+      if (t === noticeXY) return;
+      noticeXY = t; el.notice.classList.toggle('at-ring', !!t); el.notice.style.transform = t;
+    }
+    function blinkPin() { // 링이 접힌 채 단축키를 누르면 핀이 잠깐 밝아져 '눌렸다'를 알린다(색만 — 감소 모션에서도 같음)
+      if (ringSt !== 'pin') return;
+      el.pin.classList.add('is-blink'); clearTimeout(pinT); pinT = setTimeout(() => el.pin.classList.remove('is-blink'), 120);
+    }
+    // 무장(대상 지정) 모드 칩: "공격 — 대상·지점 클릭 · Esc 취소" (칸 이름 + 대상 종류 + 취소 키)
+    function modeText() {
+      const id = typeof mode === 'string' ? mode : mode.cast || mode.build || (mode.land ? 'land' : mode.load ? 'load' : mode.unload ? 'unload' : '');
+      const d = curBtns.find(x => x.id === id);
+      const label = d ? d.label : mode.build ? D.buildings[mode.build].name : mode.cast ? D.abilities[mode.cast].name : id;
+      const what = mode === 'attack' ? '대상·지점 클릭' : mode === 'repair' ? '수리할 대상 클릭' : mode === 'rally' ? '집결 지점 클릭' : mode.build ? '건설 위치 클릭'
+        : mode.land ? '착륙 위치 클릭' : mode.load ? '태울 유닛 클릭' : mode.unload ? '내릴 지점 클릭' : mode.cast && D.abilities[mode.cast].target === 'unit' ? '대상 클릭' : '지점 클릭';
+      if (kbNav) return label + ' — 가운데 십자 · Enter ' + (mode === 'move' ? '명령' : '실행'); // 키보드: 방향키로 카메라를 옮겨 맞춘다
+      return label + ' — ' + (lastTouch ? what.replace('클릭', '탭') : what); // 터치(마지막 입력이 손가락)면 "탭"
+    }
+    function updateChip(px, py) {
+      const on = !!mode && ringSt === 'pin';
+      el.chip.hidden = !on;
+      if (!on) return;
+      const t = modeText();
+      if (t !== chipSig) { chipSig = t; el.chip.firstChild.textContent = t; chipW = el.chip.offsetWidth; } // 문구가 바뀔 때만 폭을 잰다
+      const x = px + 22 + chipW > view.vw - 8 ? px - 22 - chipW : px + 22; // 오른쪽이 모자라면 핀 왼쪽
+      const tr = 'translate3d(' + Math.round(x) + 'px,' + Math.round(py - 12) + 'px,0)';
+      if (tr !== chipXY) { chipXY = tr; el.chip.style.transform = tr; }
+    }
+    function updateRing(g) {
+      const c = active && !spectate && curBtns.length ? selCenter(g) : null;
+      if (!c) { setRing('none'); selDirty = false; lastMode = mode; el.card.hidden = true; el.pin.hidden = true; el.chip.hidden = true; placeNotice(''); return; }
+      if (selDirty || ringSt === 'none') { setRing(selDirty && ringAuto ? 'open' : 'pin', g); selDirty = false; }
+      if (mode && mode !== lastMode && ringSt === 'open') setRing('pin'); // 무장 명령을 고르면 전장을 가리지 않게 접는다(§4.5)
+      lastMode = mode;
+      el.card.hidden = false;
+      if (ringSt === 'open') {
+        const sx = anchor.x - view.camX, sy = anchor.y - view.camY;
+        if (sx < 0 || sx >= view.vw || sy < view.oy || sy >= view.oy + view.vh) setRing('pin'); // 기준점이 화면 밖 → 접기
+        else placeRing(sx, sy);
+      }
+      if (ringSt !== 'open') placeNotice('');
+      el.pin.hidden = ringSt !== 'pin';
+      if (ringSt === 'pin') { // 핀은 지금 선택 중심 위를 따라간다(작아서 가리지 않는다). 화면 밖이면 가장자리에 붙는다.
+        const x = Math.round(clamp(c.x - view.camX, 20, Math.max(20, view.vw - 20))), y = Math.round(clamp(c.y - view.camY - 36, view.oy + 20, Math.max(view.oy + 20, view.oy + view.vh - 20)));
+        const t = 'translate3d(' + x + 'px,' + y + 'px,0)';
+        if (t !== pinXY) { pinXY = t; el.pin.style.transform = t; }
+        if (c.n !== pinN) { pinN = c.n; el.pin.firstChild.textContent = c.n; }
+        updateChip(x, y);
+      } else el.chip.hidden = true;
+    }
+    el.pin.innerHTML = '<span class="pin-n"></span>';
+    el.chip.after(kbCross);
+    el.chip.innerHTML = '<span></span><span class="kbd">Esc 취소</span><button type="button" class="btn chip-x">취소</button>'; // 취소 버튼은 터치 화면에서만 보인다(CSS)
+    el.chip.querySelector('.chip-x').addEventListener('mousedown', ev => ev.preventDefault());
+    el.chip.querySelector('.chip-x').addEventListener('click', () => { const g = st(); if (active && g && mode) { mode = null; setRing('open', g); } }); // Esc 와 같다: 무장 해제 → 링 다시 열림
+    el.pin.addEventListener('mousedown', ev => ev.preventDefault());
+    el.pin.addEventListener('click', () => { const g = st(); if (active && g) setRing('open', g); });
+
+    // ---- 공격받음 알림 ----
+    function alertHit(g, b, text) { // text 가 있으면(위장 유닛 경고) 화면 안이어도 알린다. 쿨다운은 공유.
+      if (!text && onScreen(b)) return;
+      const x = b.x / FP, y = b.y / FP, R2 = (ALERT_R * TILE) ** 2;
+      cool = cool.filter(c => g.tick - c.tick < ALERT_COOL_S * S.TICK_RATE);
+      if (cool.some(c => (c.x - x) ** 2 + (c.y - y) ** 2 <= R2)) return;
+      cool.push({ x, y, tick: g.tick });
+      lastAlert = { x, y };
+      const node = document.createElement('div'); node.className = 'edge'; node.hidden = true; node.innerHTML = EDGE_SVG;
+      el.edges.appendChild(node);
+      alerts.push({ x, y, t0: performance.now(), node });
+      const msg = text || ALERT_TEXT[b.isB ? 'base' : b.def.worker ? 'worker' : 'unit'];
+      el.alert.textContent = ''; // 같은 문구가 이어져도 다시 읽히게 비운 뒤 채운다
+      requestAnimationFrame(() => { el.alert.innerHTML = esc(msg) + '<span class="kbd" aria-hidden="true">Space 이동</span>'; });
+      el.alert.classList.add('is-on');
+      clearTimeout(alertT); alertT = setTimeout(() => el.alert.classList.remove('is-on'), LINE_MS);
+      if (R.audio) R.audio.play('alert', 1, 0, 0);
+    }
+    function updateAlerts() {
+      const now = performance.now(), cx = view.vw / 2, cy = view.oy + view.vh / 2, M = 22;
+      view.pings = [];
+      alerts = alerts.filter(a => {
+        const age = now - a.t0;
+        if (age >= PING_MS) { a.node.remove(); return false; }
+        view.pings.push({ x: a.x, y: a.y, age: age / PING_MS });
+        const sx = a.x - view.camX, sy = a.y - view.camY;
+        const inside = sx >= 0 && sx < view.vw && sy >= view.oy && sy < view.oy + view.vh;
+        if (inside || age >= EDGE_MS + 500) { a.node.hidden = true; return true; }
+        const dx = sx - cx, dy = sy - cy, k = Math.min((cx - M) / Math.max(1e-6, Math.abs(dx)), (view.vh / 2 - M) / Math.max(1e-6, Math.abs(dy)));
+        a.node.hidden = false; a.node.classList.toggle('is-fade', age >= EDGE_MS);
+        a.node.style.transform = 'translate(' + Math.round(cx + dx * k) + 'px,' + Math.round(cy + dy * k) + 'px) rotate(' + Math.atan2(dy, dx).toFixed(3) + 'rad)';
+        return true;
+      });
+    }
+    function clearAlerts() {
+      for (const a of alerts) a.node.remove();
+      alerts = []; cool = []; lastAlert = null; view.pings = [];
+      clearTimeout(alertT); el.alert.classList.remove('is-on'); el.alert.textContent = '';
+    }
+
+    // ---- 노는 일꾼: 명령 없는 내 일꾼(id 순). 가스 건물 안 일꾼은 gather 명령을 들고 있어 빠진다. ----
+    const idleWorkers = g => g.ents.filter(e => mine(e) && !e.isB && !e.isR && !e.inside && e.def.worker && !e.order).sort((a, b) => a.id - b.id);
+    // 부대 번호 불러오기: 선택, 두 번 연달아 = 카메라 이동 (숫자 키·부대 칩 공용)
+    function recallGroup(n, g) {
+      const ids = (groups[n] || []).filter(id => S.byId(g, id));
+      if (!ids.length) return;
+      const now = performance.now();
+      if (lastGroup.n === n && now - lastGroup.t < DBL) {
+        let x = 0, y = 0; for (const id of ids) { const e = S.byId(g, id); x += e.x / FP; y += e.y / FP; }
+        centerOn(x / ids.length, y / ids.length);
+      }
+      lastGroup = { n, t: now };
+      setSel(ids);
+    }
+    function pickIdle(all) {
+      const g = st(); if (!active || !g || spectate) return;
+      const list = idleWorkers(g); if (!list.length) return;
+      const nx = all ? list[0] : list.find(e => e.id > idleLast) || list[0];
+      idleLast = nx.id;
+      setSel(all ? list.map(e => e.id) : [nx.id]);
+      centerOn(nx.x / FP, nx.y / FP);
+    }
+    function renderIdle(g) {
+      const n = idleWorkers(g).length;
+      if (n === idleCount) return;
+      idleCount = n; el.idleN.textContent = n;
+      el.idle.setAttribute('aria-disabled', n ? 'false' : 'true');
+      el.idle.setAttribute('aria-label', '노는 일꾼 ' + n + '명 — 다음 일꾼 선택 [F1], Shift는 전부');
+    }
+    el.idle.addEventListener('mousedown', ev => ev.preventDefault());
+    el.idle.addEventListener('click', ev => pickIdle(ev.shiftKey));
+
+    // ---- 선택 정보 ----
+    let infoSig = null, dyn = [];
+    const meter = (cls) => `<div class="meter ${cls}"><span class="meter-fill"></span></div>`;
+    const setMeter = (node, frac) => { node.style.transform = 'scaleX(' + clamp(frac, 0, 1) + ')'; };
+    function ownerLabel(g, e) {
+      if (e.owner < 0) return '중립';
+      if (observer) return nameOf(e.owner) + ' · 팀 ' + (g.players[e.owner].team + 1); // 리플레이: 누구의 '나'도 아니다
+      return (e.owner === me ? '나' : S.isEnemy(g, me, e.owner) ? '적' : '팀원') + ' · ' + nameOf(e.owner);
+    }
+    // 머리(선택 수 + 부대 칩)는 한 번만 만들고, 아래 본문(infoBody)만 선택이 바뀔 때 다시 짠다
+    let infoHead = null, infoBody = null, infoTitle = null, infoChips = null, grpSig = null;
+    function ensureInfo() {
+      if (infoHead && infoHead.parentNode === el.info) return;
+      el.info.innerHTML = '';
+      infoHead = document.createElement('div'); infoHead.className = 'info-head';
+      infoTitle = document.createElement('h2'); infoTitle.className = 'info-title';
+      infoChips = document.createElement('div'); infoChips.className = 'groups'; infoChips.setAttribute('role', 'group'); infoChips.setAttribute('aria-label', '부대');
+      infoHead.append(infoTitle, infoChips);
+      infoBody = document.createElement('div'); infoBody.className = 'info-main';
+      el.info.append(infoHead, infoBody); grpSig = null;
+    }
+    // 부대 번호 칩: 지정된 번호만. 클릭 = 선택, 두 번 = 카메라 이동(숫자 키와 같은 동작)
+    function renderChips(g, ents) {
+      const cur = ents.map(e => e.id).sort((a, b) => a - b).join(',');
+      const nums = Object.keys(groups).sort().filter(n => groups[n].some(id => S.byId(g, id)));
+      const sig = nums.map(n => n + ':' + groups[n].filter(id => S.byId(g, id)).sort((a, b) => a - b).join('.')).join('|') + '#' + cur;
+      if (sig === grpSig) return;
+      grpSig = sig; infoChips.innerHTML = ''; infoChips.hidden = !nums.length;
+      for (const n of nums) {
+        const ids = groups[n].filter(id => S.byId(g, id)), isCur = ids.slice().sort((a, b) => a - b).join(',') === cur;
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn grp' + (isCur ? ' is-cur' : ''); b.textContent = n;
+        b.title = '부대 ' + n + ' · 클릭: 선택, 두 번 클릭: 카메라 이동';
+        b.setAttribute('aria-label', '부대 ' + n + (isCur ? ' (현재)' : '') + ' — 클릭 선택, 두 번 클릭 카메라 이동');
+        b.addEventListener('mousedown', ev => ev.preventDefault());
+        b.addEventListener('click', () => { const gg = st(); if (active && gg) recallGroup(n, gg); });
+        infoChips.appendChild(b);
+      }
+    }
+    function renderInfo(g) {
+      ensureInfo();
+      const ents = selEnts(g);
+      const one = ents.length === 1 ? ents[0] : null;
+      const sig = ents.map(e => e.id).join(',') + (one ? '|' + one.type + '|' + (one.buildLeft > 0) + '|' + !!one.morph + '|' + !!one.lifted + '|' +
+        (one.queue || []).map(x => x.what || x.research).join('.') : '');
+      if (sig !== infoSig) {
+        infoSig = sig; dyn = []; infoBody.innerHTML = '';
+        infoTitle.innerHTML = ents.length > 1 ? '부대 <span class="num">' + ents.length + '</span><small>/ ' + MAX_SEL + '</small>' : ents.length ? '선택 <span class="num">1</span>' : '선택';
+        if (one) buildOne(g, one); else if (ents.length) buildMany(ents);
+        else infoBody.innerHTML = '<p class="info-empty">선택한 대상이 없습니다</p>';
+      }
+      renderChips(g, ents);
+      for (const f of dyn) f(g);
+    }
+    // 카테고리 → 업그레이드 id, 종족 → 보호막 업그레이드 id
+    const CAT_UP = {}, SHIELD_UP = {};
+    for (const u of Object.values(D.upgrades)) { if (u.effect.category) CAT_UP[u.effect.category] = u.id; if (u.effect.shieldPerLevel) SHIELD_UP[u.race] = u.id; }
+    function line(body, cls) { const p = document.createElement('p'); p.className = 'info-line' + (cls ? ' ' + cls : ''); body.appendChild(p); return p; }
+    function buildOne(g, e) {
+      const isRes = e.isR, def = e.def;
+      const wrap = document.createElement('div'); wrap.className = 'info-one';
+      const por = document.createElement('div'); por.className = 'portrait';
+      const portType = () => e.mode && NW_ART.SPR[e.type + '@' + e.mode] ? e.type + '@' + e.mode : e.type; // 정박 등 모드 스킨
+      let portKey = portType(); por.appendChild(R.icon(portKey, e.owner, 96));
+      if (!isRes) dyn.push(() => { const k = portType(); if (k !== portKey) { portKey = k; por.replaceChildren(R.icon(k, e.owner, 96)); } });
+      const body = document.createElement('div'); body.className = 'info-body';
+      const race = !isRes && def.race ? D.races[def.race].name : '';
+      body.innerHTML = `<h2 class="info-name">${e.type === 'crystal' ? '크리스탈' : def.name}</h2><p class="info-sub"></p>`;
+      body.querySelector('.info-sub').textContent = ownerLabel(g, e) + (race ? ' · ' + race : ''); // 이름이 들어간다 — innerHTML 금지
+      wrap.append(por, body); infoBody.appendChild(wrap);
+      if (isRes) {
+        const p = line(body);
+        dyn.push(() => { p.innerHTML = '남은 양 <span class="num">' + e.amount + '</span>'; });
+        return;
+      }
+      const vis = e.owner === me || S.visible(g, me, e);
+      const rows = document.createElement('div'); rows.className = 'stats'; body.appendChild(rows);
+      const stat = (label, cls) => {
+        const r = document.createElement('div'); r.className = 'stat';
+        r.innerHTML = `<span class="stat-label">${label}</span>${meter(cls)}<span class="num stat-num"></span>`;
+        rows.appendChild(r); return [r.querySelector('.meter-fill'), r.querySelector('.stat-num'), r];
+      };
+      if (e.shieldMax > 0) {
+        const [f, n] = stat('결정막', 'shield');
+        dyn.push(() => { setMeter(f, e.shield / e.shieldMax); n.textContent = vis ? Math.ceil(e.shield / FP) + ' / ' + e.shieldMax / FP : '?'; });
+      }
+      const [hf, hn, hr] = stat('체력', 'hp');
+      dyn.push(() => { const fr = e.hp / e.hpMax; setMeter(hf, fr); hr.classList.toggle('is-low', fr <= 0.3); hn.textContent = Math.ceil(e.hp / FP) + ' / ' + e.hpMax / FP; });
+      const ally = e.owner >= 0 && !S.isEnemy(g, me, e.owner);
+      if (def.energy && ally) { // 마나: 내·팀원 것만
+        const [f, n] = stat('마나', 'mana');
+        dyn.push(() => { const mx = S.energyMax(g, e); setMeter(f, e.energy / mx); n.textContent = Math.floor(e.energy / FP) + ' / ' + mx / FP; });
+      }
+      if (!e.isB && e.morph && ally) { // 고치: 변태 → 결과 / 합체 결과는 자기 타입
+        const to = D.units[e.morph.to], merged = e.morph.to === e.type;
+        line(body, 'is-warn').textContent = merged ? '합체 중 → ' + to.name : '변태 중 → ' + to.name;
+        const [f, n] = stat(merged ? '합체' : '변태', 'cocoon');
+        dyn.push(() => { if (!e.morph) return; const fr = 1 - e.morph.left / to.time; setMeter(f, fr); n.textContent = Math.floor(fr * 100) + '%'; });
+      }
+      if (!e.isB && ally && (def.modes || def.cloaked || (def.abilities || []).some(a => D.abilities[a].effect.flag === 'cloaked'))) { // 잠복·포격·위장 상태
+        const p = line(body);
+        dyn.push(() => { const t = e.modeT > 0 ? '전환 중…' : e.mode === 'burrow' ? '휴면 중' : e.mode === 'siege' && !def.modes.siege.auto ? '정박' : S.cloaked(e) ? '위장 중' : ''; p.textContent = t; p.hidden = !t; });
+      }
+      const am = !e.isB && ally && Object.keys(def.modes || {}).find(m => def.modes[m].auto);
+      if (am) { // 자동 정박: 멈춰 있으면 still 이 차오르고 time 틱에 정박 → 움직이면 바로 해제
+        const md = def.modes[am], [f, n, r] = stat('정박', 'anchor');
+        dyn.push(() => {
+          const on = e.mode === am, fr = on ? 1 : e.still / md.time;
+          r.hidden = !on && !(e.still > 0); r.classList.toggle('is-on', on); setMeter(f, fr);
+          n.textContent = on ? '정박 중' : '준비 ' + Math.floor(fr * 100) + '% · ' + Math.ceil((md.time - e.still) / S.TICK_RATE) + '초';
+        });
+      }
+      if (!e.isB && def.race === 'swarm' && (S.weaponOf(e, 'weapon') || def.weapon2 || def.launcher) && (e.owner === me || vis)) { // 마이셀 변이: 처치 수는 내 것만, 적은 단계만
+        const MUT = D.races.swarm.mutation, [f, n, r] = stat('변이', 'mutation'), p = line(body), mine = e.owner === me;
+        dyn.push(() => {
+          const st = e.kills >= MUT.at[1] ? 2 : e.kills >= MUT.at[0] ? 1 : 0;
+          r.classList.toggle('is-on', st > 0);
+          setMeter(f, mine ? (st === 2 ? 1 : e.kills / MUT.at[st]) : st / 2);
+          n.textContent = !mine ? (st ? st + '단계' : '변이 전') : st === 2 ? '최대' : '처치 ' + e.kills + '/' + MUT.at[st];
+          p.textContent = st === 2 ? '변이 2단계 · 방어 +' + MUT.armor[1] + ' · 회복 ' + MUT.regen2 + '배' : st === 1 ? '변이 1단계 · 방어 +' + MUT.armor[0] : '';
+          p.hidden = !st;
+        });
+      }
+      if (!e.isB && e.owner === me && def.race === 'elysian' && e.shieldMax > 0) { // 코러스 공명: 반경 r타일 같은 종류·같은 주인(sim.resonance 와 같은 규칙)
+        const RES = D.races.elysian.resonance, r2 = (RES.r * S.TFP) ** 2, [f, n, r] = stat('공명', 'resonance'), p = line(body);
+        dyn.push(() => {
+          let c = 0;
+          if (!e.inside) for (const o of g.ents) {
+            if (o === e || o.type !== e.type || o.owner !== e.owner || o.isB || o.inside || !(o.hp > 0) || !o.shieldMax) continue;
+            const dx = o.x - e.x, dy = o.y - e.y;
+            if (dx * dx + dy * dy <= r2 && ++c >= RES.cap) break;
           }
-    }
-    return null;
-  }
-
-  // 일꾼 목표: 수정 1개당 wpc/2명 + 가스 건물당 gas명, 최대 70
-  const workerTarget = (L, crystals, gasBuildings) => Math.min(70, Math.floor(crystals * L.wpc / 2) + gasBuildings * L.gas);
-
-  // ---- ④ 관리자 ----
-  // 경제: 놀고 있는 일꾼 채집, 가스 채우기, 보급(막히기 전), 일꾼 생산. wMin: 빌드 'w' 단계 일꾼 수(목표 하한)
-  function economy(ai, g, v, bank, out, taken = new Set(), wMin = 0) {
-    const p = ai.p, L = ai.L, wk = D.races[ai.race].worker, bases = basesOf(v);
-    const workers = v.own.filter(e => !e.isB && e.def.worker);
-    const crystals = v.res.filter(c => c.type === 'crystal' && c.amount > 0);
-    const gasB = v.own.filter(b => b.isB && b.def.onVent && !(b.buildLeft > 0));
-    const on = new Map(); // on: 자원 id → 붙은 일꾼 수, taken: 이번 판단에 명령 받은 일꾼
-    for (const w of workers) if (w.order && w.order.type === 'gather') on.set(w.order.res, (on.get(w.order.res) || 0) + 1);
-    const gather = (w, t) => { out.push({ type: 'gather', ids: [w.id], target: t.id, player: p }); taken.add(w.id); on.set(t.id, (on.get(t.id) || 0) + 1); };
-
-    // 1. 놀고 있는 일꾼 → 수정이 남은 기지 중 가장 가까운 곳의 10타일 안, 붙은 일꾼이 가장 적은 수정(동률 id 작은 것)
-    const live = bases.filter(b => crystals.some(c => d2(b, c) <= NEAR * NEAR)); // 다 캔 기지의 일꾼은 다른 기지로
-    for (const w of workers) {
-      if (w.order || w.id === ai.st.scout) continue;
-      let base = null, bd = Infinity;
-      for (const b of live) { const d = d2(b, w); if (d < bd) { bd = d; base = b; } }
-      if (!base) break;
-      let best = null, bn = Infinity;
-      for (const c of crystals) {
-        if (d2(base, c) > NEAR * NEAR) continue;
-        const n = on.get(c.id) || 0;
-        if (n < bn) { bn = n; best = c; }
+          const k = Math.floor(c / RES.per);
+          r.classList.toggle('is-on', k > 0); setMeter(f, c / RES.cap);
+          n.textContent = '이웃 ' + c + '/' + RES.cap;
+          p.textContent = k ? '결정막 회복 +' + k + ' · 전투 중에도' : '같은 종류가 ' + RES.per + '기 이상 모이면 결정막 회복';
+        });
       }
-      if (best) gather(w, best);
-    }
-
-    // 2. 가스 건물마다 L.gas 명까지 — 수정 채집 일꾼 중 가까운 순
-    for (const b of gasB) {
-      while ((on.get(b.id) || 0) < L.gas) {
-        let best = null, bd = Infinity;
-        for (const w of workers) {
-          if (taken.has(w.id) || !w.order || w.order.type !== 'gather' || w.order.kind !== 0) continue;
-          const d = d2(b, w);
-          if (d < bd) { bd = d; best = w; }
-        }
-        if (!best) break;
-        on.set(best.order.res, on.get(best.order.res) - 1);
-        gather(best, b);
-      }
-    }
-
-    // 3. 보급(일꾼보다 먼저 — 모자라면 비용을 예약해 일꾼 생산이 먹지 않게)
-    // 생산 건물 수: 일꾼 외 유닛을 뽑는 건물(짓는 중 포함 — 보급이 완성보다 늦지 않게). 유충 기지(스웜)도 생산 건물이다.
-    const me = v.me, prodN = v.own.filter(b => b.isB && b.def.trains && (!b.def.dropoff || b.def.larva)).length;
-    const free2 = me.supplyMax2 - me.supplyUsed2, need2 = 2 * (4 + 3 * prodN), sw = SUPPLY[ai.race];
-    const prov2 = 2 * (D.units[sw] || D.buildings[sw]).provides; // 진행 중인 보급까지 셈해 모자라면 하나 더(생산 건물이 많을 때 겹쳐 짓기)
-    if (me.supplyMax2 < 400 && free2 + supplyPending(v, sw) * prov2 < need2) {
-      const cost = costOf(sw);
-      let short = false;
-      if (D.units[sw]) { // 스웜 블로터: 기지 유충으로
-        short = !afford(bank, cost);
-        for (const b of bases) {
-          if (short || S.canTrain(g, p, b, sw, pendOf(v, bank, b)) !== '') continue;
-          out.push({ type: 'train', ids: [b.id], what: sw, player: p });
-          spend(bank, cost); bank.n.set(b.id, (bank.n.get(b.id) || 0) + 1);
-          break;
-        }
-      } else if (!afford(bank, cost)) short = true;
-      else {
-        const spot = findSpot(ai, g, v, sw, bank), w = spot && builderFor(ai, v, spot[0], spot[1], taken);
-        if (w) {
-          out.push({ type: 'build', ids: [w.id], what: sw, tx: spot[0], ty: spot[1], player: p });
-          spend(bank, cost); taken.add(w.id); bank.rects.push([spot[0], spot[1], D.buildings[sw].w, D.buildings[sw].h]);
+      if (def.transport && e.owner === me) buildCargo(g, e, body);
+      // 공격·방어(·보호막) 업그레이드 단계: 유닛만, 무기 카테고리가 없으면 공격은 생략
+      if (!e.isB && e.owner >= 0) {
+        const w1 = S.weaponOf(e, 'weapon') || Object.values(def.modes || {}).map(m => m.weapon).find(Boolean); // 모드 무기만 있는 유닛(트렌처)
+        const wc = (w1 && w1.upgrade) || (def.weapon2 && def.weapon2.upgrade);
+        const parts = [];
+        if (wc && CAT_UP[wc]) parts.push(['공격', CAT_UP[wc]]);
+        if (def.armorUpgrade && CAT_UP[def.armorUpgrade]) parts.push(['방어', CAT_UP[def.armorUpgrade]]);
+        if (e.shieldMax > 0 && SHIELD_UP[def.race]) parts.push(['결정막', SHIELD_UP[def.race]]);
+        if (parts.length) {
+          const p = line(body, 'ups');
+          dyn.push(() => { const up = g.players[e.owner].up; p.innerHTML = parts.map(([l, id]) => l + ' <span class="num">+' + (up[id] || 0) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); });
         }
       }
-      if (short) spend(bank, cost);
-    }
-
-    // 4. 일꾼 생산: 목표 미만이면 기지마다(레기온·엘리시안은 큐가 빌 때 1기, 스웜은 유충 전부)
-    let crysN = 0;
-    for (const c of crystals) if (bases.some(b => d2(b, c) <= NEAR * NEAR)) crysN++;
-    const target = Math.max(workerTarget(L, crysN, gasB.length), wMin), cost = costOf(wk), s2 = supply2Of(wk);
-    let have = unitCount(v, wk);
-    // 유충 나누기(스웜): 'w' 단계가 아니고 일꾼이 목표 절반 이상이며 조합 유닛을 뽑을 기술이 있으면, 일꾼은 병력과 유충을 번갈아 쓴다
-    // (병력 유충마다 st.larva +1(최대 2), 일꾼 유충마다 −1, 0 이면 일꾼 안 함). 유충이 가득(3) 찬 기지는 예외 — 병력을 못 뽑는 동안 일꾼이 굶지 않게.
-    const split = !wMin && have * 2 >= target && Object.keys(mixFor(ai)).some(u => (D.units[u].requires || []).every(r => S.hasTech(g, p, r)));
-    for (const b of bases) {
-      if (!(b.def.trains || []).includes(wk)) continue;
-      while (have < target) {
-        const n = bank.n.get(b.id) || 0;
-        if (!b.def.larva && (b.queue.length || n)) break;
-        if (b.def.larva && split && ai.st.larva <= 0 && b.larva - n < 3) break;
-        if (S.canTrain(g, p, b, wk, pendOf(v, bank, b)) !== '') break;
-        out.push({ type: 'train', ids: [b.id], what: wk, player: p });
-        spend(bank, cost, s2); bank.n.set(b.id, n + 1); have++;
-        if (b.def.larva) ai.st.larva = Math.max(0, ai.st.larva - 1);
+      if (def.launcher && e.owner === me) { // 함재기·파쇄구: 격납 수 / 최대, 출격 중
+        const p = line(body), child = D.units[def.launcher.child].name;
+        dyn.push(() => { const out = g.ents.reduce((k, c) => k + (c.parent === e.id ? 1 : 0), 0);
+          p.innerHTML = child + ' 격납 <span class="num">' + e.hangar + ' / ' + def.launcher.max + '</span>' + (out ? ' · 출격 <span class="num">' + out + '</span>' : ''); });
       }
-    }
-  }
-
-  // 빌드 단계 충족 여부. 'b'·'m' 은 같은 단계가 앞에서 몇 번 나왔는지가 목표 개수(종족 기지는 시작 기지 + 앞선 확장 수만큼 더).
-  function stepNeed(ai, st) {
-    let n = 0, x = 0;
-    for (const s of ai.P.build) {
-      if (s[0] === st[0] && s[1] === st[1]) n++;
-      if (s[0] === 'x') x = Math.max(x, s[1]);
-      if (s === st) break;
-    }
-    if (st[0] === 'b' && st[1] === D.races[ai.race].base) n += 1 + x;
-    return Math.max(n, 1);
-  }
-  function stepDone(ai, g, v, st) {
-    const [k, what] = st;
-    if (k === 'w') return unitCount(v, D.races[ai.race].worker) >= what;
-    if (k === 'b' || k === 'm') return count(v, what) >= stepNeed(ai, st);
-    if (k === 'gas') return count(v, GAS[ai.race]) >= Math.min(what, ventsOf(g, v)); // 분출구가 모자라면(확장 전) 있는 만큼만
-    if (k === 'x') return siteBases(ai, g, v) >= 1 + what;
-    if (k === 'u') return unitCount(v, what) >= st[2];
-    if (k === 'up') return (v.me.up[what] || 0) >= 1 || v.own.some(b => b.isB && b.queue.some(q => q.research === what));
-    return true;
-  }
-  // 자기 완성 기지 12타일 안의 분출구 수(가스 건물이 지어진 것 포함)
-  const ventsOf = (g, v) => v.res.filter(r => r.type === 'vent' && basesOf(v).some(b => d2(b, r) <= 144 * TFP * TFP)).length;
-  // 기지가 있는 맵 사이트 수(건설 중·착공 전 명령 포함) — 본진 옆에 더 지은 스웜 둥지(유충용)는 확장으로 세지 않는다
-  function siteBases(ai, g, v) {
-    const base = D.races[ai.race].base, at = [];
-    for (const e of v.own) {
-      if (e.isB) { if (lineage(e.type, base) || (e.morph && e.morph.to === base)) at.push([e.tx, e.ty]); }
-      else if (e.order && e.order.type === 'build' && e.order.what === base) at.push([e.order.tx, e.order.ty]);
-    }
-    let n = 0;
-    for (const s of sitesOf(ai, g)) if (at.some(([x, y]) => Math.abs(x - s.tx) <= 6 && Math.abs(y - s.ty) <= 6)) n++;
-    return n;
-  }
-  const curStep = (ai, g, v) => ai.P ? ai.P.build.find(st => !ai.st.skipStep.has(st) && !stepDone(ai, g, v, st)) || null : null;
-
-  // 일꾼에게 자리 build 명령. 반환: 'ok' | 'short'(자원 부족 — 저축) | 'fail'(자리·일꾼 없음)
-  function buildWith(ai, v, bank, out, taken, what, spot) {
-    const w = spot && builderFor(ai, v, spot[0], spot[1], taken), d = D.buildings[what];
-    if (!w) return 'fail';
-    out.push({ type: 'build', ids: [w.id], what, tx: spot[0], ty: spot[1], player: ai.p });
-    spend(bank, d.cost); taken.add(w.id); bank.rects.push([spot[0], spot[1], d.w, d.h]);
-    return 'ok';
-  }
-  function buildOne(ai, g, v, bank, out, taken, what) {
-    const def = D.buildings[what];
-    if (!afford(bank, def.cost)) return 'short';
-    if (def.addonOf) { // 레기온 부속: 본체가 직접
-      const host = v.own.find(b => b.isB && S.canAddon(g, ai.p, b, what) === '');
-      if (!host) return 'fail';
-      out.push({ type: 'build', ids: [host.id], what, player: ai.p }); spend(bank, def.cost);
-      return 'ok';
-    }
-    const spot = findSpot(ai, g, v, what, bank);
-    if (!spot && ai.st.spotWhy === 'power' && !supplyBusy(v, 'resonator')) return buildOne(ai, g, v, bank, out, taken, 'resonator');
-    return buildWith(ai, v, bank, out, taken, what, spot);
-  }
-  function expandOne(ai, g, v, bank, out, taken) {
-    const what = D.races[ai.race].base;
-    if (!afford(bank, costOf(what))) return 'short';
-    return buildWith(ai, v, bank, out, taken, what, expansionSpot(ai, g, v, bank));
-  }
-  // 한 기 생산: 그 유닛을 뽑는 완성 건물 중 큐가 빈 것(유충 건물은 유충이 있으면)
-  function trainOne(ai, g, v, bank, out, what) {
-    const s2 = supply2Of(what), cost = costOf(what);
-    for (const b of v.own) {
-      if (!b.isB || !(b.def.trains || []).includes(what)) continue;
-      const n = bank.n.get(b.id) || 0;
-      if (!b.def.larva && (b.queue.length || n)) continue;
-      if (S.canTrain(g, ai.p, b, what, pendOf(v, bank, b)) !== '') continue;
-      out.push({ type: 'train', ids: [b.id], what, player: ai.p });
-      spend(bank, cost, s2); bank.n.set(b.id, n + 1);
-      if (b.def.larva) ai.st.larva = Math.min(2, ai.st.larva + 1);
-      return true;
-    }
-    return false;
-  }
-  function researchOne(ai, g, v, bank, out, id) {
-    const u = D.upgrades[id], cost = u.cost[v.me.up[id] || 0];
-    if (!cost) return 'fail';
-    for (const b of v.own) {
-      if (!b.isB) continue;
-      const why = S.canResearch(g, ai.p, b, id);
-      if (why === 'crystal' || why === 'nebula') return 'short';
-      if (why !== '') continue;
-      if (!afford(bank, cost)) return 'short';
-      out.push({ type: 'research', ids: [b.id], what: id, player: ai.p }); spend(bank, cost);
-      return 'ok';
-    }
-    return 'fail';
-  }
-  // 시전 유닛: 병력(조합 유닛 수) per 기당 1기, 최대 max(쉬움은 절반). 목표 미만이면 한 기 생산
-  function casterOne(ai, g, v, bank, out, mix) {
-    const cs = ai.P.casters;
-    if (!cs) return;
-    let army = 0;
-    for (const u of Object.keys(mix)) army += unitCount(v, u);
-    for (const [u, c] of Object.entries(cs)) {
-      const max = ai.level === 'easy' ? Math.floor(c.max / 2) : c.max;
-      if (unitCount(v, u) >= Math.min(max, Math.floor(army / c.per))) continue;
-      if (afford(bank, costOf(u))) { trainOne(ai, g, v, bank, out, u); continue; }
-      // 돈이 모자라면 조합 유닛이 가져가지 못하게 떼어 둔다(네뷸라가 계속 비어 못 뽑는다) — 다 지어진 생산 건물이 있고 요구 기술이 갖춰져 돈만 모자랄 때만
-      const why = b => S.canTrain(g, ai.p, b, u, pendOf(v, bank, b));
-      if (v.own.some(b => b.isB && (b.def.trains || []).includes(u) && (why(b) === 'crystal' || why(b) === 'nebula'))) spend(bank, costOf(u));
-    }
-  }
-  // 탐지 건물 하나(본진 옆): 요구 건물이 없으면 그것부터, 스웜 산성 낭은 촉수 기둥을 지어 변태
-  function detectorOne(ai, g, v, bank, out, taken) {
-    const what = DET[ai.race], def = D.buildings[what];
-    if (ai.race === 'legion' && count(v, 'drillhall') && !count(v, 'uplink')) buildOne(ai, g, v, bank, out, taken, 'uplink');
-    if (count(v, what) || supplyBusy(v, def.morphFrom || what)) return;
-    const miss = r => count(v, r) ? null : (D.buildings[r].requires || []).map(miss).find(Boolean) || r;
-    const need = (def.requires || []).map(miss).find(Boolean);
-    if (need) { if (!(D.buildings[need].requires || []).some(q => !S.hasTech(g, ai.p, q))) buildOne(ai, g, v, bank, out, taken, need); return; }
-    if (!def.morphFrom) { buildOne(ai, g, v, bank, out, taken, what); return; }
-    const b = v.own.find(e => e.isB && S.canMorph(g, ai.p, e, what) === '');
-    if (!b) { if (!v.own.some(e => e.isB && e.type === def.morphFrom)) buildOne(ai, g, v, bank, out, taken, def.morphFrom); return; }
-    if (afford(bank, def.cost)) { out.push({ type: 'morph', ids: [b.id], what, player: ai.p }); spend(bank, def.cost); }
-  }
-  // 단계 하나 실행. 반환 'ok' | 'short'(자원 부족 — 저축) | 'fail'(기술·자리·일꾼 없음 — 다음 판단에 다시)
-  function runStep(ai, g, v, bank, out, taken, st) {
-    const [k, what] = st;
-    if (k === 'b') return buildOne(ai, g, v, bank, out, taken, what);
-    if (k === 'm') {
-      const def = D.buildings[what];
-      if (!afford(bank, def.cost)) return 'short';
-      const b = v.own.find(e => e.isB && S.canMorph(g, ai.p, e, what) === '');
-      if (!b) return 'fail';
-      out.push({ type: 'morph', ids: [b.id], what, player: ai.p }); spend(bank, def.cost);
-      return 'ok';
-    }
-    if (k === 'gas') {
-      if (!afford(bank, costOf(GAS[ai.race]))) return 'short';
-      return buildWith(ai, v, bank, out, taken, GAS[ai.race], findGasSpot(ai, g, v, bank));
-    }
-    if (k === 'x') return expandOne(ai, g, v, bank, out, taken);
-    if (k === 'u') return trainOne(ai, g, v, bank, out, what) ? 'ok' : 'fail';
-    if (k === 'up') return researchOne(ai, g, v, bank, out, what);
-    return 'fail';
-  }
-  const stepCost = (ai, v, st) => st[0] === 'gas' ? costOf(GAS[ai.race]) : st[0] === 'x' ? costOf(D.races[ai.race].base)
-    : st[0] === 'up' ? D.upgrades[st[1]].cost[v.me.up[st[1]] || 0] || {} : st[0] === 'b' || st[0] === 'm' ? costOf(st[1]) : null;
-
-  // 생산·건설: 빌드 단계(정확도 L.acc 확률로 진행, 자원 모자라면 저축) → 조합 비율 생산 →
-  // (빌드 이후) 생산 건물 추가·연구·주기적 확장
-  function production(ai, g, v, bank, out, taken, st) {
-    const P = ai.P, L = ai.L;
-    if (!P) return;
-    let save = null;
-    const saving = (cost, r) => { if (r === 'short') save = cost; };
-    if (st) {
-      if (rnd(ai, 100) < L.acc) {
-        const r = runStep(ai, g, v, bank, out, taken, st);
-        saving(stepCost(ai, v, st), r);
-        // 확장 단계가 자리 없음으로 계속 실패하면(연속 K.X_GIVEUP 틱) 건너뛴다 — 빌드가 영영 멈추지 않게
-        if (st[0] === 'x' && r === 'fail') {
-          if (!ai.st.xFail || ai.st.xFail.st !== st) ai.st.xFail = { st, since: g.tick };
-          else if (g.tick - ai.st.xFail.since >= K.X_GIVEUP) { ai.st.skipStep.add(st); ai.st.xFail = null; }
-        } else if (st[0] === 'x') ai.st.xFail = null;
-      }
-      else if (stepCost(ai, v, st) && !afford(bank, stepCost(ai, v, st))) save = stepCost(ai, v, st);
-    } else if (g.tick >= P.expandAt) { // 빌드 이후: expandAt 부터 6000틱마다 확장 하나 더
-      let x = 0;
-      for (const s of P.build) if (s[0] === 'x') x = Math.max(x, s[1]);
-      const want = 1 + x + 1 + Math.floor((g.tick - P.expandAt) / 6000);
-      if (siteBases(ai, g, v) < want) saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
-    }
-    // 빌드의 가스 단계가 분출구 부족으로 미뤄졌으면(확장 없이 가스 2개) 확장을 당겨 온다(진행 중인 확장이 없을 때)
-    if (!save && P.build.some(s => s[0] === 'gas' && s[1] > ventsOf(g, v)) && siteBases(ai, g, v) <= basesOf(v).length && bank.crystal >= 400 * ECO)
-      saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
-    // 기지 주변 수정이 거의 다 떨어졌으면(덩이 4개 이하) 진행 중인 확장이 없을 때 확장부터(저축)
-    if (!st && !save && v.res.filter(c => c.type === 'crystal' && c.amount > 0 && basesOf(v).some(b => d2(b, c) <= NEAR * NEAR)).length <= K.DRY
-      && siteBases(ai, g, v) <= basesOf(v).length)
-      saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
-    // 안 보이는 적에게 맞았으면(은폐·잠복, 최근 6000틱) 탐지 건물(저축보다 먼저)
-    if (g.tick - ai.st.unseenAt < K.DETECT_FOR) detectorOne(ai, g, v, bank, out, taken);
-    if (save) { // 저축: 단계 비용을 떼어 두고, 그러고도 수정 150 이상 남을 때만 생산
-      const rich = bank.crystal - (save.crystal || 0) >= 150 * ECO;
-      spend(bank, save);
-      if (!rich) return;
-    }
-
-    // 마법 연구: 순서대로, 연구 건물이 다 지어졌으면 유닛 생산보다 먼저(돈이 모자라면 비용을 떼어 저축 — 안 그러면 생산이 네뷸라를 계속 비워 못 시작한다)
-    for (const id of P.spells || []) {
-      if (stepDone(ai, g, v, ['up', id])) continue;
-      if (researchOne(ai, g, v, bank, out, id) === 'short') spend(bank, D.upgrades[id].cost[v.me.up[id] || 0]);
-      break; // 시작한 것(또는 못 시작한 것)을 지나 뒤 마법으로 건너뛰지 않는다
-    }
-    // 조합 비율 생산: 현재 수 / 비율 이 가장 작은 유닛부터(동률은 mix 키 순), 못 뽑으면 다음 유닛
-    const mix = mixFor(ai, v.me.nebula), keys = Object.keys(mix), have = new Map(keys.map(u => [u, unitCount(v, u)])), stuck = new Set();
-    casterOne(ai, g, v, bank, out, mix); // 조합 생산이 건물 큐를 다 채우기 전에(시전 유닛은 목표 수 미만일 때만 한 기)
-    for (;;) {
-      let best = null;
-      for (const u of keys) if (!stuck.has(u) && (!best || have.get(u) * mix[best] < have.get(best) * mix[u])) best = u;
-      if (!best) break;
-      if (trainOne(ai, g, v, bank, out, best)) have.set(best, have.get(best) + (D.units[best].count || 1));
-      else stuck.add(best);
-    }
-    // 수정만 남을 때(네뷸라가 모자라 조합 유닛이 막힘): 수정 800 넘는 만큼 종족 수정 전용 유닛으로
-    while (bank.crystal > 800 * ECO && trainOne(ai, g, v, bank, out, FILL[ai.race]));
-    // 그래도 1500 넘게 쌓이면 수정 전용 유닛 생산 건물을 하나 더(짓는 중인 게 없고 L.maxProd 미만)
-    const fb = Object.values(D.buildings).find(d => d.race === ai.race && !d.dropoff && (d.trains || []).includes(FILL[ai.race]));
-    if (fb && bank.crystal > 1500 * ECO && count(v, fb.id) < L.maxProd && !supplyBusy(v, fb.id)) buildOne(ai, g, v, bank, out, taken, fb.id);
-    // 빌드 이후 네뷸라가 모자라고 수정이 남으면 빈 분출구에 가스 건물(확장 기지 포함)
-    if (!st && v.me.nebula < 300 * ECO && bank.crystal > 400 * ECO && !supplyBusy(v, GAS[ai.race])) {
-      const spot = findGasSpot(ai, g, v, bank);
-      if (spot) buildWith(ai, v, bank, out, taken, GAS[ai.race], spot);
-    }
-
-    // 생산 건물 추가: 조합 유닛을 뽑는 건물이 전부 바쁘고 수정이 남으면(짓는 중인 게 없고 L.maxProd 미만일 때).
-    // 빌드 단계 중에도 수정이 600 넘게 쌓이면(유충·생산 건물이 모자라 남는 돈) 짓고, 1000 넘게 쌓이면 상한 +2·짓는 중인 게 하나뿐이면 하나 더(스웜 둥지 제외 — 1800틱짜리라 겹쳐 짓지 않는다).
-    const trainsMix = d => (d.trains || []).some(u => keys.includes(u));
-    const prodB = v.own.filter(b => b.isB && trainsMix(b.def));
-    const idle = b => b.def.larva ? b.larva - (bank.n.get(b.id) || 0) >= 1 : !b.queue.length && !bank.n.get(b.id);
-    const pending = prodB.filter(b => b.buildLeft > 0).length + v.own.filter(e => !e.isB && e.order && e.order.type === 'build' && trainsMix(D.buildings[e.order.what])).length;
-    const cap = L.maxProd + (bank.crystal > 1000 * ECO ? 2 : 0);
-    let top = keys[0];
-    for (const u of keys) if (mix[u] > mix[top]) top = u;
-    const pb = D.units[top].race === 'swarm' ? D.races.swarm.base
-      : Object.values(D.buildings).find(d => d.race === ai.race && !d.dropoff && (d.trains || []).includes(top)).id;
-    // 스웜은 유충이 병목이라 남는 수정 700마다 둥지 하나 더 겹쳐 짓는다(최대 3개 동시)
-    const par = D.buildings[pb].dropoff ? Math.min(3, 1 + Math.floor(bank.crystal / (700 * ECO))) : bank.crystal > 1000 * ECO ? 2 : 1;
-    if (prodB.length && pending < par && prodB.length < cap && bank.crystal > (st ? 600 : 400) * ECO && !prodB.some(b => !(b.buildLeft > 0) && idle(b))) {
-      buildOne(ai, g, v, bank, out, taken, pb); // 스웜 둥지도(유충이 병목 — 'x' 단계는 siteBases 로 세어 본진 옆 둥지가 채우지 않는다)
-    }
-    if (st) return;
-
-    // 조합 유닛의 기술 건물이 없으면(상성 생산으로 새 유닛이 들어온 경우) 하나 짓는다 — 요구 건물을 따라 내려가 지을 수 있는 첫 것
-    for (const u of keys) {
-      const miss = r => count(v, r) ? null : (D.buildings[r].requires || []).map(miss).find(Boolean) || r;
-      const r = (D.units[u].requires || []).map(miss).find(Boolean);
-      if (r && !(D.buildings[r].requires || []).some(q => !S.hasTech(g, ai.p, q))) { buildOne(ai, g, v, bank, out, taken, r); break; }
-    }
-
-    // 연구: 목록 순서로, 단계 상한까지
-    for (const id of P.research) researchOne(ai, g, v, bank, out, id);
-  }
-
-  // ---- 무기 판정(sim pickW·rangeLim 과 같은 규칙) ----
-  const airy = e => !!(e.def.air || e.lifted);
-  const hit = (w, t) => !!w && (airy(t) ? !!w.air : w.ground !== false);
-  const weaponsOf = d => d.launcher ? [D.units[d.launcher.child].weapon] : [d.weapon, d.weapon2].filter(Boolean);
-  const hitsAir = d => weaponsOf(d).some(w => w.air);
-  const reachOf = d => Math.max(0, ...(d.launcher ? [d.launcher.range] : weaponsOf(d).map(w => w.range))); // 최대 사거리(px)
-  const melee = d => reachOf(d) <= K.MELEE;
-  function wkFor(e, t) {
-    const L = e.def.launcher;
-    if (L) return hit(D.units[L.child].weapon, t) ? 'launcher' : null;
-    return hit(S.weaponOf(e, 'weapon'), t) ? 'weapon' : hit(S.weaponOf(e, 'weapon2'), t) ? 'weapon2' : null; // 3a 모드(포격·잠복)는 무기가 바뀐다
-  }
-  const radiusOf = t => t.isB ? Math.min(t.def.w, t.def.h) * 16 : t.def.radius;
-  // e 가 t 를 사거리 + extra(px) 안에서 때릴 수 있는가
-  function canReach(g, e, t, extra = 0) {
-    const wk = wkFor(e, t);
-    if (!wk) return false;
-    const l = ((wk === 'launcher' ? e.def.launcher.range : S.stat(g, e, 'range', wk)) + radiusOf(e) + radiusOf(t) + extra) * S.FP;
-    return d2(e, t) <= l * l;
-  }
-
-  // 조합 비율: 성향 mix. 어려움(micro ≥ 2)은 최근 3000틱 기억의 적 공중 전투 유닛이 (공중+지상)의 30% 이상이면
-  // 공중을 못 때리는 유닛을 빼고, 남는 게 없으면 종족 대공 기본 유닛(AA)으로.
-  // nebula: 남는 네뷸라(600 이상)면 네뷸라를 쓰는 유닛 비중 ×3, 그런 유닛이 없으면 종족 대공 유닛(네뷸라를 쓰면)을 최대 비중으로 더한다.
-  function mixFor(ai, nebula = 0) {
-    if (!ai.P) return {};
-    const mix = { ...ai.P.mix };
-    if (nebula >= 600 * ECO) {
-      const neb = Object.keys(mix).filter(u => D.units[u].cost.nebula);
-      if (neb.length) for (const u of neb) mix[u] *= 3;
-      else if (D.units[AA[ai.race]].cost.nebula) mix[AA[ai.race]] = Math.max(...Object.values(mix));
-    }
-    const air = ai.mem.air.size, ground = ai.mem.ground.size;
-    if (ai.L.micro >= 2 && air > 0 && air * 10 >= (air + ground) * 3) {
-      for (const u of Object.keys(mix)) if (!hitsAir(D.units[u])) delete mix[u];
-      if (!Object.keys(mix).length) mix[AA[ai.race]] = 1;
-    }
-    return mix;
-  }
-
-  // ---- 정찰·군대 ----
-  const homeOf = v => v.own.find(b => b.isB && b.def.dropoff) || null; // 본진 = 가장 오래된(id 작은) 기지
-  const isBaseB = (g, b) => lineage(b.type, D.races[g.players[b.owner].race].base); // 적 종족은 공개 정보
-  const fighterDef = d => !!(d.weapon || d.weapon2 || d.launcher || (d.modes && Object.values(d.modes).some(m => m.weapon))); // 모드에서만 무기가 있는 유닛(트렌처) 포함
-  const armyValue = units => units.reduce((s, e) => s + (e.def.cost.crystal || 0) + (e.def.cost.nebula || 0), 0);
-  const tileAt = (x, y) => [Math.floor(x / TFP), Math.floor(y / TFP)];
-  // 자기 시작 자리 방향(flip: 1 x 거울·2 y 거울). 자리 주변 탐색의 동률 순서를 이것으로 뒤집어 자리마다 같게 한다.
-  const flipOf = (ai, g) => g.map.starts[g.players[ai.p].slot].flip;
-  const within = (a, b, tiles) => d2(a, b) <= tiles * tiles * TFP * TFP;
-  // 맵 사이트: 시작 후보(start = true) + 확장(기준점 flip 변환). x, y = 기지 자리 중심(px)
-  function sitesOf(ai, g) {
-    if (ai.st.sites) return ai.st.sites;
-    const md = D.maps[g.map.id], W = g.map.w, H = g.map.h, bd = D.buildings[D.races[ai.race].base], bw = bd.w, bh = bd.h;
-    const at = (tx, ty, start) => ({ tx, ty, x: tx * TFP + (bw * TFP >> 1), y: ty * TFP + (bh * TFP >> 1), start });
-    ai.st.sites = [...md.starts.map(s => at(s.tx, s.ty, true)),
-      ...md.expansions.map(e => { const f = e.flip ?? (e.mirror ? 3 : 0); return at(f & 1 ? W - e.tx - bw : e.tx, f & 2 ? H - e.ty - bh : e.ty, false); })];
-    return ai.st.sites;
-  }
-  // 시작 후보: 자기·팀원 기지가 6타일 안에 없는 시작 자리, 본진에서 가까운 순(동률은 자리 방향 기준 위→왼쪽 — 자리마다 같은 모양)
-  function candidates(ai, g, v) {
-    const home = homeOf(v), mine = [...v.own, ...v.allies].filter(b => b.isB && b.def.dropoff);
-    const out = sitesOf(ai, g).filter(s => s.start && !mine.some(b => Math.abs(b.tx - s.tx) <= 6 && Math.abs(b.ty - s.ty) <= 6));
-    const fl = flipOf(ai, g), W = g.map.w * TFP, H = g.map.h * TFP;
-    const canon = s => [fl & 2 ? H - s.y : s.y, fl & 1 ? W - s.x : s.x];
-    return home ? out.map(s => [s, d2(home, s), ...canon(s)]).sort((a, b) => a[1] - b[1] || a[2] - b[2] || a[3] - b[3]).map(a => a[0]) : out;
-  }
-  // 사이트를 본 틱 기록(자기 안개 — 중심 타일이 지금 보이면)
-  const siteKey = s => s.tx + ',' + s.ty;
-  function markSeen(ai, g) {
-    const f = g.fog[ai.p];
-    for (const s of sitesOf(ai, g)) { const [tx, ty] = tileAt(s.x, s.y); if (f[ty * g.map.w + tx] === 2) ai.st.seen[siteKey(s)] = g.tick; }
-    // 탐색 표본: 짝수 좌표 타일(건물 발자국 최소 2×2 라 어느 건물이든 표본 하나를 덮는다)을 마지막으로 본 틱
-    const W = g.map.w, H = g.map.h, LW = (W + 1) >> 1, st = ai.st;
-    if (!st.look) st.look = new Int32Array(LW * ((H + 1) >> 1)).fill(-1);
-    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) if (f[y * W + x] === 2) st.look[(y >> 1) * LW + (x >> 1)] = g.tick;
-  }
-  // 끝판 탐색 칸(K.CELL 타일 사각형): 칸 안 바위 아닌 표본 중 가장 오래전에 본 틱(표본 없으면 Infinity), 칸 표본 전부를 본 것으로
-  function cellAge(ai, g, i, mark) {
-    const W = g.map.w, H = g.map.h, LW = (W + 1) >> 1, CW = Math.ceil(W / K.CELL), st = ai.st;
-    const x0 = (i % CW) * K.CELL, y0 = Math.floor(i / CW) * K.CELL;
-    let age = Infinity;
-    for (let y = y0; y < Math.min(H, y0 + K.CELL); y += 2) for (let x = x0; x < Math.min(W, x0 + K.CELL); x += 2) {
-      if (g.map.rock[y * W + x]) continue;
-      const k = (y >> 1) * LW + (x >> 1);
-      if (mark) st.look[k] = g.tick; else if (st.look[k] < age) age = st.look[k];
-    }
-    return age;
-  }
-  // 끝판 탐색: 이번 회차(st.round 이후)에 다 보지 못한 칸 중 병력 중심에서 가장 가까운 것(동률 번호). 남은 칸이 없으면 새 회차.
-  // 자기 안개만 쓴다 — 숨은 적 건물은 직접 가 봐야 찾는다. 모든 칸이 회차마다 한 번씩은 확인된다.
-  function searchCell(ai, g, c) {
-    const st = ai.st, CW = Math.ceil(g.map.w / K.CELL), n = CW * Math.ceil(g.map.h / K.CELL);
-    for (let pass = 0; pass < 2; pass++) {
-      let best = -1, bd = Infinity;
-      for (let i = 0; i < n; i++) {
-        if (cellAge(ai, g, i) >= st.round) continue;
-        const x = (i % CW) * K.CELL * TFP + (K.CELL * TFP >> 1), y = Math.floor(i / CW) * K.CELL * TFP + (K.CELL * TFP >> 1);
-        const dd = d2(c, { x, y });
-        if (dd < bd) { bd = dd; best = { x, y, id: 0, key: 'c' + i }; }
-      }
-      if (best !== -1) return best;
-      st.round = g.tick;
-    }
-    return null;
-  }
-  // 기억한 적 기지 건물(가장 먼저 기억한 것 — Map 삽입 순서)
-  function knownBase(g, v) { for (const b of v.known.values()) if (isBaseB(g, b)) return b; return null; }
-  // 일꾼을 본진 수정 채집으로 돌려보낸다
-  function sendHome(ai, v, w, out) {
-    const home = homeOf(v);
-    let best = null, bd = Infinity;
-    for (const c of v.res) if (c.type === 'crystal' && c.amount > 0 && home && d2(home, c) <= NEAR * NEAR && d2(w, c) < bd) { bd = d2(w, c); best = c; }
-    if (best) out.push({ type: 'gather', ids: [w.id], target: best.id, player: ai.p });
-    else out.push({ type: 'stop', ids: [w.id], player: ai.p });
-  }
-  const moveTo = (ai, out, ids, s, type = 'move') => out.push({ type, ids, x: s.x, y: s.y, player: ai.p });
-
-  // 정찰: 초반 일꾼 정찰(시작 후보를 정찰 위치에서 가까운 순으로) → 이후 주기 순찰(보통·어려움)
-  function scout(ai, g, v, bank, out, taken = new Set()) {
-    const L = ai.L, st = ai.st;
-    markSeen(ai, g);
-    if (!st.scoutDone) {
-      let sc = st.scout ? v.own.find(e => e.id === st.scout) : null;
-      if (st.scout && !sc) st.scout = 0; // 죽었다 → 다음 판단에 새로
-      if (!sc) {
-        const workers = v.own.filter(e => !e.isB && e.def.worker);
-        if (workers.length < L.scoutAt) return;
-        // 빈손 수정 일꾼 중 id 작은 것 — 수정 앞에서 캐는 중(moving 아님)인 일꾼은 채집 줄에 끼어 못 빠져나오니 걸어가는 일꾼으로
-        sc = workers.find(w => !taken.has(w.id) && w.order && w.order.type === 'gather' && w.order.kind === 0 && !(w.carry > 0) && w.order.moving);
-        if (!sc) return;
-        st.scout = sc.id; st.scoutTo = '';
-      }
-      const eb = knownBase(g, v);
-      const cs = candidates(ai, g, v);
-      for (const s of cs) if (st.scoutTo === siteKey(s) && (st.seen[siteKey(s)] !== undefined || within(sc, s, 4))) st.scoutFrom = s;
-      const left = eb ? [] : cs.filter(s => st.seen[siteKey(s)] === undefined && !within(sc, s, 4));
-      if (!left.length) { // 찾았거나 다 봤다 → 복귀
-        if (eb) st.enemyBase = { x: eb.x, y: eb.y, owner: eb.owner };
-        sendHome(ai, v, sc, out); taken.add(sc.id);
-        st.scout = 0; st.scoutDone = true; st.patrolAt = g.tick + L.patrol;
+      if (e.owner !== me) return;
+      if (e.isB && e.buildLeft > 0) {
+        const [f, n] = stat('건설', 'prog');
+        dyn.push(() => { const fr = 1 - e.buildLeft / def.time; setMeter(f, fr); n.textContent = Math.floor(fr * 100) + '%'; });
         return;
       }
-      // 다음 후보: 첫 후보는 본진에서 가까운 순(candidates 순서), 그다음은 마지막으로 확인한 후보에서 가까운 것
-      const from = st.scoutFrom;
-      let next = left[0];
-      if (from) for (const s of left) if (d2(from, s) < d2(from, next)) next = s;
-      if (st.scoutTo !== siteKey(next) || !sc.order) { moveTo(ai, out, [sc.id], next); st.scoutTo = siteKey(next); taken.add(sc.id); }
-      return;
-    }
-    if (!L.patrol) return;
-    // 순찰 유닛: 도착(명령 없음)하면 놓아 준다(일꾼은 채집 복귀), 죽으면 다음 주기에
-    const pu = st.patrol ? v.own.find(e => e.id === st.patrol) : null;
-    if (st.patrol && (!pu || !pu.order)) { if (pu && pu.def.worker) sendHome(ai, v, pu, out); st.patrol = 0; }
-    if (st.patrol || g.tick < st.patrolAt) return;
-    st.patrolAt = g.tick + L.patrol;
-    let unit = null;
-    for (const e of armyOf(ai, v)) if (!unit || (e.def.speed > unit.def.speed)) unit = e;
-    if (!unit) unit = v.own.find(w => !w.isB && w.def.worker && !taken.has(w.id) && w.order && w.order.type === 'gather' && w.order.kind === 0 && !(w.carry > 0));
-    if (!unit) return;
-    const home = homeOf(v);
-    let best = null;
-    for (const s of sitesOf(ai, g)) {
-      if (home && Math.abs(home.tx - s.tx) <= 6 && Math.abs(home.ty - s.ty) <= 6) continue;
-      if (!best || (st.seen[siteKey(s)] ?? -1) < (st.seen[siteKey(best)] ?? -1)) best = s;
-    }
-    if (!best) return;
-    st.patrol = unit.id; taken.add(unit.id);
-    moveTo(ai, out, [unit.id], best);
-  }
-
-  // 병력: 자기 비일꾼 전투 유닛(무기·launcher), 정찰·순찰·자식(함재기) 제외
-  // 전술로 뺀 다친 유닛(ai.st.pulled)은 회복할 때까지 병력에서 제외
-  const armyOf = (ai, v) => v.own.filter(e => !e.isB && !e.def.worker && !e.parent && fighterDef(e.def) && e.id !== ai.st.scout && e.id !== ai.st.patrol && !ai.st.pulled.has(e.id));
-  // 집결점: 본진 중심에서 맵 중심 방향 8타일 지점의 가장 가까운 걷기 가능 타일 중심(본진이 바뀌면 다시)
-  function rallyPoint(ai, g, v) {
-    const home = homeOf(v);
-    if (!home) return ai.st.rally ? ai.st.rally.pt : null;
-    if (ai.st.rally && ai.st.rally.home === home.id) return ai.st.rally.pt;
-    const mx = g.map.w * TFP >> 1, my = g.map.h * TFP >> 1, dx = mx - home.x, dy = my - home.y;
-    const len = Math.max(1, Math.floor(Math.sqrt(dx * dx + dy * dy)));
-    const [cx, cy] = tileAt(home.x + Math.trunc(dx * 8 * TFP / len), home.y + Math.trunc(dy * 8 * TFP / len));
-    let pt = null, bd = Infinity;
-    for (let r = 0; r <= 12 && !pt; r++)
-      for (let y = cy - r; y <= cy + r; y++)
-        for (let x = cx - r; x <= cx + r; x++) {
-          if (Math.abs(x - cx) !== r && Math.abs(y - cy) !== r) continue;
-          if (!S.walkable(g, x, y)) continue;
-          const k = (x - cx) ** 2 + (y - cy) ** 2;
-          if (k < bd) { bd = k; pt = { x: x * TFP + (TFP >> 1), y: y * TFP + (TFP >> 1) }; }
+      if (e.isB && e.morph) {
+        const to = D.buildings[e.morph.to], [f, n] = stat('변태', 'prog');
+        body.querySelector('.info-sub').textContent += ' · ' + to.name + '(으)로 변태 중';
+        dyn.push(() => { if (!e.morph) return; const fr = 1 - e.morph.left / to.time; setMeter(f, fr); n.textContent = Math.floor(fr * 100) + '%'; });
+      }
+      if (e.isB && def.race === 'elysian') { // 레이 라인 밖이면 정지 표시
+        const p = line(body, 'is-warn');
+        dyn.push(() => { p.textContent = e.unpowered ? '레이 라인 밖 — 생산·연구·공격 정지' : ''; p.hidden = !e.unpowered; });
+      }
+      if (e.isB && e.lifted) line(body, 'is-warn').textContent = '떠 있음 — 내려야 생산·연구할 수 있다';
+      if (e.isB && ADDONS[e.type]) { // 부속: 붙은 것 이름 + 건설 진행
+        const p = line(body);
+        dyn.push(() => { const a = e.addon && S.byId(g, e.addon); p.hidden = !a; p.innerHTML = a ? '부속 ' + a.def.name + (a.buildLeft > 0 ? ' 건설 중 <span class="num">' + Math.floor((1 - a.buildLeft / a.def.time) * 100) + '%</span>' : '') : ''; });
+      }
+      if (e.isB && def.larva) {
+        const p = line(body);
+        dyn.push(() => { p.innerHTML = '유충 <span class="num">' + e.larva + ' / 3</span>'; });
+      }
+      if (!e.isB && def.worker) {
+        const p = line(body);
+        dyn.push(() => {
+          const o = e.order;
+          p.innerHTML = o && o.type === 'constructing' ? '건설 중' : o && o.type === 'repair' ? (o.acc > 0 && !o.moving ? '수리 중' : '수리하러 가는 중')
+            : e.carry ? '운반 중 ' + (e.carryKind === 1 ? '가스' : '크리스탈') + ' <span class="num">' + e.carry + '</span>' : '';
+        });
+      }
+      if (e.isB && (def.trains || researchesOf(e.type).length || e.queue.length)) { // 생산·연구 대기열
+        const qw = document.createElement('div'); qw.className = 'queue'; body.appendChild(qw);
+        const cells = [];
+        for (let i = 0; i < 5; i++) {
+          const c = document.createElement('div'); c.className = 'queue-cell';
+          const it = e.queue[i];
+          if (it) {
+            if (it.research) {
+              const u = D.upgrades[it.research]; c.classList.add('is-research'); c.title = '연구: ' + u.name;
+              if (u.effect.unit) c.appendChild(R.icon(u.effect.unit, me, 32)); else c.insertAdjacentHTML('beforeend', svg(upSvg(u.effect)));
+            } else { c.appendChild(R.icon(it.what, me, 32)); c.title = D.units[it.what].name; }
+            const pr = document.createElement('span'); pr.className = 'queue-prog'; c.appendChild(pr); cells.push([pr, i]);
+          }
+          qw.appendChild(c);
         }
-    pt = pt || { x: home.x, y: home.y };
-    ai.st.rally = { home: home.id, pt };
-    return pt;
-  }
-  const centerOf = units => {
-    let x = 0, y = 0;
-    for (const e of units) { x += e.x; y += e.y; }
-    return { x: Math.trunc(x / units.length), y: Math.trunc(y / units.length) };
-  };
-  const foeArmy = v => v.foes.filter(e => !e.isB && !e.def.worker && fighterDef(e.def));
-  // 공격 목표: 기억한 적 건물 중 집결점에서 가까운 것(동률 id) → 안 본 시작 후보 → 확장 사이트 순회(ai.st.sweep)
-  function attackTarget(ai, g, v, c) {
-    const rally = rallyPoint(ai, g, v), st = ai.st;
-    let best = null;
-    for (const b of v.known.values()) {
-      if (g.tick - (st.skipB[b.id] ?? -1e9) < K.STUCK * 3) continue; // 닿지 못해 건너뛴 건물(잠시)
-      if (!best || d2(rally, b) < d2(rally, best) || (d2(rally, b) === d2(rally, best) && b.id < best.id)) best = b;
-    }
-    if (best) return { x: best.x, y: best.y, id: best.id, key: 'b' + best.id };
-    const unseen = candidates(ai, g, v).find(s => st.seen[siteKey(s)] === undefined);
-    if (unseen) return { x: unseen.x, y: unseen.y, id: 0, key: 's' + siteKey(unseen) };
-    const home = homeOf(v), sites = sitesOf(ai, g).filter(s => !home || Math.abs(home.tx - s.tx) > 6 || Math.abs(home.ty - s.ty) > 6);
-    if (!sites.length) return null;
-    if (st.sweep >= sites.length && c && st.look) return searchCell(ai, g, c); // 사이트를 한 바퀴 돌고도 못 찾았다 → 맵 전체 칸 탐색
-    const s = sites[st.sweep % sites.length];
-    return { x: s.x, y: s.y, id: 0, key: 'w' + st.sweep };
-  }
-  // 팀 협동(army 앞): 리더 = 지금 리더가 탈락했거나 병력(전투 유닛)이 없으면 보드 구성원 중 탈락하지 않고 병력이 있는 가장 작은 번호(없으면 탈락하지 않은 가장 작은 번호). 사람 팀원(보드 밖)이 60틱 안에 적에게 맞았으면
-  // 가장 최근 피격 위치(동률 id 작은 것)를 ai.st.assist 로, 120틱 동안 새 피격이 없으면 해제.
-  function team(ai, g, v) {
-    const b = ai.board, st = ai.st;
-    const live = b.members.filter(q => !g.players[q].out); // members 는 플레이어 번호 오름차순(fromRoster)
-    const armed = q => (q === ai.p ? v.own : v.allies).some(e => e.owner === q && !e.isB && !e.def.worker && !e.parent && fighterDef(e.def));
-    if (!(live.includes(b.leader) && armed(b.leader))) b.leader = live.find(armed) ?? live[0] ?? -1; // 병력 있는 리더는 유지(공격 중 교체 방지)
-    if (b.leader === ai.p) b.active = st.mode === 'attack';
-    let best = null;
-    for (const e of v.allies) {
-      if (b.members.includes(e.owner) || g.tick - e.lastHit >= K.ASSIST_HIT || e.lastBy < 0 || !S.isEnemy(g, ai.p, e.lastBy)) continue;
-      if (!best || e.lastHit > best.lastHit) best = e;
-    }
-    if (best) st.assist = { x: best.x, y: best.y, id: best.id, at: best.lastHit };
-    else if (st.assist && g.tick - st.assist.at > K.ASSIST_HOLD) st.assist = null;
-  }
-  // 팀 AI 전원의 병력 가치(팀원 유닛은 v.allies)와 살아 있는 팀 AI 수
-  function teamValue(ai, g, v, units) {
-    const m = ai.board.members.filter(q => !g.players[q].out);
-    let val = armyValue(units);
-    for (const e of v.allies) if (m.includes(e.owner) && !e.isB && !e.def.worker && !e.parent && fighterDef(e.def)) val += armyValue([e]);
-    return [val, m.length];
-  }
-  // 군대: 방어(최우선) → 후퇴 → 공격 개시 → 공격 → 집결
-  function army(ai, g, v, bank, out) {
-    const st = ai.st, L = ai.L, p = ai.p, rally = rallyPoint(ai, g, v);
-    const held = e => !!(st.anchor && st.anchor.has(e.id)) || (e.order && e.order.type === 'cast'); // 정박 조작 중·시전 중 유닛은 공격 재명령·집결에서 뺀다(anchorMicro 가 해제)
-    let units = armyOf(ai, v);
-    if (!rally) return;
-    // 생산 건물 집결점(일꾼 기지 제외)
-    const prod = v.own.filter(b => b.isB && !b.def.dropoff && (b.def.trains || []).length && !(b.rally && b.rally.x === rally.x && b.rally.y === rally.y));
-    if (prod.length) out.push({ type: 'setRally', ids: prod.map(b => b.id), x: rally.x, y: rally.y, player: p });
-    const ids = us => us.map(e => e.id);
-
-    // 1. 방어: 자기 건물 14타일 안의 보이는 적 유닛(일꾼 제외)
-    const blds = v.own.filter(b => b.isB), home = homeOf(v) || rally;
-    let threat = null;
-    const raid = [];
-    for (const f of v.foes) {
-      if (f.isB || f.def.worker || !blds.some(b => within(b, f, K.DEFEND_R))) continue;
-      raid.push(f);
-      if (!threat || d2(home, f) < d2(home, threat)) threat = f;
-    }
-    // 공격 중 작은 습격(병력 가치가 습격의 K.SPLIT배 이상): 가까운 유닛부터 습격 가치 ×2 만큼만 돌려보내고 나머지는 공격 계속
-    const rv = threat ? Math.max(1, armyValue(raid.filter(f => fighterDef(f.def)))) : 0;
-    if (threat && st.mode === 'attack' && armyValue(units) >= rv * K.SPLIT) {
-      const near = [...units].sort((a, b) => d2(a, threat) - d2(b, threat) || mutStage(ai, a) - mutStage(ai, b) || a.id - b.id), def = [];
-      for (let sum = 0; sum < rv * 2 && near.length;) { const e = near.shift(); def.push(e); sum += armyValue([e]); }
-      const go = def.filter(e => !(e.order && e.order.x !== undefined && within({ x: e.order.x, y: e.order.y }, threat, 4)));
-      if (go.length) out.push({ type: 'attackMove', ids: ids(go), x: threat.x, y: threat.y, player: p });
-      const dset = new Set(def.map(e => e.id));
-      units = units.filter(e => !dset.has(e.id));
-      threat = null;
-    }
-    if (threat) {
-      if (!units.length) return;
-      const re = st.mode !== 'defend' || st.defend !== threat.id;
-      st.mode = 'defend'; st.defend = threat.id;
-      const us = re ? units : units.filter(e => !e.order);
-      if (us.length) out.push({ type: 'attackMove', ids: ids(us), x: threat.x, y: threat.y, player: p });
-      return;
-    }
-    if (st.mode === 'defend') { st.mode = 'gather'; st.defend = 0; }
-    if (!units.length) { st.mode = 'gather'; st.target = null; return; }
-    const val = armyValue(units), c = centerOf(units), B = ai.board;
-
-    // 5. 후퇴: 병력 중심 12타일 안 적 가치 × 100 > 아군 가치(중심 12타일 안 또는 그 적들 8타일 안) × L.retreat.
-    // 병력이 길게 늘어져(공중이 먼저 도착) 중심에 아군이 적어도, 전체 병력이 그 적의 K.OVERWHELM배 이상이면 물러나지 않는다(뒤따라 합류)
-    if (st.mode === 'attack' && L.retreat > 0) {
-      const fs = foeArmy(v).filter(f => within(c, f, K.RETREAT_R)), fv = armyValue(fs);
-      const mv = armyValue(units.filter(e => within(c, e, K.RETREAT_R) || fs.some(f => within(e, f, 8))));
-      const outmatched = fv * 100 > mv * L.retreat && fv * K.OVERWHELM * L.retreat > val * 100;
-      // 안 보이는 적(은폐·잠복)에게 병력이 맞는데 근처에 자기 탐지기가 없으면 물러난다
-      const blind = ai.st.unseen && g.tick - ai.st.unseenAt <= 120 && within(c, ai.st.unseen, K.UNSEEN_R)
-        && !v.own.some(e => e.def.detector && !(e.buildLeft > 0) && within(e, ai.st.unseen, 10));
-      if (blind || outmatched) {
-        st.mode = 'retreat'; st.calm = g.tick + K.CALM; st.target = null;
-        if (B.leader === p) { B.target = null; B.active = false; } // 팀원은 보드를 보고 집결로
-        out.push({ type: 'move', ids: ids(units), x: rally.x, y: rally.y, player: p });
-        return;
+        dyn.push(() => { for (const [pr, i] of cells) { const it = e.queue[i]; if (it) setMeter(pr, 1 - it.left / qTotal(g, me, it)); } });
       }
     }
-    if (st.mode === 'retreat') {
-      if (within(c, rally, K.RALLY_R)) st.mode = 'gather';
-      else { const us = units.filter(e => !e.order); if (us.length) out.push({ type: 'move', ids: ids(us), x: rally.x, y: rally.y, player: p }); return; }
-    }
-    // 사람 팀원 지원(후퇴 다음): 피격 지점 근처에 보이는 적 가치가 K.ASSIST_MIN 이상일 때만.
-    // 공격 중이면 가까운 유닛부터 그 적 가치 ×2 만큼만 보내고 나머지는 공격 계속. 그 외엔 전체(대상이 바뀔 때 전체, 그 외엔 명령 없는 유닛만)
-    const av = st.assist ? armyValue(foeArmy(v).filter(f => within(st.assist, f, K.ASSIST_R))) : 0;
-    if (av >= K.ASSIST_MIN && st.mode === 'attack') {
-      const a = st.assist, near = [...units].sort((x, y) => d2(x, a) - d2(y, a) || x.id - y.id), def = [];
-      for (let sum = 0; sum < av * 2 && near.length;) { const e = near.shift(); def.push(e); sum += armyValue([e]); }
-      const go = def.filter(e => !(e.order && e.order.x !== undefined && within({ x: e.order.x, y: e.order.y }, a, 4)));
-      if (go.length) out.push({ type: 'attackMove', ids: ids(go), x: a.x, y: a.y, player: p });
-      const dset = new Set(def.map(e => e.id));
-      units = units.filter(e => !dset.has(e.id));
-      st.assistId = 0;
-      if (!units.length) return;
-    } else if (av >= K.ASSIST_MIN) {
-      const re = st.assistId !== st.assist.id;
-      st.assistId = st.assist.id; st.target = null;
-      const us = re ? units : units.filter(e => !e.order);
-      if (us.length) out.push({ type: 'attackMove', ids: ids(us), x: st.assist.x, y: st.assist.y, player: p });
-      return;
-    } else st.assistId = 0;
-
-    // 2. 공격 개시
-    const P = ai.P || { attack: { value: 600, tick: 4000 } }, need = P.attack.value * ECO * L.attack; // val × 100 과 비교
-    // 팀(보드에 살아 있는 AI 2명 이상): 리더만 팀 병력 합 ≥ 기준 × 팀 AI 수로 개시하고 보드에 알린다. 팀원은 보드의 새 개시를 따른다.
-    // 리더가 K.LEAD_WAIT 틱 넘게 개시하지 않고(공격 중도 아님) 팀 병력이 기준을 넘으면 팀원이 직접 개시해 보드에 알린다(solo — 리더 공격 여부와 무관하게 계속)
-    const [tv, tn] = teamValue(ai, g, v, units), lead = tn < 2 || B.leader === p;
-    if (st.mode === 'gather' && g.tick >= (st.calm || 0)) {
-      const solo = !lead && !B.active && g.tick - B.attackAt > K.LEAD_WAIT && tv * 100 >= need * tn;
-      const go = lead ? (tv * 100 >= need * tn || (g.tick >= P.attack.tick && tv * 200 >= need * tn)) : B.attackAt > st.lastAttack || B.active || solo; // 후퇴했던 팀원은 리더가 공격 중이면 다시 합류
-      if (go) {
-        st.mode = 'attack'; st.target = null; st.solo = !lead && !B.active; // 리더 공격 없이 개시(직접·다른 팀원 단독 개시 합류)
-        if (lead || solo) { B.attackAt = g.tick; B.target = null; }
-        if (lead && tn >= 2) B.active = true;
-        st.lastAttack = B.attackAt;
-      }
-    }
-    // 리더를 따라간 팀원은 리더 공격이 끝나면(후퇴·전멸) 집결로
-    if (st.mode === 'attack' && tn >= 2 && !lead && !st.solo && !B.active) { st.mode = 'gather'; st.target = null; }
-
-    // 3·4. 공격 중: 목표가 바뀔 때만 전체 재명령, 그 외엔 명령 없는 유닛만
-    if (st.mode === 'attack') {
-      let t = st.target;
-      if (t && t.id && !v.known.has(t.id)) t = null; // 목표 건물 파괴 확인
-      if (t && t.key[0] === 'c' && cellAge(ai, g, +t.key.slice(1)) >= st.round) t = null; // 탐색 칸을 다 봤다 → 다음 칸
-      if (t && !t.id && t.key[0] !== 'c' && within(c, t, K.RALLY_R) && !v.foes.some(f => within(t, f, 10))) { // 도착했는데 적 없음 → 다음
-        if (t.key[0] === 'w') st.sweep = (st.sweep || 0) + 1;
-        t = null;
-      }
-      if (!t || t.key[0] !== 'b') { // 건물을 새로 알게 되면 바로 건물로
-        const nt = attackTarget(ai, g, v, c);
-        if (nt && (!t || nt.key[0] === 'b')) t = nt;
-      }
-      if (tn >= 2) { if (lead) B.target = t; else if (B.target) t = B.target; } // 팀원은 리더 목표를 따른다
-      // 진척 없음: 병력 중심이 K.STUCK 틱 동안 목표에 10% 이상 가까워지지 않으면(길이 없거나 막힘) 그 목표를 건너뛴다
-      if (t) {
-        const dd = d2(c, t), pr = st.prog;
-        if (!pr || pr.key !== t.key) st.prog = { key: t.key, best: dd, at: g.tick };
-        else if (dd * 10 < pr.best * 8) { pr.best = dd; pr.at = g.tick; }
-        else if (g.tick - pr.at > K.STUCK && !v.foes.some(f => within(c, f, 10))) {
-          if (t.key[0] === 's') st.seen[t.key.slice(1)] = g.tick; else if (t.key[0] === 'w') st.sweep = (st.sweep || 0) + 1; else if (t.key[0] === 'c') cellAge(ai, g, +t.key.slice(1), true); else st.skipB[t.id] = g.tick;
-          st.prog = null; st.target = null; return;
+    // 수송선 탑승 칸: 눈금 + '칸 5 / 8' + 탑승 유닛 아이콘(클릭 = 그 한 기 내리기)
+    function buildCargo(g, e, body) {
+      const box = document.createElement('div'); box.className = 'cargo'; body.appendChild(box);
+      let csig = null;
+      dyn.push(() => {
+        const cs = S.cargo(g, e), sig = cs.map(c => c.id).join(',');
+        if (sig === csig) return;
+        csig = sig; box.innerHTML = '';
+        const used = cs.reduce((k, c) => k + SLOT_N[c.def.size], 0), cap = e.def.transport;
+        const pips = document.createElement('span'); pips.className = 'cargo-pips'; pips.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < cap; i++) { const q = document.createElement('span'); q.className = 'cargo-pip' + (i < used ? ' is-on' : ''); pips.appendChild(q); }
+        const lab = document.createElement('span'); lab.className = 'info-line'; lab.innerHTML = '탑승 칸 <span class="num">' + used + ' / ' + cap + '</span>';
+        const head = document.createElement('div'); head.className = 'cargo-head'; head.append(pips, lab); box.appendChild(head);
+        for (const c of cs) {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'btn cargo-cell';
+          b.title = c.def.name + ' · 클릭: 이 유닛만 내리기'; b.setAttribute('aria-label', c.def.name + ' 내리기');
+          b.appendChild(R.icon(c.type, c.owner, 32));
+          b.addEventListener('mousedown', ev => ev.preventDefault());
+          b.addEventListener('click', () => { if (active) push({ type: 'unload', ids: [e.id], unit: c.id }); });
+          box.appendChild(b);
         }
+      });
+    }
+    function buildMany(ents) {
+      const grid = document.createElement('div'); grid.className = 'multi';
+      for (const e of ents) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn multi-cell';
+        b.title = e.def.name + ' · 클릭: 이 유닛만 선택, Shift+클릭: 빼기';
+        b.setAttribute('aria-label', e.def.name + ' — 클릭 단독 선택, Shift+클릭 빼기');
+        b.appendChild(R.icon(e.type, e.owner, 32));
+        const mk = cls => { const m = document.createElement('div'); m.className = 'meter mini ' + cls; m.innerHTML = '<span class="meter-fill"></span>'; b.appendChild(m); return m; };
+        const sm = e.shieldMax > 0 ? mk('shield') : null, m = mk('hp');
+        b.addEventListener('mousedown', ev => ev.preventDefault());
+        b.addEventListener('click', ev => { setSel(ev.shiftKey ? view.sel.filter(id => id !== e.id) : [e.id]); });
+        dyn.push(() => {
+          const fr = e.hp / e.hpMax; setMeter(m.firstChild, fr); m.classList.toggle('is-low', fr <= 0.3);
+          if (sm) setMeter(sm.firstChild, e.shield / e.shieldMax);
+        });
+        grid.appendChild(b);
       }
-      if (!t) return;
-      const re = !st.target || st.target.key !== t.key;
-      st.target = t;
-      const us = re ? units.filter(e => !held(e)) : units.filter(e => !e.order);
-      if (!us.length) return;
-      // 사거리 유닛 뒤로(micro ≥ 1): 근접 유닛이 섞여 있으면 원거리 유닛 지점을 목표에서 집결점 쪽으로 3타일
-      const mel = us.filter(e => melee(e.def)), rng = us.filter(e => !melee(e.def));
-      if (L.micro >= 1 && mel.length && rng.length) {
-        const dx = rally.x - t.x, dy = rally.y - t.y, len = Math.max(1, Math.floor(Math.sqrt(dx * dx + dy * dy))), k = Math.min(3 * TFP, len);
-        out.push({ type: 'attackMove', ids: ids(mel), x: t.x, y: t.y, player: p });
-        out.push({ type: 'attackMove', ids: ids(rng), x: t.x + Math.trunc(dx * k / len), y: t.y + Math.trunc(dy * k / len), player: p });
-      } else out.push({ type: 'attackMove', ids: ids(us), x: t.x, y: t.y, player: p });
-      return;
+      const cnt = new Map(); for (const e of ents) cnt.set(e.def.name, (cnt.get(e.def.name) || 0) + 1);
+      const mix = document.createElement('p'); mix.className = 'info-mix';
+      for (const [name, n] of cnt) { const sp = document.createElement('span'); sp.append(name + ' '); const bb = document.createElement('b'); bb.textContent = n; sp.appendChild(bb); mix.appendChild(sp); }
+      infoBody.append(grid, mix);
     }
 
-    // 6. 집결: 집결점 6타일 밖, 집결점으로 가는 중이 아닌 유닛만
-    const us = units.filter(e => !within(e, rally, K.RALLY_R) && !(e.order && e.order.x !== undefined && within({ x: e.order.x, y: e.order.y }, rally, K.RALLY_R)) && !(e.order && e.order.type === 'attack') && !held(e));
-    if (us.length) out.push({ type: 'attackMove', ids: ids(us), x: rally.x, y: rally.y, player: p });
-  }
+    // ---- 상단 바 ----
+    function renderTop(g) {
+      const p = g.players[me];
+      el.race.textContent = D.races[p.race].name;
+      el.crystal.textContent = p.crystal;
+      el.nebula.textContent = p.nebula;
+      el.supply.textContent = Math.ceil(p.supplyUsed2 / 2) + '/' + Math.floor(p.supplyMax2 / 2);
+      el.supplyWrap.classList.toggle('is-full', p.supplyUsed2 >= p.supplyMax2);
+      el.clock.textContent = mmss(g.tick);
+    }
 
-  // 앵커 정박 조작(L.cast.lvl ≥ 2 = 보통 이상): 공격·집결 중인 정박 가능 유닛이 정박 무기 사거리 안에 보이는 적 지상 유닛·건물을 보면 hold(제자리에서 정박).
-  // 사거리 + 2타일 안에 보이는 적이 120틱 없고 병력이 공격 중이면 병력 목표로 attackMove(해제). 후퇴 move 는 그대로 해제 역할. 명령한 유닛은 busy.
-  function anchorMicro(ai, g, v, out, busy) {
-    const st = ai.st, p = ai.p, held = st.anchor || (st.anchor = new Map()), FREE = 120;
-    const foes = v.foes.filter(f => f.hp > 0 && !f.def.air);
-    for (const id of [...held.keys()]) if (!v.own.some(e => e.id === id)) held.delete(id);
-    for (const e of armyOf(ai, v)) {
-      const m = e.def.modes && Object.values(e.def.modes).find(md => md.auto && md.weapon);
-      if (!m) continue;
-      const seen = extra => foes.some(f => { const l = (m.weapon.range + radiusOf(e) + radiusOf(f)) * S.FP + extra; return d2(e, f) <= l * l; });
-      if (held.has(e.id) && (!e.order || e.order.type !== 'hold')) held.delete(e.id); // 다른 명령으로 풀림 — 이번 판단에 다시 hold 할 수 있다
-      if (held.has(e.id)) {
-        busy.add(e.id);
-        if (seen(2 * TFP)) held.set(e.id, g.tick);
-        else if (g.tick - held.get(e.id) >= FREE) {
-          if (st.mode === 'attack' && st.target) { out.push({ type: 'attackMove', ids: [e.id], x: st.target.x, y: st.target.y, player: p }); held.delete(e.id); }
-          else if (st.mode === 'gather') held.delete(e.id); // 집결 중: 다음 판단에 army 가 집결점으로 보낸다
-        }
-      } else if (!e.mode && !(e.modeT > 0) && st.mode !== 'retreat' && e.order && (e.order.type === 'attackMove' || e.order.type === 'attack') && seen(0)) {
-        out.push({ type: 'hold', ids: [e.id], player: p }); held.set(e.id, g.tick); busy.add(e.id);
+    // ---- 입력 ----
+    const rel = ev => { const r = canvas.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+    canvas.addEventListener('mousedown', ev => {
+      const g = st(); if (!active || !g) return;
+      const [sx, sy] = rel(ev);
+      if (ev.button === 0) {
+        if (mode) { targetClick(g, ...world(sx, sy), ev.shiftKey); return; }
+        drag = { x0: sx, y0: sy, x1: sx, y1: sy };
+      } else if (ev.button === 2) {
+        if (mode) { mode = null; return; } // 우클릭 = 대기 명령 취소
+        contextCommand(g, ...world(sx, sy));
+        if (ringSt === 'open') setRing('pin'); // 땅에 상황 명령 → 링을 핀으로 접는다
       }
-    }
-  }
-
-  // 변이 인지(어려움): 마이셀 유닛 처치 수로 변이 단계 → 1단계 이상은 hp 50% 미만에 빼고, 2단계는 hp 80% 회복 전 복귀 안 함. 동률 정렬 보조
-  const mutStage = (ai, e) => ai.L.micro < 2 || !e.kills ? 0 : e.kills >= D.races.swarm.mutation.at[1] ? 2 : e.kills >= D.races.swarm.mutation.at[0] ? 1 : 0;
-  const mutationMicro = (ai, e, back) => { const m = mutStage(ai, e); return back ? (m >= 2 ? K.BACK_HP_MUT : K.BACK_HP) : (m >= 1 ? K.PULL_HP_MUT : K.PULL_HP); };
-
-  // 공명 뭉치기(코러스 어려움, 집결 중): 집결점 안에서 같은 종류 이웃(4타일 안)이 2기 미만인 유닛을 그 종류 무게중심으로 move — 판단당 한 종류, 1명령
-  function resonanceGroup(ai, g, v, rally, out, busy) {
-    if (ai.race !== 'elysian' || ai.L.micro < 2 || ai.st.mode !== 'gather') return false;
-    const us = armyOf(ai, v).filter(e => !e.def.air && within(e, rally, K.RALLY_R)), kinds = [...new Set(us.map(e => e.type))].sort();
-    for (const k of kinds) {
-      const same = us.filter(e => e.type === k);
-      const lone = same.filter(e => same.reduce((n, o) => n + (o !== e && within(e, o, 4) ? 1 : 0), 0) < 2);
-      if (!lone.length || same.length < 3) continue;
-      const c = centerOf(same);
-      if (!S.walkable(g, Math.floor(c.x / TFP), Math.floor(c.y / TFP))) continue;
-      const go = lone.filter(e => !(e.order && e.order.type === 'move' && within({ x: e.order.x, y: e.order.y }, c, 1)));
-      if (go.length) { out.push({ type: 'move', ids: go.map(e => e.id), x: c.x, y: c.y, player: ai.p }); for (const e of go) busy.add(e.id); return true; }
-    }
-    return false;
-  }
-
-  // 전술(L.micro ≥ 1, army 다음): 다친 유닛 빼기·카이팅(micro ≥ 2) → 집중 사격. 한 판단에 명령 최대 6개.
-  // 교전 = 병력 중 사거리 + 2타일 안에 보이는 적 유닛이 있는 유닛
-  function tactics(ai, g, v, bank, out) {
-    const L = ai.L, st = ai.st, p = ai.p, busy = new Set(); // busy: 이 판단에 전술이 명령한 유닛(casters 가 건드리지 않음)
-    if (L.micro < 1) return busy;
-    const rally = rallyPoint(ai, g, v);
-    if (!rally) return busy;
-    let budget = K.MICRO_CMDS;
-    if (resonanceGroup(ai, g, v, rally, out, busy)) budget--;
-    if (L.cast.lvl >= 2) anchorMicro(ai, g, v, out, busy);
-    // 회복된(hp 60% 이상 또는 보호막 가득, 재생 없는 레기온은 집결점 도착) 유닛은 다시 병력으로
-    for (const id of [...st.pulled]) {
-      const e = v.own.find(u => u.id === id);
-      const regen = e && (e.def.race === 'swarm' || e.shieldMax > 0);
-      if (!e || e.hp * 100 >= e.hpMax * mutationMicro(ai, e, true) || (e.shieldMax > 0 && e.shield >= e.shieldMax) || (!regen && within(e, rally, 3))) st.pulled.delete(id);
-    }
-    const units = armyOf(ai, v), foes = v.foes.filter(f => !f.isB && f.hp > 0);
-    if (!units.length || !foes.length) return busy;
-    if (L.micro >= 2) {
-      // 다친 유닛 빼기: hp 30% 미만, 40틱 안에 맞은 비공중 유닛 → 집결점
-      const hurt = units.filter(e => !e.def.air && e.hp * 100 < e.hpMax * mutationMicro(ai, e, false) && g.tick - e.lastHit < K.PULL_HIT);
-      if (hurt.length) {
-        out.push({ type: 'move', ids: hurt.map(e => e.id), x: rally.x, y: rally.y, player: p }); budget--;
-        for (const e of hurt) { st.pulled.add(e.id); busy.add(e.id); }
-      }
-    }
-    const engaged = units.filter(e => !busy.has(e.id) && !(e.order && e.order.type === 'cast') && foes.some(f => canReach(g, e, f, 2 * S.TILE)));
-    if (L.micro >= 2) {
-      // 카이팅: 사거리 96px 이상·재장전 중, 2타일 안 근접 적 → 그 반대 방향 2타일
-      for (const e of engaged) {
-        if (budget <= 0) break;
-        if (!(e.cd > 0) || reachOf(e.def) < K.KITE_RANGE) continue;
-        let near = null;
-        for (const f of foes) if (melee(f.def) && wkFor(f, e) && within(e, f, 2) && (!near || d2(e, f) < d2(e, near))) near = f;
-        if (!near) continue;
-        const dx = e.x - near.x, dy = e.y - near.y, len = Math.max(1, Math.floor(Math.sqrt(dx * dx + dy * dy)));
-        const x = e.x + Math.trunc(dx * 2 * TFP / len), y = e.y + Math.trunc(dy * 2 * TFP / len);
-        if (!S.walkable(g, Math.floor(x / TFP), Math.floor(y / TFP))) continue;
-        out.push({ type: 'move', ids: [e.id], x, y, player: p }); budget--; busy.add(e.id);
-      }
-    }
-    // 집중 사격: 사거리 안 보이는 적 중 hp + 보호막 최소(동률 id 작은 것), 이미 그 대상 attack 이면 그대로. 같은 대상끼리 묶는다.
-    // 후퇴 중엔 하지 않는다(attack 이 후퇴 move 를 덮어쓰지 않게)
-    if (st.mode === 'retreat') return busy;
-    const groups = new Map();
-    for (const e of engaged) {
-      if (busy.has(e.id)) continue;
-      let best = null, bk = Infinity;
-      for (const f of foes) {
-        if (!canReach(g, e, f)) continue;
-        const k = f.hp + (f.shield || 0);
-        if (k < bk) { bk = k; best = f; } // foes 는 id 오름차순 → 동률은 id 작은 것
-      }
-      if (!best || (e.order && e.order.type === 'attack' && e.order.target === best.id)) continue;
-      if (!groups.has(best.id)) groups.set(best.id, []);
-      groups.get(best.id).push(e.id);
-    }
-    for (const [target, us] of groups) {
-      if (budget <= 0) break;
-      out.push({ type: 'attack', ids: us, target, player: p }); budget--;
-      for (const id of us) busy.add(id);
-    }
-    return busy;
-  }
-
-  // 시전자(tactics 다음): ① 무기 없는 시전 유닛(spellOnly)은 병력 중심에서 집결점 쪽 K.CASTER_BEHIND 타일 뒤로 attackMove
-  // (K.CASTER_FAR 타일 넘게 벌어지고 그쪽으로 가는 중이 아닐 때만) ② 마법 판단 ai-cast.js castPlan — 판단 LEVELS.cast.every 번에 1번, 시전 유닛이 있을 때만
-  function casters(ai, g, v, out, busy) {
-    const st = ai.st, p = ai.p;
-    const cs = v.own.filter(e => (e.def.abilities || []).length && !e.isB && !e.def.worker && !e.parent && !(e.life > 0) && !e.inside && !fighterDef(e.def)
-      && !busy.has(e.id) && e.id !== st.scout && e.id !== st.patrol && !(e.order && e.order.type === 'cast'));
-    const units = armyOf(ai, v), rally = rallyPoint(ai, g, v);
-    // 지상·공중 시전 유닛은 각각 같은 종류(def.air) 병력 기준(없으면 전체). 지상 지점이 못 가는 곳이면 병력 중심
-    for (const air of [false, true]) {
-      const mc = cs.filter(e => !!e.def.air === air);
-      if (!mc.length || !units.length || !rally) continue;
-      const same = units.filter(e => !!e.def.air === air), base = same.length ? same : units;
-      // 공격 중에는 목표에 가까운 앞쪽 K.CASTER_FRONT % 병력의 중심(긴 행렬의 뒤꽁무니에 머물지 않게)
-      const t = st.mode === 'attack' && st.target, lead = t ? base.slice().sort((a, b) => d2(a, t) - d2(b, t) || a.id - b.id).slice(0, Math.max(1, Math.floor(base.length * K.CASTER_FRONT / 100))) : base;
-      const c = centerOf(lead), dx = rally.x - c.x, dy = rally.y - c.y, len = Math.max(1, Math.floor(Math.sqrt(dx * dx + dy * dy))), k = Math.min(K.CASTER_BEHIND * TFP, len);
-      let pt = { x: c.x + Math.trunc(dx * k / len), y: c.y + Math.trunc(dy * k / len) };
-      const ok = q => air || S.walkable(g, Math.floor(q.x / TFP), Math.floor(q.y / TFP));
-      if (!ok(pt)) { if (!ok(c)) continue; pt = { x: c.x, y: c.y }; }
-      const go = mc.filter(e => !within(e, pt, K.CASTER_FAR) && !(e.order && e.order.x !== undefined && within({ x: e.order.x, y: e.order.y }, pt, K.CASTER_FAR)));
-      if (go.length) { out.push({ type: 'attackMove', ids: go.map(e => e.id), x: pt.x, y: pt.y, player: p }); for (const e of go) busy.add(e.id); }
-    }
-    if (!ai.castOn || !v.own.some(e => (e.def.abilities || []).length)) return;
-    st.castN = (st.castN || 0) + 1;
-    if ((st.castN - 1) % ai.L.cast.every !== 0) return;
-    const cmds = CAST.castPlan(ai, g, v, busy);
-    for (let i = 0; i < cmds.length && i < K.CAST_CMDS; i++) out.push(cmds[i]);
-  }
-
-  // 안 보이는 적에게 맞음(보통·어려움): 지난 판단 이후 적에게 맞은 자기 유닛·건물, 또는 죽은(사라진) 자기 유닛 중
-  // 12타일 안에 보이는 적이 지난 판단·이번 판단 모두 없는 것 = 사건. 240틱 안 사건 2개부터 인정(쏜 적이 방금 죽어 안 보이는 경우를 거른다).
-  // 자기 엔티티의 lastHit·lastBy·생존만 읽는다(맞고 죽는 것은 화면에서도 보인다). 위치 = 가장 최근 사건.
-  function unseenHits(ai, g, v) {
-    if (ai.L.micro < 1) return;
-    const st = ai.st, alive = new Map();
-    let at = null;
-    const quiet = (e, who) => !v.foes.some(f => (who < 0 || f.owner === who) && within(e, f, K.UNSEEN_R));
-    for (const e of v.own) {
-      const q = quiet(e, -1), was = st.lastOwn.get(e.id); // 교전 중이던(지난 판단에 적이 보이던) 유닛은 제외 — 서로 죽인 경우
-      if (!e.isB && !e.parent && !(e.life > 0)) alive.set(e.id, { x: e.x, y: e.y, q, b: !!(e.order && e.order.type === 'build') }); // 함재기(모선 귀환)·시간제한 소환은 사라져도 죽음으로 안 셈. b: 건설하러 가는 일꾼(스웜은 건물이 되며 사라진다)
-      if (q && (!was || was.q) && g.tick - e.lastHit <= ai.L.every && e.lastBy >= 0 && S.isEnemy(g, ai.p, e.lastBy)) { at = { x: e.x, y: e.y }; st.unseenEv.push(g.tick); }
-    }
-    for (const [id, e] of st.lastOwn) if (!alive.has(id) && !e.b && e.q && quiet(e, -1)) { at = at || e; st.unseenEv.push(g.tick); }
-    st.lastOwn = alive;
-    st.unseenEv = st.unseenEv.filter(t => t > g.tick - K.UNSEEN_WIN);
-    if (at && st.unseenEv.length >= 2) { st.unseen = at; st.unseenAt = g.tick; }
-  }
-
-  // ---- ⑤ create/think/fromRoster/collect ----
-  function think(ai, g) {
-    if (g.winner !== -1 || g.players[ai.p].out || (g.tick + ai.phase) % ai.L.every !== 0) return [];
-    const v = view(g, ai.p, ai.mem), bank = bankOf(g, v), out = [], taken = new Set();
-    const st = curStep(ai, g, v);
-    economy(ai, g, v, bank, out, taken, st && st[0] === 'w' ? st[1] : 0);
-    production(ai, g, v, bank, out, taken, st);
-    scout(ai, g, v, bank, out, taken);
-    unseenHits(ai, g, v);
-    team(ai, g, v);
-    army(ai, g, v, bank, out);
-    casters(ai, g, v, out, tactics(ai, g, v, bank, out));
-    return out;
-  }
-
-  function create(g, p, opt = {}) {
-    const level = LEVELS[opt.level] ? opt.level : 'normal', race = g.players[p].race;
-    const ai = { p, level, L: LEVELS[level], castOn: opt.cast !== 0, r: { s: seedFor(opt.seed | 0, p) }, race, pers: null, P: null,
-      phase: (p * 5) % LEVELS[level].every, board: opt.board || newBoard(), mem: newMemory(), st: { scout: 0, spotFail: {}, spotWhy: '', scoutDone: false, seen: {}, patrol: 0, patrolAt: 0, mode: 'gather', sweep: 0, look: null, round: 0, calm: 0, pulled: new Set(), larva: 0, unseen: null, unseenAt: -1e9, unseenEv: [], lastOwn: new Map(), lastAttack: -1, assist: null, prog: null, skipB: {}, skipStep: new Set(), xFail: null, solo: false } };
-    const keys = Object.keys(PERS[race]);
-    ai.pers = opt.pers && PERS[race][opt.pers] ? opt.pers : keys.length ? keys[rnd(ai, keys.length)] : null;
-    ai.P = ai.pers ? PERS[race][ai.pers] : null;
-    if (!ai.board.members.includes(p)) { ai.board.members.push(p); ai.board.members.sort((a, b) => a - b); }
-    ai.think = gg => think(ai, gg);
-    return ai;
-  }
-  function fromRoster(g, players, seed) {
-    const boards = new Map(), ais = [];
-    players.forEach((q, p) => {
-      if (!q.ai) return;
-      if (!boards.has(q.team)) boards.set(q.team, newBoard());
-      ais.push(create(g, p, { level: q.ai.level, seed, board: boards.get(q.team), pers: q.ai.pers, cast: q.ai.cast }));
     });
-    return ais;
-  }
-  function collect(g, ais, cmds) { for (const ai of ais) for (const c of ai.think(g)) cmds.push(c); return cmds; }
+    addEventListener('mousemove', ev => {
+      if (touchRecent()) return; // 손가락 탭 뒤 브라우저가 흉내 내는 mousemove — 가장자리 스크롤·커서 위치를 건드리지 않는다
+      mouse.in = true; mouse.onCanvas = ev.target === canvas; mouse.shift = ev.shiftKey; kbNav = false; kbOff = [0, 0]; // 실제 커서가 다시 커서
+      const [sx, sy] = rel(ev); mouse.x = sx; mouse.y = sy;
+      if (drag) { drag.x1 = sx; drag.y1 = sy; view.drag = Math.abs(drag.x1 - drag.x0) + Math.abs(drag.y1 - drag.y0) > 4 ? drag : null; }
+      if (mmDrag) miniCam(ev);
+    });
+    addEventListener('mouseup', ev => {
+      if (ev.button === 0) mmDrag = false;
+      if (ev.button !== 0 || !drag) return;
+      const g = st(), d = drag; drag = null; view.drag = null;
+      if (!active || !g) return;
+      if (Math.abs(d.x1 - d.x0) + Math.abs(d.y1 - d.y0) <= 4) clickSelect(g, d.x0, d.y0, ev.shiftKey); else boxSelect(g, d, ev.shiftKey);
+    });
+    document.documentElement.addEventListener('mouseleave', () => { mouse.in = false; });
+    addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.in = false; });
+    addEventListener('contextmenu', ev => { if (active) ev.preventDefault(); });
 
-  return { LEVELS, LEVEL_NAMES, NAMES, PERS, seedFor, newMemory, newBoard, view, workerTarget, create, fromRoster, collect,
-    stepDone, findSpot, expansionSpot, candidates, armyValue, rallyPoint, mixFor, AA, K, ECO, CAST,
-    _: { bankOf, spend, afford, lineage, count, unitCount, findSpot, stepDone, expansionSpot, casterOne, researchOne } };
+    // ---- 터치 (설계서 §4.8 · 사용자 결정 D1): 탭 = 선택/명령 · 한 손가락 끌기 = 카메라 · 길게 누른 뒤 끌기 = 박스 선택 ----
+    // pointerType 'touch' 만 여기서 받는다. 캔버스 pointerdown 을 preventDefault 해서 호환 마우스 이벤트(mousedown/up)가 생기지 않으므로
+    // 위의 마우스 경로는 그대로이고 손가락은 이 경로만 탄다. 핀치 확대는 렌더러에 배율이 없어서 두지 않는다(두 번째 손가락 = 지금 동작 취소).
+    const LONG_MS = 450, SLOP = 10;
+    let touch = null, touchAt = -1e9;
+    let lastTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; // 모드 칩 문구 "클릭"/"탭": 굵은 포인터로 시작, 이후 마지막 입력을 따른다
+    const isTouch = ev => ev.pointerType === 'touch';
+    function touchRecent() { return performance.now() - touchAt < 800; }
+    addEventListener('pointerdown', ev => { lastTouch = isTouch(ev); kbNav = false; kbOff = [0, 0]; if (lastTouch) { touchAt = performance.now(); mouse.in = false; } }, true);
+    function aimAt(sx, sy) { mouse.x = sx; mouse.y = sy; mouse.onCanvas = true; } // 무장 중: 손가락 자리에 조준 원·건설 고스트
+    function touchTap(g, sx, sy) {
+      const [wx, wy] = world(sx, sy), hit = pick(g, wx, wy), units = myUnits(g);
+      // 내 것을 탭 = 선택(두 번 탭 = 화면 안 같은 종류). 단, 일꾼이 내 가스 건물을, 엔지니어가 고칠 수 있는 내 것을 탭하면 상황 명령.
+      const ctx = hit && mine(hit) && (gasBld(hit) && units.some(e => e.def.worker) || engineers(g).length && S.canRepair(g, me, hit));
+      if (!spectate && (units.length || myBlds(g).length) && (!hit || !mine(hit) || ctx)) { // 땅·적·자원 탭(선택 있음) = 상황 명령 + 링 접힘
+        contextCommand(g, wx, wy);
+        if (ringSt === 'open') setRing('pin');
+        return;
+      }
+      clickSelect(g, sx, sy, false);
+    }
+    canvas.addEventListener('pointerdown', ev => {
+      if (!isTouch(ev)) return;
+      ev.preventDefault();
+      const g = st(); if (!active || !g) return;
+      if (touch) { endTouch(null, true); return; } // 두 번째 손가락
+      const [sx, sy] = rel(ev);
+      touch = { id: ev.pointerId, x0: sx, y0: sy, x: sx, y: sy, kind: 'tap', t: 0 };
+      touch.t = setTimeout(() => { // 길게 누르기: 박스 선택 시작(무장 중엔 조준을 계속 옮길 뿐)
+        if (!touch || touch.kind !== 'tap' || mode) return;
+        touch.kind = 'box'; drag = { x0: touch.x0, y0: touch.y0, x1: touch.x, y1: touch.y }; view.drag = drag;
+        try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* 진동 없음 */ }
+      }, LONG_MS);
+      try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* 캡처 실패 — 캔버스 안에서만 끌기 */ }
+      if (mode) aimAt(sx, sy);
+    });
+    canvas.addEventListener('pointermove', ev => {
+      if (!isTouch(ev) || !touch || ev.pointerId !== touch.id) return;
+      const [sx, sy] = rel(ev);
+      if (touch.kind === 'tap' && Math.hypot(sx - touch.x0, sy - touch.y0) > SLOP) { clearTimeout(touch.t); touch.kind = mode ? 'aim' : 'pan'; }
+      if (touch.kind === 'pan') { view.camX -= sx - touch.x; view.camY -= sy - touch.y; clampCam(); }
+      else if (touch.kind === 'box') { drag.x1 = sx; drag.y1 = sy; view.drag = drag; }
+      if (mode) aimAt(sx, sy);
+      touch.x = sx; touch.y = sy;
+    });
+    function endTouch(ev, cancel) {
+      if (ev && (!isTouch(ev) || !touch || ev.pointerId !== touch.id)) return;
+      const t = touch; touch = null; if (!t) return;
+      clearTimeout(t.t); mouse.onCanvas = false;
+      const d = t.kind === 'box' ? drag : null;
+      if (d) { drag = null; view.drag = null; }
+      const g = st(); if (cancel || !active || !g) return;
+      if (mode && (t.kind === 'tap' || t.kind === 'aim')) { targetClick(g, ...world(t.x, t.y), false); return; } // 무장: 뗀 자리에 실행
+      if (d) { if (Math.abs(d.x1 - d.x0) + Math.abs(d.y1 - d.y0) > 4) boxSelect(g, d, false); else setSel([]); return; } // 길게 눌렀다 그냥 떼기 = 선택 해제
+      if (t.kind === 'tap') touchTap(g, t.x, t.y);
+    }
+    canvas.addEventListener('pointerup', ev => endTouch(ev, false));
+    canvas.addEventListener('pointercancel', ev => endTouch(ev, true));
+
+    function miniPoint(ev) { // 렌더와 같은 배치: 정사각 미니맵 안에 맵 비율 유지·가운데 정렬
+      const r = mini.getBoundingClientRect(), m = st().map, k = Math.min(r.width / m.w, r.height / m.h);
+      const ox = (r.width - m.w * k) / 2, oy = (r.height - m.h * k) / 2;
+      return [clamp((ev.clientX - r.left - ox) / (m.w * k), 0, 1) * m.w * TILE, clamp((ev.clientY - r.top - oy) / (m.h * k), 0, 1) * m.h * TILE];
+    }
+    function miniCam(ev) { const [x, y] = miniPoint(ev); centerOn(x, y); }
+    mini.addEventListener('mousedown', ev => {
+      const g = st(); if (!active || !g) return;
+      ev.preventDefault();
+      if (ev.button === 0) {
+        if (mode && !mode.build && !mode.land) { const [x, y] = miniPoint(ev); targetClick(g, x, y, ev.shiftKey); return; }
+        mmDrag = true; miniCam(ev);
+      } else if (ev.button === 2) { const [x, y] = miniPoint(ev); if (mode) mode = null; else { contextCommand(g, x, y); if (ringSt === 'open') setRing('pin'); } }
+    });
+
+    // 미니맵 터치: ≤767 의 미니맵 칩은 탭하면 화면 70% 로 펼친다(바깥 탭 = 접기). 펼친 미니맵·넓은 화면의 미니맵은 탭·끌기 = 카메라
+    // (무장 중 탭 = 그 지점에 명령, 마우스와 같다). 길게 누르기(핑 종류 고르기)는 netui 가 받으므로 오래 누른 탭은 카메라를 옮기지 않는다.
+    const dockBox = q('[data-hud=dock]'), scrim = q('[data-hud=mm-scrim]'), chipMQ = matchMedia('(max-width: 767px)');
+    let mmBig = false, mmTouch = null;
+    function setMmBig(on) {
+      if (on === mmBig) return;
+      mmBig = on; dockBox.classList.toggle('is-mm-big', on); scrim.hidden = !on;
+      if (on) { const s = Math.round(mini.getBoundingClientRect().width); if (s > 0) { mini.width = s; mini.height = s; } } // 펼친 동안 내부 해상도 = 보이는 크기
+      else dims = null; // 접으면 readDims 가 --mini 로 되돌린다
+    }
+    chipMQ.addEventListener('change', () => setMmBig(false));
+    scrim.addEventListener('pointerdown', ev => { ev.preventDefault(); setMmBig(false); });
+    addEventListener('pointerdown', ev => { if (mmBig && ev.target !== scrim && !mini.parentNode.contains(ev.target)) setMmBig(false); }, true); // 상단 바·아래 시트를 눌러도 접힌다(그 탭은 그대로 동작)
+    mini.addEventListener('pointerdown', ev => {
+      if (!isTouch(ev)) return;
+      ev.preventDefault(); // 호환 mousedown(위의 마우스 경로) 막기
+      const g = st(); if (!active || !g) return;
+      if (chipMQ.matches && !mmBig) { setMmBig(true); return; }
+      mmTouch = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t0: performance.now(), moved: false };
+      try { mini.setPointerCapture(ev.pointerId); } catch (e) { /* 캡처 실패 — 미니맵 안에서만 끌기 */ }
+    });
+    mini.addEventListener('pointermove', ev => {
+      const t = mmTouch; if (!t || ev.pointerId !== t.id) return;
+      if (!t.moved && Math.hypot(ev.clientX - t.x, ev.clientY - t.y) > SLOP) t.moved = true;
+      if (t.moved && !mode) miniCam(ev);
+    });
+    mini.addEventListener('pointerup', ev => {
+      const t = mmTouch; if (!t || ev.pointerId !== t.id) return;
+      mmTouch = null;
+      const g = st(); if (!active || !g || t.moved || performance.now() - t.t0 >= LONG_MS) return;
+      if (mode && !mode.build && !mode.land) { const [x, y] = miniPoint(ev); targetClick(g, x, y, false); return; }
+      miniCam(ev);
+    });
+    mini.addEventListener('pointercancel', () => { mmTouch = null; });
+
+    addEventListener('keydown', ev => {
+      if (!document.documentElement.dataset.kbd) document.documentElement.dataset.kbd = '1'; // 키 입력이 한 번이라도 들어오면 터치 화면에서도 키캡을 보인다
+      const g = st(); if (!active || !g || (typeof NW_NETUI !== 'undefined' && NW_NETUI.typing)) return; // 채팅 입력 중엔 단축키 없음
+      const k = ev.key, inRing = el.card.contains(document.activeElement);
+      if (inRing && (k === 'ArrowLeft' || k === 'ArrowRight')) { // 링 칸 사이 이동(슬롯 순서, 꼬리 포함 순환) — 링 밖에선 카메라 스크롤
+        ev.preventDefault();
+        const vis = slots.filter(x => !x.node.hidden), i = vis.findIndex(x => x.node === document.activeElement);
+        if (vis.length) vis[(i + (k === 'ArrowRight' ? 1 : -1) + vis.length) % vis.length].node.focus();
+        return;
+      }
+      if (inRing && k === 'Enter' && ev.shiftKey) { // 자동 시전 토글(우클릭과 같다). 칸의 Enter 클릭은 막는다.
+        ev.preventDefault();
+        const d = curBtns.find(x => slots[x.slot].node === document.activeElement);
+        if (d && d.alt) { d.alt(); flashPress(slots[d.slot].node); }
+        return;
+      }
+      if (k === 'F6') { ev.preventDefault(); cycleRegion(ev.shiftKey ? -1 : 1, g); return; }
+      if (k.startsWith('Arrow')) { keys[k] = true; ev.preventDefault(); if (!mouse.onCanvas || kbNav) kbNav = true; return; }
+      if (ev.code && ev.code.startsWith('Digit')) {
+        const n = ev.code.slice(5);
+        ev.preventDefault();
+        if (ev.ctrlKey || ev.metaKey) { const own = selEnts(g).filter(mine); if (own.length) groups[n] = own.map(e => e.id); return; }
+        recallGroup(n, g); return;
+      }
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (k === 'Tab') { // 전장에서: 링 열기 + 첫 칸 포커스 / 링 안에서: 접고 전장으로. 상단 바·계기 기둥 안에선 브라우저 기본 Tab.
+        if (!inRing && !onField()) return;
+        ev.preventDefault();
+        if (inRing) { setRing('pin'); return; }
+        focusRing(g, true);
+        return;
+      }
+      if (k === 'F1') { ev.preventDefault(); pickIdle(ev.shiftKey); return; }
+      if (ev.code === 'Space' || k === ' ') { // 마지막 알림 위치로(알림이 없었으면 무시). 버튼 위 포커스여도 클릭되지 않게 막는다.
+        ev.preventDefault();
+        if (!ev.repeat && lastAlert) centerOn(lastAlert.x, lastAlert.y);
+        return;
+      }
+      if (k === 'Escape') {
+        if (drag) { drag = null; view.drag = null; return; }
+        if (mode) { mode = null; setRing('open', g); return; } // 무장 해제 → 링 다시 열림
+        if (page !== 'main') { page = 'main'; return; }
+        if (cpage > 0) { cpage = 0; return; }
+        if (ringSt === 'open') setRing('pin'); // 사슬 끝: 링 접기
+        return;
+      }
+      if (k === 'Enter' && onField() && !ev.repeat) { // 키보드 커서: 가운데 십자에 왼쪽 클릭(무장 = 실행, 이동 무장 = 문맥 명령). Shift = 대기열/추가 선택.
+        ev.preventDefault(); viewport(); kbNav = true;
+        const [sx, sy] = kbCenter();
+        if (mode === 'move') { contextCommand(g, ...world(sx, sy)); mode = null; if (ringSt === 'open') setRing('pin'); }
+        else if (mode) targetClick(g, ...world(sx, sy), ev.shiftKey);
+        else clickSelect(g, sx, sy, ev.shiftKey);
+        return;
+      }
+      // 한글 입력 상태면 ev.key 가 'ㅁ' 같은 자모로 온다 → 영문자가 아니면 물리 키(ev.code)로 판단. 영문 배열(Dvorak 등)은 ev.key 그대로.
+      const key = /^[a-z]$/i.test(k) ? k.toUpperCase() : /^Key[A-Z]$/.test(ev.code || '') ? ev.code.slice(3) : k.length === 1 ? k.toUpperCase() : '';
+      if (!key) return;
+      curBtns = card(g); // 마지막 프레임 이후 선택/페이지가 바뀌었을 수 있다
+      const d = curBtns.find(b => b.key === key);
+      if (d) { ev.preventDefault(); runBtn(d); flashPress(slots[d.slot].node); blinkPin(); if (!mouse.in) kbArm(); } // 커서가 화면 밖(키보드만) = 가운데 조준
+    });
+    function kbArm() { if (!mode) return; kbNav = true; if (el.card.contains(document.activeElement)) document.activeElement.blur(); } // 링 칸에서 무장하면 포커스를 전장으로(Enter 가 칸을 다시 누르지 않게)
+    addEventListener('keyup', ev => {
+      if (ev.key.startsWith('Arrow')) keys[ev.key] = false;
+      if (active && (ev.code === 'Space' || ev.key === ' ')) ev.preventDefault(); // 포커스된 버튼의 Space 클릭 방지
+    });
+    // 전장(캔버스) 포커스 = 아무 컨트롤에도 포커스가 없을 때
+    const onField = () => { const a = document.activeElement; return !a || a === document.body || a === canvas || a === document.documentElement; };
+    function focusRing(g, first) {
+      if (ringSt === 'none') return false;
+      setRing('open', g);
+      const f = first ? slots.find(x => !x.node.hidden) : slots[roving];
+      if (!f || f.node.hidden) return false;
+      f.node.focus(); return true;
+    }
+    // F6 / Shift+F6 = 화면 영역 이동: 상단 바 → 명령 링 → 계기 기둥 → 전장(Tab 을 링에 쓰므로 영역 이동은 F6). 갈 데가 없는 영역은 건너뛴다.
+    const dockEl = hud.querySelector('[data-hud=dock]'), barEl = hud.querySelector('.topbar');
+    if (el.info && !el.info.hasAttribute('tabindex')) el.info.tabIndex = -1; // 버튼이 없는 선택 정보도 F6 로 닿아 읽히게
+    function cycleRegion(dir, g) {
+      const a = document.activeElement;
+      const cur = barEl && barEl.contains(a) ? 0 : el.card.contains(a) ? 1 : dockEl && dockEl.contains(a) ? 2 : 3;
+      const usable = b => !b.hidden && !b.closest('[hidden]') && b.getAttribute('aria-disabled') !== 'true' && b.offsetParent !== null;
+      const go = [
+        () => { const b = barEl && [...barEl.querySelectorAll('button')].find(usable); if (b) b.focus(); return !!b; },
+        () => focusRing(g, false),
+        () => { const b = dockEl && [...dockEl.querySelectorAll('button')].find(usable); const t = b || el.info; if (t) t.focus(); return !!t; },
+        () => { if (a && a.blur) a.blur(); return true; },
+      ];
+      for (let n = 1; n <= 4; n++) if (go[(cur + dir * n + 8) % 4]()) return;
+    }
+    function flashPress(n) { n.classList.add('is-press'); setTimeout(() => n.classList.remove('is-press'), 90); }
+
+    // ---- 매 프레임 ----
+    function update(g) {
+      viewport();
+      // 죽었거나 안 보이게 된 선택 정리
+      const alive = view.sel.filter(id => { const e = S.byId(g, id); return e && known(g, e); });
+      if (alive.length !== view.sel.length) { const m = mode, pg = page, cp = cpage, sd = selDirty; setSel(alive); selDirty = sd; if (alive.length) { mode = m; page = pg; cpage = cp; } } // 죽어서 빠진 건 '선택 변경'이 아니다
+      if (active) {
+        let dx = 0, dy = 0;
+        if (keys.ArrowLeft) dx -= SCROLL; if (keys.ArrowRight) dx += SCROLL; if (keys.ArrowUp) dy -= SCROLL; if (keys.ArrowDown) dy += SCROLL;
+        if (mouse.in && !drag && !mmDrag) {
+          if (mouse.x < EDGE) dx = -SCROLL; else if (mouse.x > canvas.width - EDGE) dx = SCROLL;
+          if (mouse.y < EDGE) dy = -SCROLL; else if (mouse.y > canvas.height - EDGE) dy = SCROLL;
+        }
+        if (kbNav && (dx || dy)) { kbAxis(dx, 0, view.vw / 2 - 16); kbAxis(dy, 1, view.vh / 2 - 16); dx = dy = 0; }
+        view.camX += dx; view.camY += dy;
+        if (drag && (dx || dy)) { drag.x0 -= dx; drag.y0 -= dy; }
+      }
+      clampCam();
+      if (mode && mode.build && !myUnits(g).some(e => e.def.worker)) mode = null;
+      if (mode && mode.land) { const b = S.byId(g, mode.land); if (!b || !b.lifted || !view.sel.includes(b.id)) mode = null; }
+      if (mode === 'repair' && !engineers(g).length) mode = null;
+      if (mode && !mode.build && !mode.land && !mode.cast && mode !== 'rally' && !movers(g).length) mode = null;
+      if (mode && mode.cast && !casters(g, mode.cast).length) mode = null;
+      if (mode && (mode.load || mode.unload) && !carriers(g).length) mode = null;
+      if (kbNav && mode) aimAt(...kbCenter());
+      if (kbCross.hidden === kbNav) kbCross.hidden = !kbNav;
+      if (kbNav) { const [cx, cy] = kbCenter(), tr = 'translate3d(' + Math.round(cx) + 'px,' + Math.round(cy) + 'px,0)'; if (kbCross.style.transform !== tr) kbCross.style.transform = tr; }
+      view.aim = null; // 조준 커서: 커서 위치 효과 반경 + 시전자 사거리 원(render 3a 블록)
+      if (mode && mode.cast && mouse.onCanvas) {
+        const A = D.abilities[mode.cast], ef = A.effect, [wx, wy] = world(mouse.x, mouse.y), cs = casters(g, mode.cast);
+        const r = ef.kind === 'area_dot' || ef.kind === 'aura' ? ef.r : ef.kind === 'reveal' ? ef.r * TILE : 0;
+        let tgt = null;
+        if (A.target === 'unit') { const t = pick(g, wx, wy); if (t && cs.some(e => castOk(g, e, A, t))) tgt = { x: t.x / FP, y: t.y / FP, r: t.def.radius || 12, air: !!t.def.air }; }
+        view.aim = { x: wx, y: wy, r, range: A.range, unit: A.target === 'unit', tgt, from: cs.filter(e => !e.isB).map(e => [e.x / FP, e.y / FP]) };
+      }
+      if (mode === 'rally' && !myBlds(g).length) mode = null;
+      if (mode && (mode.build || mode.land) && mouse.onCanvas) {
+        const [wx, wy] = world(mouse.x, mouse.y);
+        if (mode.build) {
+          const [tx, ty] = ghostTile(g, wx, wy, mode.build), w = nearestWorker(g, tx, ty);
+          view.ghost = { what: mode.build, tx, ty, ok: !!w && !S.canPlace(g, me, mode.build, tx, ty, w.id) };
+        } else {
+          const b = S.byId(g, mode.land), [tx, ty] = ghostTile(g, wx, wy, b.type);
+          view.ghost = { what: b.type, tx, ty, ok: landOk(g, b.type, tx, ty) };
+        }
+      } else view.ghost = null;
+      canvas.classList.toggle('is-targeting', !!mode && !mode.build && !mode.land);
+      updateAlerts(); renderIdle(g);
+      renderTop(g); renderInfo(g); renderCard(g); updateRing(g);
+    }
+
+    function onEvents(events) {
+      const g = st();
+      for (const ev of events) {
+        if (ev.t === 'attack' && g) { // 피격 알림: 맞은 쪽(b)이 내 것이고 때린 쪽이 내 것이 아니면
+          const b = S.byId(g, ev.b), a = S.byId(g, ev.a);
+          if (!spectate && b && b.owner === me && !(a && a.owner === me)) alertHit(g, b, a && S.hidden(g, me, a) ? '위장 유닛 감지됨 — 탐지기가 필요합니다' : '');
+          continue;
+        }
+        if (ev.t !== 'death') continue;
+        if (view.sel.includes(ev.id)) view.sel = view.sel.filter(id => id !== ev.id);
+        for (const n in groups) groups[n] = groups[n].filter(id => id !== ev.id);
+      }
+    }
+
+    function start() {
+      const g = st();
+      cmds = []; pend = freshPend(); groups = {}; mode = null; page = 'main'; cpage = 0; drag = null; mmDrag = false; infoSig = null; setRing('none'); selDirty = false;
+      view.sel = []; view.drag = null; view.ghost = null;
+      for (const k in keys) keys[k] = false;
+      el.notice.classList.remove('is-on');
+      clearAlerts(); hideTip(); idleLast = 0; idleCount = -1;
+      el.idleIcon.innerHTML = ''; el.idleIcon.appendChild(R.icon(D.races[g.players[me].race].worker, me, 24));
+      const base = g.ents.find(e => e.owner === me && e.isB);
+      if (base) centerOn(base.x / FP, base.y / FP);
+      active = true;
+    }
+
+    return {
+      view, update, onEvents, start,
+      resume() { active = true; },
+      // 관전 모드: 켜면 명령·알림·노는 일꾼을 끄고 명령 카드를 비운다(선택·카메라는 그대로).
+      // asObserver = 리플레이 시청(소유 표시를 '나/적' 대신 P 번호로). 게임 중 탈락 관전은 false(내 기준 표시 유지).
+      setSpectate(on, asObserver = false) { spectate = !!on; observer = spectate && !!asObserver; el.idle.hidden = spectate; cmds = []; mode = null; page = 'main'; cpage = 0; infoSig = null; if (spectate) clearAlerts(); },
+      // vision = 플레이어 번호(그 팀의 공유 시야) | 'all'(전체 시야 — 기준 번호는 0을 쓰되 안개를 보지 않는다)
+      setVision(v) { const g = st(); seeAll = v === 'all'; me = seeAll ? 0 : Number.isInteger(v) && v >= 0 && (!g || v < g.players.length) ? v : 0; view.me = me; infoSig = null; idleCount = -1; },
+      get spectate() { return spectate; }, centerOn,
+      // 설정 "선택하면 명령 링 자동 열기"(localStorage 'nw-ring-auto', 저장 못 해도 이번 세션은 적용)
+      get ringAuto() { return ringAuto; },
+      setRingAuto(v) { ringAuto = !!v; try { localStorage.setItem(RING_AUTO_KEY, ringAuto ? '1' : '0'); } catch (e) { /* 저장 못 해도 이번 세션은 적용 */ } },
+      get ring() { return ringSt; },
+      stop() { active = false; endTouch(null, true); closeSheet(); setMmBig(false); drag = null; view.drag = null; mmDrag = false; hideTip(); for (const k in keys) keys[k] = false; },
+      takeCommands() { const c = cmds; cmds = []; pend = freshPend(); return c; },
+      notify,
+      get lastAlert() { return lastAlert; }, get alerts() { return alerts.length; }, idleWorkers: () => idleWorkers(st()).map(e => e.id),
+    };
+  }
+
+  return { create };
 })();
-if (typeof module !== 'undefined') module.exports = NW_AI;
