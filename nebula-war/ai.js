@@ -54,6 +54,8 @@ const NW_AI = (function nwAI() {
     CAST_CMDS: 6,                           // 시전 명령 판단당 절대 상한(난이도 값은 LEVELS.cast.max)
     CASTER_BEHIND: 2, CASTER_FAR: 6,        // 무기 없는 시전 유닛: 병력 중심에서 집결점 쪽 이 타일 뒤, 이 타일 넘게 벌어지면 재명령
     CASTER_FRONT: 33,                       // 공격 중 시전 유닛이 따라갈 병력 = 목표에 가까운 이 % (최소 1기)
+    PYLON_TRY: 40,                          // 엘리시안 조율 기둥: 기다리는 건물이 들어갈지 검사할 앞쪽 후보 수
+    SPARE: 400,                             // 엘리시안 어려움: 관문 자리(전력) 미리 확인 주기(틱)
   };
   const LEVEL_NAMES = { easy: '쉬움', normal: '보통', hard: '어려움' };
   const NAMES = { // 종족별 AI 이름(자체 명칭, 표시 전용)
@@ -78,11 +80,11 @@ const NW_AI = (function nwAI() {
     spells: ['legion_hound_drones'] };
   PERS.legion.air = { name: '공중 함대',
     build: [['w', 10], ['b', 'depot'], ['b', 'garrison'], ['gas', 1], ['u', 'trooper', 4], ['w', 14], ['b', 'motorpool'], ['b', 'depot'],
-      ['b', 'airfield'], ['gas', 2], ['b', 'tower'], ['b', 'arsenal'], ['b', 'airfield'], ['b', 'labs'], ['b', 'gravlab'], ['up', 'legion_ship_weapons'],
+      ['b', 'airfield'], ['x', 1], ['gas', 2], ['b', 'tower'], ['b', 'arsenal'], ['b', 'airfield'], ['b', 'labs'], ['b', 'gravlab'], ['up', 'legion_ship_weapons'],
       // 부속은 본체당 하나 — 위장 공방(관측수·방전탄·망토)은 두 번째 해체 연구소에, 중계 안테나(정찰)·투하 크레인(고철 낙하)은 본진·확장 기지에.
       // (aispells 때 위장 공방과 용골 작업장을 연구소 하나에 몰아 빌드가 용골 작업장에서 영영 멈췄다 — 빌드 이후 확장·가스·연구가 안 돌아 네뷸라가 말랐다)
-      ['b', 'drillhall'], ['b', 'labs'], ['b', 'intel'], ['x', 1], ['b', 'uplink'], ['b', 'silo']],
-    mix: { phantom: 6, lancer: 2, dreadnought: 1, shade: 1 }, attack: { value: 1800, tick: 8000 }, expandAt: 10000,
+      ['b', 'drillhall'], ['b', 'labs'], ['b', 'intel'], ['b', 'uplink'], ['b', 'silo']],
+    mix: { phantom: 6, lancer: 2, dreadnought: 1, shade: 1 }, attack: { value: 1800, tick: 8000 }, expandAt: 9000, gasy: true,
     research: ['legion_ship_plating'],
     casters: { surveyor: { per: 6, max: 2 } }, spells: ['legion_tow', 'legion_repairdrones', 'legion_discharge', 'legion_optcloak'], raid: 1 }; // 빌드 순서와 같게(연구는 순서대로만)
   PERS.swarm.skitter = { name: '스키터 러시', rush: true,
@@ -113,9 +115,9 @@ const NW_AI = (function nwAI() {
     research: ['elysian_ground_weapons', 'elysian_ground_armor'],
     casters: { sage: { per: 6, max: 2 }, watcher: { per: 12, max: 1 } }, spells: ['elysian_mindstorm', 'elysian_echo'], raid: 1 }; // 수송 견제: 스키프는 결정 주조소에서(함대는 주조소를 안 지어 못 한다)
   PERS.elysian.fleet = { name: '함대',
-    build: [['w', 9], ['b', 'resonator'], ['b', 'portal'], ['gas', 1], ['u', 'oathblade', 2], ['w', 13], ['b', 'synapse'], ['gas', 2],
+    build: [['w', 9], ['b', 'resonator'], ['b', 'portal'], ['gas', 1], ['u', 'oathblade', 2], ['w', 13], ['b', 'synapse'], ['x', 1], ['gas', 2],
       ['b', 'skygate'], ['b', 'fleetspire'], ['b', 'skygate'], ['b', 'citadel'], ['b', 'sagelibrary'], ['b', 'wardencourt'], ['up', 'elysian_air_weapons']],
-    mix: { sentinel: 2, skimmer: 1, ark: 1 }, attack: { value: 2000, tick: 9000 }, expandAt: 11000,
+    mix: { sentinel: 2, skimmer: 1, ark: 1 }, attack: { value: 2000, tick: 9000 }, expandAt: 9000, gasy: true,
     research: ['elysian_air_armor'],
     casters: { warden: { per: 8, max: 2 } }, spells: ['elysian_prism'] };
   const AA = { legion: 'trooper', swarm: 'spinewyrm', elysian: 'arcwalker' }; // 종족 대공 기본 유닛(상성 생산)
@@ -129,7 +131,8 @@ const NW_AI = (function nwAI() {
   const ADDON_HOST = new Set(Object.values(D.buildings).filter(b => b.addonOf).map(b => b.addonOf));
 
   const seedFor = (seed, p) => (seed ^ Math.imul(p + 1, 0x9E3779B1)) | 0;
-  const newMemory = () => ({ bld: new Map(), air: new Map(), ground: new Map() });
+  // light: 지상 소형 전투 유닛(상성 — 폭발형 단일 공격이 약하다), val: 전투 유닛 id → [본 틱, 가치](최근 본 적 병력 추정)
+  const newMemory = () => ({ bld: new Map(), air: new Map(), ground: new Map(), light: new Map(), val: new Map() });
   const newBoard = () => ({ target: null, attackAt: -1, leader: -1, members: [], active: false }); // members: 이 보드를 쓰는 AI 플레이어 번호, active: 리더가 공격 중
   const rnd = (ai, n) => S.mulberry32(ai.r) % n;
   const d2 = (a, b) => { const dx = a.x - b.x, dy = a.y - b.y; return dx * dx + dy * dy; };
@@ -149,10 +152,15 @@ const NW_AI = (function nwAI() {
       if (!S.visible(g, p, e)) continue;
       v.foes.push(e);
       if (e.isB) { seen.add(e.id); mem.bld.set(e.id, { id: e.id, type: e.type, owner: e.owner, tx: e.tx, ty: e.ty, w: e.def.w, h: e.def.h, x: e.x, y: e.y, seen: g.tick, done: !(e.buildLeft > 0) }); }
-      else if (!e.def.worker && !e.parent && fighterDef(e.def)) (e.def.air ? mem.air : mem.ground).set(e.id, g.tick); // 전투 유닛만(블로터·일꾼·함재기 제외 — 상성 판단용)
+      else if (!e.def.worker && !e.parent && fighterDef(e.def)) { // 전투 유닛만(블로터·일꾼·함재기 제외 — 상성 판단용)
+        (e.def.air ? mem.air : mem.ground).set(e.id, g.tick);
+        if (!e.def.air && e.def.size === 'small') mem.light.set(e.id, g.tick);
+        mem.val.set(e.id, [g.tick, (e.def.cost.crystal || 0) + (e.def.cost.nebula || 0)]);
+      }
     }
     for (const [id, b] of mem.bld) if (!seen.has(id) && tileSeen(g, g.fog[p], b)) mem.bld.delete(id); // 그 자리가 보이는데 없다 = 파괴·이동
-    for (const m of [mem.air, mem.ground]) for (const [id, t] of m) if (t < g.tick - 3000) m.delete(id);
+    for (const m of [mem.air, mem.ground, mem.light]) for (const [id, t] of m) if (t < g.tick - 3000) m.delete(id);
+    for (const [id, [t]] of mem.val) if (t < g.tick - 3000) mem.val.delete(id);
     return v;
   }
 
@@ -245,19 +253,21 @@ const NW_AI = (function nwAI() {
     const real = (tx, ty) => [fl & 1 ? X2 - tx - ew : tx, fl & 2 ? Y2 - ty - h : ty];
     let power = false;
     const ely = ai.race === 'elysian', net = ely ? S.powerNet(g, ai.p) : null;
-    const ok = (tx, ty) => {
-      if (ely && !S.inNet(net, what, tx, ty)) { power = true; return false; }
-      const r = S.canPlace(g, ai.p, what, tx, ty);
-      if (r === 'power') power = true;
-      if (r !== '' && r !== 'crystal' && r !== 'nebula') return false;
-      for (let j = -1; j <= h; j++) for (let i = -1; i <= ew; i++) {
-        if (j >= 0 && j < h && i >= 0 && i < w) continue;
+    // virt: 전력은 따로 판정(새 기둥을 가정한 자리 검사) — canPlace 의 'power' 는 통과, extra 사각형도 피한다
+    const okAs = (wt, ww, hh, eww, tx, ty, virt, extra) => {
+      if (ely && !virt && !S.inNet(net, wt, tx, ty)) { power = true; return false; }
+      const r = S.canPlace(g, ai.p, wt, tx, ty);
+      if (r === 'power' && !virt) power = true;
+      if (r !== '' && r !== 'crystal' && r !== 'nebula' && !(virt && r === 'power')) return false;
+      for (let j = -1; j <= hh; j++) for (let i = -1; i <= eww; i++) {
+        if (j >= 0 && j < hh && i >= 0 && i < ww) continue;
         if (!S.walkable(g, tx + i, ty + j)) return false;
       }
-      for (const [x0, y0, x1, y1] of boxes) if (tx <= x1 && tx + ew - 1 >= x0 && ty <= y1 && ty + h - 1 >= y0) return false;
-      for (const [rx, ry, rw, rh] of rects) if (tx - 1 <= rx + rw - 1 && tx + ew >= rx && ty - 1 <= ry + rh - 1 && ty + h >= ry) return false;
+      for (const [x0, y0, x1, y1] of boxes) if (tx <= x1 && tx + eww - 1 >= x0 && ty <= y1 && ty + hh - 1 >= y0) return false;
+      for (const [rx, ry, rw, rh] of extra ? rects.concat([extra]) : rects) if (tx - 1 <= rx + rw - 1 && tx + eww >= rx && ty - 1 <= ry + rh - 1 && ty + hh >= ry) return false;
       return true;
     };
+    const ok = (tx, ty) => okAs(what, w, h, ew, tx, ty, false, null);
     if (ely && what === 'resonator') { // 기둥 사이 10~14타일(반타일 좌표 20~28, 정수 제곱 비교)
       const P = net.pylons.map(q => [q.x2, q.y2]);
       for (const b of v.own) if (b.isB && b.def.power && b.buildLeft > 0) P.push([2 * b.tx + b.def.w, 2 * b.ty + b.def.h]);
@@ -270,7 +280,30 @@ const NW_AI = (function nwAI() {
           if (near >= 400 && near <= 784) cands.push([(x2 - hx) ** 2 + (y2 - hy) ** 2, cands.length, tx, ty]);
         }
       cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]); // 동률: 위→아래·왼→오른쪽(스캔 순서)
-      for (const [, , tx, ty] of cands) if (ok(tx, ty)) return [tx, ty];
+      // 새 기둥이 만드는 레이 라인(기둥 ↔ 14타일 안 기둥) 위에 기다리는 건물(기본: 4×3 공명 관문)이 실제로 들어갈 자리를 고른다.
+      // 전에는 본진에 가장 가까운 후보를 골라 선이 채굴 구역·본진 둘레를 지나 관문을 못 놓고, 기둥을 또 짓느라 600틱씩 날렸다
+      // (스키터 상대 첫 관문이 1000틱 늦음). 앞쪽 후보 K.PYLON_TRY 개까지만 본다(비용 상한). 맞는 게 없으면 예전처럼 첫 후보.
+      const need = D.buildings[ai.st.powerFor || 'portal'], nw = need.w, nh = need.h, new2 = ADDON_HOST.has(need.id) ? nw + 2 : nw;
+      ai.st.powerFor = null;
+      const fits = (tx, ty) => {
+        const x2 = 2 * tx + w, y2 = 2 * ty + h, segs = [[x2, y2, x2, y2, 6]]; // 자기 반경(3타일)도
+        for (const [px, py] of P) if ((x2 - px) ** 2 + (y2 - py) ** 2 <= 784) segs.push([x2, y2, px, py, 4]);
+        for (const [ax, ay, bx, by, r] of segs) {
+          const x0 = Math.floor((Math.min(ax, bx) - r) / 2) - nw, x1 = Math.ceil((Math.max(ax, bx) + r) / 2);
+          const y0 = Math.floor((Math.min(ay, by) - r) / 2) - nh, y1 = Math.ceil((Math.max(ay, by) + r) / 2);
+          for (let qy = y0; qy <= y1; qy++) for (let qx = x0; qx <= x1; qx++)
+            if (S.nearSeg(2 * qx + nw, 2 * qy + nh, ax, ay, bx, by, r) && okAs(need.id, nw, nh, new2, qx, qy, true, [tx, ty, w, h])) return true;
+        }
+        return false;
+      };
+      let first = null, tried = 0;
+      for (const [, , tx, ty] of cands) {
+        if (!ok(tx, ty)) continue;
+        if (!first) first = [tx, ty];
+        if (fits(tx, ty)) return [tx, ty];
+        if (++tried >= K.PYLON_TRY) break;
+      }
+      if (first) return first;
     }
     // 엘리시안은 22까지 — 조율 기둥이 본진 ±20 안에 서는데 링이 16에서 끝나 바깥 기둥의 레이 라인을 못 써서
     // 배치 실패 → 기둥 추가만 되풀이했다(수정 수천·기둥 19개). 3×3 건물은 기둥 반경(3) 안에 못 들어가 선 위에만 선다.
@@ -492,7 +525,7 @@ const NW_AI = (function nwAI() {
       return 'ok';
     }
     const spot = findSpot(ai, g, v, what, bank);
-    if (!spot && ai.st.spotWhy === 'power' && !supplyBusy(v, 'resonator')) return buildOne(ai, g, v, bank, out, taken, 'resonator');
+    if (!spot && ai.st.spotWhy === 'power' && !supplyBusy(v, 'resonator')) { ai.st.powerFor = what; return buildOne(ai, g, v, bank, out, taken, 'resonator'); }
     return buildWith(ai, v, bank, out, taken, what, spot);
   }
   function expandOne(ai, g, v, bank, out, taken) {
@@ -582,6 +615,18 @@ const NW_AI = (function nwAI() {
   const stepCost = (ai, v, st) => st[0] === 'gas' ? costOf(GAS[ai.race]) : st[0] === 'x' ? costOf(D.races[ai.race].base)
     : st[0] === 'up' ? D.upgrades[st[1]].cost[v.me.up[st[1]] || 0] || {} : st[0] === 'b' || st[0] === 'm' ? costOf(st[1]) : null;
 
+  // 조합 유닛을 뽑는 건물 + 조합 유닛의 요구 건물(요구를 따라 끝까지) — 위협 대응 때도 미루지 않는 빌드 단계
+  const MIX_TECH = new Map();
+  function mixTech(P) {
+    if (MIX_TECH.has(P)) return MIX_TECH.get(P);
+    const s = new Set(), add = id => { if (s.has(id) || !D.buildings[id]) return; s.add(id); for (const r of D.buildings[id].requires || []) add(r); };
+    for (const u of Object.keys(P.mix)) {
+      for (const r of D.units[u].requires || []) add(r);
+      for (const b of Object.values(D.buildings)) if (!b.dropoff && (b.trains || []).includes(u)) add(b.id);
+    }
+    MIX_TECH.set(P, s);
+    return s;
+  }
   // 생산·건설: 빌드 단계(정확도 L.acc 확률로 진행, 자원 모자라면 저축) → 조합 비율 생산 →
   // (빌드 이후) 생산 건물 추가·연구·주기적 확장
   function production(ai, g, v, bank, out, taken, st) {
@@ -589,8 +634,15 @@ const NW_AI = (function nwAI() {
     if (!P) return;
     let save = null;
     const saving = (cost, r) => { if (r === 'short') save = cost; };
+    // 어려움(micro 2) 위협 대응: 최근 본 적 전투 유닛 가치가 600 이상이고 내 병력의 1.5배를 넘으면 병력과 무관한 빌드 단계
+    // (기술 건물·연구·확장·가스)를 미루고 그 돈으로 병력을 뽑는다(조합 유닛 생산 건물·'u'·'w' 단계는 그대로) —
+    // 코러스가 스키터 40기 앞에서 연마소·성채·회당·연구에 돈을 쓰다 병력 400으로 무너졌다
+    let fv = 0;
+    if (L.micro >= 2 && st) for (const [, [, x]] of ai.mem.val) fv += x;
+    const helps = st && (st[0] === 'u' || st[0] === 'w' || (st[0] === 'b' && mixTech(P).has(st[1])));
+    const hold = st && !helps && fv >= 600 * ECO && fv * 2 > armyValue(armyOf(ai, v)) * 3;
     if (st) {
-      if (rnd(ai, 100) < L.acc) {
+      if (!hold && rnd(ai, 100) < L.acc) { // 위협(hold)이면 이번 판단은 단계를 진행·저축하지 않는다
         const r = runStep(ai, g, v, bank, out, taken, st);
         saving(stepCost(ai, v, st), r);
         // 확장 단계가 자리 없음으로 계속 실패하면(연속 K.X_GIVEUP 틱) 건너뛴다 — 빌드가 영영 멈추지 않게
@@ -599,11 +651,11 @@ const NW_AI = (function nwAI() {
           else if (g.tick - ai.st.xFail.since >= K.X_GIVEUP) { ai.st.skipStep.add(st); ai.st.xFail = null; }
         } else if (st[0] === 'x') ai.st.xFail = null;
       }
-      else if (stepCost(ai, v, st) && !afford(bank, stepCost(ai, v, st))) save = stepCost(ai, v, st);
-    } else if (g.tick >= P.expandAt + (L.expandLate || 0)) { // 빌드 이후: expandAt 부터 6000틱마다 확장 하나 더
+      else if (!hold && stepCost(ai, v, st) && !afford(bank, stepCost(ai, v, st))) save = stepCost(ai, v, st);
+    } else if (g.tick >= P.expandAt + (L.expandLate || 0)) { // 빌드 이후: expandAt 부터 6000틱(가스 성향 4000틱)마다 확장 하나 더
       let x = 0;
       for (const s of P.build) if (s[0] === 'x') x = Math.max(x, s[1]);
-      const want = 1 + x + 1 + Math.floor((g.tick - P.expandAt - (L.expandLate || 0)) / 6000);
+      const want = 1 + x + 1 + Math.floor((g.tick - P.expandAt - (L.expandLate || 0)) / (P.gasy ? 4000 : 6000));
       if (siteBases(ai, g, v) < want) saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
     }
     // 빌드의 가스 단계가 분출구 부족으로 미뤄졌으면(확장 없이 가스 2개) 확장을 당겨 온다(진행 중인 확장이 없을 때)
@@ -611,10 +663,14 @@ const NW_AI = (function nwAI() {
       saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
     // 어려움(L.macro): 네뷸라가 막혔는데 수정이 쌓이면 빌드 중에도 빈 분출구에 가스, 빈 분출구가 없으면 확장(진행 중인 확장이 없을 때).
     // 맵마다 분출구는 사이트당 1개라 가스를 더 캐려면 확장밖에 없다 — 전에는 빌드가 끝나야 했고 6000틱마다 하나라 네뷸라 30~100에 수정이 수천씩 쌓였다
-    if (L.macro && !save && v.me.nebula < 200 * ECO && bank.crystal > 500 * ECO && !supplyBusy(v, GAS[ai.race])) {
+    // 가스 성향(P.gasy — 공중 함대·함대: 조합이 네뷸라를 많이 먹는다)은 기준을 낮춘다(네뷸라 300 미만·수정 400 넘으면 가스, 500 넘으면 확장)
+    // 저축 중이어도(빌드 단계가 네뷸라 부족으로 'short') 저축분을 뺀 수정으로 판단한다 — 전에는 저축 중이면 이 규칙을 건너뛰어
+    // 네뷸라 부족으로 단계가 막힘 → 저축 → 가스·확장 안 함 → 계속 막힘(공중 함대 수정 1300~4500·네뷸라 90)
+    const gz = P.gasy ? [300, 400, 500] : [200, 500, 700], free = bank.crystal - (save ? save.crystal || 0 : 0);
+    if (L.macro && v.me.nebula < gz[0] * ECO && free > gz[1] * ECO && !supplyBusy(v, GAS[ai.race])) {
       const spot = findGasSpot(ai, g, v, bank), base = D.races[ai.race].base;
       if (spot) buildWith(ai, v, bank, out, taken, GAS[ai.race], spot);
-      else if (bank.crystal > 700 * ECO && !supplyBusy(v, base)) expandOne(ai, g, v, bank, out, taken);
+      else if (free > gz[2] * ECO && !supplyBusy(v, base)) expandOne(ai, g, v, bank, out, taken);
     }
     // 기지 주변 수정이 거의 다 떨어졌으면(덩이 4개 이하) 진행 중인 확장이 없을 때 확장부터(저축)
     if (!st && !save && v.res.filter(c => c.type === 'crystal' && c.amount > 0 && basesOf(v).some(b => d2(b, c) <= NEAR * NEAR)).length <= K.DRY
@@ -626,6 +682,16 @@ const NW_AI = (function nwAI() {
       const rich = bank.crystal - (save.crystal || 0) >= 150 * ECO;
       spend(bank, save);
       if (!rich) return;
+    }
+    // 엘리시안 어려움(macro): 미리 전력 — K.SPARE 틱마다 지금 레이 라인에 4×3 관문 자리가 없으면 기둥을 먼저 짓는다.
+    // 전에는 건물 단계가 자리 없음으로 실패한 뒤에야 기둥을 지어(600틱) 관문·기술 건물이 줄줄이 늦었다
+    if (L.macro && ai.race === 'elysian' && g.tick >= (ai.st.spareAt || 0) && !supplyBusy(v, 'resonator') && afford(bank, costOf('resonator'))) {
+      ai.st.spareAt = g.tick + K.SPARE;
+      const keep = ai.st.spotFail.portal;
+      delete ai.st.spotFail.portal;
+      const spot = findSpot(ai, g, v, 'portal', bank), why = ai.st.spotWhy;
+      if (keep === undefined) delete ai.st.spotFail.portal; else ai.st.spotFail.portal = keep;
+      if (!spot && why === 'power') { ai.st.powerFor = 'portal'; buildOne(ai, g, v, bank, out, taken, 'resonator'); }
     }
 
     // 마법 연구: 순서대로, 연구 건물이 다 지어졌으면 유닛 생산보다 먼저(돈이 모자라면 비용을 떼어 저축 — 안 그러면 생산이 네뷸라를 계속 비워 못 시작한다)
@@ -671,7 +737,8 @@ const NW_AI = (function nwAI() {
     // 빌드 단계 중에도 수정이 600 넘게 쌓이면(유충·생산 건물이 모자라 남는 돈) 짓고, 1000 넘게 쌓이면 상한 +2·짓는 중인 게 하나뿐이면 하나 더(스웜 둥지 제외 — 1800틱짜리라 겹쳐 짓지 않는다).
     const trainsMix = d => (d.trains || []).some(u => keys.includes(u));
     const prodB = v.own.filter(b => b.isB && trainsMix(b.def));
-    const idle = b => b.def.larva ? b.larva - (bank.n.get(b.id) || 0) >= 1 : !b.queue.length && !bank.n.get(b.id);
+    // 변태 중인 둥지는 유충이 있어도 못 뽑는다 — 전에는 대균핵 변태(1500틱) 동안 유충 3이 '놀고 있음'으로 보여 둥지 추가도 막혔다
+    const idle = b => !b.morph && (b.def.larva ? b.larva - (bank.n.get(b.id) || 0) >= 1 : !b.queue.length && !bank.n.get(b.id));
     const pending = prodB.filter(b => b.buildLeft > 0).length + v.own.filter(e => !e.isB && e.order && e.order.type === 'build' && trainsMix(D.buildings[e.order.what])).length;
     const cap = L.maxProd + (bank.crystal > 1000 * ECO ? 2 : 0);
     let top = keys[0];
@@ -679,8 +746,13 @@ const NW_AI = (function nwAI() {
     const pb = D.units[top].race === 'swarm' ? D.races.swarm.base
       : Object.values(D.buildings).find(d => d.race === ai.race && !d.dropoff && (d.trains || []).includes(top)).id;
     // 스웜은 유충이 병목이라 남는 수정 700마다 둥지 하나 더 겹쳐 짓는다(최대 3개 동시)
-    const par = D.buildings[pb].dropoff ? Math.min(3, 1 + Math.floor(bank.crystal / (700 * ECO))) : bank.crystal > 1000 * ECO ? 2 : 1;
-    if (prodB.length && pending < par && prodB.length < cap && bank.crystal > (st ? 600 : 400) * ECO && !prodB.some(b => !(b.buildLeft > 0) && idle(b))) {
+    // 엘리시안 어려움도 남는 수정 500마다 하나 더 겹쳐 짓는다(최대 3) — 하나씩 지으면 관문 둘~셋에서 수정이 1200~1900씩 쌓였다
+    const ely = L.macro && ai.race === 'elysian';
+    const par = D.buildings[pb].dropoff ? Math.min(3, 1 + Math.floor(bank.crystal / (700 * ECO)))
+      : ely ? Math.min(3, 1 + Math.floor(bank.crystal / (500 * ECO))) : bank.crystal > 1000 * ECO ? 2 : 1;
+    // 엘리시안 어려움은 기준을 낮춘다(빌드 중 350·이후 300) — 관문 유닛이 600틱짜리라 관문 둘로는 수정이 500~800씩 남았다
+    const pmin = ely ? (st ? 350 : 300) : (st ? 600 : 400);
+    if (prodB.length && pending < par && prodB.length < cap && bank.crystal > pmin * ECO && !prodB.some(b => !(b.buildLeft > 0) && idle(b))) {
       buildOne(ai, g, v, bank, out, taken, pb); // 스웜 둥지도(유충이 병목 — 'x' 단계는 siteBases 로 세어 본진 옆 둥지가 채우지 않는다)
     }
     if (st) return;
@@ -728,7 +800,18 @@ const NW_AI = (function nwAI() {
       if (neb.length) for (const u of neb) mix[u] *= 3;
       else if (D.units[AA[ai.race]].cost.nebula) mix[AA[ai.race]] = Math.max(...Object.values(mix));
     }
-    const air = ai.mem.air.size, ground = ai.mem.ground.size;
+    const air = ai.mem.air.size, ground = ai.mem.ground.size, light = ai.mem.light.size;
+    // 어려움: 기억한 적 지상 전투 유닛의 60% 이상이 소형(스키터·데커 물량)이면, 단일 대상 폭발형 지상 무기 유닛(소형에 60%) 비중 1/3,
+    // 범위 공격 유닛 ×2 — 코러스 고급 지상이 스키터 상대로 아크워커만 늘리다 중반 물량에 밀렸다
+    if (ai.L.micro >= 2 && ground >= 6 && light * 10 >= ground * 6) {
+      const gw = d => d.launcher ? D.units[d.launcher.child].weapon : [d.weapon, d.weapon2].find(w => w && w.ground !== false);
+      const splash = d => { const w = gw(d); return !!(w && w.splash) || !!(d.modes && Object.values(d.modes).some(m => m.weapon && m.weapon.splash)); }; // 앵커 포격 모드 포함
+      const ks = Object.keys(mix), weak = ks.filter(u => { const w = gw(D.units[u]); return w && w.type === 'explosive' && !splash(D.units[u]); });
+      if (weak.length < ks.length) for (const u of ks) {
+        if (weak.includes(u)) mix[u] = Math.max(1, Math.floor(mix[u] / 3));
+        else if (splash(D.units[u])) mix[u] *= 2;
+      }
+    }
     if (ai.L.micro >= 2 && air > 0 && air * 10 >= (air + ground) * 3) {
       for (const u of Object.keys(mix)) if (!hitsAir(D.units[u])) delete mix[u];
       if (!Object.keys(mix).length) mix[AA[ai.race]] = 1;
@@ -1026,7 +1109,12 @@ const NW_AI = (function nwAI() {
     const [tv, tn] = teamValue(ai, g, v, units), lead = tn < 2 || B.leader === p;
     if (st.mode === 'gather' && g.tick >= (st.calm || 0) && g.tick >= (L.firstAttack || 0)) {
       const solo = !lead && !B.active && g.tick - B.attackAt > K.LEAD_WAIT && tv * 100 >= need * tn;
-      const go = lead ? (tv * 100 >= need * tn || (g.tick >= P.attack.tick && tv * 200 >= need * tn)) : B.attackAt > st.lastAttack || B.active || solo; // 후퇴했던 팀원은 리더가 공격 중이면 다시 합류
+      // 시간 개시(병력 기준 절반): 어려움(micro 2)은 최근 3000틱 동안 본 적 전투 유닛 가치 합보다 작으면 하지 않는다 —
+      // 오스블레이드 압박이 스키터 30~50기 앞으로 8기만 끌고 들어가 병력을 잃고 그대로 무너졌다(기준 전체를 채우면 그대로 개시)
+      let seenFoe = 0;
+      if (L.micro >= 2) for (const [, [, fv]] of ai.mem.val) seenFoe += fv;
+      const timed = g.tick >= P.attack.tick && tv * 200 >= need * tn && tv >= seenFoe;
+      const go = lead ? (tv * 100 >= need * tn || timed) : B.attackAt > st.lastAttack || B.active || solo; // 후퇴했던 팀원은 리더가 공격 중이면 다시 합류
       if (go) {
         st.mode = 'attack'; st.target = null; st.solo = !lead && !B.active; // 리더 공격 없이 개시(직접·다른 팀원 단독 개시 합류)
         if (lead || solo) { B.attackAt = g.tick; B.target = null; }
