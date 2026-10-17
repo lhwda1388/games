@@ -276,7 +276,7 @@ const NW_NETUI = (() => {
     function onKey(ev) {
       if (typing || ev.key !== 'Enter' || ev.repeat || ev.altKey || ev.ctrlKey || ev.metaKey) return;
       if (editable(ev.target) || screenOn() || !root.isConnected || root.closest('[hidden]')) return;
-      if (doc.querySelector('[data-hud=mode-chip]:not([hidden])')) return; // 무장 중 Enter = 명령 실행(ui.js) — 채팅은 무장을 풀고
+      if (doc.querySelector('[data-hud=kb-cross]:not([hidden])')) return; // 키보드 조준 중(가운데 십자) Enter = 그 자리 클릭(ui.js) — 채팅은 마우스를 움직이거나 말풍선 버튼으로
       ev.preventDefault(); open(ev.shiftKey ? 'team' : 'all');
     }
     addEventListener('keydown', onKey, true);

@@ -3,7 +3,8 @@
 //
 // view = { me, camX, camY (월드 px), sel: id[], drag?: {x0,y0,x1,y1} (캔버스 화면 px),
 //          ghost?: {what, tx, ty, ok}, vw?, vh? (HUD에 가리지 않은 뷰포트 px, 미니맵 카메라 사각형용),
-//          pings?: [{x, y (월드 px), age 0..1}] (공격받음 알림 — 미니맵 맥동 링) }
+//          pings?: [{x, y (월드 px), age 0..1}] (공격받음 알림 — 미니맵 맥동 링),
+//          marks?: [{x, y (월드 px) | id, tone 'move'|'atk'|'aim', age 0..1}] (명령 확인 표시 — 지점 링 · 대상 깜빡임) }
 // view.fx 는 쓰지 않는다: 이펙트는 R 내부 상태이고 틱마다 R.addEvents(step() 이벤트, state)를 정확히 1번 호출한다.
 // view.noShake = true 면 화면 흔들림을 끈다(전시 화면). R.audio(NW_AUDIO) 가 있으면 R.draw 끝에서 효과음을 낸다.
 const NW_RENDER = (() => {
@@ -90,7 +91,7 @@ const NW_RENDER = (() => {
     // 색 키: 시야 기준(me)과 무관하게 플레이어 고유색. players 를 모르면(첫 R.draw 전 메뉴·연출 화면) 색 = 플레이어 번호.
     const colorIdx = owner => { const p = R.players && R.players[owner]; return (p ? p.color ?? owner : owner) & 3; };
 
-    const R = { me: 0, players: null, fx: [], dir: new Map(), aim: new Map(), pose: new Map(), tick: 0, hitAt: new Map(), wk: new Map(), sfx: [], shake: null, lastVis: null, cam: null, nextSeen: -1, audio: null, lastPos: new Map(), bMem: new Map(), cMem: new Map() };
+    const R = { me: 0, players: null, fx: [], dir: new Map(), aim: new Map(), pose: new Map(), tick: 0, hitAt: new Map(), wk: new Map(), sfx: [], shake: null, lastVis: null, cam: null, nextSeen: -1, audio: null, lastPos: new Map(), bMem: new Map(), cMem: new Map(), idleT: new Map(), kills: new Map(), hitBy: new Map(), idleChk: 0 };
 
     // HUD 버튼/메뉴 카드용 아이콘: 캐시 스프라이트를 size×size 안에 맞춰 그린 새 캔버스(복제라 DOM에 마음껏 넣어도 됨)
     R.icon = (type, owner, size) => {
@@ -297,10 +298,16 @@ const NW_RENDER = (() => {
     const shakeReq = (amp, n) => { if (!R.shake || R.shake.amp * R.shake.n / R.shake.N < amp) R.shake = { amp, n, N: n }; };
 
     R.reset = () => {
-      R.fx = []; R.dir.clear(); R.aim.clear(); R.pose.clear(); chunks.clear(); R.lastPos.clear(); R.hitAt.clear(); R.wk.clear(); R.bMem.clear(); R.cMem.clear(); if (X3) X3.reset();
-      R.sfx = []; R.shake = null; R.lastVis = null; R.nextSeen = -1; R.tick = 0;
+      R.fx = []; R.dir.clear(); R.aim.clear(); R.pose.clear(); chunks.clear(); R.lastPos.clear(); R.hitAt.clear(); R.wk.clear(); R.bMem.clear(); R.cMem.clear(); R.idleT.clear(); R.kills.clear(); R.hitBy.clear(); if (X3) X3.reset();
+      R.sfx = []; R.shake = null; R.lastVis = null; R.nextSeen = -1; R.tick = 0; R.farT = -99; R.seenPrev = null; R.idleChk = 0;
       PT.f.fill(0); PT.n = 0; PT.head = 0; crRock = null;
     };
+
+    // ---- 유닛 성격(소리만, 클라이언트 상태): ui 가 선택·명령한 내 유닛을 touch → 오래 방치되면 투덜거림(R.draw 11단계).
+    // 고참: sim 의 e.kills 는 스웜 변이용이라 다른 종족은 0 — 여기서 '마지막으로 때린 유닛'으로 내 유닛 처치를 따로 센다(근사).
+    const IDLE_T = 50 * S.TICK_RATE, IDLE_CHECK_T = S.TICK_RATE, ALLY_R = 6 * TILE; // sim 틱(R.tick) — 일시정지 중엔 흐르지 않는다
+    R.touch = ids => { for (const id of ids || []) R.idleT.set(id, R.tick); };
+    R.killsOf = e => e ? Math.max(e.kills || 0, R.kills.get(e.id) || 0) : 0;
 
     // 틱마다 1번 호출(step 이벤트). 이펙트 나이를 1틱 올리고 새 이벤트를 넣는다. state 는 sim 틱(시드)·생산 감지용.
     R.addEvents = (events, state) => {
@@ -314,29 +321,62 @@ const NW_RENDER = (() => {
         for (const [id, a] of R.aim) if (a.t < R.tick - 12) R.aim.delete(id);
       }
       const deaths = {}, chain = {}, hop = {};
+      let allyDone = false;
       for (const ev of events) if (ev.t === 'death') {
         deaths[ev.id] = ev;
         R.wk.delete(ev.id); R.dir.delete(ev.id); R.aim.delete(ev.id); R.lastPos.delete(ev.id); R.hitAt.delete(ev.id); R.bMem.delete(ev.id); R.cMem.delete(ev.id);   // 엔티티별 맵이 판 내내 자라지 않게
       }
       const near = id => !R.lastVis || R.lastVis.has(id);
+      if (R.audio && R.audio.combat && state) {                    // 교전 강도·대규모 교전 스팅: 내 것이 낀 공격만 센다
+        let n = 0;
+        for (const ev of events) if (ev.t === 'attack') { const a = S.byId(state, ev.a), b = S.byId(state, ev.b); if ((a && a.owner === R.me) || (b && b.owner === R.me)) n++; }
+        R.audio.combat(n);
+      }
       for (const ev of events) {
         if (ev.t === 'attack') {
+          R.hitBy.set(ev.b, ev.a);                                          // 고참 처치 세기용(죽으면 지운다)
           R.aim.set(ev.a, { b: ev.b, t: R.tick });                          // 공격 방향·공격 프레임용
           // 같은 틱에 같은 공격자의 연속 공격 = 튕김: 직전 목표에서 이어서, 한 칸씩 늦게
           const from = chain[ev.a] || 0, h = hop[ev.a] || 0;
           chain[ev.a] = ev.b; hop[ev.a] = h + 1;
-          if (!near(ev.a) && !near(ev.b) && !(from && near(from))) continue;   // 화면 밖 교전은 만들지 않는다
+          if (!near(ev.a) && !near(ev.b) && !(from && near(from))) {   // 화면 밖 교전은 만들지 않는다 — 소리만 멀리서(시야 안 지점만, 6틱에 1번)
+            if (state && R.audio && R.tick - (R.farT || -99) >= 6) {
+              const fogMe = state.fog[R.me], seen = e => e && fogMe[Math.floor(e.y / FP / TILE) * state.map.w + Math.floor(e.x / FP / TILE)] === 2 && S.visible(state, R.me, e); // 은폐·잠복(미탐지)은 소리도 없다
+              const a = S.byId(state, ev.a), b = S.byId(state, ev.b), p = seen(a) ? a : seen(b) ? b : null;
+              if (p) { R.farT = R.tick; R.sfx.push({ s: 'far', far: 1, x: p.x / FP, y: p.y / FP, seed: hash(ev.a, tk) }); }
+            }
+            continue;
+          }
           pushFx({ k: 'shot', a: ev.a, b: ev.b, from, delay: h * 3, splash: !!ev.splash, age: 0, ttl: 16, init: false,
             dead: deaths[ev.b] || null, deadA: deaths[ev.a] || null, seed: hash(ev.a * 977 + ev.b, tk + h) });
         } else if (ev.t === 'death') {
           const x = ev.x / FP, y = ev.y / FP;
+          // 직전 틱에 내게 보이던 것만(은폐·잠복 미탐지 적의 죽음은 처치음·콤보·고참 세기·폭발 모두 없다 — 정보 누수). 첫 틱(기록 없음)은 타일 시야만.
+          const saw = ev.owner === R.me || !R.seenPrev || R.seenPrev.has(ev.id);
+          const myKill = ev.by === R.me && ev.owner !== R.me && saw;
+          if (myKill) R.sfx.push({ s: 'kill', kill: 1, x, y });   // 연타 콤보(화면 밖이어도 시야 안이면 작게)
+          if (state && D.units[ev.type]) {
+            const kr = myKill ? S.byId(state, R.hitBy.get(ev.id)) : null;
+            if (kr && kr.owner === R.me && !kr.isB) R.kills.set(kr.id, (R.kills.get(kr.id) || 0) + 1);
+            if (ev.owner === R.me && !allyDone && R.audio && R.audio.allyDown) {   // 내 유닛 죽음: 가장 가까운(ALLY_R 안) 살아남은 내 유닛 하나가 놀란다(틱당 1번 찾기, 쿨다운은 audio)
+              allyDone = true;
+              let best = null, bd2 = (ALLY_R * FP) ** 2;
+              for (const e of state.ents) {
+                if (e.isB || e.owner !== R.me || e.inside || e.parent || deaths[e.id] || !(e.hp > 0)) continue;
+                const d2 = (e.x - ev.x) ** 2 + (e.y - ev.y) ** 2;
+                if (d2 <= bd2) { bd2 = d2; best = e; }
+              }
+              if (best) R.sfx.push({ s: 'down', ally: best.id });
+            }
+          }
+          R.hitBy.delete(ev.id); R.kills.delete(ev.id); R.idleT.delete(ev.id);
           if (!onCam(x, y, 120)) continue;
           const ud = D.units[ev.type], bd = D.buildings[ev.type];
           const race = (ud || bd || {}).race || 'legion', w = ud && ud.weapon;
           const s = bd ? 3 : w && w.suicide ? 2 : ud && ud.radius >= 16 ? 2 : 1;
           const pal = bd && race !== 'swarm' ? fxPal.legion : fxPal[race] || fxPal.legion;
           const alt = ud && ud.air ? liftOf(ud) : 0;
-          const vis = !!state && state.fog[R.me][Math.floor(y / TILE) * state.map.w + Math.floor(x / TILE)] === 2;   // 안개 속 죽음은 그리지 않는다(정보 누수)
+          const vis = saw && !!state && state.fog[R.me][Math.floor(y / TILE) * state.map.w + Math.floor(x / TILE)] === 2;   // 안개 속·안 보이던 죽음은 그리지 않는다(정보 누수)
           if (vis) pushFx({ k: 'boom', x, y, s, alt, pal, deb: fxPal[race] || fxPal.legion, bw: bd ? bd.w * TILE : 0, bh: bd ? bd.h * TILE : 0,
             splash: w && w.suicide ? w.splash || 16 : 0, seed: hash(ev.id, tk), age: 0, ttl: s === 3 ? 64 : s === 2 ? 46 : 32 });
           if (vis) {   // 파편·불꽃 파티클(풀)
@@ -351,7 +391,7 @@ const NW_RENDER = (() => {
           }
           if (vis && !alt) pushFx({ k: 'scorch', x, y, r: bd ? Math.max(bd.w, bd.h) * TILE * 0.5 : s === 2 ? 20 : 11, pal: fxPal[race] || fxPal.legion, seed: hash(ev.id, 3), age: 0, ttl: bd ? 160 : 110 });
           if (onCam(x, y, 0)) { if (bd) shakeReq(4, 10); else if (s === 2) shakeReq(2, 7); }
-          R.sfx.push({ s: s >= 2 ? 'boomL' : 'boomS', x, y, seed: hash(ev.id, tk) });
+          if (saw) R.sfx.push({ s: s >= 2 ? 'boomL' : 'boomS', x, y, seed: hash(ev.id, tk), def: ud });
         } else if (ev.t === 'done' || ev.t === 'research') R.sfx.push({ s: ev.t, id: ev.id });
         // 3a: 치료 십자(같은 대상은 6틱에 한 번만 새로), 합체 섬광
         else if (ev.t === 'cast' && ev.what === 'heal' && ev.tgt) {
@@ -375,6 +415,7 @@ const NW_RENDER = (() => {
               const b = pv.d ? S.byId(state, pv.d) : null;
               const bx = b ? b.x / FP : wx, by = b ? (b.lifted ? b.y / FP - b.def.h * TILE / 2 - LIFT_B : b.ty * TILE) + 6 : wy - 24;
               pushFx({ k: 'pop', x: bx + ((e.id * 7) % 13) - 6, y: by, txt: '+' + pv.c, gas: pv.k === 1, o: e.owner, age: 0, ttl: 20 });
+              R.sfx.push({ s: 'drop', id: e.id });                    // 하역음(BGM 박자에 맞춘다)
             }
             if (pv.ins && !ins && fogMe[Math.floor(wy / TILE) * state.map.w + Math.floor(wx / TILE)] === 2) pushFx({ k: 'puff', x: wx, y: wy, seed: hash(e.id, tk), age: 0, ttl: 10 });
           }
@@ -382,16 +423,34 @@ const NW_RENDER = (() => {
           else R.wk.set(e.id, { c: e.carry, k: e.carryKind, ins, d: go ? go.drop || 0 : 0 });
         }
       }
-      // 생산 완료(유닛 등장): sim 이벤트가 없으니 새 id 중 내 유닛을 본다(함재기 제외)
+      // 생산 완료(유닛 등장)·건설 시작(건물 등장): sim 이벤트가 없으니 새 id 중 내 것을 본다(함재기 제외)
       if (state) {
         if (R.nextSeen < 0) R.nextSeen = state.nextId;
         else if (state.nextId > R.nextSeen) {
-          for (let i = state.ents.length - 1; i >= 0; i--) {
-            const e = state.ents[i]; if (e.id < R.nextSeen) continue;
-            if (e.owner === R.me && !e.isB && !e.parent) { R.sfx.push({ s: 'ready', id: e.id }); break; }
+          let u = false, b = false;
+          for (let i = state.ents.length - 1; i >= 0 && !(u && b); i--) {
+            const e = state.ents[i]; if (e.id < R.nextSeen || e.owner !== R.me || e.parent) continue;
+            if (!e.isB && !u) { u = true; R.sfx.push({ s: 'ready', id: e.id }); }
+            else if (e.isB && !b) { b = true; R.sfx.push({ s: 'con_' + (e.def.race || 'legion'), id: e.id }); }
           }
           R.nextSeen = state.nextId;
         }
+      }
+      // 심장박동: 내 마지막 생산 건물이나 비싼 유닛(250 이상)이 체력 35% 아래로 공격받는 중(내 것만 보므로 정보 누수 없음)
+      if (state && R.audio && R.audio.danger && (R.tick % 10) === 0) {
+        let prod = 0, risk = null;
+        for (const e of state.ents) if (e.owner === R.me && e.isB && e.def.trains && !(e.buildLeft > 0)) prod++;
+        for (const e of state.ents) {
+          if (e.owner !== R.me || e.hpMax <= 0 || e.hp / e.hpMax >= 0.35 || state.tick - e.lastHit > 40) continue;
+          const c = e.def.cost || {};
+          if (e.isB ? e.def.trains && prod === 1 : (c.crystal || 0) + (c.nebula || 0) >= 250) { risk = e; break; }
+        }
+        if (risk) R.audio.danger();
+      }
+      if (state) { // 다음 틱 죽음 판정용: 지금 내게 보이는 남의 엔티티(은폐·잠복 미탐지·안개 속 제외)
+        const sp = R.seenPrev || (R.seenPrev = new Set());
+        sp.clear();
+        for (const e of state.ents) if (e.owner >= 0 && e.owner !== R.me && S.visible(state, R.me, e)) sp.add(e.id);
       }
       artTick(state);
     };
@@ -1118,7 +1177,7 @@ const NW_RENDER = (() => {
       ctx.globalAlpha = 1;
 
       // 5) 전투 연출 (지상층 / 공중층)
-      const wpnFor = (d, tgtAir) => d ? (tgtAir && d.weapon2 && d.weapon2.air ? d.weapon2 : (d.weapon || d.weapon2)) : null;
+      const wpnFor = (d, tgtAir) => d ? (tgtAir && d.weapon2 && d.weapon2.air || !tgtAir && d.weapon && d.weapon.ground === false && d.weapon2 ? d.weapon2 : (d.weapon || d.weapon2)) : null;   // 지상 목표인데 주무기가 대공 전용이면(스키머) 대지 무기
       const initShot = f => {
         f.init = true;
         const A = ptOf(f.a, f.deadA), B = ptOf(f.b, f.dead), S0 = f.from ? ptOf(f.from, null) : A;
@@ -1128,7 +1187,7 @@ const NW_RENDER = (() => {
         const attDef = att ? att.def : (f.deadA ? D.units[f.deadA.type] || D.buildings[f.deadA.type] : null);
         const race = (attDef && attDef.race) || 'legion';
         const tAir = !!((tg && (tg.def.air || tg.lifted)) || (f.dead && D.units[f.dead.type] && D.units[f.dead.type].air));
-        const wp = att ? (tAir && att.def.weapon2 && att.def.weapon2.air ? att.def.weapon2 : (S.weaponOf(att, 'weapon') || att.def.weapon2)) : wpnFor(attDef, tAir); // 모드 무기(트렌처·포격 배스천)
+        const wp = att ? (tAir && att.def.weapon2 && att.def.weapon2.air || !tAir && att.def.weapon2 && (S.weaponOf(att, 'weapon') || {}).ground === false ? att.def.weapon2 : (S.weaponOf(att, 'weapon') || att.def.weapon2)) : wpnFor(attDef, tAir); // 모드 무기(트렌처·포격 배스천)
         const st = shotStyle(attDef, wp, race);
         if (st === 'none') { f.ttl = 0; return; }
         let ax = S0[0], ay = S0[1];
@@ -1313,6 +1372,25 @@ const NW_RENDER = (() => {
         }
       }
 
+      // 8b) 명령 확인 표시(ui.js commandAck → view.marks): 지점 = 줄어드는 링(공격 이동은 빨강 링 + X), 대상 = 테두리 깜빡임.
+      //     대상은 이번 프레임에 그린 엔티티(vis)만 — 안개 속으로 사라지면 표시도 없다. 움직임 줄이기면 크기 고정·불투명도만.
+      for (const m of view.marks || []) {
+        const u = m.age, k = 1 - u;
+        ctx.strokeStyle = m.tone === 'atk' ? col.danger : m.tone === 'aim' ? col.aim : col.hp; ctx.lineWidth = 2;
+        if (m.id) {
+          const o = vis.get(m.id); if (!o) continue;
+          ctx.globalAlpha = RM.matches ? k : (Math.floor(u * 6) & 1 ? 0.25 : 1) * k; // 세 번 깜빡이며 사라진다
+          const e = o.e;
+          if (e.isB || isRes(e)) { const [fx, fy] = foot(e); ctx.strokeRect(fx - 2, fy - 2 - o.lift, e.def.w * TILE + 4, e.def.h * TILE + 4); }
+          else { const r = e.def.radius + 8; ctx.beginPath(); ctx.ellipse(o.x, o.y + 3, r, r * 0.62, 0, 0, TAU); ctx.stroke(); }
+        } else {
+          const r = RM.matches ? 10 : 6 + 14 * k * k;                                      // 20px → 6px 로 오므라든다
+          ctx.globalAlpha = k; ctx.beginPath(); ctx.ellipse(m.x, m.y, r, r * 0.62, 0, 0, TAU); ctx.stroke();
+          if (m.tone === 'atk') { const s = 4; ctx.beginPath(); ctx.moveTo(m.x - s, m.y - s); ctx.lineTo(m.x + s, m.y + s); ctx.moveTo(m.x + s, m.y - s); ctx.lineTo(m.x - s, m.y + s); ctx.stroke(); }
+        }
+      }
+      ctx.globalAlpha = 1;
+
       // 9) 배치 고스트 (월드 좌표, 타일 격자) + 엘리시안 레이 라인 전력권(기둥 원 + 연결선 띠: 건물 중심이 이 안이면 가동)
       if (view.ghost) {
         const g = view.ghost, d = D.buildings[g.what];
@@ -1379,14 +1457,40 @@ const NW_RENDER = (() => {
         if (R.audio) {
           const ccx = cx + W / 2, ccy = cy + H / 2;
           for (const q of R.sfx) {
-            if (q.id) { const e = S.byId(state, q.id); if (e && e.owner === me) R.audio.play(q.s, 1, 0, q.id); continue; }
+            if (q.ally) {                                            // 아군 사망 반응: 반응하는 내 유닛이 화면 안·가장자리일 때만
+              const e = S.byId(state, q.ally); if (!e || e.owner !== me) continue;
+              const nx = (e.x / FP - ccx) / (W / 2), off = Math.max(Math.abs(nx), Math.abs((e.y / FP - ccy) / (H / 2)));
+              if (off <= 1.3) R.audio.allyDown(e.def, e.id, off <= 1 ? 0.6 : 0.25, Math.max(-0.7, Math.min(0.7, nx * 0.7)));
+              continue;
+            }
+            if (q.id) {
+              const e = S.byId(state, q.id); if (!e || e.owner !== me) continue;
+              if (q.s === 'ready' && R.audio.ready) R.audio.ready(e.def, q.id); else if (q.s === 'ready' || q.s === 'done' || q.s === 'drop') R.audio.beat(q.s, q.s === 'drop' ? 0.35 : 1, 0, q.id); else R.audio.play(q.s, 1, 0, q.id);
+              continue;
+            }
             if (!fogAt(q.x, q.y)) continue;
             const nx = (q.x - ccx) / (W / 2), ny = (q.y - ccy) / (H / 2), off = Math.max(Math.abs(nx), Math.abs(ny));
+            if (q.far) { if (off > 1) R.audio.far(Math.max(0.12, 0.5 / off), Math.max(-0.9, Math.min(0.9, nx / off)), q.seed); continue; }   // 방향만 들리는 먼 교전
+            if (q.kill) { R.audio.kill(off <= 1 ? 0.8 : 0.3, Math.max(-0.7, Math.min(0.7, nx * 0.7))); continue; }
             if (off > 1.3) continue;
-            R.audio.play(q.s, off <= 1 ? 1 : 0.3, Math.max(-0.7, Math.min(0.7, nx * 0.7)), q.seed);
+            if (q.def && R.audio.death) R.audio.death(q.s, q.def, off <= 1 ? 1 : 0.3, Math.max(-0.7, Math.min(0.7, nx * 0.7)), q.seed);
+            else R.audio.play(q.s, off <= 1 ? 1 : 0.3, Math.max(-0.7, Math.min(0.7, nx * 0.7)), q.seed);
           }
         }
         R.sfx.length = 0;
+      }
+      // 11b) 투덜거림: 선택·명령한 적 있는 내 유닛이 명령 없이 IDLE_T(sim 틱 — 일시정지 중엔 안 센다) 넘게 화면 안에 있으면 하나만(전역 쿨다운·교전 문은 audio)
+      const now = R.tick;
+      if (R.audio && R.audio.idle && R.idleT.size && now - R.idleChk >= IDLE_CHECK_T) {
+        R.idleChk = now;
+        let cand = null;
+        for (const [id, t0] of R.idleT) {
+          const e = S.byId(state, id);
+          if (!e || e.owner !== me || e.isB) { R.idleT.delete(id); continue; }
+          if (e.order || e.inside) { R.idleT.set(id, now); continue; }          // 일하는 중(채취·이동·공격·탑승) = 방치 아님
+          if (!cand && now - t0 >= IDLE_T && onCam(e.x / FP, e.y / FP, -16)) cand = e;
+        }
+        if (cand && R.audio.idle(cand.def, cand.id)) R.idleT.set(cand.id, now);
       }
       R.lastVis = vis;
     };

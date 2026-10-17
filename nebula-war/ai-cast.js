@@ -136,16 +136,21 @@ const NW_AI_CAST = (function nwAICast() {
   const engaged = (ctx, e) => { const m = ctx.eng || (ctx.eng = new Map()); let r = m.get(e.id); if (r === undefined) m.set(e.id, r = combat(ctx, e)); return r; };
   Object.assign(pick, {
     smokeClump: (ctx, c, A) => pick.ownClump(ctx, c, A, 48, e => engaged(ctx, e), 4),
-    // 표식: 어려움(synergy)은 자기 유닛들이 가장 많이 공격 중인 적(집중 사격 대상)에 건다
+    // 표식: 어려움(synergy)은 자기 유닛들이 가장 많이 공격 중인 적(집중 사격 대상)에 건다.
+    // 이미 표식이 붙었거나 자기 시전자가 거는 중(이번 판단 포함)인 적은 건너뛴다 — 같은 대상에 겹쳐 걸어 마나를 버리던 것
     markTarget(ctx, c, A) {
+      const taken = ctx.marking || (ctx.marking = new Set(ctx.v.own.filter(e => e.order && e.order.type === 'cast' && e.order.what === 'mark').map(e => e.order.target)));
+      const fresh = f => !(f.stf & STF.marked) && !taken.has(f.id);
+      let best = null;
       if (ctx.L.synergy) {
         const cnt = new Map();
         for (const e of ctx.v.own) if (e.order && e.order.type === 'attack' && !e.isB) cnt.set(e.order.target, (cnt.get(e.order.target) || 0) + 1);
-        let best = null, bk = 0;
-        for (const f of ctx.foes) { const n = cnt.get(f.id) || 0; if (n && targetable(f) && inReach(c, A, f) && better(f, best, n, bk)) { best = f; bk = n; } }
-        if (best) return best;
+        let bk = 0;
+        for (const f of ctx.foes) { const n = cnt.get(f.id) || 0; if (n && fresh(f) && targetable(f) && inReach(c, A, f) && better(f, best, n, bk)) { best = f; bk = n; } }
       }
-      return pick.threat(ctx, c, A);
+      best = best || pick.threat(ctx, c, A, fresh);
+      if (best) taken.add(best.id);
+      return best;
     },
     // 방전탄: 결정막 합(+어려움은 적 시전 유닛당 100) 최대 뭉침, 보통 200 / 어려움 120 이상
     shieldClump(ctx, c, A, r) {
@@ -198,7 +203,7 @@ const NW_AI_CAST = (function nwAICast() {
     smoke: { pick: 'smokeClump', when: 'combat', lvl: 3, ok: (ctx, c, A, t) => !detNear(ctx, t.x, t.y) },
     optcloak: { pick: 'self', when: 'combat', lvl: 2, ok: (ctx, c) => !detNear(ctx, c.x, c.y) },
     mark: { pick: 'markTarget', when: 'combat', lvl: 2 },
-    discharge: { pick: 'shieldClump', args: [48], when: 'combat', lvl: 2 },
+    discharge: { pick: 'shieldClump', args: [48], when: 'combat', lvl: 2, key: true }, // key: 어려움은 망토·표식에 마나를 다 쓰지 않고 방전탄 몫(100)을 남긴다
     seeker: { pick: 'self', when: 'combat', lvl: 2, ok: (ctx, c) => ctx.foes.filter(f => !f.def.air && d2(f, c) <= (6 * TFP) * (6 * TFP)).length >= 2 },
     cleanse: { pick: 'debuffedAlly', when: 'always', lvl: 2, ok: (ctx, c, A, t) => valueOf(t) >= (ctx.L.lvl >= 3 ? 100 : 150) },
     tow: { pick: 'towTarget', when: 'combat', lvl: 2 },
@@ -244,13 +249,16 @@ const NW_AI_CAST = (function nwAICast() {
     spores: { pick: 'foeClump', args: [64, 1, 200], when: 'combat', lvl: 2 }, // Task 10: 적 가치 300 → 200
     mat: { pick: 'mycelFront', args: [56], when: 'combat', lvl: 2 },
     rot: { pick: 'rotClump', args: [40], when: 'combat', lvl: 2, key: true },
-    sprout: { pick: 'foeClump', args: [64, 1, 0], when: 'combat', lvl: 2, key: true, ok: (ctx, c) => c.energy >= 100 * FP }, // key: 부패 포자 몫을 남기느라 못 쓰던 것(마나 100 이상이면 25 남기고 시전)
+    // key: 부패 포자 몫을 남기느라 못 쓰던 것(마나 100 이상이면 25 남기고 시전). 부패 포자 연구 전이면 남길 몫이 없으니 75부터
+    sprout: { pick: 'foeClump', args: [64, 1, 0], when: 'combat', lvl: 2, key: true, ok: (ctx, c) => c.energy >= 100 * FP || S.canCast(ctx.g, ctx.p, c, 'rot') === 'research' },
   };
   // ── elysian ──
   const armed = e => !!(e.def.weapon || e.def.weapon2) && !(e.stf & (STF.disarmed | STF.stasis));
   const mineNear = (ctx, t, r, fn) => near(ctx.mineB, t.x, t.y, r * FP, fn);
+  // 대합창 뭉침은 보호막이 깎인 유닛만 센다 — 가득 찬 비싼 유닛(시전자 자신 등)이 중심을 끌고 가지 않게
+  const hurtShield = e => e.shieldMax > 0 && e.shield < e.shieldMax;
   const chorusOk = (ctx, t) => { let d = 0; mineNear(ctx, t, 64, e => { if (e.shieldMax > 0) d += e.shieldMax - e.shield; }); return d >= 200 * FP; };
-  const chorusSpot = (ctx, c) => { const t = c.energy >= D.abilities.chorus.cost * FP && S.canCast(ctx.g, ctx.p, c, 'chorus') === '' && pick.ownClump(ctx, c, D.abilities.chorus, 64, e => e.shieldMax > 0); return !!t && chorusOk(ctx, t); };
+  const chorusSpot = (ctx, c) => { const t = c.energy >= D.abilities.chorus.cost * FP && S.canCast(ctx.g, ctx.p, c, 'chorus') === '' && pick.ownClump(ctx, c, D.abilities.chorus, 64, hurtShield); return !!t && chorusOk(ctx, t); };
   const ELYSIAN = {
     // 적 가치 400(어려움 300) 이상 뭉침. 아군 피해 회피는 난이도 ff
     mindstorm: { pick: 'foeClump', args: [48, 1, 300], when: 'combat', lvl: 2, ff: true, key: true,
@@ -268,10 +276,11 @@ const NW_AI_CAST = (function nwAICast() {
     // 켜진 동안 마나가 순감소(드레인 > 재생)라 공명 공진 몫(100)이 안 차 못 썼다 — 마나 100 이상에서만 켜고, 공진을 쓸 수 있는 판단이면 공진이 먼저
     prism: { pick: 'self', when: 'combat', lvl: 2, ok: (ctx, c) => c.energy >= 100 * FP && !detNear(ctx, c.x, c.y) && !chorusSpot(ctx, c) },
     // 반경 64px 아군 보호막 결손 합 200 이상(Task 10: 300 → 200, 함대 거울전에서 거의 안 쓰여서)
-    chorus: { pick: 'ownClump', args: [64, e => e.shieldMax > 0], when: 'combat', lvl: 2, ok: (ctx, c, A, t) => chorusOk(ctx, t) },
-    // 대상 마나를 주변 6타일 아군 코러스 시전자에게 나눈다 — 마나가 모자란(70% 미만) 아군 시전자가 6타일 안에 있을 때
+    chorus: { pick: 'ownClump', args: [64, hurtShield], when: 'combat', lvl: 2, ok: (ctx, c, A, t) => chorusOk(ctx, t) },
+    // 대상 마나를 주변 6타일 아군 코러스 시전자에게 나눈다 — 마나가 모자란(70% 미만) 아군 시전자가 6타일 안에 있을 때.
+    // 어려움(synergy)은 나눌 곳이 없어도 적 시전 유닛의 마나를 빼앗는다(리스너가 마나를 쌓아 두기만 하던 것)
     echo: { pick: 'enemyCaster', when: 'combat', lvl: 2,
-      ok: (ctx, c) => { let need = false; near(ctx.mineB, c.x, c.y, 6 * TFP, e => { if (e.def.energy && e.def.race === 'elysian' && e.energy * 10 < S.energyMax(ctx.g, e) * 7) need = true; }); return need; } },
+      ok: (ctx, c) => { if (ctx.L.synergy) return true; let need = false; near(ctx.mineB, c.x, c.y, 6 * TFP, e => { if (e.def.energy && e.def.race === 'elysian' && e.energy * 10 < S.energyMax(ctx.g, e) * 7) need = true; }); return need; } },
   };
   const RULES = {};
   for (const blk of [LEGION, SWARM, ELYSIAN]) for (const id in blk) if (D.abilities[id]) RULES[id] = blk[id];
@@ -336,6 +345,6 @@ const NW_AI_CAST = (function nwAICast() {
     return out;
   }
 
-  return { C, RULES, buckets, context, pick, friendlyOk, castPlan, _: { near, valueOf, combat } };
+  return { C, RULES, buckets, context, pick, friendlyOk, castPlan, _: { near, valueOf, combat }, SRC: nwAICast };
 })();
 if (typeof module !== 'undefined') module.exports = NW_AI_CAST;

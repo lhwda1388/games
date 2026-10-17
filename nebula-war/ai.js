@@ -13,14 +13,21 @@ const NW_AI = (function nwAI() {
   // ---- ① 표 ----
   const LEVELS = { // every: 판단 간격(틱), wpc: 수정 1개당 일꾼 ×2, gas: 가스 건물당 일꾼, acc: 빌드 진행 확률(%),
                    // scoutAt: 정찰 출발 일꾼 수, micro: 0 없음·1 집중사격/사거리 뒤로·2 +다친 유닛 빼기·카이팅·상성, retreat: 적/아군 가치 비가 이 값(%) 넘으면 후퇴(0 = 안 함), attack: 공격 기준 배율(%),
-                   // maxProd: 생산 건물 상한, patrol: 순찰 주기(틱, 0 = 안 함)
+                   // maxProd: 생산 건물 상한, patrol: 순찰 주기(틱, 0 = 안 함), firstAttack: 이 틱 전엔 공격 개시 안 함(방어는 함),
+                   // expandLate: 빌드 이후 확장(expandAt)을 이만큼 늦춤, noRush: 러시 성향(P.rush) 안 고름,
+                   // armyPerMin: 병력 가치 상한 = 게임 분 × 이 값 × ECO(넘으면 조합·수정 전용 유닛 생산 안 함), casters: 시전 유닛 목표 배율(%, casterOne),
+                   // macro: 남는 수정 쓰기(네뷸라 막히면 빌드 중에도 가스·확장, 수정 전용 유닛·건물 기준 절반)
                    // cast: 시전(ai-cast.js) — lvl 규칙 최소 난이도, every 판단 n번에 1번, max 판단당 시전 명령, clump 뭉침 최소 수,
                    //       ff 아군 피해 회피(1 가치 비율·2 반경 안 0), reserve 결정적 마법 마나 남기기, toggles 교전 끝나면 토글 끄기, synergy 전술 연계
-    easy:   { every: 16, wpc: 3, gas: 2, acc: 60,  scoutAt: 13, micro: 0, retreat: 0,   attack: 130, maxProd: 3, patrol: 0,
+    // 2026-10-16 플레이 테스터: 전반적으로 어렵다 → 세 단계 모두 한 단계씩 낮춤(전술·마법 규칙은 그대로, 경제·판단 주기·공격 시점으로).
+    //   어려움 ≈ 옛 보통(판단 8틱·일꾼 수정당 1.5·빌드 진행 90%·후퇴 150·공격 기준 ×1.2, micro 2·마법 3단계·macro 유지 — 옛 보통과 48판 24승),
+    //   보통 = 옛 쉬움과 옛 보통 사이(판단 16틱·빌드 진행 60%·생산 건물 3·5분 전 공격 없음·공격 기준 ×1.4·병력 상한 분당 160·시전 유닛 절반·시전 판단 3번에 1번),
+    //   쉬움 = 입문(판단 24틱·러시 성향 없음·9분 30초(11400틱) 전 공격 없음·공격 기준 ×1.4·빌드 진행 40%·확장 4500틱 늦게·병력 상한 분당 90(×ECO: 10분 1125))
+    easy:   { every: 24, wpc: 2, gas: 2, acc: 40,  scoutAt: 13, micro: 0, retreat: 0,   attack: 140, maxProd: 2, patrol: 0, firstAttack: 11400, expandLate: 4500, noRush: true, armyPerMin: 90, casters: 50,
               cast: { lvl: 1, every: 4, max: 1 } },
-    normal: { every: 8,  wpc: 4, gas: 3, acc: 90,  scoutAt: 10, micro: 1, retreat: 150, attack: 100, maxProd: 5, patrol: 3000,
-              cast: { lvl: 2, every: 1, max: 3, clump: 4, ff: 1 } },
-    hard:   { every: 4,  wpc: 5, gas: 3, acc: 100, scoutAt: 9,  micro: 2, retreat: 125, attack: 100, maxProd: 7, patrol: 2000,
+    normal: { every: 16, wpc: 3, gas: 3, acc: 60,  scoutAt: 11, micro: 1, retreat: 150, attack: 140, maxProd: 3, patrol: 3000, firstAttack: 6000, expandLate: 2000, armyPerMin: 160, casters: 50,
+              cast: { lvl: 2, every: 3, max: 3, clump: 4, ff: 1 } },
+    hard:   { every: 8,  wpc: 3, gas: 3, acc: 90,  scoutAt: 9,  micro: 2, retreat: 150, attack: 120, maxProd: 5, patrol: 2000, casters: 150, macro: true,
               cast: { lvl: 3, every: 1, max: 6, clump: 3, ff: 2, reserve: true, toggles: true, synergy: true } },
   };
   // 자원 기준값(공격 가치·저축·잉여 수정/네뷸라) 배율 — 5bbc37e 재조정에서 비용·채집량이 함께 ×1.25
@@ -57,7 +64,7 @@ const NW_AI = (function nwAI() {
   // 성향: build = 순서 있는 누적 목표(첫 미충족 단계를 진행). 'w' 일꾼 수, 'b' 건물(같은 id 반복 = n개째, 부속은 본체가 build),
   // 'm' 변태, 'gas' 가스 건물 수, 'x' 확장 수, 'u' 유닛 수(큐 포함), 'up' 연구 1단계. 이후 mix 비율 생산·research 순서 연구·expandAt 확장.
   const PERS = { legion: {}, swarm: {}, elysian: {} }; // 종족당 3개(키 고정)
-  PERS.legion.rush = { name: '보병 러시',
+  PERS.legion.rush = { name: '보병 러시', rush: true,
     build: [['w', 9], ['b', 'depot'], ['w', 10], ['b', 'garrison'], ['b', 'garrison'], ['w', 12], ['gas', 1], ['b', 'drillhall'],
       ['u', 'trooper', 6], ['b', 'depot'], ['up', 'legion_trooper_range'], ['b', 'workshop'], ['w', 16], ['b', 'garrison'], ['b', 'uplink']],
     mix: { trooper: 3, scorcher: 1 }, attack: { value: 600, tick: 3600 }, expandAt: 9000,
@@ -71,26 +78,28 @@ const NW_AI = (function nwAI() {
     spells: ['legion_hound_drones'] };
   PERS.legion.air = { name: '공중 함대',
     build: [['w', 10], ['b', 'depot'], ['b', 'garrison'], ['gas', 1], ['u', 'trooper', 4], ['w', 14], ['b', 'motorpool'], ['b', 'depot'],
-      ['b', 'airfield'], ['gas', 2], ['b', 'tower'], ['b', 'arsenal'], ['b', 'airfield'], ['b', 'labs'], ['b', 'drillhall'], ['b', 'intel'], ['b', 'gravlab'],
-      ['up', 'legion_ship_weapons'], ['b', 'uplink'], ['b', 'silo']], // 정비 학교 + 위장 공방(관측수·방전탄·망토), 중계 안테나(정찰), 투하 크레인(고철 낙하)
+      ['b', 'airfield'], ['gas', 2], ['b', 'tower'], ['b', 'arsenal'], ['b', 'airfield'], ['b', 'labs'], ['b', 'gravlab'], ['up', 'legion_ship_weapons'],
+      // 부속은 본체당 하나 — 위장 공방(관측수·방전탄·망토)은 두 번째 해체 연구소에, 중계 안테나(정찰)·투하 크레인(고철 낙하)은 본진·확장 기지에.
+      // (aispells 때 위장 공방과 용골 작업장을 연구소 하나에 몰아 빌드가 용골 작업장에서 영영 멈췄다 — 빌드 이후 확장·가스·연구가 안 돌아 네뷸라가 말랐다)
+      ['b', 'drillhall'], ['b', 'labs'], ['b', 'intel'], ['x', 1], ['b', 'uplink'], ['b', 'silo']],
     mix: { phantom: 6, lancer: 2, dreadnought: 1, shade: 1 }, attack: { value: 1800, tick: 8000 }, expandAt: 10000,
     research: ['legion_ship_plating'],
-    casters: { surveyor: { per: 6, max: 2 } }, spells: ['legion_tow', 'legion_discharge', 'legion_optcloak', 'legion_repairdrones'] };
-  PERS.swarm.skitter = { name: '스키터 러시',
+    casters: { surveyor: { per: 6, max: 2 } }, spells: ['legion_tow', 'legion_repairdrones', 'legion_discharge', 'legion_optcloak'], raid: 1 }; // 빌드 순서와 같게(연구는 순서대로만)
+  PERS.swarm.skitter = { name: '스키터 러시', rush: true,
     build: [['w', 9], ['b', 'vat'], ['w', 10], ['gas', 1], ['u', 'skitter', 6], ['up', 'swarm_skitter_speed'], ['b', 'mutapit'], ['x', 1], ['w', 14], ['b', 'nest']],
     mix: { skitter: 1 }, attack: { value: 450, tick: 3000 }, expandAt: 7000,
     research: ['swarm_melee', 'swarm_carapace'] };
   PERS.swarm.macro = { name: '확장 물량',
     build: [['w', 10], ['x', 1], ['w', 12], ['b', 'vat'], ['gas', 1], ['u', 'skitter', 4], ['w', 16], ['b', 'wyrmpit'], ['gas', 2], ['b', 'mutapit'],
-      ['up', 'swarm_missile'], ['m', 'grandnest'], ['x', 2], ['b', 'matronden'], ['m', 'apexnest'], ['b', 'behemothcave'], ['b', 'blightmound']],
+      ['up', 'swarm_missile'], ['m', 'grandnest'], ['x', 2], ['b', 'matronden'], ['m', 'apexnest'], ['b', 'blightmound'], ['b', 'behemothcave']],
     mix: { spinewyrm: 4, behemoth: 1, skitter: 2 }, attack: { value: 2200, tick: 9000 }, expandAt: 12000,
     research: ['swarm_spinewyrm_range', 'swarm_carapace', 'swarm_melee'],
     casters: { matron: { per: 6, max: 3 }, blighter: { per: 8, max: 3 } }, spells: ['swarm_mat', 'swarm_rot'] };
   PERS.swarm.air = { name: '비행 물량',
     build: [['w', 10], ['b', 'vat'], ['gas', 1], ['u', 'skitter', 4], ['w', 13], ['m', 'grandnest'], ['x', 1], ['gas', 2], ['b', 'roost'], ['up', 'swarm_flyer_attacks']],
     mix: { wingsting: 1 }, attack: { value: 1600, tick: 7000 }, expandAt: 10000,
-    research: ['swarm_flyer_carapace'] };
-  PERS.elysian.oath = { name: '오스블레이드 압박',
+    research: ['swarm_flyer_carapace'], raid: 1 };
+  PERS.elysian.oath = { name: '오스블레이드 압박', rush: true,
     build: [['w', 8], ['b', 'resonator'], ['w', 10], ['b', 'portal'], ['b', 'portal'], ['w', 12], ['b', 'resonator'], ['gas', 1],
       ['u', 'oathblade', 4], ['b', 'anvil'], ['up', 'elysian_ground_weapons'], ['b', 'synapse'], ['b', 'citadel'], ['b', 'sagelibrary'], ['up', 'elysian_oathblade_speed']],
     mix: { oathblade: 3, arcwalker: 1 }, attack: { value: 800, tick: 4000 }, expandAt: 9000,
@@ -102,7 +111,7 @@ const NW_AI = (function nwAI() {
       ['b', 'constructbay'], ['b', 'assemblybay'], ['b', 'portal'], ['b', 'anvil'], ['b', 'lookout'], ['b', 'citadel'], ['b', 'sagelibrary'], ['up', 'elysian_arcwalker_range']],
     mix: { arcwalker: 3, oathblade: 2, crucible: 1 }, attack: { value: 2200, tick: 9000 }, expandAt: 12000,
     research: ['elysian_ground_weapons', 'elysian_ground_armor'],
-    casters: { sage: { per: 6, max: 2 }, watcher: { per: 12, max: 1 } }, spells: ['elysian_mindstorm', 'elysian_echo'] };
+    casters: { sage: { per: 6, max: 2 }, watcher: { per: 12, max: 1 } }, spells: ['elysian_mindstorm', 'elysian_echo'], raid: 1 }; // 수송 견제: 스키프는 결정 주조소에서(함대는 주조소를 안 지어 못 한다)
   PERS.elysian.fleet = { name: '함대',
     build: [['w', 9], ['b', 'resonator'], ['b', 'portal'], ['gas', 1], ['u', 'oathblade', 2], ['w', 13], ['b', 'synapse'], ['gas', 2],
       ['b', 'skygate'], ['b', 'fleetspire'], ['b', 'skygate'], ['b', 'citadel'], ['b', 'sagelibrary'], ['b', 'wardencourt'], ['up', 'elysian_air_weapons']],
@@ -139,7 +148,7 @@ const NW_AI = (function nwAI() {
       if (!S.isEnemy(g, p, e.owner)) { v.allies.push(e); continue; }
       if (!S.visible(g, p, e)) continue;
       v.foes.push(e);
-      if (e.isB) { seen.add(e.id); mem.bld.set(e.id, { id: e.id, type: e.type, owner: e.owner, tx: e.tx, ty: e.ty, w: e.def.w, h: e.def.h, x: e.x, y: e.y, seen: g.tick }); }
+      if (e.isB) { seen.add(e.id); mem.bld.set(e.id, { id: e.id, type: e.type, owner: e.owner, tx: e.tx, ty: e.ty, w: e.def.w, h: e.def.h, x: e.x, y: e.y, seen: g.tick, done: !(e.buildLeft > 0) }); }
       else if (!e.def.worker && !e.parent && fighterDef(e.def)) (e.def.air ? mem.air : mem.ground).set(e.id, g.tick); // 전투 유닛만(블로터·일꾼·함재기 제외 — 상성 판단용)
     }
     for (const [id, b] of mem.bld) if (!seen.has(id) && tileSeen(g, g.fog[p], b)) mem.bld.delete(id); // 그 자리가 보이는데 없다 = 파괴·이동
@@ -226,7 +235,9 @@ const NW_AI = (function nwAI() {
     const home = v.own.find(b => b.isB && b.def.dropoff);
     ai.st.spotWhy = '';
     if (!home || g.tick - (ai.st.spotFail[what] ?? -1e9) < 200) return null;
-    const def = D.buildings[what], w = def.w, h = def.h, boxes = miningBoxes(v), rects = bank ? bank.rects : [];
+    const def = D.buildings[what], w = def.w, h = def.h, boxes = miningBoxes(v), rects = bank ? bank.rects.slice() : [];
+    // 이미 있는 부속 본체(시작 기지 포함)의 오른쪽 부속 자리(2×2)도 비워 둔다 — 시작 본진 옆에 보급고가 서서 부속을 영영 못 붙이던 것
+    for (const b of v.own) if (b.isB && ADDON_HOST.has(b.type)) rects.push([b.tx + b.def.w, b.ty + b.def.h - 2, 2, 2]);
     const ew = ADDON_HOST.has(what) ? w + 2 : w; // 부속 자리까지 포함한 폭
     const cx = home.tx + (home.def.w >> 1), cy = home.ty + (home.def.h >> 1);
     // 탐색은 자리 방향 기준(정규 좌표)으로 하고 실제 좌표로 뒤집는다 — 동률 순서가 자리마다 같은 모양(시작 위치 공정성)
@@ -261,7 +272,9 @@ const NW_AI = (function nwAI() {
       cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]); // 동률: 위→아래·왼→오른쪽(스캔 순서)
       for (const [, , tx, ty] of cands) if (ok(tx, ty)) return [tx, ty];
     }
-    for (let r = 3; r <= 16; r++)
+    // 엘리시안은 22까지 — 조율 기둥이 본진 ±20 안에 서는데 링이 16에서 끝나 바깥 기둥의 레이 라인을 못 써서
+    // 배치 실패 → 기둥 추가만 되풀이했다(수정 수천·기둥 19개). 3×3 건물은 기둥 반경(3) 안에 못 들어가 선 위에만 선다.
+    for (let r = 3, rMax = ely ? 22 : 16; r <= rMax; r++)
       for (let y = cy - r; y <= cy + r; y++)
         for (let x = cx - r; x <= cx + r; x++) {
           if (Math.abs(x - cx) !== r && Math.abs(y - cy) !== r) continue;
@@ -516,14 +529,15 @@ const NW_AI = (function nwAI() {
     }
     return 'fail';
   }
-  // 시전 유닛: 병력(조합 유닛 수) per 기당 1기, 최대 max(쉬움은 절반). 목표 미만이면 한 기 생산
+  // 시전 유닛: 병력(조합 유닛 수) per 기당 1기, 최대 max — 최대는 난이도 casters %로 조정(쉬움 50 = 절반, 어려움 150 = ×1.5 — 병력이 커진 뒤에만 늘어 초반 빌드는 같다).
+  // 목표 미만이면 한 기 생산
   function casterOne(ai, g, v, bank, out, mix) {
-    const cs = ai.P.casters;
+    const cs = ai.P.casters, pct = ai.L.casters;
     if (!cs) return;
     let army = 0;
     for (const u of Object.keys(mix)) army += unitCount(v, u);
     for (const [u, c] of Object.entries(cs)) {
-      const max = ai.level === 'easy' ? Math.floor(c.max / 2) : c.max;
+      const max = Math.floor(c.max * pct / 100);
       if (unitCount(v, u) >= Math.min(max, Math.floor(army / c.per))) continue;
       if (afford(bank, costOf(u))) { trainOne(ai, g, v, bank, out, u); continue; }
       // 돈이 모자라면 조합 유닛이 가져가지 못하게 떼어 둔다(네뷸라가 계속 비어 못 뽑는다) — 다 지어진 생산 건물이 있고 요구 기술이 갖춰져 돈만 모자랄 때만
@@ -586,15 +600,22 @@ const NW_AI = (function nwAI() {
         } else if (st[0] === 'x') ai.st.xFail = null;
       }
       else if (stepCost(ai, v, st) && !afford(bank, stepCost(ai, v, st))) save = stepCost(ai, v, st);
-    } else if (g.tick >= P.expandAt) { // 빌드 이후: expandAt 부터 6000틱마다 확장 하나 더
+    } else if (g.tick >= P.expandAt + (L.expandLate || 0)) { // 빌드 이후: expandAt 부터 6000틱마다 확장 하나 더
       let x = 0;
       for (const s of P.build) if (s[0] === 'x') x = Math.max(x, s[1]);
-      const want = 1 + x + 1 + Math.floor((g.tick - P.expandAt) / 6000);
+      const want = 1 + x + 1 + Math.floor((g.tick - P.expandAt - (L.expandLate || 0)) / 6000);
       if (siteBases(ai, g, v) < want) saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
     }
     // 빌드의 가스 단계가 분출구 부족으로 미뤄졌으면(확장 없이 가스 2개) 확장을 당겨 온다(진행 중인 확장이 없을 때)
     if (!save && P.build.some(s => s[0] === 'gas' && s[1] > ventsOf(g, v)) && siteBases(ai, g, v) <= basesOf(v).length && bank.crystal >= 400 * ECO)
       saving(costOf(D.races[ai.race].base), expandOne(ai, g, v, bank, out, taken));
+    // 어려움(L.macro): 네뷸라가 막혔는데 수정이 쌓이면 빌드 중에도 빈 분출구에 가스, 빈 분출구가 없으면 확장(진행 중인 확장이 없을 때).
+    // 맵마다 분출구는 사이트당 1개라 가스를 더 캐려면 확장밖에 없다 — 전에는 빌드가 끝나야 했고 6000틱마다 하나라 네뷸라 30~100에 수정이 수천씩 쌓였다
+    if (L.macro && !save && v.me.nebula < 200 * ECO && bank.crystal > 500 * ECO && !supplyBusy(v, GAS[ai.race])) {
+      const spot = findGasSpot(ai, g, v, bank), base = D.races[ai.race].base;
+      if (spot) buildWith(ai, v, bank, out, taken, GAS[ai.race], spot);
+      else if (bank.crystal > 700 * ECO && !supplyBusy(v, base)) expandOne(ai, g, v, bank, out, taken);
+    }
     // 기지 주변 수정이 거의 다 떨어졌으면(덩이 4개 이하) 진행 중인 확장이 없을 때 확장부터(저축)
     if (!st && !save && v.res.filter(c => c.type === 'crystal' && c.amount > 0 && basesOf(v).some(b => d2(b, c) <= NEAR * NEAR)).length <= K.DRY
       && siteBases(ai, g, v) <= basesOf(v).length)
@@ -613,21 +634,33 @@ const NW_AI = (function nwAI() {
       if (researchOne(ai, g, v, bank, out, id) === 'short') spend(bank, D.upgrades[id].cost[v.me.up[id] || 0]);
       break; // 시작한 것(또는 못 시작한 것)을 지나 뒤 마법으로 건너뛰지 않는다
     }
+    // 쉬움·보통: 병력 가치(생산 중 포함)가 시간 상한에 닿으면 유닛 생산은 멈춘다(건물·연구·확장은 계속)
+    let room = Infinity;
+    if (L.armyPerMin) {
+      const val = u => (u.cost.crystal || 0) + (u.cost.nebula || 0);
+      room = Math.floor(g.tick / 1200) * L.armyPerMin * ECO - armyValue(armyOf(ai, v));
+      for (const b of v.own) if (b.isB) for (const q of b.queue) { const u = q.what && D.units[q.what]; if (u && !u.worker) room -= val(u) * (u.count || 1); }
+    }
     // 조합 비율 생산: 현재 수 / 비율 이 가장 작은 유닛부터(동률은 mix 키 순), 못 뽑으면 다음 유닛
     const mix = mixFor(ai, v.me.nebula), keys = Object.keys(mix), have = new Map(keys.map(u => [u, unitCount(v, u)])), stuck = new Set();
-    casterOne(ai, g, v, bank, out, mix); // 조합 생산이 건물 큐를 다 채우기 전에(시전 유닛은 목표 수 미만일 때만 한 기)
+    if (room > 0) { // 상한에 닿으면 유닛 생산만 건너뛴다 — 아래 건물·기술·연구는 계속
+      if (ai.st.raid && ai.st.raid.want && !unitCount(v, ai.st.raid.want)) trainOne(ai, g, v, bank, out, ai.st.raid.want); // 수송 견제용 수송선(raidOne 이 요청)
+      casterOne(ai, g, v, bank, out, mix); // 조합 생산이 건물 큐를 다 채우기 전에(시전 유닛은 목표 수 미만일 때만 한 기)
+    }
     for (;;) {
       let best = null;
       for (const u of keys) if (!stuck.has(u) && (!best || have.get(u) * mix[best] < have.get(best) * mix[u])) best = u;
-      if (!best) break;
-      if (trainOne(ai, g, v, bank, out, best)) have.set(best, have.get(best) + (D.units[best].count || 1));
+      if (!best || room <= 0) break;
+      if (trainOne(ai, g, v, bank, out, best)) { have.set(best, have.get(best) + (D.units[best].count || 1)); room -= armyValue([{ def: D.units[best] }]) * (D.units[best].count || 1); }
       else stuck.add(best);
     }
     // 수정만 남을 때(네뷸라가 모자라 조합 유닛이 막힘): 수정 800 넘는 만큼 종족 수정 전용 유닛으로
-    while (bank.crystal > 800 * ECO && trainOne(ai, g, v, bank, out, FILL[ai.race]));
+    while (room > 0 && bank.crystal > (L.macro ? 400 : 800) * ECO && trainOne(ai, g, v, bank, out, FILL[ai.race])) room -= armyValue([{ def: D.units[FILL[ai.race]] }]);
     // 그래도 1500 넘게 쌓이면 수정 전용 유닛 생산 건물을 하나 더(짓는 중인 게 없고 L.maxProd 미만)
     const fb = Object.values(D.buildings).find(d => d.race === ai.race && !d.dropoff && (d.trains || []).includes(FILL[ai.race]));
-    if (fb && bank.crystal > 1500 * ECO && count(v, fb.id) < L.maxProd && !supplyBusy(v, fb.id)) buildOne(ai, g, v, bank, out, taken, fb.id);
+    // (어려움 macro: 수정 1500 넘으면 상한 +3·두 개까지 겹쳐 짓기 — 하나씩 지으면 짓는 동안 수정이 계속 쌓였다)
+    const flood = L.macro && bank.crystal > 1500 * ECO;
+    if (fb && bank.crystal > (L.macro ? 800 : 1500) * ECO && count(v, fb.id) < L.maxProd + (flood ? 3 : 0) && supplyPending(v, fb.id) < (flood ? 2 : 1)) buildOne(ai, g, v, bank, out, taken, fb.id);
     // 빌드 이후 네뷸라가 모자라고 수정이 남으면 빈 분출구에 가스 건물(확장 기지 포함)
     if (!st && v.me.nebula < 300 * ECO && bank.crystal > 400 * ECO && !supplyBusy(v, GAS[ai.race])) {
       const spot = findGasSpot(ai, g, v, bank);
@@ -835,7 +868,7 @@ const NW_AI = (function nwAI() {
 
   // 병력: 자기 비일꾼 전투 유닛(무기·launcher), 정찰·순찰·자식(함재기) 제외
   // 전술로 뺀 다친 유닛(ai.st.pulled)은 회복할 때까지 병력에서 제외
-  const armyOf = (ai, v) => v.own.filter(e => !e.isB && !e.def.worker && !e.parent && fighterDef(e.def) && e.id !== ai.st.scout && e.id !== ai.st.patrol && !ai.st.pulled.has(e.id));
+  const armyOf = (ai, v) => v.own.filter(e => !e.isB && !e.def.worker && !e.parent && fighterDef(e.def) && e.id !== ai.st.scout && e.id !== ai.st.patrol && !ai.st.pulled.has(e.id) && !(ai.st.raid && ai.st.raid.ids.includes(e.id)));
   // 집결점: 본진 중심에서 맵 중심 방향 8타일 지점의 가장 가까운 걷기 가능 타일 중심(본진이 바뀌면 다시)
   function rallyPoint(ai, g, v) {
     const home = homeOf(v);
@@ -991,7 +1024,7 @@ const NW_AI = (function nwAI() {
     // 팀(보드에 살아 있는 AI 2명 이상): 리더만 팀 병력 합 ≥ 기준 × 팀 AI 수로 개시하고 보드에 알린다. 팀원은 보드의 새 개시를 따른다.
     // 리더가 K.LEAD_WAIT 틱 넘게 개시하지 않고(공격 중도 아님) 팀 병력이 기준을 넘으면 팀원이 직접 개시해 보드에 알린다(solo — 리더 공격 여부와 무관하게 계속)
     const [tv, tn] = teamValue(ai, g, v, units), lead = tn < 2 || B.leader === p;
-    if (st.mode === 'gather' && g.tick >= (st.calm || 0)) {
+    if (st.mode === 'gather' && g.tick >= (st.calm || 0) && g.tick >= (L.firstAttack || 0)) {
       const solo = !lead && !B.active && g.tick - B.attackAt > K.LEAD_WAIT && tv * 100 >= need * tn;
       const go = lead ? (tv * 100 >= need * tn || (g.tick >= P.attack.tick && tv * 200 >= need * tn)) : B.attackAt > st.lastAttack || B.active || solo; // 후퇴했던 팀원은 리더가 공격 중이면 다시 합류
       if (go) {
@@ -1094,9 +1127,110 @@ const NW_AI = (function nwAI() {
 
   // 전술(L.micro ≥ 1, army 다음): 다친 유닛 빼기·카이팅(micro ≥ 2) → 집중 사격. 한 판단에 명령 최대 6개.
   // 교전 = 병력 중 사거리 + 2타일 안에 보이는 적 유닛이 있는 유닛
+  // 수송 견제(어려움 2회·보통 드물게 1회, 성향 raid): 수송선 + 지상 소형·중형 4기를 load → 기억한 적 기지의 수정 덩이 바깥쪽으로 날아가 unload →
+  // 보이는 일꾼 attack → 수송선이 맞거나 위협이 크면 recall(load) → 집결점에 unload. 수송선이 죽으면 다시 하지 않는다.
+  // 공정 시야: 기억한 적 건물·지금 보이는 적만 읽는다(수정 덩이 위치는 맵 공개 정보). 대공 건물·유닛 11타일 안 지점은 피한다.
+  const RAID_TR = { legion: 'ferry', swarm: 'bloater', elysian: 'skiff' };
+  function raidSpot(ai, g, v, tr) {
+    const aa = [...v.known.values()].filter(b => b.owner !== ai.p && hitsAir(D.buildings[b.type])).concat(v.foes.filter(f => !f.isB && hitsAir(f.def)));
+    let best = null, bd = Infinity;
+    for (const b of v.known.values()) {
+      if (!S.isEnemy(g, ai.p, b.owner) || !isBaseB(g, b) || !b.done) continue; // 짓는 중이던 기지(일꾼 없음)는 빼고
+      const ms = v.res.filter(r => r.type === 'crystal' && within(r, b, 10));
+      if (!ms.length) continue;
+      const c = centerOf(ms), dx = c.x - b.x, dy = c.y - b.y, len = Math.max(1, Math.floor(Math.sqrt(dx * dx + dy * dy)));
+      const pt = { x: Math.min(Math.max(c.x + Math.trunc(dx * 3 * TFP / len), 2 * TFP), (g.map.w - 2) * TFP), y: Math.min(Math.max(c.y + Math.trunc(dy * 3 * TFP / len), 2 * TFP), (g.map.h - 2) * TFP) };
+      if (aa.some(a => within(a, pt, 11))) continue;
+      const d = d2(pt, tr); // 가까운 기지(지금 남은 덩이 수는 안개 너머 채굴 정도를 엿보는 셈이라 비교하지 않는다)
+      if (d < bd) { bd = d; best = { x: pt.x, y: pt.y, bx: b.x, by: b.y }; }
+    }
+    return best;
+  }
+  function raidOne(ai, g, v, bank, out, busy) {
+    const st = ai.st, p = ai.p, tick = g.tick, race = ai.race;
+    if (!ai.P || !ai.P.raid || ai.level === 'easy') return;
+    const R = st.raid || (st.raid = { n: 0, max: ai.level === 'hard' ? 2 : rnd(ai, 3) === 0 ? 1 : 0, dead: false, ph: '', endAt: 0, ids: [], t: 0, spot: null, safe: null, since: 0, re: 0, lastWork: 0 });
+    const done = wait => { R.ph = ''; R.ids = []; R.t = 0; R.endAt = tick + wait; };
+    if (R.ph === '') {
+      if (R.dead || R.n >= R.max || tick < (ai.level === 'hard' ? 7000 : 12000) || tick < R.endAt || st.mode === 'retreat') return;
+      const army = armyOf(ai, v);
+      if (army.length < 8) return;
+      const tdef = D.units[RAID_TR[race]], me = v.me;
+      const tr = v.own.find(e => e.type === tdef.id && !e.isB && !e.inside && e.hp > 0 && !(e.life > 0) && (!tdef.transportReq || me.up[tdef.transportReq]));
+      if (!tr) {
+        if (tdef.transportReq && !me.up[tdef.transportReq]) researchOne(ai, g, v, bank, out, tdef.transportReq);
+        else if (race !== 'swarm' && !unitCount(v, tdef.id)) R.want = tdef.id; // 생산(production)이 조합 유닛보다 먼저 뽑는다 — 여기선 생산 건물 큐가 이미 차 있다
+        return;
+      }
+      R.want = null;
+      const squad = army.filter(e => !e.def.air && !e.inside && e.def.size !== 'large' && S.canLoad(g, p, tr, e) === '').sort((a, b) => d2(a, tr) - d2(b, tr) || a.id - b.id).slice(0, 4);
+      if (squad.length < 4) return;
+      const spot = raidSpot(ai, g, v, tr);
+      if (!spot) return;
+      const dx = spot.x - spot.bx, dy = spot.y - spot.by, len = Math.max(1, Math.floor(Math.sqrt(dx * dx + dy * dy)));
+      const clampX = x => Math.min(Math.max(x, TFP), (g.map.w - 1) * TFP), clampY = y => Math.min(Math.max(y, TFP), (g.map.h - 1) * TFP);
+      Object.assign(R, { ph: 'load', t: tr.id, ids: squad.map(e => e.id), spot, safe: { x: clampX(spot.x + Math.trunc(dx * 5 * TFP / len)), y: clampY(spot.y + Math.trunc(dy * 5 * TFP / len)) }, since: tick, re: tick });
+      out.push({ type: 'load', ids: R.ids.slice(), target: tr.id, player: p });
+      busy.add(tr.id); for (const id of R.ids) busy.add(id);
+      return;
+    }
+    const tr = v.own.find(e => e.id === R.t);
+    if (!tr || !(tr.hp > 0)) { R.dead = true; done(0); return; }
+    const sq = v.own.filter(e => R.ids.includes(e.id) && e.hp > 0), inside = sq.filter(e => e.inside === tr.id), hurt = tick - tr.lastHit < 40;
+    busy.add(tr.id); for (const e of sq) busy.add(e.id);
+    const cmd = c => out.push({ ...c, player: p });
+    const home = () => { // 집결점이 없으면(본진 없음·이어하기로 캐시 없음) 견제를 끝낸다
+      const r = rallyPoint(ai, g, v);
+      if (!r) { done(3000); return; }
+      R.ph = 'home'; R.since = tick; R.re = tick; cmd({ type: 'unload', ids: [tr.id], x: r.x, y: r.y });
+    };
+    if (R.ph === 'load') {
+      if (inside.length === sq.length && sq.length >= 2 || (tick - R.since > 900 && inside.length >= 2)) {
+        R.ph = 'fly'; R.since = tick; R.re = tick; cmd({ type: 'unload', ids: [tr.id], x: R.spot.x, y: R.spot.y });
+      } else if (tick - R.since > 900 || sq.length < 2 || hurt) { if (inside.length) home(); else done(1500); }
+      else if (tick - R.re >= 120) { R.re = tick; const w = sq.filter(e => !e.inside && !e.order); if (w.length) cmd({ type: 'load', ids: w.map(e => e.id), target: tr.id }); }
+    } else if (R.ph === 'fly') {
+      if (!inside.length) { R.ph = 'fight'; R.n++; R.since = tick; R.lastWork = tick; R.re = tick - 1e6; cmd({ type: 'move', ids: [tr.id], x: R.safe.x, y: R.safe.y }); }
+      else if (hurt || tick - R.since > 3000) home();
+      else if (!tr.order && tick - R.re >= 60) { R.re = tick; cmd({ type: 'unload', ids: [tr.id], x: R.spot.x, y: R.spot.y }); }
+    } else if (R.ph === 'fight' || R.ph === 'recall') {
+      const out2 = sq.filter(e => !e.inside);
+      if (!sq.length) { home(); return; }
+      if (R.ph === 'fight') {
+        const c = centerOf(out2.length ? out2 : sq), workers = v.foes.filter(f => !f.isB && f.def.worker && within(f, R.spot, 16)), guards = v.foes.filter(f => !f.isB && !f.def.worker && fighterDef(f.def) && within(f, c, 9));
+        if (workers.length) R.lastWork = tick;
+        // 수송선이 맞는 건 회수 사유가 아니다(내려 준 뒤 바깥쪽으로 빠져 있다) — 분대가 줄거나 지킬 병력이 오면 회수
+        if (sq.length <= 1 || tick - R.since > 2400 || tick - R.lastWork > 600 || armyValue(guards) > armyValue(sq)) {
+          R.ph = 'recall'; R.since = tick; R.re = tick - 1e6;
+          cmd({ type: 'move', ids: [tr.id], x: R.safe.x, y: R.safe.y });
+        } else {
+          const groups = new Map();
+          for (const e of out2) {
+            let t = null;
+            for (const f of workers) if (canReach(g, e, f, 20 * S.TILE) && (!t || d2(e, f) < d2(e, t))) t = f;
+            if (!t || (e.order && e.order.type === 'attack' && e.order.target === t.id)) continue;
+            if (!groups.has(t.id)) groups.set(t.id, []);
+            groups.get(t.id).push(e.id);
+          }
+          for (const [target, ids] of groups) cmd({ type: 'attack', ids, target });
+          // 일꾼이 안 보이면 수정 덩이 쪽(지점과 기지 중간)으로 공격 이동 — 내린 자리(덩이 바깥)에서는 시야 밖일 수 있다
+          if (!workers.length && tick - R.re >= 120) { R.re = tick; const w = out2.filter(e => !e.order); if (w.length) cmd({ type: 'attackMove', ids: w.map(e => e.id), x: (R.spot.x + R.spot.bx) >> 1, y: (R.spot.y + R.spot.by) >> 1 }); }
+        }
+      } else if (inside.length === sq.length || tick - R.since > 600) {
+        if (inside.length) home(); else done(3000);
+      } else if (tick - R.re >= 120) { R.re = tick; const w = out2.filter(e => !e.order || e.order.type !== 'board'); if (w.length) cmd({ type: 'load', ids: w.map(e => e.id), target: tr.id }); }
+    } else if (R.ph === 'home') {
+      const left = v.own.some(e => e.inside === tr.id);
+      if (!left && !tr.order) done(3000);
+      else if (tick - R.since > 2500) done(3000);
+      else if (!tr.order && tick - R.re >= 60) { R.re = tick; const r = rallyPoint(ai, g, v); if (r) cmd({ type: 'unload', ids: [tr.id], x: r.x, y: r.y }); else done(3000); }
+    }
+  }
+
   function tactics(ai, g, v, bank, out) {
     const L = ai.L, st = ai.st, p = ai.p, busy = new Set(); // busy: 이 판단에 전술이 명령한 유닛(casters 가 건드리지 않음)
     if (L.micro < 1) return busy;
+    raidOne(ai, g, v, bank, out, busy);
     const rally = rallyPoint(ai, g, v);
     if (!rally) return busy;
     let budget = K.MICRO_CMDS;
@@ -1219,11 +1353,17 @@ const NW_AI = (function nwAI() {
     return out;
   }
 
+  // 판단 엇갈림(phase): 자리를 판단 간격에 고르게 펼친다(2인이면 every/2 차이 — 서로의 판단 사이 간격이 양쪽 같음).
+  // 누가 먼저 생각하는지는 시드로 돌린다(전에는 (p×5)%every 라 플레이어 1이 늘 같은 쪽으로 치우쳤다).
+  function phaseOf(g, p, seed, every) {
+    const n = Math.max(1, g.players.length), rot = (seed >>> 0) % n;
+    return Math.floor(((p + rot) % n) * every / n);
+  }
   function create(g, p, opt = {}) {
     const level = LEVELS[opt.level] ? opt.level : 'normal', race = g.players[p].race;
     const ai = { p, level, L: LEVELS[level], castOn: opt.cast !== 0, r: { s: seedFor(opt.seed | 0, p) }, race, pers: null, P: null,
-      phase: (p * 5) % LEVELS[level].every, board: opt.board || newBoard(), mem: newMemory(), st: { scout: 0, spotFail: {}, spotWhy: '', scoutDone: false, seen: {}, patrol: 0, patrolAt: 0, mode: 'gather', sweep: 0, look: null, round: 0, calm: 0, pulled: new Set(), larva: 0, unseen: null, unseenAt: -1e9, unseenEv: [], lastOwn: new Map(), lastAttack: -1, assist: null, prog: null, skipB: {}, skipStep: new Set(), xFail: null, solo: false } };
-    const keys = Object.keys(PERS[race]);
+      phase: phaseOf(g, p, opt.seed | 0, LEVELS[level].every), board: opt.board || newBoard(), mem: newMemory(), st: { scout: 0, spotFail: {}, spotWhy: '', scoutDone: false, seen: {}, patrol: 0, patrolAt: 0, mode: 'gather', sweep: 0, look: null, round: 0, calm: 0, pulled: new Set(), larva: 0, unseen: null, unseenAt: -1e9, unseenEv: [], lastOwn: new Map(), lastAttack: -1, assist: null, prog: null, skipB: {}, skipStep: new Set(), xFail: null, solo: false } };
+    const keys = Object.keys(PERS[race]).filter(k => !LEVELS[level].noRush || !PERS[race][k].rush);
     ai.pers = opt.pers && PERS[race][opt.pers] ? opt.pers : keys.length ? keys[rnd(ai, keys.length)] : null;
     ai.P = ai.pers ? PERS[race][ai.pers] : null;
     if (!ai.board.members.includes(p)) { ai.board.members.push(p); ai.board.members.sort((a, b) => a - b); }
@@ -1243,6 +1383,6 @@ const NW_AI = (function nwAI() {
 
   return { LEVELS, LEVEL_NAMES, NAMES, PERS, seedFor, newMemory, newBoard, view, workerTarget, create, fromRoster, collect,
     stepDone, findSpot, expansionSpot, candidates, armyValue, rallyPoint, mixFor, AA, K, ECO, CAST,
-    _: { bankOf, spend, afford, lineage, count, unitCount, findSpot, stepDone, expansionSpot, casterOne, researchOne } };
+    _: { bankOf, spend, afford, lineage, count, unitCount, findSpot, stepDone, expansionSpot, casterOne, researchOne }, SRC: nwAI };
 })();
 if (typeof module !== 'undefined') module.exports = NW_AI;

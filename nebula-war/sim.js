@@ -1105,17 +1105,29 @@ const NW_SIM = (function nwSim() {
     for (const fx of g.fx) if (fx.kind === 'reveal' && !(fx.delay > 0) && D.abilities[fx.ab].effect.detect) mark(g.det[fx.owner], Math.floor(fx.x / TFP), Math.floor(fx.y / TFP), fx.r);
   }
 
-  // 가장 가까운(거리², id 순) 적. near(t): 사거리(hold·건물)/시야/부모 사거리(함재기) 조건.
+  // 자동 대상 등급(낮을수록 우선): 0 대공 공격 유닛·방어 건물, 1 지상만 공격, 2 비공격 공중, 3 비공격 지상(일꾼 포함), 4 건물.
+  // 공격 등급(0·1)은 t 가 공격자 e 를 때릴 수 있을 때만 — 못 때리면(지상 공격자 앞의 대공 전용 건물 등) 비공격 등급으로
+  function tier(t, e) {
+    if (fighter(t) && !t.def.worker && pickW(t, e)) {
+      const L = t.def.launcher, w = L ? D.units[L.child].weapon : weaponOf(t, 'weapon');
+      return (w && w.air) || (!L && t.def.weapon2 && t.def.weapon2.air) ? 0 : 1;
+    }
+    return t.isB ? 4 : airy(t) ? 2 : 3;
+  }
+
+  // 자동 대상: 등급(tier) → 거리² → id 순. near(t): 사거리(hold·건물)/시야/부모 사거리(함재기) 조건.
   // 판정 순서는 싼 것부터(전부 부작용 없는 판정이라 결과는 validTarget → near → visible 순과 같다)
   function acquire(g, e, near) {
-    let best = null, bd = Infinity;
+    let best = null, bt = 5, bd = Infinity;
     for (const t of g.ents) {
       if (!(t.hp > 0) || t.isR || (t.stf & STF.stasis) || !isEnemy(g, e.owner, t.owner)) continue;
       if (!near(t)) continue;
       if (!pickW(e, t)) continue;
       if (!visible(g, e.owner, t)) continue;
+      const k = tier(t, e);
+      if (k > bt) continue;
       const d = dist2(e, t);
-      if (d < bd) { bd = d; best = t; }
+      if (k < bt || d < bd) { bt = k; bd = d; best = t; }
     }
     return best;
   }

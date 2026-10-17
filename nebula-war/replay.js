@@ -28,6 +28,11 @@ const NW_REPLAY = (() => {
     }
     return fnv(src).toString(16).padStart(8, '0');
   }
+  // 대전(로비·록스텝) 버전 = 리플레이 VERSION + AI 소스(ai.js·ai-cast.js). AI 자리는 피어마다 자기 컴퓨터에서 돌리므로
+  // AI 빌드가 다르면 곧 갈라진다 — 로비에서 거절. 리플레이·이어하기는 명령이 기록돼 있어 AI 와 무관하니 VERSION 그대로.
+  function netVersion(v, ...srcs) {
+    return v === null ? null : fnv(v + srcs.map(f => '\n' + (f ? f.toString() : '')).join('')).toString(16).padStart(8, '0');
+  }
 
   // 명단 = [{race, team, slot, color, name}]. 예전 races 형식은 sim 과 같은 규칙으로 변환.
   // name = 표시 전용(1~16자, 앞뒤 공백 제거). sim·체크섬은 모른다. 없으면 "P1"~"P4".
@@ -224,6 +229,7 @@ const NW_REPLAY = (() => {
   }
 
   const VERSION = typeof NW_SIM !== 'undefined' && typeof NW_DATA !== 'undefined' ? version(NW_SIM, NW_DATA) : null;
-  return { RESUME_KEY, SAMPLE, NAME_MAX, VERSION, version, create, record, encode, decode, player, runToSync, runTo, stats, saveResume, loadResume, clearResume, available };
+  const NET_VERSION = typeof NW_AI !== 'undefined' && typeof NW_AI_CAST !== 'undefined' ? netVersion(VERSION, NW_AI.SRC, NW_AI_CAST.SRC) : VERSION;
+  return { RESUME_KEY, SAMPLE, NAME_MAX, VERSION, NET_VERSION, version, netVersion, create, record, encode, decode, player, runToSync, runTo, stats, saveResume, loadResume, clearResume, available };
 })();
 if (typeof module !== 'undefined') module.exports = NW_REPLAY;

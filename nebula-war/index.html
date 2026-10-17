@@ -149,11 +149,12 @@ h1, h2, h3 { font-style: normal; }
 .menu-err { margin: 0; color: var(--color-danger); font-size: var(--text-sm); min-height: 1.4em; }
 
 /* 메인 화면: 왼쪽 세로 열(로고 → 메뉴 목록), 오른쪽은 배경 편대가 지나가는 빈 하늘 */
-.scr-main { display: grid; align-content: center; justify-items: start; gap: var(--space-6); padding: var(--space-12) clamp(var(--space-6), 8vw, 128px); }
+.scr-main { display: grid; align-content: safe center; justify-items: start; gap: var(--space-6); padding: var(--space-12) clamp(var(--space-6), 8vw, 128px); }
 .main-logo { image-rendering: pixelated; display: block; max-width: 100%; height: auto !important; }
 .main-sub { margin: calc(var(--space-2) * -1) 0 var(--space-6); font-family: var(--font-display); font-weight: 500; font-size: var(--text-md); letter-spacing: 0.16em; color: var(--color-ink-2); }
 .main-sub b { color: var(--color-ink); }
 .mm-list { display: grid; gap: var(--space-1); min-width: min(440px, 100%); }
+@media (max-height: 900px) { .scr-main { gap: var(--space-4); padding-block: var(--space-6); } .main-sub { margin-bottom: var(--space-2); } .mm-item { min-height: 48px; } } /* 메뉴 항목이 늘어도(음량 슬라이더 2개) 800px 높이에서 로고가 잘리지 않게 */
 .mm-item { position: relative; isolation: isolate; display: grid; gap: 2px; text-align: left; padding: var(--space-2) var(--space-6) var(--space-2) var(--space-8); min-height: 56px;
   font: inherit; color: var(--color-ink-2); background: transparent; border: 0; cursor: pointer; outline: none; }
 .mm-item::before { content: ""; position: absolute; left: var(--space-2); top: 50%; width: 10px; height: 14px; margin-top: -7px; background: var(--color-accent);
@@ -188,6 +189,14 @@ h1, h2, h3 { font-style: normal; }
 .mm-resume { display: flex; align-items: center; gap: var(--space-2); }
 .mm-resume .mm-item { flex: 1; min-width: 0; }
 .mm-resume .mm-t { color: var(--color-accent); }
+.mm-vol { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-3); padding: 0 var(--space-6) var(--space-2) var(--space-8); }
+.mm-vol .mm-s { grid-column: 1 / -1; }
+.vol { width: 100%; min-width: 0; height: 24px; margin: 0; accent-color: var(--color-accent); background: transparent; cursor: pointer; }
+.vol:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.vol-v { font-family: var(--font-num); font-size: var(--text-xs); color: var(--color-ink-2); min-width: 4ch; text-align: right; }
+.pause-vol { display: grid; grid-template-columns: 6rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
+.pause-vol .btn { min-height: 40px; padding: 0 var(--space-3); font-size: var(--text-sm); white-space: nowrap; }
+.pause-vol .btn[aria-pressed="true"] { background: var(--color-paper-3); color: var(--color-ink); }
 .mm-drop { flex: none; min-height: 32px; padding: 0 var(--space-2); font-size: var(--text-xs); color: var(--color-ink-3); background: transparent; box-shadow: none; text-decoration: underline; text-underline-offset: 3px; }
 .mm-drop:hover { background: transparent; color: var(--color-danger); }
 .main-foot { margin: var(--space-6) 0 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-family: var(--font-num); font-size: var(--text-xs); color: var(--color-ink-3); }
@@ -264,6 +273,15 @@ h1, h2, h3 { font-style: normal; }
 .thumb[data-p="4"]::after { content: "4"; position: absolute; right: 0; bottom: 0; padding: 0 3px; font-family: var(--font-num); font-size: 10px; line-height: 14px; color: var(--color-accent-ink); background: var(--color-accent); }
 
 .setup-foot { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--space-4) var(--space-8); }
+@media (max-height: 760px) { /* 낮은 화면(1280×633 등): 카드가 길어 작전 개시가 아래로 밀리므로, 아래 줄을 화면 바닥에 붙여 항상 보이게 한다 */
+  .setup-foot { position: sticky; bottom: calc(-1 * var(--space-6)); z-index: 3; padding: var(--space-2) 0 var(--space-3); }
+  .setup-foot::before { content: ""; position: absolute; inset: 0 -100vmax calc(-1 * var(--space-6)); z-index: -1; background: color-mix(in oklch, var(--color-fog) 88%, transparent); border-top: 1px solid var(--color-line); }
+  .start { min-height: 56px; }
+}
+@media (min-height: 761px) and (max-height: 900px) { /* 대기실(참가자 줄 + 채팅 + 개시 사유)은 800px 에서도 작전 개시가 접힘선 아래로 밀리므로 같은 바닥 고정 */
+  body[data-net="lobby"] .setup-foot { position: sticky; bottom: calc(-1 * var(--space-3)); z-index: 3; padding: var(--space-2) 0 var(--space-3); }
+  body[data-net="lobby"] .setup-foot::before { content: ""; position: absolute; inset: 0 -100vmax calc(-1 * var(--space-3)); z-index: -1; background: color-mix(in oklch, var(--color-fog) 88%, transparent); border-top: 1px solid var(--color-line); }
+}
 .hints { position: relative; flex: 1 1 320px; min-width: 0; display: grid; gap: var(--space-2); justify-items: start; }
 .hint-line { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-6); font-size: var(--text-xs); color: var(--color-ink-3); }
 .hint-line b { font-family: var(--font-num); font-weight: 500; color: var(--color-ink-2); margin-right: var(--space-1); }
@@ -515,6 +533,13 @@ body[data-net="lobby"] .scr-setup { padding-bottom: var(--space-3); }
 .game { position: fixed; inset: 0; }
 #main { position: absolute; inset: 0; display: block; cursor: default; }
 #main.is-targeting { cursor: crosshair; }
+/* 호버 커서(ui.js hoverCursor → #main[data-cur]): 32px SVG data URI, 핫스폿 가운데, 뒤의 키워드는 SVG 를 못 쓰는 브라우저용.
+ * data URI 안에서는 var() 가 안 먹어서 색은 토큰의 sRGB 근사값을 직접 쓴다 — 바꾸면 같이 바꾼다.
+ * 외곽(#040e1a)=--color-void · 청록(#2fd8d0)=--color-accent · 조준(#40f5ec)=--color-aim · 빨강(#f45249)=--color-danger · 초록(#61cc69)=--color-hp */
+#main[data-cur=select] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='none' stroke-linecap='square'%3E%3Cpath d='M5 11V5h6M21 5h6v6M27 21v6h-6M11 27H5v-6' stroke='%23040e1a' stroke-width='4'/%3E%3Cpath d='M5 11V5h6M21 5h6v6M27 21v6h-6M11 27H5v-6' stroke='%232fd8d0' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%232fd8d0' stroke='%23040e1a'/%3E%3C/svg%3E") 16 16, pointer; }
+#main[data-cur=attack] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='none'%3E%3Cg stroke='%23040e1a' stroke-width='4'%3E%3Ccircle cx='16' cy='16' r='8'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8'/%3E%3C/g%3E%3Cg stroke='%23f45249' stroke-width='2'%3E%3Ccircle cx='16' cy='16' r='8'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8'/%3E%3C/g%3E%3C/svg%3E") 16 16, crosshair; }
+#main[data-cur=target] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='none'%3E%3Cg stroke='%23040e1a' stroke-width='4'%3E%3Ccircle cx='16' cy='16' r='8'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8'/%3E%3C/g%3E%3Cg stroke='%2340f5ec' stroke-width='2'%3E%3Ccircle cx='16' cy='16' r='8'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8'/%3E%3C/g%3E%3C/svg%3E") 16 16, crosshair; }
+#main[data-cur=gather] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' fill='none' stroke-linejoin='round'%3E%3Cpath d='M16 6l8 10-8 10-8-10zM8 16h16' stroke='%23040e1a' stroke-width='4'/%3E%3Cpath d='M16 6l8 10-8 10-8-10zM8 16h16' stroke='%2361cc69' stroke-width='2'/%3E%3C/svg%3E") 16 16, pointer; }
 .topbar { position: absolute; left: 0; right: 0; top: 0; z-index: 5; height: var(--bar-h); background: var(--color-paper-2); border-bottom: var(--rule);
   display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-2) 0 0; font-size: var(--text-sm); min-width: 0; }
 /* 메뉴 버튼(브랜드 자리): 누르면 일시정지 대화상자 — F10 과 같은 동작 */
@@ -1202,6 +1227,9 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
       <button type="button" class="mm-item" id="go-codex"><span class="mm-t">도감</span><span class="mm-s">세 종족 · 모든 유닛과 건물 · 능력</span></button>
       <button type="button" class="mm-item" id="open-rp"><span class="mm-t">리플레이 열기</span><span class="mm-s">저장해 둔 리플레이 .json 파일</span></button>
       <button type="button" class="mm-item" id="menu-mute" aria-pressed="false"><span class="mm-t">효과음 <span id="menu-mute-v">켜짐</span></span><span class="mm-s">게임 중에는 ` 키</span></button>
+      <div class="mm-vol"><input type="range" class="vol" id="menu-sfx-vol" min="0" max="100" step="5" value="100" aria-label="효과음 음량"><output class="vol-v" id="menu-sfx-pct" for="menu-sfx-vol">100%</output></div>
+      <button type="button" class="mm-item" id="menu-music" aria-pressed="true"><span class="mm-t">음악 <span id="menu-music-v">켜짐</span></span><span class="mm-s">배경 음악 · 효과음과 따로 · 게임 중 Shift+`</span></button>
+      <div class="mm-vol"><input type="range" class="vol" id="menu-music-vol" min="0" max="100" step="5" value="100" aria-label="음악 음량"><output class="vol-v" id="menu-music-pct" for="menu-music-vol">100%</output></div>
     </nav>
     <input type="file" id="rp-file" accept=".json,application/json" hidden>
     <p class="menu-err" id="menu-err" role="alert"></p>
@@ -1255,7 +1283,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
             <ul class="controls" aria-label="조작 요약">
                 <li><b>좌클릭</b> 선택</li><li><b>우클릭</b> 이동/공격/채집</li><li><b>A</b> 공격 이동</li><li><b>S</b> 정지</li>
         <li><b>H</b> 홀드</li><li><b>P</b> 순찰</li><li><b>B</b> 기본 건설</li><li><b>V</b> 고급 건설</li><li><b>R</b> 수리</li>
-        <li><b>L</b> 띄우기/착륙</li><li><b>N</b> 명령 다음 쪽</li><li><b>Ctrl+숫자</b> 부대 지정</li><li><b>`</b> 효과음</li>
+        <li><b>L</b> 띄우기/착륙</li><li><b>N</b> 명령 다음 쪽</li><li><b>Ctrl+숫자</b> 부대 지정</li><li><b>`</b> 효과음</li><li><b>Shift+`</b> 음악</li>
         <li><b>F10</b> 일시정지</li><li><b>F1</b> 노는 일꾼</li><li><b>Space</b> 마지막 알림</li>
       </ul>
           </div>
@@ -1362,6 +1390,16 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
         <button type="button" class="btn act" id="resume">재개</button>
         <button type="button" class="btn act is-danger" id="surrender">항복</button>
         <button type="button" class="btn act" id="leave" hidden>나가기</button>
+      </div>
+      <div class="pause-vol">
+        <button type="button" class="btn" id="pause-sfx" aria-pressed="true">효과음</button>
+        <input type="range" class="vol" id="pause-sfx-vol" min="0" max="100" step="5" value="100" aria-label="효과음 음량">
+        <output class="vol-v" id="pause-sfx-pct" for="pause-sfx-vol">100%</output>
+      </div>
+      <div class="pause-vol">
+        <button type="button" class="btn" id="pause-music" aria-pressed="true">음악</button>
+        <input type="range" class="vol" id="pause-music-vol" min="0" max="100" step="5" value="100" aria-label="음악 음량">
+        <output class="vol-v" id="pause-music-pct" for="pause-music-vol">100%</output>
       </div>
       <button type="button" class="btn pause-opt" id="ring-auto" aria-pressed="true"><span>선택하면 명령 링 자동 열기</span><span class="v" id="ring-auto-v">켬</span></button>
     </div>
@@ -1487,7 +1525,8 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
   muteBtn.addEventListener('click', ev => { A.toggle(); syncMute(); syncMenuMute(); if (ev.detail) muteBtn.blur(); }); // 마우스 클릭 뒤엔 키 입력을 게임에 돌려준다
   addEventListener('keydown', ev => {
     if (ev.code !== 'Backquote' || ev.repeat || ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) return;
-    ev.preventDefault(); A.toggle(); syncMute(); syncMenuMute();
+    ev.preventDefault();
+    if (ev.shiftKey) { A.toggleMusic(); syncMusic(); } else { A.toggle(); syncMute(); syncMenuMute(); } // ` = 효과음, Shift+` = 음악(한글 IME 에서도 ev.code)
   });
   let state = null, raf = 0, acc = 0, last = 0, ended = false, paused = false;
   let net = null; // P2P 대전: { sess, tr, g, rec, self, left(세션 닫힘), leaving, spec(결과 뒤 관전 계속), leaveT, ui } — 솔로는 null
@@ -1541,7 +1580,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     if (ev.key === 'Escape') { ev.preventDefault(); setPaused(false); }
     else if (ev.key === 'Tab') { // 대화상자 포커스 트랩(보이는 버튼 사이)
       ev.preventDefault();
-      const f = [...pauseEl.querySelectorAll('button')].filter(b => !b.closest('[hidden]')), i = f.indexOf(document.activeElement);
+      const f = [...pauseEl.querySelectorAll('button, input')].filter(b => !b.closest('[hidden]')), i = f.indexOf(document.activeElement);
       f[(i + (ev.shiftKey ? -1 : 1) + f.length) % f.length].focus();
     }
   });
@@ -1867,7 +1906,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
 
   // 메인 목록: ↑↓ 로 항목 사이 이동(보이는 항목만), 옮길 때 짧은 틱
   const mmList = $('#mm-list');
-  const mmItems = () => [...mmList.querySelectorAll('.mm-item')].filter(b => !b.closest('[hidden]'));
+  const mmItems = () => [...mmList.querySelectorAll('.mm-item, .mm-vol input')].filter(b => !b.closest('[hidden]'));
   mmList.addEventListener('keydown', ev => {
     if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
     ev.preventDefault();
@@ -1876,9 +1915,35 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
   });
   for (const b of mmList.querySelectorAll('.mm-item')) b.addEventListener('pointerenter', () => { if (document.activeElement !== b && b.closest('.scr') && !menu.inert) { b.focus({ preventScroll: true }); } });
   const menuMute = $('#menu-mute');
-  const syncMenuMute = () => { menuMute.setAttribute('aria-pressed', String(!A.muted)); $('#menu-mute-v').textContent = A.muted ? '꺼짐' : '켜짐'; };
+  // 효과음 음량 슬라이더(메인 메뉴 + 일시정지) — 저장값 nw-sfx-vol. 끄기(`)와 따로라 끄고 켜도 음량은 그대로
+  const pauseSfx = $('#pause-sfx');
+  const sfxEls = [[$('#menu-sfx-vol'), $('#menu-sfx-pct')], [$('#pause-sfx-vol'), $('#pause-sfx-pct')]];
+  const syncMenuMute = () => {
+    const pct = Math.round(A.sfxVol * 100);
+    menuMute.setAttribute('aria-pressed', String(!A.muted)); pauseSfx.setAttribute('aria-pressed', String(!A.muted));
+    $('#menu-mute-v').textContent = A.muted ? '꺼짐' : (pct < 100 ? pct + '%' : '켜짐');
+    pauseSfx.textContent = A.muted ? '효과음 끔' : '효과음 켬';
+    for (const [r, o] of sfxEls) { r.value = String(pct); o.textContent = pct + '%'; }
+  };
   menuMute.addEventListener('click', () => { A.toggle(); syncMute(); syncMenuMute(); A.play('tick', 0.6); });
+  pauseSfx.addEventListener('click', () => { A.toggle(); syncMute(); syncMenuMute(); A.play('tick', 0.6); });
+  for (const [r] of sfxEls) { r.addEventListener('input', () => { A.setSfxVol(r.value / 100); syncMenuMute(); }); r.addEventListener('change', () => A.play('tick', 0.6)); }
   syncMenuMute();
+  // 음악: 메인 메뉴 항목 + 슬라이더, 일시정지 대화상자의 같은 조절, 게임 중 Shift+` — 전부 같은 저장값(nw-music, nw-music-vol)
+  const menuMusic = $('#menu-music'), pauseMusic = $('#pause-music');
+  const volEls = [[$('#menu-music-vol'), $('#menu-music-pct')], [$('#pause-music-vol'), $('#pause-music-pct')]];
+  function syncMusic() {
+    const on = A.musicOn, pct = Math.round(A.musicVol * 100);
+    menuMusic.setAttribute('aria-pressed', String(on)); pauseMusic.setAttribute('aria-pressed', String(on));
+    $('#menu-music-v').textContent = on ? (pct < 100 ? pct + '%' : '켜짐') : '꺼짐';
+    pauseMusic.textContent = on ? '음악 켬' : '음악 끔';
+    for (const [r, o] of volEls) { r.value = String(on ? pct : 0); o.textContent = (on ? pct : 0) + '%'; }
+  }
+  const musicToggle = () => { A.toggleMusic(); syncMusic(); A.play('tick', 0.6); };
+  menuMusic.addEventListener('click', musicToggle);
+  pauseMusic.addEventListener('click', musicToggle);
+  for (const [r] of volEls) r.addEventListener('input', () => { A.setMusicVol(r.value / 100); syncMusic(); });
+  syncMusic();
 
   // 화면 전환: 메인 ↔ 전투 준비
   const scrs = { main: $('#scr-main'), setup: $('#scr-setup'), join: $('#scr-join'), codex: $('#scr-codex') };
@@ -2083,7 +2148,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
       const r = await NB.host({});
       if (gen !== netGen) { r.tr.close(); return; } // 기다리는 사이 취소
       Object.assign(NL, { tr: r.tr, code: r.code, turn: r.turn });
-      NL.L = NW_LOBBY.host({ tr: r.tr, me: { name: myName }, maps: D.maps, map: choice.map, version: VERSION, onChange: netChange });
+      NL.L = NW_LOBBY.host({ tr: r.tr, me: { name: myName }, maps: D.maps, map: choice.map, version: RP.NET_VERSION, onChange: netChange });
       NL.view = mkView(NL.L.state());
       showRoom(r.code, r.turn); A.play('ready', 0.6);
       syncMap(false);
@@ -2170,7 +2235,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
       if (gen !== netGen) { r.tr.close(); return; }
       NL = { role: 'guest', tr: r.tr, L: null, code, view: null, handed: false, turn: r.turn };
       setJoin('busy', '자리를 받는 중…');
-      NL.L = NW_LOBBY.join({ tr: r.tr, hostId: NB.peerIdOf(code), name: myName, version: VERSION, onChange: netChange, onDeny: netDenied, onStart: handOff });
+      NL.L = NW_LOBBY.join({ tr: r.tr, hostId: NB.peerIdOf(code), name: myName, version: RP.NET_VERSION, onChange: netChange, onDeny: netDenied, onStart: handOff });
       setTimeout(() => { if (gen === netGen && NL && !NL.view) { netClear(); setJoin('error', '방장이 응답하지 않습니다'); A.play('deny', 0.7); } }, 10000);
     } catch (e) {
       if (gen !== netGen) return;
@@ -2295,7 +2360,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     paused = false; pauseEl.hidden = true; pauseBtn.setAttribute('aria-pressed', 'false'); pauseRet = null;
     setSpectating(false); elimOff();
     setMode('play');
-    show('game'); fit(); U.start(); guard(true); syncRoster(state, true);
+    show('game'); fit(); U.start(); guard(true); syncRoster(state, true); A.startMatch(state.players[ME].race);
     if (state.players[ME].out) setSpectating(true); // 관전 중에 저장된 판을 이어하면 관전으로
     cancelAnimationFrame(raf); acc = 0; last = lastSave = performance.now(); clock.reset(last);
     saveNow();
@@ -2458,6 +2523,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     // 승패는 팀 기준. 진행 중(-1)에 결과로 왔으면: 내 팀이 다 나갔으면 패배, 팀원이 남았으면(관전에서 나옴) 탈락
     const w = state.winner, myTeam = state.players[ME].team, teamAlive = state.players.some(p => p.team === myTeam && !p.out);
     const r = w === -2 ? 'draw' : w >= 0 ? (w === myTeam ? 'win' : 'lose') : teamAlive ? 'out' : 'lose';
+    A.endMatch(r);
     const word = $('#result-word'); word.dataset.r = r; word.textContent = { win: '승리', lose: '패배', draw: '무승부', out: '탈락' }[r];
     const teamGame = new Set(state.players.map(p => p.team)).size < state.players.length;
     $('#result-team').textContent = w >= 0 ? (teamGame ? '팀 ' + (w + 1) + ' 승리' : who(rec, state.players.findIndex(p => p.team === w)) + ' 승리') : w === -2 ? '모두 탈락' : r === 'out' ? '팀 ' + (myTeam + 1) + ' 경기 진행 중' : '';
@@ -2475,7 +2541,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     U.stop(); guard(false); cancelAnimationFrame(raf); state = null; result.hidden = true;
     paused = false; pauseEl.hidden = true; pauseBtn.setAttribute('aria-pressed', 'false'); pauseRet = null;
     rp = null; rpChatOff(); setSpectating(false); elimOff(); setMode('play'); roster.textContent = '';
-    refreshResume(); show('menu');
+    A.stopMatch(); refreshResume(); show('menu');
   }
 
   // ---- P2P 대전: 시작 핸드셰이크 · 록스텝 틱 · 항복/나가기 · 결과 ----
@@ -2526,7 +2592,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     });
     if (ctx.lobby && typeof ctx.lobby.detach === 'function') ctx.lobby.detach(); // 로비 처리기를 떼고 세션이 tr 을 넘겨받는다
     try {
-      n.sess = NW_NET.session({ sim: S, game: g, self: G.self, peers: G.peers, transport: tr, version: VERSION, rec: rc, stepMs: STEP, dropAfterMs: NET_DROP_MS, onEvent: netEvent,
+      n.sess = NW_NET.session({ sim: S, game: g, self: G.self, peers: G.peers, transport: tr, version: RP.NET_VERSION, rec: rc, stepMs: STEP, dropAfterMs: NET_DROP_MS, onEvent: netEvent,
         // AI 자리: 모든 피어가 같이 계산해 기록한다(전송 없음). 예외 난 AI 만 끈다 — 모든 피어에서 같은 틱에 같은 예외(솔로 루프와 같은 규칙)
         extra: gg => { const out = []; for (const ai of bots) { if (ai.off) continue; try { out.push(...ai.think(gg)); } catch (e) { console.error('AI', ai.p, 'disabled:', e); ai.off = true; } } return out; } });
     } catch (e) {
@@ -2620,7 +2686,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
   $('#spec-cont').addEventListener('click', () => { // 결과를 닫고 관전으로(판은 계속)
     if (!net || net.left || !state || mode !== 'play') return;
     net.spec = true; ended = false; result.hidden = true; result.classList.add('is-off');
-    guard(true); setSpectating(true);
+    guard(true); setSpectating(true); A.startMatch(state.players[ME].race); // 결과에서 멈춘 BGM·앰비언스를 다시
     cancelAnimationFrame(raf);
     U.resume(); acc = 0; last = performance.now(); raf = requestAnimationFrame(frame);
   });
@@ -2727,7 +2793,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     while (rpChatI < L.length && L[rpChatI][0] <= t - 8 * S.TICK_RATE) rpChatI++;
     rpChatFlush();
   }
-  let mode = 'play', rp = null, rpPlaying = false, rpSpeed = 1, rpVision = 'all', rpJob = null, rpDrag = false;
+  let mode = 'play', rp = null, rpPlaying = false, rpSpeed = 1, rpVision = 'all', rpJob = null, rpDrag = false, rpQuiet = false; // rpQuiet: 끝까지 봐서 BGM 을 멈춤(되감으면 다시)
   const rbar = $('#rbar'), seek = $('#rp-seek'), rpTime = $('#rp-time'), rpPl = $('#rp-pl'), rpPlay = $('#rp-play');
   let FULL = null; // 전체 시야 안개(리플레이 시작 시 맵 크기로)
   new ResizeObserver(() => gameEl.style.setProperty('--rbar-h', rbar.hidden ? '0px' : rbar.offsetHeight + 'px')).observe(rbar); // 채팅이 재생 막대 높이만큼 올라간다
@@ -2780,7 +2846,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     seek.max = String(r.ticks); seek.disabled = false;
     buildVision(state); syncSeg('[data-rspeed]', 'rspeed', '1'); syncSeg('[data-vision]', 'vision', 'all');
     setSpectating(false); elimOff();
-    R.reset(); setMode('replay'); show('game'); fit(); U.start(); syncRoster(state, true);
+    R.reset(); setMode('replay'); show('game'); fit(); U.start(); syncRoster(state, true); A.startMatch(state.players[0].race); rpQuiet = false;
     acc = 0; last = performance.now(); syncRbar(true);
     raf = requestAnimationFrame(rframe);
   }
@@ -2793,6 +2859,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
       rpChatFlush();
       if (rp.done) {
         rpPlaying = false; acc = 0;
+        A.stopMatch(); rpQuiet = true; // 리플레이 끝: BGM·앰비언스 정지(되감기·다시 보기면 seekTo 가 다시 켠다)
         // VERSION 은 sim 의 공개 함수·데이터만 해시한다 — 내부 함수만 바뀐 빌드는 끝 체크섬으로 잡아 알린다
         if (rp.rec.ck !== undefined && S.checksum(rp.state) !== rp.rec.ck) U.notify('이 리플레이는 현재 빌드에서 원래 경기와 다르게 재생되었습니다');
       }
@@ -2814,6 +2881,7 @@ body[data-net="on"] .pause-narrow [data-speed] { display: none; }
     hideBusy();
     if (!ok) return;
     R.reset(); acc = 0; last = performance.now(); state = rp.state; syncRbar(true); rpChatSeek(rp.state.tick);
+    if (rpQuiet && !rp.done) { rpQuiet = false; A.startMatch(rp.state.players[0].race); }
   }
   function syncSeg(sel, key, v) { for (const b of document.querySelectorAll(sel)) b.setAttribute('aria-checked', String(b.dataset[key] === v)); }
   rpPlay.addEventListener('click', () => {

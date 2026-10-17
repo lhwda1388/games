@@ -149,7 +149,6 @@ const NW_CODEX = (() => {
     anvil:       { role: '지상 강화. 무기·갑옷·결정막 연구.', flavor: '결정을 갈아 날을 세운다.' },
     wardspire:   { role: '방어 시설·탐지. 지상·공중을 쏜다.', flavor: '높은 음 하나가 침입자를 꿰뚫는다.' },
     synapse:     { role: '중반 기술. 공중 강화·아크워커 사거리 연구.', flavor: '여러 음을 하나의 화음으로 묶는다.' },
-    wellspring:  { role: '결정막 구조물. 전용 기능은 아직 없다.', flavor: '공명이 고여 빛나는 샘.' },
     constructbay:{ role: '구조체 생산. 크루시블·스키프·리스너.', flavor: '결정을 부어 몸을 빚는다.' },
     assemblybay: { role: '크루시블 해금.', flavor: '주조된 몸에 마지막 결을 새긴다.' },
     lookout:     { role: '리스너 해금. 시야·음파 역류 연구.', flavor: '먼 곳의 떨림을 듣는다.' },

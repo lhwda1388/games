@@ -305,21 +305,6 @@
       for (let k = 0; k < 2; k++) { const c = (k + i) % 2 ? en(X, L, 3) : en(X, L, 2); P.line(nx[k], ny[k], nx[k + 1], ny[k + 1], c); P.line(nx[k], ny[k] - 1, nx[k + 1], ny[k + 1] - 1, en(X, L, 1)); }
       nx.forEach((x, k) => { P.cyl(x, ny[k] + 8, 0, 2, 5, X.s); core(P, X, x, ny[k], k === 1 ? 5 : 3.6, L); });
     } });
-  // 보호막 충전기(3×2): 금 수반 + 청록 웅덩이 + 떠 있는 기둥 수정과 고리
-  B.wellspring = building('wellspring', { w: 3, h: 2, oy: 24, glow: [[48, 22, 12], [48, 54, 10]],
-    base(P, K) { plinth(P, K, 40, 23, 3, false); },
-    top(P, K) {
-      const { X, cx, gy, L, bob, i } = K;
-      for (const sx of [-1, 1]) fin(P, X.s, [cx + sx * 26 - 3, gy - 2], [cx + sx * 26 + 3, gy - 2], [cx + sx * 18, gy - 40], [cx + sx * 31 - 2, gy - 22], [cx + sx * 25 + 2, gy - 18]);
-      const yt = dais(P, cx, gy + 9, 3, 30, 16, 7, X.s);
-      P.fell(cx, yt + 1, 25, 12.5, en(X, L, 0)); P.fell(cx - 2, yt, 21, 10, en(X, L, 1));
-      for (let k = 0; k < 2; k++) arc(P, cx, yt, 6 + k * 7 + (i % 2) * 3, 3 + k * 3.5 + (i % 2) * 1.5, 0, TAU, en(X, L, 2));
-      const fy = yt - 26 + bob;
-      ring(P, cx, fy + 6, 13, 4.5, 2.4, X.s, 'back', 1);
-      for (let y = fy + 12; y < yt; y += 2) P.dot(cx, y, en(X, L, 2));
-      octa(P, X, cx, fy, 12, 30, L);
-      ring(P, cx, fy + 6, 13, 4.5, 2.4, X.s, 'front', 1);
-    } });
   // 구축체 공방(3×2): 두 금 팔이 받친 조립 중 청록 구 + 와이어 고리
   B.constructbay = building('constructbay', { w: 3, h: 2, oy: 24, glow: [[48, 36, 11]],
     base(P, K) { plinth(P, K, 40, 23, 3); },

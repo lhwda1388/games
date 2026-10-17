@@ -37,7 +37,7 @@ const NW_UI = (() => {
   const BUILD = {
     legion:  [['hq', 'depot', 'pump', 'garrison', 'workshop', 'drillhall', 'pillbox', 'flak'], ['motorpool', 'arsenal', 'airfield', 'labs']],
     swarm:   [['nest', 'siphon', 'vat', 'mutapit', 'tendril', 'wyrmpit'], ['roost', 'matronden', 'blightmound', 'behemothcave']],
-    elysian: [['sanctum', 'resonator', 'distiller', 'portal', 'anvil', 'wardspire', 'synapse', 'wellspring'],
+    elysian: [['sanctum', 'resonator', 'distiller', 'portal', 'anvil', 'wardspire', 'synapse'],
               ['constructbay', 'assemblybay', 'lookout', 'skygate', 'fleetspire', 'citadel', 'sagelibrary', 'wardencourt']],
   };
   const SVG = {
@@ -105,11 +105,11 @@ const NW_UI = (() => {
       alert: q('[data-hud=alert]'), edges: q('[data-hud=edges]'), idle: q('[data-hud=idle]'), idleIcon: q('[data-hud=idle-icon]'),
       idleN: q('[data-hud=idle-n]'), tip: q('#nw-tip'), pin: q('[data-hud=pin]'), chip: q('[data-hud=mode-chip]') };
 
-    const view = { me, camX: 0, camY: 0, sel: [], drag: null, ghost: null, vw: 0, vh: 0, oy: 0, pings: [] };
+    const view = { me, camX: 0, camY: 0, sel: [], drag: null, ghost: null, vw: 0, vh: 0, oy: 0, pings: [], marks: [] };
     // 키보드만으로(kbNav): 보이는 전장 가운데의 십자 = 커서. 방향키로 카메라를 옮겨 맞추고 Enter = 그 자리 왼쪽 클릭(선택 · 무장 실행),
-    // 이동 무장 중 Enter = 우클릭 문맥 명령(채집·공격·이동). 마우스를 움직이거나 화면을 만지면 꺼진다. P2P 에선 Enter 가 채팅이라 무장 중에만.
+    // 이동 무장 중 Enter = 우클릭 문맥 명령(채집·공격·이동). 마우스를 움직이거나 화면을 만지면 꺼진다. 키보드 조준(kbNav)이 아닐 땐 Enter 는 아무것도 안 한다(P2P 채팅 열기).
     let kbNav = false, kbOff = [0, 0]; // kbOff: 카메라가 맵 끝에 닿아 더 못 갈 때 십자가 가운데에서 벗어난 거리
-    const kbCross = document.createElement('i'); kbCross.className = 'kb-cross'; kbCross.hidden = true; kbCross.setAttribute('aria-hidden', 'true');
+    const kbCross = document.createElement('i'); kbCross.className = 'kb-cross'; kbCross.hidden = true; kbCross.setAttribute('aria-hidden', 'true'); kbCross.dataset.hud = 'kb-cross';
     const kbCenter = () => [view.vw / 2 + kbOff[0], view.oy + view.vh / 2 + kbOff[1]];
     // 방향키 한 축: 벗어난 십자를 먼저 가운데로 되돌리고, 나머지는 카메라, 카메라가 끝에 막힌 만큼 십자를 민다(보이는 전장 안에서).
     function kbAxis(d, i, lim) {
@@ -148,7 +148,9 @@ const NW_UI = (() => {
     // camY = 화면 맨 위(y=0)의 월드 y. 상단 바(oy)가 위를 덮으므로 camY는 -oy까지 내려가 월드 0행이 바 바로 아래에 온다.
     // 보이는 월드 영역은 [camX, camX+vw] × [camY+oy, camY+oy+vh] — vw 는 오른쪽 계기 기둥에 가리지 않은 폭.
     // clampCam 은 camX ≤ 월드 폭 − vw 라서 맵 오른쪽 끝이 기둥 왼쪽 가장자리까지 온다.
-    function viewport() { view.oy = barH(); view.vw = Math.max(0, canvas.width - dockW()); view.vh = Math.max(0, canvas.height - hudH() - view.oy); }
+    function viewport() { view.oy = barH(); view.vw = Math.max(0, canvas.width - dockW()); view.vh = Math.max(0, canvas.height - hudH() - view.oy);
+      const lx = Math.max(0, view.vw / 2 - 16), ly = Math.max(0, view.vh / 2 - 16); kbOff = [clamp(kbOff[0], -lx, lx), clamp(kbOff[1], -ly, ly)]; // 창 크기가 바뀌면 벗어난 십자도 새 보이는 전장 안으로
+    }
     function clampCam() {
       const g = st(); if (!g) return;
       const WORLD_W = g.map.w * TILE, WORLD_H = g.map.h * TILE; // 월드 크기(px)는 현재 상태의 맵에서
@@ -156,7 +158,26 @@ const NW_UI = (() => {
     }
     function centerOn(x, y) { viewport(); view.camX = x - view.vw / 2; view.camY = y - view.vh / 2 - view.oy; clampCam(); }
     const world = (sx, sy) => [view.camX + sx, view.camY + sy];
-    const push = c => { if (spectate) return; c.player = me; cmds.push(c); };
+    // 명령 카드의 생산·연구·변태는 order 를 거치지 않으니 여기서 생산 시작음을 낸다(나머지 응답음은 commandAck).
+    const push = c => { if (spectate) return; c.player = me; cmds.push(c); if (R.audio && PROD_SND[c.type]) R.audio.cmd(c, myRace()); };
+    const PROD_SND = { train: 1, research: 1, morph: 1, merge: 1 };
+    const myRace = () => { const g = st(); return g ? g.players[me].race : ''; };
+    // 유닛 성격(소리만): 선택·명령한 내 유닛을 render 에 알린다(방치 투덜거림), vet = 그중 가장 많은 처치 수(고참 응답)
+    const vetOf = es => R.killsOf ? es.reduce((m, e) => Math.max(m, R.killsOf(e)), 0) : 0;
+    const markSeen = es => { if (R.touch) R.touch(es.map(e => e.id)); };
+    const selAck = (id, es) => { if (R.audio && !spectate) { markSeen(es); R.audio.select(es.length ? es.map(e => e.def) : myRace(), id, vetOf(es)); } }; // 내 것 선택음(id = 같은 유닛 연타 감지용, 0 = 여러 개; 가장 비싼 유닛 목소리)
+    const idEnts = ids => { const g = st(); return g && ids ? ids.map(id => S.byId(g, id)).filter(Boolean) : []; };
+    // 명령 확인: 우클릭 문맥 명령·무장 클릭(contextCommand · loadContext · targetClick)이 낸 명령 하나마다 commandAck 가 한 번 불린다.
+    // 지금은 화면 표시(view.marks — render 8b)만 띄운다. 사운드 2단계의 명령 응답음도 여기 한 곳에 붙인다.
+    const MARK_MS = 450, FLASH_MS = 600, marks = []; // marks = [{x, y | id, tone, t0, ms}] — update 가 age 0..1 을 채운다
+    function commandAck(c) {
+      const tone = c.type === 'attack' || c.type === 'attackMove' ? 'atk' : c.type === 'cast' ? 'aim' : 'move', t0 = performance.now();
+      if (c.target) marks.push({ id: c.target, tone, t0, ms: FLASH_MS, age: 0 });                          // 대상 명령: 대상 깜빡임
+      else if (c.x !== undefined && c.type !== 'cast') marks.push({ x: c.x / FP, y: c.y / FP, tone, t0, ms: MARK_MS, age: 0 }); // 지점 시전은 sim 연출이 따로 있다
+      if (marks.length > 12) marks.shift();
+      if (R.audio) { const es = idEnts(c.ids); markSeen(es); R.audio.cmd(c, es.length ? es.map(e => e.def) : myRace(), vetOf(es)); } // 명령 응답음(명령받은 유닛 중 가장 비싼 유닛 목소리)
+    }
+    const order = c => { if (spectate) return; push(c); commandAck(c); };
     const mine = e => !!e && e.owner === me;
 
     // 플레이어 시점에서 보이는/알려진 엔티티(렌더러의 그리기 규칙과 같다)
@@ -191,6 +212,7 @@ const NW_UI = (() => {
     }
     function reject(reason, slotBtn) {
       notify(REASON[reason] || REASON.blocked);
+      if (R.audio) R.audio.play('deny', 0.6);
       if (reason === 'crystal') flash(el.crystalWrap);
       if (reason === 'nebula') flash(el.nebulaWrap);
       flash(slotBtn);
@@ -224,6 +246,7 @@ const NW_UI = (() => {
     function clickSelect(g, sx, sy, shift) {
       const [wx, wy] = world(sx, sy), t = pick(g, wx, wy), now = performance.now();
       if (!t) { if (!shift) setSel([]); return; }
+      if (mine(t)) selAck(t.id, [t]);
       if (mine(t) && !shift && lastClick.id === t.id && now - lastClick.t < DBL) { // 더블클릭: 화면 안 같은 종류
         setSel(g.ents.filter(e => mine(e) && !e.inside && e.type === t.type && onScreen(e)).map(e => e.id));
         lastClick = { id: 0, t: 0 }; return;
@@ -247,6 +270,7 @@ const NW_UI = (() => {
       if (!found.length) found = g.ents.filter(e => mine(e) && e.isB &&
         e.tx * TILE < x1 && (e.tx + e.def.w) * TILE > x0 && e.ty * TILE < y1 && (e.ty + e.def.h) * TILE > y0);
       if (!found.length) { if (!shift) setSel([]); return; } // 빈 박스 = 선택 해제
+      selAck(0, found);
       if (shift) {
         const cur = selEnts(g).filter(mine), all = cur.concat(found.filter(e => !view.sel.includes(e.id)));
         const units = all.filter(e => !e.isB);
@@ -269,19 +293,19 @@ const NW_UI = (() => {
       const x = Math.round(wx * FP), y = Math.round(wy * FP);
       if (!units.length) {
         const lf = liftedBlds(g);
-        if (lf.length) push({ type: 'move', ids: lf.map(e => e.id), x, y });
-        else if (blds.length) push({ type: 'setRally', ids: blds.map(e => e.id), x, y });
+        if (lf.length) order({ type: 'move', ids: lf.map(e => e.id), x, y });
+        else if (blds.length) order({ type: 'setRally', ids: blds.map(e => e.id), x, y });
         return;
       }
       const t = pick(g, wx, wy), ids = units.map(e => e.id), eng = engineers(g);
       if (loadContext(g, units, t)) return;
-      if (isEnemy(g, t)) push({ type: 'attack', ids, target: t.id });
-      else if (t && (t.type === 'crystal' || gasBld(t)) && units.some(e => e.def.worker)) push({ type: 'gather', ids, target: t.id });
+      if (isEnemy(g, t)) order({ type: 'attack', ids, target: t.id });
+      else if (t && (t.type === 'crystal' || gasBld(t)) && units.some(e => e.def.worker)) order({ type: 'gather', ids, target: t.id });
       else if (eng.length && S.canRepair(g, me, t)) { // 문맥 수리: 엔지니어는 수리, 나머지는 그 자리로 이동
-        push({ type: 'repair', ids: eng.map(e => e.id), target: t.id });
+        order({ type: 'repair', ids: eng.map(e => e.id), target: t.id });
         const rest = units.filter(e => !eng.includes(e)).map(e => e.id);
-        if (rest.length) push({ type: 'move', ids: rest, x, y });
-      } else push({ type: 'move', ids, x, y });
+        if (rest.length) order({ type: 'move', ids: rest, x, y });
+      } else order({ type: 'move', ids, x, y });
     }
     // 3a 수송 문맥: 내 수송선 우클릭 = 선택 지상 유닛 탑승 / 수송선 선택 중 내 지상 유닛 우클릭 = 태우러 감
     const groundy = e => !e.isB && !e.def.air && !e.def.transport;
@@ -293,7 +317,7 @@ const NW_UI = (() => {
         const r = S.canLoad(g, me, t, riders[0]);
         if (r === 'research') reject('research');
         else if (riders.every(u => S.canLoad(g, me, t, u) === 'space')) reject('space'); // 한 기도 못 탐(꽉 참)
-        else push({ type: 'load', ids: riders.map(e => e.id), target: t.id });
+        else order({ type: 'load', ids: riders.map(e => e.id), target: t.id });
         return true;
       }
       const cs = units.filter(e => e.def.transport);
@@ -301,7 +325,7 @@ const NW_UI = (() => {
         const r = S.canLoad(g, me, cs[0], t);
         if (r === 'research') reject('research');
         else if (cs.every(c => S.canLoad(g, me, c, t) === 'space')) reject('space');
-        else push({ type: 'load', ids: cs.map(e => e.id), target: t.id });
+        else order({ type: 'load', ids: cs.map(e => e.id), target: t.id });
         return true;
       }
       return false;
@@ -323,11 +347,11 @@ const NW_UI = (() => {
       if (A.target === 'unit') {
         const t = pick(g, wx, wy);
         if (!cs.some(e => castOk(g, e, A, t))) { reject('target', slotOf(what)); return; }
-        push({ type: 'cast', ids, what, target: t.id });
+        order({ type: 'cast', ids, what, target: t.id });
       } else {
         const tx = Math.floor(wx / TILE), ty = Math.floor(wy / TILE); // sim seen 과 같다: 지점 타일이 내 팀 시야(2)
         if (A.needVis && A.target === 'point' && !(tx >= 0 && ty >= 0 && tx < g.map.w && ty < g.map.h && g.fog[me] && g.fog[me][ty * g.map.w + tx] === 2)) { reject('vis', slotOf(what)); return; }
-        push({ type: 'cast', ids, what, x: Math.round(wx * FP), y: Math.round(wy * FP) });
+        order({ type: 'cast', ids, what, x: Math.round(wx * FP), y: Math.round(wy * FP) });
       }
       if (!shift) mode = null;
     }
@@ -362,14 +386,14 @@ const NW_UI = (() => {
     function targetClick(g, wx, wy, shift) {
       const x = Math.round(wx * FP), y = Math.round(wy * FP), ids = unitIds(g);
       if (mode.cast) { castAt(g, wx, wy, shift); return; }
-      if (mode.unload) { push({ type: 'unload', ids: carriers(g).map(e => e.id), x, y }); if (!shift) mode = null; return; }
+      if (mode.unload) { order({ type: 'unload', ids: carriers(g).map(e => e.id), x, y }); if (!shift) mode = null; return; }
       if (mode.load) {
         const t = pick(g, wx, wy), cs = carriers(g);
         if (!t || !mine(t) || !groundy(t) || !cs.length) { reject('target', slotOf('load')); return; }
         const r = S.canLoad(g, me, cs[0], t);
         if (r === 'research' || r === 'tech') { reject(r === 'research' ? 'research' : 'target', slotOf('load')); return; }
         if (cs.every(c => S.canLoad(g, me, c, t) === 'space')) { reject('space', slotOf('load')); return; }
-        push({ type: 'load', ids: cs.map(e => e.id), target: t.id });
+        order({ type: 'load', ids: cs.map(e => e.id), target: t.id });
         if (!shift) mode = null;
         return;
       }
@@ -378,7 +402,7 @@ const NW_UI = (() => {
         if (!w) { mode = null; return; }
         const r = S.canPlace(g, me, mode.build, tx, ty, w.id);
         if (r) { reject(r, slotOf(mode.build)); return; }
-        push({ type: 'build', ids: [w.id], what: mode.build, tx, ty });
+        order({ type: 'build', ids: [w.id], what: mode.build, tx, ty });
         if (!shift) { mode = null; page = 'main'; }
         return;
       }
@@ -387,19 +411,19 @@ const NW_UI = (() => {
         if (!b || !b.lifted) { mode = null; return; }
         const [tx, ty] = ghostTile(g, wx, wy, b.type);
         if (!landOk(g, b.type, tx, ty)) { reject('land', slotOf('land')); return; }
-        push({ type: 'land', ids: [b.id], tx, ty }); mode = null;
+        order({ type: 'land', ids: [b.id], tx, ty }); mode = null;
         return;
       }
-      if (mode === 'rally') push({ type: 'setRally', ids: myBlds(g).map(e => e.id), x, y });
+      if (mode === 'rally') order({ type: 'setRally', ids: myBlds(g).map(e => e.id), x, y });
       else if (mode === 'repair') {
         const t = pick(g, wx, wy);
         if (!S.canRepair(g, me, t)) { reject('repair', slotOf('repair')); return; }
-        push({ type: 'repair', ids: engineers(g).map(e => e.id), target: t.id });
+        order({ type: 'repair', ids: engineers(g).map(e => e.id), target: t.id });
       } else if (mode === 'attack') {
         const t = pick(g, wx, wy);
-        if (isEnemy(g, t)) push({ type: 'attack', ids, target: t.id }); else push({ type: 'attackMove', ids, x, y });
-      } else if (mode === 'patrol') push({ type: 'patrol', ids, x, y });
-      else if (mode === 'move') push({ type: 'move', ids, x, y });
+        if (isEnemy(g, t)) order({ type: 'attack', ids, target: t.id }); else order({ type: 'attackMove', ids, x, y });
+      } else if (mode === 'patrol') order({ type: 'patrol', ids, x, y });
+      else if (mode === 'move') order({ type: 'move', ids, x, y });
       if (!shift) mode = null;
     }
 
@@ -1419,8 +1443,8 @@ const NW_UI = (() => {
         if (ringSt === 'open') setRing('pin'); // 사슬 끝: 링 접기
         return;
       }
-      if (k === 'Enter' && onField() && !ev.repeat) { // 키보드 커서: 가운데 십자에 왼쪽 클릭(무장 = 실행, 이동 무장 = 문맥 명령). Shift = 대기열/추가 선택.
-        ev.preventDefault(); viewport(); kbNav = true;
+      if (k === 'Enter' && kbNav && onField() && !ev.repeat) { // 키보드 커서(kbNav 일 때만 — 마우스 쓰는 중이면 Enter 는 채팅에 양보): 가운데 십자에 왼쪽 클릭(무장 = 실행, 이동 무장 = 문맥 명령). Shift = 대기열/추가 선택.
+        ev.preventDefault(); viewport();
         const [sx, sy] = kbCenter();
         if (mode === 'move') { contextCommand(g, ...world(sx, sy)); mode = null; if (ringSt === 'open') setRing('pin'); }
         else if (mode) targetClick(g, ...world(sx, sy), ev.shiftKey);
@@ -1464,6 +1488,28 @@ const NW_UI = (() => {
       for (let n = 1; n <= 4; n++) if (go[(cur + dir * n + 8) % 4]()) return;
     }
     function flashPress(n) { n.classList.add('is-press'); setTimeout(() => n.classList.remove('is-press'), 90); }
+
+    // ---- 호버 커서 ----
+    // 포인터 아래 것(pick = known, 렌더와 같은 시야 규칙 — 안개 속 적은 안 잡힌다)과 무장 상태로 #main[data-cur] 를 고른다. 모양은 index.html CSS.
+    // pick 은 엔티티를 한 바퀴 도니까 포인터·카메라가 그대로면 120ms 에 한 번만(밑으로 유닛이 지나가는 것만 따라잡는다).
+    let curKind = '', curSig = '', curT = 0;
+    function hoverCursor(g, now) {
+      const on = active && mouse.in && mouse.onCanvas && !drag && !touch;
+      const sig = on ? mouse.x + ',' + mouse.y + ',' + view.camX + ',' + view.camY : '';
+      if (sig === curSig && now - curT < 120 && !mode) return;
+      curSig = sig; curT = now;
+      let k = '';
+      if (!on) k = '';
+      else if (mode === 'attack') k = 'attack';
+      else if (mode) k = mode.build || mode.land ? '' : 'target'; // 건설·착륙은 고스트가 커서 노릇
+      else {
+        const t = pick(g, ...world(mouse.x, mouse.y)), units = spectate ? [] : myUnits(g);
+        if (t && units.length && isEnemy(g, t)) k = 'attack';
+        else if (t && (t.type === 'crystal' || gasBld(t)) && units.some(e => e.def.worker)) k = 'gather';
+        else if (t) k = 'select';
+      }
+      if (k !== curKind) { curKind = k; if (k) canvas.dataset.cur = k; else delete canvas.dataset.cur; }
+    }
 
     // ---- 매 프레임 ----
     function update(g) {
@@ -1512,6 +1558,10 @@ const NW_UI = (() => {
         }
       } else view.ghost = null;
       canvas.classList.toggle('is-targeting', !!mode && !mode.build && !mode.land);
+      const now = performance.now();
+      hoverCursor(g, now);
+      for (let i = marks.length - 1; i >= 0; i--) { const m = marks[i]; m.age = (now - m.t0) / m.ms; if (m.age >= 1) marks.splice(i, 1); } // 명령 확인 표시 나이
+      view.marks = marks;
       updateAlerts(); renderIdle(g);
       renderTop(g); renderInfo(g); renderCard(g); updateRing(g);
     }
@@ -1533,7 +1583,7 @@ const NW_UI = (() => {
     function start() {
       const g = st();
       cmds = []; pend = freshPend(); groups = {}; mode = null; page = 'main'; cpage = 0; drag = null; mmDrag = false; infoSig = null; setRing('none'); selDirty = false;
-      view.sel = []; view.drag = null; view.ghost = null;
+      view.sel = []; view.drag = null; view.ghost = null; marks.length = 0;
       for (const k in keys) keys[k] = false;
       el.notice.classList.remove('is-on');
       clearAlerts(); hideTip(); idleLast = 0; idleCount = -1;
