@@ -579,7 +579,8 @@ const PP_RENDER = (function ppRender() {
     if (r.mapGroup) r.scene.remove(r.mapGroup);
     disposeRes(r.mapRes);
     disposeGroup(r.goalGroup); r.goalGroup = null; r.goalMarker = null;
-    r.road = null; r.roadMode = false; r.focusMirror = null;
+    r.road = null; r.roadMode = false; r.focusMirror = null; r.playerHazard = false;
+    if (r.camDriver.far !== 300) { r.camDriver.far = 300; r.camDriver.updateProjectionMatrix(); } // 고속도로(600m)에서 돌아올 때
   }
 
   function loadMap(r, map) {
@@ -773,7 +774,7 @@ const PP_RENDER = (function ppRender() {
     if (r.carSpec !== car.spec) buildCar(r, car.spec);
     r.carGroup.position.copy(v3(car.x, car.y, car.z));
     r.carGroup.rotation.set(0, car.th, car.pitch);
-    for (const lamp of r.blinkLights) lamp.visible = r.roadMode && lamp.userData.side === r.playerBlink && r.blinkOn;
+    for (const lamp of r.blinkLights) lamp.visible = r.roadMode && (r.playerHazard || lamp.userData.side === r.playerBlink) && r.blinkOn; // 비상등: 좌우 동시
     const steer = C.delta(car);
     for (const wh of r.wheels) wh.rotation.y = steer;
     if (r.roadMode) r.sides.concat(r.ticks).forEach(l => { l.visible = false; });

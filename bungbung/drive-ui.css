@@ -26,6 +26,11 @@ body.city .info-goal { display:none; }
 .blink-controls { position:absolute; top:var(--safe-t); left:50%; transform:translateX(-50%); width:calc(var(--nav-w) + 2 * var(--blink-w) + 16px); justify-content:space-between; pointer-events:none; }
 .blink-controls button { pointer-events:auto; width:var(--blink-w); min-height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; line-height:1.1; background:var(--color-panel-solid); border:1px solid var(--color-rule); border-radius:var(--radius); font-size:var(--text-sm); }
 .blink-controls button.is-lit { color:var(--color-accent-ink); background:var(--color-accent); border-color:var(--color-accent); }
+/* 비상등은 오른쪽 깜빡이 오른쪽에 붙인다. 흐름 밖에 두어 내비가 가운데에 그대로 있다 */
+.blink-controls #hazard { position:absolute; right:calc(-1 * (var(--blink-w) + var(--space-2))); top:0; }
+.blink-controls #hazard[aria-pressed="true"] { border:2px solid var(--color-danger); animation:hazard-blink 1s steps(2,start) infinite; }
+@keyframes hazard-blink { 50% { border-color:transparent; } }
+@media (prefers-reduced-motion: reduce) { .blink-controls #hazard[aria-pressed="true"] { animation:none; } }
 .blink-controls button:active { transform:translateY(1px); }
 .mirror-hit { position:absolute; background:transparent; color:var(--color-ink); border:1px solid transparent; border-radius:var(--radius); padding:0; touch-action:none; }
 .mirror-hit:active, .mirror-hit:focus-visible { border-color:var(--color-accent); outline:2px solid var(--color-accent); }

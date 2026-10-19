@@ -7,8 +7,8 @@ const PP_ROADS = (function ppRoads() {
   const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   // lanes: id → lane, lines: 그리기용 차선, marks: 노면 표시, stops: 교차로 진입 차로 정지선,
-  // crosswalks: 횡단보도(보행자 경로와 가로지르는 차로 구간), changes: 차선 변경 가능 구간
-  const newNet = () => ({ lanes: {}, lines: [], marks: [], signals: [], signs: [], areas: [], changes: [], stops: [], crosswalks: [] });
+  // crosswalks: 횡단보도(보행자 경로와 가로지르는 차로 구간), changes: 차선 변경 가능 구간, walls: 중앙분리대·가드레일
+  const newNet = () => ({ lanes: {}, lines: [], marks: [], signals: [], signs: [], areas: [], changes: [], stops: [], crosswalks: [], walls: [] });
 
   function addLane(net, lane) {
     const cum = [0], p = lane.pts;
@@ -138,8 +138,13 @@ const PP_ROADS = (function ppRoads() {
     return out;
   }
 
-  // 같은 방향 옆 차로의 대응 위치(곡선은 길이 비례)
-  const mapS = (net, from, to, s) => s * laneLength(net.lanes[to]) / laneLength(net.lanes[from]);
+  // 같은 방향 옆 차로의 대응 위치(곡선은 길이 비례). 가속·감속차로는 along = { lane, s0 }: 그 차로 s0에서 시작하는 평행 차로.
+  function mapS(net, from, to, s) {
+    const f = net.lanes[from], t = net.lanes[to];
+    if (f.along && f.along.lane === to) return s + f.along.s0;
+    if (t.along && t.along.lane === from) return s - t.along.s0;
+    return s * laneLength(t) / laneLength(f);
+  }
 
   return { PI, clamp, wrap, newNet, addLane, laneLength, pointAt, projectLane, project, canChange, mapS,
     signalById, phaseAt, signalState, walkState, movement, stopOf, connectorPts };

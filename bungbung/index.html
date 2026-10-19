@@ -218,6 +218,7 @@ body.touch .info-goal { font-size: 15px; }
   <div class="blink-controls city-only" aria-label="방향지시등">
     <button id="blink-left" data-blink="-1" aria-label="왼쪽 깜빡이" aria-pressed="false"><span aria-hidden="true">◀</span><small>좌측</small></button>
     <button id="blink-right" data-blink="1" aria-label="오른쪽 깜빡이" aria-pressed="false"><span aria-hidden="true">▶</span><small>우측</small></button>
+    <button id="hazard" data-hazard aria-label="비상등" aria-pressed="false"><span aria-hidden="true">⚠</span><small>비상등</small></button>
   </div>
   <button class="mirror-hit" id="mirror-left" data-mirror="left" aria-label="왼쪽 미러 확인" hidden><span>왼쪽 미러</span></button>
   <button class="mirror-hit" id="mirror-right" data-mirror="right" aria-label="오른쪽 미러 확인" hidden><span>오른쪽 미러</span></button>
@@ -259,7 +260,7 @@ body.touch .info-goal { font-size: 15px; }
       <span class="num" id="steer-deg">0°</span><small id="steer-dir">가운데</small>
     </div>
   </div>
-  <div class="keys">←→ 핸들 · Q/E 미러 · Z/C 깜빡이 · ↑ 엑셀 · ↓ 브레이크(누르고 있으면 점점 깊게) · P R N D 기어 · V 시점 · Esc 메뉴</div>
+  <div class="keys">←→ 핸들 · Q/E 미러 · Z/C 깜빡이 · X 비상등 · ↑ 엑셀 · ↓ 브레이크(누르고 있으면 점점 깊게) · P R N D 기어 · V 시점 · Esc 메뉴</div>
 
   <div class="t-wheel touch-only" data-pp="wheel" aria-label="핸들">
     <svg viewBox="-80 -80 160 160" aria-hidden="true">
@@ -334,16 +335,21 @@ body.touch .info-goal { font-size: 15px; }
 <script src="audio.js"></script>
 <script src="roads.js"></script>
 <script src="roads-build.js"></script>
+<script src="roads-highway.js"></script>
 <script src="traffic-peds.js"></script>
 <script src="traffic-junction.js"></script>
+<script src="traffic-highway.js"></script>
 <script src="traffic.js"></script>
 <script src="nav.js"></script>
+<script src="score-highway.js"></script>
 <script src="drive-score.js"></script>
 <script src="missions.js"></script>
+<script src="missions-highway.js"></script>
 <script src="drive.js"></script>
 <script src="render-cockpit.js"></script>
 <script src="render.js"></script>
 <script src="render-road.js"></script>
+<script src="render-highway.js"></script>
 <script src="navui.js"></script>
 <script src="main.js"></script>
 </body>

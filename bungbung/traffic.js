@@ -1,10 +1,12 @@
 // 붕붕이 — 교통 차량 시뮬레이션: IDM 추종(플레이어 포함), 차선 변경, 신호·정지선, 교차로 충돌 구역 양보,
-// 비보호·우회전 간격 수락, 스크립트(끼어들기·보행자). 보행자는 traffic-peds.js. DOM 없음, 결정론(mulberry32).
+// 비보호·우회전 간격 수락, 스크립트(끼어들기·보행자). 보행자는 traffic-peds.js, 고속도로(합류·양보·톨게이트·jam/slow)는 traffic-highway.js. DOM 없음, 결정론(mulberry32).
 // 차 위치 s = 차체 중심의 차로 s. 플레이어도 {x,y,th,v,laneId,s(차체 중심),offset}로 넘긴다.
 const PP_TRAFFIC = (function ppTraffic() {
   const R = typeof PP_ROADS !== 'undefined' ? PP_ROADS : require('./roads.js');
   const P = typeof PP_PEDS !== 'undefined' ? PP_PEDS : require('./traffic-peds.js');
   const J = typeof PP_TJUNC !== 'undefined' ? PP_TJUNC : require('./traffic-junction.js');
+  // 고속도로 훅: index.html이 아직 traffic-highway.js를 안 불러도 시내 교통은 그대로 돈다
+  const H = typeof PP_THW !== 'undefined' ? PP_THW : typeof require !== 'undefined' ? require('./traffic-highway.js') : null;
   const { laneLength, pointAt, signalState, movement, canChange, mapS, clamp } = R;
   const CAR_L = 4.5, CAR_W = 1.8, PL_L = 4.39, PL_W = 1.8;
   const A_MAX = 1.5, B_COMF = 2.0, B_MAX = 8, S0 = 2, S0_STOP = 1.0, SQ_AB = Math.sqrt(A_MAX * B_COMF);
@@ -14,6 +16,7 @@ const PP_TRAFFIC = (function ppTraffic() {
     easy: { head: [16, 28], gap: [90, 140], f: [0.85, 1.0], peds: [0, 1] },
     normal: { head: [10, 16], gap: [45, 75], f: [0.8, 1.0], peds: [1, 2] },
     rush: { head: [4.5, 7], gap: [20, 32], f: [0.6, 0.85], peds: [2, 4] },
+    highway: { head: [3, 5], gap: [60, 110], f: [0.85, 1.1], T: 1.5 }, // T: 안전 시간 간격(s) 고정
   };
   const PLAYER = { id: 0, player: true, T: 1.2 };
 
@@ -32,13 +35,14 @@ const PP_TRAFFIC = (function ppTraffic() {
       player: null, scripts: [], spawnAt: {}, walkPrev: {}, busy: {}, stopOf: {}, cwOf: {}, vcap: {}, unprot: {} };
     const pred = {};
     for (const id in net.lanes) for (const n of net.lanes[id].next) pred[n] = true;
-    sim.sources = Object.keys(net.lanes).filter(id => !pred[id] && net.lanes[id].kind === 'normal');
+    sim.sources = Object.keys(net.lanes).filter(id => !pred[id] && (net.lanes[id].kind === 'normal' || net.lanes[id].kind === 'ramp'));
     for (const st of net.stops) sim.stopOf[st.laneId] = st;
     for (const cw of net.crosswalks) for (const l of cw.lanes) (sim.cwOf[l.laneId] = sim.cwOf[l.laneId] || []).push({ cw: cw.id, s0: l.s0, s1: l.s1 });
     for (const id in net.lanes) if (net.lanes[id].kind === 'connector') sim.vcap[id] = J.turnCap(net.lanes[id]);
     for (const s of net.signals) sim.unprot[s.id] = !!s.unprotected;
     const cd = J.conflicts(net, ZONE);
     sim.conf = cd.conf; sim.div = cd.div;
+    sim.hw = H ? H.init(sim) : null;
     for (const sp of o.spawn || []) addCar(sim, sp.laneId, sp.s, sp.v || 0, { turn: sp.turn });
     for (const def of o.scripts || []) {
       const sc = { def, state: 'wait', car: null };
@@ -46,10 +50,11 @@ const PP_TRAFFIC = (function ppTraffic() {
         sc.car = addCar(sim, def.spawn.laneId, def.spawn.s, def.spawn.v || 0, { script: sc });
         sc.car.v0 = net.lanes[def.spawn.laneId].limit / 3.6 * 1.15;
       }
+      else if (sim.hw) H.initScript(sim, sc, K);
       sim.scripts.push(sc);
     }
     if (dens) populate(sim, o.avoid || []);
-    for (const src of sim.sources) sim.spawnAt[src] = dens ? range(sim, dens.head) * rnd(sim) : Infinity;
+    for (const src of sim.sources) sim.spawnAt[src] = dens ? range(sim, dens.head) * headMul(sim, src) * rnd(sim) : Infinity;
     return sim;
   }
 
@@ -58,6 +63,8 @@ const PP_TRAFFIC = (function ppTraffic() {
     const c = { id: sim.nid++, laneId, s, v, a: 0, l: CAR_L, w: CAR_W, v0: ln.limit / 3.6 * range(sim, f), T: 1.0 + 0.5 * rnd(sim),
       from: null, lat: 1, latDur: 2, blink: 0, blinkT: 0, want: null, path: [], commit: null, commitN: 0, stopped: false,
       yellowGo: false, turn: opt.turn || null, lcT: 1 + 3 * rnd(sim), script: opt.script || null, slowUntil: -1, slowV: 0 };
+    if (sim.dens && sim.dens.T) c.T = sim.dens.T;
+    if (sim.hw) H.initCar(sim, c, rnd);
     if (!c.turn && !c.script) c.turn = pickTurn(sim, c);
     ensurePath(sim, c);
     sim.list.push(c);
@@ -85,6 +92,7 @@ const PP_TRAFFIC = (function ppTraffic() {
   function choose(sim, c, ln) {
     if (ln.next.length === 1) return ln.next[0];
     const opts = ln.next.map(id => sim.net.lanes[id]);
+    if (sim.hw) { const h = H.choose(sim, c, opts, rnd); if (h) return h; }
     if (c.turn) { const f = opts.find(x => x.turn === c.turn); if (f) return f.id; }
     const w = opts.map(x => W_TURN[x.turn] != null ? W_TURN[x.turn] : 1), sum = w.reduce((a, b) => a + b, 0);
     if (!sum) return opts[0].id;
@@ -120,6 +128,7 @@ const PP_TRAFFIC = (function ppTraffic() {
       let g = ld ? ld.gap : 200;
       if (st) g = Math.min(g, st.s - c.s - c.l / 2);
       c.v = Math.min(c.v0 * 0.85, Math.sqrt(2 * 1.5 * Math.max(0, g - 4)));
+      if (sim.hw) c.v = Math.min(c.v, H.v0(sim, c, c.v));
     }
   }
 
@@ -274,6 +283,7 @@ const PP_TRAFFIC = (function ppTraffic() {
     }
     if (sc) return scriptDecide(sim, c, sc, t);
     if (c.from) return;
+    if (sim.hw && H.decide(sim, c, t, dt, K)) return;
     if (c.want) {
       if (t - c.blinkT >= 2) {
         if (spanAllowed(net, c.laneId, c.want, c.s, c.v) && changeOk(sim, c, c.want, false)) startChange(sim, c, c.want, 1.5 + 1.5 * rnd(sim));
@@ -351,7 +361,8 @@ const PP_TRAFFIC = (function ppTraffic() {
   const obs = [];
   function accel(sim, c, t) {
     const net = sim.net, lane = net.lanes[c.laneId];
-    let v0 = Math.min(c.slowUntil > t ? Math.min(c.v0, c.slowV) : c.v0, lane.limit / 3.6 * (c.script ? 1.15 : 1.05));
+    let v0 = Math.min(c.slowUntil > t ? Math.min(c.v0, c.slowV) : c.v0, lane.limit / 3.6 * (c.script ? 1.15 : Math.max(1.05, sim.dens ? sim.dens.f[1] : 0)));
+    if (sim.hw) v0 = H.v0(sim, c, v0);
     if (sim.vcap[c.laneId]) v0 = Math.min(v0, sim.vcap[c.laneId]);
     let d = laneLength(lane) - c.s - c.l / 2;
     for (const id of c.path) {
@@ -374,6 +385,7 @@ const PP_TRAFFIC = (function ppTraffic() {
     }
     obs.length = 0;
     obstacles(sim, c, t, obs);
+    if (sim.hw) { H.obstacles(sim, c, obs); a = H.accel(sim, c, a, K); }
     for (const g of obs) a = Math.min(a, idmTerm(c.v, 0, g, c.T, S0_STOP));
     return clamp(a, -B_MAX, A_MAX * 1.6);
   }
@@ -398,6 +410,7 @@ const PP_TRAFFIC = (function ppTraffic() {
     }
   }
 
+  const headMul = (sim, src) => (sim.hw && sim.net.lanes[src].kind === 'ramp' ? H.RAMP_HEAD : 1);
   function spawn(sim, t) {
     const net = sim.net;
     for (const src of sim.sources) {
@@ -416,7 +429,7 @@ const PP_TRAFFIC = (function ppTraffic() {
         if (g < need(v)) { sim.spawnAt[src] = t + 0.5; continue; }
       }
       addCar(sim, src, CAR_L / 2, v);
-      sim.spawnAt[src] = t + range(sim, sim.dens.head);
+      sim.spawnAt[src] = t + range(sim, sim.dens.head) * headMul(sim, src);
     }
   }
 
@@ -441,7 +454,7 @@ const PP_TRAFFIC = (function ppTraffic() {
     if (sc.def.action === 'peds') {
       for (let i = 0; i < (sc.def.count || 2); i++) P.add(sim, sc.def.crosswalk, { from: i % 2, delay: i * 0.8, speed: 1.2, forced: true });
       sc.state = 'done';
-    } else sc.state = 'fire';
+    } else if (!(sim.hw && H.fire(sim, sc, K))) sc.state = 'fire';
   }
   function trigger(sim, id) { const sc = sim.scripts.find(s => s.def.id === id); if (sc) fire(sim, sc); }
 
@@ -455,9 +468,11 @@ const PP_TRAFFIC = (function ppTraffic() {
         x -= Math.sin(p.a) * off; y += Math.cos(p.a) * off;
         th -= sg * Math.atan2(ln.width / c.latDur, Math.max(c.v, 2));
       }
-      return { id: c.id, x, y, th, v: c.v, blink: c.blink, braking: c.a < -0.3 || c.v < 0.3, l: c.l, w: c.w };
+      return { id: c.id, x, y, th, v: c.v, blink: c.blink, braking: c.a < -0.3 || c.v < 0.3, l: c.l, w: c.w, hazard: !!c.hazard };
     });
   }
+  // traffic-highway.js에 넘기는 내부 함수 묶음
+  const K = { rnd, addCar, changeOk, spanAllowed, startChange, leaderAhead, idmTerm, S0 };
   const peds = sim => P.list(sim);
   const addPed = (sim, cwId, o) => P.add(sim, cwId, Object.assign({ forced: true }, o));
 

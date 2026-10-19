@@ -15,7 +15,7 @@ const r = PP_RENDER.create($('view'));
 const inp = PP_INPUT.create(document.body);
 const audio = PP_AUDIO.create();
 const navui = PP_NAVUI.create(document);
-const game = { mode: 'menu', map: null, car: null, run: null, view: 'driver', acc: 0, last: 0, group: 'apt', menuKind: 'parking', noticeUntil: 0, brakeAt: -Infinity, contacts: 0, inclineTop: '' };
+const game = { mode: 'menu', map: null, car: null, run: null, view: 'driver', acc: 0, last: 0, group: 'apt', menuKind: 'parking', cityGroup: 'city', noticeUntil: 0, brakeAt: -Infinity, contacts: 0, inclineTop: '' };
 
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
 const fmtSec = t => (t < 60 ? Math.round(t) + '초' : Math.floor(t / 60) + '분 ' + Math.round(t % 60) + '초');
@@ -80,7 +80,7 @@ function start(map) {
 
 // 주행 미션 시작·HUD·기록. 주차 상태와 분리한다.
 function startDrive(mission) {
-  PP_INPUT.reset(inp); document.body.classList.add('city'); game.menuKind='city';
+  PP_INPUT.reset(inp); document.body.classList.add('city'); game.menuKind='city'; game.cityGroup=mission.group||'city';
   layout();
   const d = game.city = PP_DRIVE.create(mission, SPEC);
   PP_NAVUI.reset(navui,d);
@@ -90,7 +90,9 @@ function startDrive(mission) {
   document.querySelector('#res-contacts').previousElementSibling.textContent='감점';
   game.car = d.car; game.map = { ...mission, obstacles: [], floors: [], ramps: [] };
   game.run = d.score; game.mode = 'drive'; game.acc = 0;
-  const road = PP_RROAD.load(r, d.net); d.obstacles = road.obstacles;
+  const road = PP_RROAD.load(r, d.net, { highway: !!mission.highway });
+  if (mission.highway) PP_RHWR.load(r, d.net, road); // 분리대·가드레일·문형 기둥·부스도 충돌 상자로
+  d.obstacles = road.obstacles;
   game.view = 'driver'; PP_RENDER.setView(r, game.view);
   try { history.replaceState(null, '', '?drive=' + mission.id); } catch (e) { /* file:// */ }
   setText($('hud-map'), mission.name); setText($('hud-tip'), mission.tip);
@@ -136,28 +138,31 @@ const fmtDriveRecord = b => '감점 '+b.penalties.length+' · '+fmtSec(b.time);
 function renderMenu() {
   const tabs = $('tabs'), cards = $('cards');
   tabs.textContent = '';
-  const city=game.menuKind==='city'; tabs.hidden=city;
+  const city=game.menuKind==='city';
+  const groups=city?[{id:'city',name:'시내'},{id:'highway',name:'고속도로'}]:PP_MAPS.GROUPS, cur=city?game.cityGroup:game.group;
+  const inCity=x=>(x.group||'city')===game.cityGroup;
+  tabs.setAttribute('aria-label',city?'주행 종류':'주차 장소');
   $('mode-city').setAttribute('aria-selected',String(city));$('mode-parking').setAttribute('aria-selected',String(!city));
-  for (const g of (city?[]:PP_MAPS.GROUPS)) {
+  for (const g of groups) {
     const b = document.createElement('button');
     b.className = 'tab'; b.setAttribute('role', 'tab');
-    b.setAttribute('aria-selected', String(g.id === game.group));
+    b.setAttribute('aria-selected', String(g.id === cur));
     b.textContent = g.name;
     const n = document.createElement('span');
-    n.className = 'num'; n.textContent = PP_MAPS.list.filter(m => m.group === g.id).length;
+    n.className = 'num'; n.textContent = (city?PP_MISSIONS.list.filter(x => (x.group||'city') === g.id):PP_MAPS.list.filter(x => x.group === g.id)).length;
     b.append(n);
-    b.addEventListener('click', () => { game.group = g.id; renderMenu(); });
+    b.addEventListener('click', () => { if (city) game.cityGroup = g.id; else game.group = g.id; renderMenu(); });
     tabs.append(b);
   }
   cards.textContent = '';
-  for (const m of (city?PP_MISSIONS.list:PP_MAPS.list.filter(x => x.group === game.group))) {
+  for (const m of (city?PP_MISSIONS.list.filter(inCity):PP_MAPS.list.filter(x => x.group === game.group))) {
     const best = store.get((city?'pp-drive-best-':'pp-best-') + m.id);
     const card = document.createElement('button');
     card.className = 'card';
     card.innerHTML = '<span class="card-name"></span><span class="card-tip"></span><span class="card-foot"><span></span><span class="rec"></span></span>';
     card.querySelector('.card-name').textContent = m.name;
     card.querySelector('.card-tip').textContent = m.tip;
-    card.querySelector('.card-foot span').textContent = city?'시내 주행':GOAL_KIND[m.goal.type];
+    card.querySelector('.card-foot span').textContent = city?(m.id==='hw-toll'?(m.hipass?'하이패스 단말기 있음':'하이패스 단말기 없음'):m.highway?'고속도로':'시내 주행'):GOAL_KIND[m.goal.type];
     const rec = card.querySelector('.rec');
     rec.textContent = best ? (city?fmtDriveRecord(best):fmtRecord(best)) : '기록 없음';
     rec.classList.toggle('is-none', !best);
@@ -204,7 +209,7 @@ function showResult() {
 }
 
 function nextMap() {
-  if (game.city) { const i=PP_MISSIONS.list.indexOf(game.city.mission); startDrive(PP_MISSIONS.list[(i+1)%PP_MISSIONS.list.length]); return; }
+  if (game.city) { const cur=game.city.mission, l=PP_MISSIONS.list.filter(x => x.group === cur.group), i=l.indexOf(cur); startDrive(l[(i+1)%l.length]); return; }
   const i = PP_MAPS.list.indexOf(game.map);
   start(PP_MAPS.list[(i + 1) % PP_MAPS.list.length]);
 }
@@ -328,7 +333,7 @@ function frame(ts) {
   }
   if (!game.city) r.focusMirror = ctl.mirrorL ? 'left' : ctl.mirrorR ? 'right' : null;
   if (game.city) {
-    r.focusMirror = game.city.focus; r.playerBlink = game.city.blink; r.blinkOn = Math.floor(game.city.t*2)%2 === 0;
+    r.focusMirror = game.city.focus; r.playerBlink = game.city.blink; r.playerHazard = game.city.hazard; r.blinkOn = Math.floor(game.city.t*2)%2 === 0;
     PP_RROAD.update(r, PP_TRAFFIC.cars(game.city.sim), PP_TRAFFIC.peds(game.city.sim), game.city.t, game.city.player);
   }
   if (game.car) PP_RENDER.update(r, game.car, game.map);

@@ -48,7 +48,7 @@ const PP_MISSIONS = (function ppMissions() {
   }
 
   const list = [];
-  const add = m => list.push(Object.assign({ limit: LIM, vMax: VMAX, timeOfDay: 'day', scripts: [], density: 'normal' }, m));
+  const add = m => list.push(Object.assign({ group: 'city', limit: LIM, vMax: VMAX, timeOfDay: 'day', scripts: [], density: 'normal' }, m));
 
   add({ id: 'city-lane', name: '차선 변경', seed: 101,
     tip: '"300m 앞 우회전" 안내가 나오면 미러를 보고 깜빡이를 켠 뒤 한 차로씩 3차로로 옮기세요. 교차로 앞 실선 구간 전에 끝내야 해요.',

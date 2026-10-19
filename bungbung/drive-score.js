@@ -2,8 +2,11 @@
 // frame = { t, dt, car: { x, y, th, v, laneId, s(차체 중심), offset(왼쪽 +), dist(차로 중심선까지) },
 //   blink(-1 왼쪽|0|1 오른쪽), mirrorL, mirrorR(마지막 확인 시각), collision: null|'car'|'ped'|'wall',
 //   others: PP_TRAFFIC.cars(), peds: PP_TRAFFIC.peds(), rerouted: 이번 프레임에 재탐색했는가 }
+//   고속도로 미션(highway)은 + hazard, leaderGap, toll — score-highway.js 참고
 const PP_DSCORE = (function ppDScore() {
   const R = typeof PP_ROADS !== 'undefined' ? PP_ROADS : require('./roads.js');
+  // 고속도로 채점(미션 highway). 브라우저에서 score-highway.js가 아직 안 실렸으면 없이 동작
+  const H = typeof PP_HSCORE !== 'undefined' ? PP_HSCORE : typeof require === 'function' ? require('./score-highway.js') : null;
   const PL = 4.39; // 셀토스 길이
   const TEXT = {
     blink: '깜빡이를 켜지 않았어요 — 차선 변경·회전 1초 전에는 켜 두세요',
@@ -20,14 +23,25 @@ const PP_DSCORE = (function ppDScore() {
     gap: '앞차와 너무 가까워요 — 1초 이상 간격을 두세요',
     cutin: '뒤차와 너무 가깝게 끼어들었어요',
     route: '안내를 놓쳐 경로를 이탈했어요',
+    // 고속도로(score-highway.js)
+    minSpeed: '최저속도보다 느려요 — 고속도로 본선은 50km/h 이상',
+    shoulder: '갓길로 달렸어요 — 갓길은 긴급할 때만',
+    passLane: '1차로에 계속 있었어요 — 1차로는 추월할 때만, 추월 후 오른쪽으로',
+    mergeSlow: '너무 느리게 합류했어요 — 가속차로에서 본선 속도까지 올리세요',
+    hazard: '정체 앞에서 비상등을 켜지 않았어요 — 뒤차에 급감속을 알리세요',
+    tollStop: '정지선에서 멈추지 않았어요 — 일반 차로는 완전히 멈췄다 출발',
+    hipassSpeed: '하이패스 차로에서 너무 빨라요 — 30km/h 이하',
+    gapHw: '앞차와 너무 가까워요 — 100km/h면 100m 이상', // 고속도로의 gap 문구(코드는 gap 그대로)
   };
-  const FAIL = { car: '다른 차와 충돌했어요', ped: '보행자와 충돌했어요', wall: '구조물에 부딪혔어요', reverse: '역주행했어요', offroad: '도로를 벗어났어요' };
+  const FAIL = { car: '다른 차와 충돌했어요', ped: '보행자와 충돌했어요', wall: '구조물에 부딪혔어요', reverse: '역주행했어요', offroad: '도로를 벗어났어요',
+    accelEnd: '가속차로 끝까지 합류하지 못했어요', tollLane: '하이패스 단말기 없이 하이패스 차로로 지나갔어요', missedExit: '출구·분기를 놓쳤어요' };
 
   function create(mission, net = mission.build()) {
     const cwByLane = {};
     for (const cw of net.crosswalks) for (const l of cw.lanes) (cwByLane[l.laneId] = cwByLane[l.laneId] || []).push({ cw, s0: l.s0, s1: l.s1 });
     return { mission, net, cwByLane, t: 0, penalties: [], done: false, failReason: null, prev: null, centerT: 0,
-      blinks: [], appr: null, cross: null, cwDone: {}, overT: 0, overHit: false, gapT: 0, gapHit: false, revT: 0, offT: 0 };
+      blinks: [], appr: null, cross: null, cwDone: {}, overT: 0, overHit: false, gapT: 0, gapHit: false, revT: 0, offT: 0,
+      hs: mission.highway && H ? H.create(mission, net) : null };
   }
 
   function blinkOk(ds, dir, tStart) {
@@ -116,9 +130,10 @@ const PP_DSCORE = (function ppDScore() {
     if (v * 3.6 > lane.limit * 1.1) { ds.overT += f.dt; if (ds.overT >= 2 - 1e-6 && !ds.overHit) { ds.overHit = true; pen('speed', TEXT.speed(lane.limit)); } }
     else { ds.overT = 0; ds.overHit = false; }
     const { lead } = neighbors(lane, car, f.others);
-    if (lead && v > 3 && lead.gap / v < 1) { ds.gapT += f.dt; if (ds.gapT >= 3 - 1e-6 && !ds.gapHit) { ds.gapHit = true; pen('gap'); } }
+    if (lead && v > 3 && lead.gap / v < 1) { ds.gapT += f.dt; if (ds.gapT >= 3 - 1e-6 && !ds.gapHit) { ds.gapHit = true; pen('gap', ds.hs ? TEXT.gapHw : null); } }
     else { ds.gapT = 0; ds.gapHit = false; }
     if (f.rerouted) pen('route');
+    if (ds.hs) { H.update(ds.hs, f, pen, failWith); if (ds.failReason) return out; }
 
     const hd = R.pointAt(lane, car.s).a;
     if (v > 1 && Math.abs(R.wrap(car.th - hd)) > 2.1) { ds.revT += f.dt; if (ds.revT >= 5 - 1e-6) failWith('reverse'); } else ds.revT = 0;
