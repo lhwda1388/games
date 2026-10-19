@@ -27,7 +27,8 @@ const PP_DRIVE = (function ppDrive() {
     const net = mission.build(), p = R.pointAt(net.lanes[mission.start.laneId], mission.start.s);
     const car = C.create(C.poseFromCenter(p.x, p.y, p.a, spec), spec); car.vMax = mission.vMax;
     const d = { mission, net, car, t: 0, blink: 0, armed: false, mirrorL: -Infinity, mirrorR: -Infinity,
-      focus: null, hazard: false, obstacles: [], score: S.create(mission, net), sim: T.create(net, M.trafficOpts(mission, net)), events: [], speech: [] };
+      focus: null, hazard: false, obstacles: [], score: S.create(mission, net), sim: null, events: [], speech: [] };
+    d.sim = T.create(net, mission.trafficOpts ? mission.trafficOpts(net, d) : M.trafficOpts(mission, net)); // 실제 지도: ring 교통
     locate(d);
     d.route = mission.via ? N.routeVia(net, d.player.laneId, d.player.s, mission.via, mission.goal.laneId, mission.goal.s)
       : N.route(net, d.player.laneId, d.player.s, mission.goal.laneId, mission.goal.s);

@@ -19,6 +19,9 @@ const PP_TRAFFIC = (function ppTraffic() {
     highway: { head: [3, 5], gap: [60, 110], f: [0.85, 1.1], T: 1.5 }, // T: 안전 시간 간격(s) 고정
   };
   const PLAYER = { id: 0, player: true, T: 1.2 };
+  // ring(실제 지도): 영역 끝 대신 플레이어 둘레 r0~r1 차로에서 생성, drop 밖은 제거
+  const RING_TRY = 8, RING_GAP = 20; // 생성 지점 시도 횟수, 같은 방향 앞뒤 빈 거리(m)
+  const RING_LANES = 40; // ponytail: 영역 끝 sources 수 대신 반경 안 차로 수 / 이 값을 생성 지점 수로 본다(실제 지도 차로는 교차로 사이 짧은 조각이라 많다)
 
   function mulberry32(r) {
     let t = (r.s = (r.s + 0x6D2B79F5) | 0);
@@ -35,7 +38,8 @@ const PP_TRAFFIC = (function ppTraffic() {
       player: null, scripts: [], spawnAt: {}, walkPrev: {}, busy: {}, stopOf: {}, cwOf: {}, vcap: {}, unprot: {} };
     const pred = {};
     for (const id in net.lanes) for (const n of net.lanes[id].next) pred[n] = true;
-    sim.sources = Object.keys(net.lanes).filter(id => !pred[id] && (net.lanes[id].kind === 'normal' || net.lanes[id].kind === 'ramp'));
+    sim.sources = o.ring ? [] : Object.keys(net.lanes).filter(id => !pred[id] && (net.lanes[id].kind === 'normal' || net.lanes[id].kind === 'ramp'));
+    sim.ring = o.ring || null; sim.ringAt = 0;
     for (const st of net.stops) sim.stopOf[st.laneId] = st;
     for (const cw of net.crosswalks) for (const l of cw.lanes) (sim.cwOf[l.laneId] = sim.cwOf[l.laneId] || []).push({ cw: cw.id, s0: l.s0, s1: l.s1 });
     for (const id in net.lanes) if (net.lanes[id].kind === 'connector') sim.vcap[id] = J.turnCap(net.lanes[id]);
@@ -115,8 +119,10 @@ const PP_TRAFFIC = (function ppTraffic() {
       if (ln.kind !== 'normal') continue;
       const st = sim.stopOf[id], sMax = st ? st.s - CAR_L : laneLength(ln) - 8;
       for (let s = 8 + range(sim, sim.dens.gap) * rnd(sim); s < sMax; s += range(sim, sim.dens.gap)) {
-        const p = pointAt(ln, s);
+        const p = pointAt(ln, s), rg = sim.ring;
         if (avoid.some(a => Math.hypot(p.x - a.x, p.y - a.y) < a.r)) continue;
+        if (rg && Math.hypot(p.x - rg.x, p.y - rg.y) > rg.r1) continue;
+        if (ln.traffic != null && rnd(sim) >= ln.traffic) continue; // 도로 등급 배율(없으면 1, 난수도 안 씀)
         if (sim.list.some(c => (c.laneId === id || c.from === id) && Math.abs(c.s - s) < 12)) continue;
         addCar(sim, id, s, 0);
       }
@@ -433,6 +439,44 @@ const PP_TRAFFIC = (function ppTraffic() {
     }
   }
 
+  // ring: 생성 시각마다 플레이어 둘레 r0~r1 normal 차로 위 점 하나(앞뒤 RING_GAP 같은 방향 차 없으면). 간격 = head / (반경 안 차로 수 / RING_LANES)
+  const center = sim => (sim.player && sim.player.x != null ? sim.player : sim.ring);
+  function ringSpawn(sim, t) {
+    if (t < sim.ringAt) return;
+    const net = sim.net, rg = sim.ring, o = center(sim), cand = [];
+    let total = 0, n = 0;
+    for (const id in net.lanes) {
+      const ln = net.lanes[id];
+      if (ln.kind !== 'normal' || R.projectLane(ln, o.x, o.y).dist > rg.r1) continue;
+      n++;
+      const st = sim.stopOf[id], s1 = st ? st.s - CAR_L : laneLength(ln) - 8;
+      if (s1 > 8) { cand.push({ id, ln, s1, at: total }); total += s1 - 8; }
+    }
+    sim.ringAt = t + (n ? range(sim, sim.dens.head) / (n / RING_LANES) : 1);
+    if (!total) return;
+    const cs = cars(sim), pl = sim.player;
+    for (let k = 0; k < RING_TRY; k++) {
+      let u = rnd(sim) * total, i = 0;
+      while (i + 1 < cand.length && cand[i + 1].at <= u) i++;
+      const { id, ln } = cand[i], s = 8 + u - cand[i].at, p = pointAt(ln, s), d = Math.hypot(p.x - o.x, p.y - o.y);
+      if (d < rg.r0 || d > rg.r1) continue;
+      const near = q => Math.hypot(q.x - p.x, q.y - p.y) < RING_GAP && Math.cos(q.th - p.a) > 0;
+      if (cs.some(near) || (pl && pl.x != null && near(pl))) continue;
+      if (ln.traffic != null && rnd(sim) >= ln.traffic) return;
+      const c = addCar(sim, id, s, 0), ld = leaderAhead(sim, c, id, s, 200, true), st = sim.stopOf[id];
+      let g = ld ? ld.gap : 200;
+      if (st) g = Math.min(g, st.s - s - c.l / 2);
+      c.v = Math.min(c.v0 * 0.85, Math.sqrt(2 * 1.5 * Math.max(0, g - 4)));
+      return;
+    }
+  }
+  function ringDrop(sim) {
+    const o = center(sim), r = sim.ring.drop, far = (x, y) => Math.hypot(x - o.x, y - o.y) > r;
+    sim.list = sim.list.filter(c => { const p = pointAt(sim.net.lanes[c.laneId], c.s); return c.script || !far(p.x, p.y); });
+    const pl = P.list(sim);
+    sim.peds = sim.peds.filter((q, i) => !far(pl[i].x, pl[i].y));
+  }
+
   function step(sim, dt, t, player) {
     sim.t = t; sim.player = player || null;
     const p = sim.player;
@@ -446,8 +490,9 @@ const PP_TRAFFIC = (function ppTraffic() {
     for (const c of sim.list) c.a = accel(sim, c, t);
     for (const c of sim.list) { c.v = Math.max(0, c.v + c.a * dt); c.s += c.v * dt; advance(sim, c); }
     if (sim.list.some(c => c.dead)) sim.list = sim.list.filter(c => !c.dead);
-    if (sim.dens) spawn(sim, t);
+    if (sim.dens) { if (sim.ring) ringSpawn(sim, t); else spawn(sim, t); }
     P.move(sim, dt, cars(sim));
+    if (sim.ring) ringDrop(sim);
   }
   function fire(sim, sc) {
     if (sc.state !== 'wait') return;

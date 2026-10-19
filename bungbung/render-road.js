@@ -6,6 +6,7 @@ const PP_RROAD = (function ppRoadRender() {
     building: 0xc9b9a0, glass: 0x425869, tree: 0x527c45, trunk: 0x736450, skin: 0xe3b88d, pink: 0xf07aa8, guideGreen: 0x2fb36b };
   const CHUNK = 300; // 도색 병합 조각(m): 긴 고속도로도 frustum culling되도록
   // opts.highway: 시내 건물 대신 render-highway.js가 구조물을 놓는다. 바닥은 시야(600m)까지 넓힌다.
+  // opts.real: 실제 지도 — 가상 블록 건물 대신 render-real.js가 OSM 건물을 놓는다.
   function load(r, net, opts = {}) {
     PP_RENDER.clearMap(r);
     const H = PP_RENDER.assets, res = r.mapRes = H.makeRes(), g = r.mapGroup = new THREE.Group();
@@ -106,7 +107,7 @@ const PP_RROAD = (function ppRoadRender() {
       state.obstacles.push({x:px,y:py,l:.2,w:.2,a:0});state.signals.push({sig,post,bulbs});
     }
     // 도로에서 충분히 떨어진 블록만 생성: 교차로·다른 도로 위 건물 방지.
-    if(!opts.highway) for(let x=x0+35;x<x1-25;x+=38) for(let y=y0+35;y<y1-25;y+=38) {
+    if(!opts.highway && !opts.real) for(let x=x0+35;x<x1-25;x+=38) for(let y=y0+35;y<y1-25;y+=38) {
       const p=PP_ROADS.project(net,x,y); if(p.dist<22 || p.dist>65) continue;
       const h=8+Math.abs(Math.sin(x*3+y))*16;
       box(x,y,0,16,20,h,0,K.building);box(x,y,3,16.1,20.1,h-5,0,K.glass);

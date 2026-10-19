@@ -11,6 +11,15 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 저장 실패해도 계속 */ } },
 };
 
+// 터치 첫 주행 힌트: 한 번만(store에 기억), 5초 뒤 또는 핸들을 처음 잡으면 사라진다.
+const touchHintEl = $('touch-hint');
+let touchHintUntil = 0;
+function touchHint(ts) {
+  if (!document.body.classList.contains('touch') || store.get('pp-touch-hint')) return;
+  if (!touchHintUntil) { touchHintUntil = ts + 5000; touchHintEl.textContent = '회전 중에는 엄지를 핸들에서 떼지 마세요 — 떼면 실제 차처럼 핸들이 풀려요'; touchHintEl.hidden = false; }
+  if (ts > touchHintUntil || inp.grab) { touchHintEl.hidden = true; store.set('pp-touch-hint', true); }
+}
+
 const r = PP_RENDER.create($('view'));
 const inp = PP_INPUT.create(document.body);
 const audio = PP_AUDIO.create();
@@ -50,7 +59,7 @@ window.addEventListener('resize', layout);
 
 // ── 게임 시작/메뉴/결과 ──
 function loadScene(map) {
-  game.city = null;
+  game.city = null; dropReal();
   navui.voice.stop(); PP_INPUT.reset(inp); document.body.classList.remove('city');
   layout();
   $('drive-toast').hidden=true;$('res-penalties').hidden=true;$('res-reason').hidden=true;
@@ -78,24 +87,29 @@ function start(map) {
   $('hud').hidden = false; $('menu').hidden = true; $('result').hidden = true;
 }
 
+// 실제 지도 건물·라벨(PP_RREAL) 정리. 주행을 떠나거나 다시 시작할 때.
+function dropReal() { if (game.real) { PP_RREAL.dispose(game.real); game.real = null; } $('osm-attr').hidden = true; }
 // 주행 미션 시작·HUD·기록. 주차 상태와 분리한다.
 function startDrive(mission) {
-  PP_INPUT.reset(inp); document.body.classList.add('city'); game.menuKind='city'; game.cityGroup=mission.group||'city';
+  dropReal(); PP_INPUT.reset(inp); document.body.classList.add('city');
+  if (mission.group === 'real') game.menuKind = 'real'; else { game.menuKind = 'city'; game.cityGroup = mission.group || 'city'; }
   layout();
   const d = game.city = PP_DRIVE.create(mission, SPEC);
   PP_NAVUI.reset(navui,d);
   $('res-switches').parentElement.hidden=true;
-  setText($('res-next'),'다음 미션');
+  setText($('res-next'),mission.group==='real'?'메뉴로':'다음 미션');
   $('st-contacts').firstChild.textContent='감점';
   document.querySelector('#res-contacts').previousElementSibling.textContent='감점';
   game.car = d.car; game.map = { ...mission, obstacles: [], floors: [], ramps: [] };
   game.run = d.score; game.mode = 'drive'; game.acc = 0;
-  const road = PP_RROAD.load(r, d.net, { highway: !!mission.highway });
+  const real = mission.group === 'real';
+  const road = PP_RROAD.load(r, d.net, { highway: !!mission.highway, real });
+  if (real) { game.real = PP_RREAL.load(r, game.realBuildings || []); $('osm-attr').hidden = false; }
   if (mission.highway) PP_RHWR.load(r, d.net, road); // 분리대·가드레일·문형 기둥·부스도 충돌 상자로
   d.obstacles = road.obstacles;
   game.view = 'driver'; PP_RENDER.setView(r, game.view);
-  try { history.replaceState(null, '', '?drive=' + mission.id); } catch (e) { /* file:// */ }
-  setText($('hud-map'), mission.name); setText($('hud-tip'), mission.tip);
+  if (!real) try { history.replaceState(null, '', '?drive=' + mission.id); } catch (e) { /* file:// */ }
+  setText($('hud-map'), mission.name); setText($('hud-tip'), mission.tip || '');
   $('hud-tip').hidden = false; $('hud').hidden = false; $('menu').hidden = true; $('result').hidden = true;
 }
 function cityHud(ts, ctl) {
@@ -110,17 +124,18 @@ function cityHud(ts, ctl) {
   setText($('steer-dir'), d.blink === -1 ? '◀ 좌측' : d.blink === 1 ? '우측 ▶' : '가운데');
   setText($('st-contacts').querySelector('b'), String(d.score.penalties.length));
   setText($('st-time'), fmtClock(d.t)); setText($('st-switches'), '0');
-  $('hud-tip').hidden = d.t > 8; $('incline').hidden = true; $('sn-front').hidden = true; $('sn-rear').hidden = true;
+  $('hud-tip').hidden = d.t > 8 || !d.mission.tip; $('incline').hidden = true; $('sn-front').hidden = true; $('sn-rear').hidden = true;
   for (const [kind, depth] of [['gas',ctl.throttle],['brake',ctl.brake]]) {
     const pct = Math.round(depth*100)+'%'; pedalEls[kind].style.setProperty('--depth',pct); $('pd-'+kind).style.width=pct;
   }
-  $('notice').hidden = ts > game.noticeUntil; setText($('btn-view'), VIEW_NAME[game.view]);
+  touchHint(ts); $('notice').hidden = ts > game.noticeUntil; setText($('btn-view'), VIEW_NAME[game.view]);
 }
 function cityResult() {
   const d=game.city, res=PP_DSCORE.result(d.score); game.mode='result';
   PP_INPUT.reset(inp);navui.voice.stop();PP_AUDIO.setDistance(audio,Infinity);
-  const key='pp-drive-best-'+d.mission.id,prev=store.get(key);
-  const isBest=res.passed && PP_DSCORE.better(res,prev);
+  // 실제 지도는 매번 경로가 달라 최고 기록을 비교·저장하지 않는다
+  const real=d.mission.group==='real',key='pp-drive-best-'+d.mission.id,prev=real?null:store.get(key);
+  const isBest=!real && res.passed && PP_DSCORE.better(res,prev);
   if(isBest)store.set(key,res);
   setText($('res-map'),d.mission.name);setText($('res-grade'),res.passed?'통과':'다시 연습');
   $('res-grade').classList.toggle('is-perfect',res.passed && !res.penalties.length);
@@ -129,20 +144,22 @@ function cityResult() {
   $('res-reason').hidden=false;
   const list=$('res-penalties');list.textContent='';list.hidden=!res.penalties.length;
   for(const p of res.penalties){const li=document.createElement('li');li.textContent=fmtClock(p.t)+' · '+p.text;list.append(li);}
-  setText($('res-best'),isBest?(prev?'최고 기록을 새로 세웠어요':'첫 통과 기록을 저장했어요'):prev?'최고 기록 · '+fmtDriveRecord(prev):'통과하면 최고 기록을 저장해요');
+  setText($('res-best'),real?'실제 지도 주행은 기록을 저장하지 않아요':isBest?(prev?'최고 기록을 새로 세웠어요':'첫 통과 기록을 저장했어요'):prev?'최고 기록 · '+fmtDriveRecord(prev):'통과하면 최고 기록을 저장해요');
   $('res-best').classList.toggle('is-new',isBest);$('result').hidden=false;$('hud').hidden=true;
   $('res-retry').focus({preventScroll:true});
 }
 const fmtDriveRecord = b => '감점 '+b.penalties.length+' · '+fmtSec(b.time);
 
 function renderMenu() {
-  const tabs = $('tabs'), cards = $('cards');
+  const tabs = $('tabs'), cards = $('cards'), real = game.menuKind === 'real';
+  for (const k of ['parking', 'city', 'real']) $('mode-' + k).setAttribute('aria-selected', String(game.menuKind === k));
+  tabs.hidden = cards.hidden = real; $('real').hidden = !real;
   tabs.textContent = '';
+  if (real) { realMenu.show(); return; }
   const city=game.menuKind==='city';
   const groups=city?[{id:'city',name:'시내'},{id:'highway',name:'고속도로'}]:PP_MAPS.GROUPS, cur=city?game.cityGroup:game.group;
   const inCity=x=>(x.group||'city')===game.cityGroup;
   tabs.setAttribute('aria-label',city?'주행 종류':'주차 장소');
-  $('mode-city').setAttribute('aria-selected',String(city));$('mode-parking').setAttribute('aria-selected',String(!city));
   for (const g of groups) {
     const b = document.createElement('button');
     b.className = 'tab'; b.setAttribute('role', 'tab');
@@ -209,6 +226,7 @@ function showResult() {
 }
 
 function nextMap() {
+  if (game.city && game.city.mission.group === 'real') { openMenu(); return; } // 실제 지도: 다음 미션 없음 → 메뉴
   if (game.city) { const cur=game.city.mission, l=PP_MISSIONS.list.filter(x => x.group === cur.group), i=l.indexOf(cur); startDrive(l[(i+1)%l.length]); return; }
   const i = PP_MAPS.list.indexOf(game.map);
   start(PP_MAPS.list[(i + 1) % PP_MAPS.list.length]);
@@ -218,10 +236,123 @@ $('res-retry').addEventListener('click', () => game.city ? startDrive(game.city.
 $('res-next').addEventListener('click', nextMap);
 $('res-menu').addEventListener('click', openMenu);
 $('btn-resume').addEventListener('click', resume);
-for(const kind of ['parking','city'])$('mode-'+kind).addEventListener('click',()=>{game.menuKind=kind;renderMenu();});
+for(const kind of ['parking','city','real'])$('mode-'+kind).addEventListener('click',()=>{game.menuKind=kind;renderMenu();});
 const voiceEnabled=$('voice-enabled');voiceEnabled.checked=store.get('pp-voice')!==false;
 navui.voice.enable(voiceEnabled.checked);
 voiceEnabled.addEventListener('change',()=>{navui.voice.enable(voiceEnabled.checked);store.set('pp-voice',voiceEnabled.checked);});
+
+// ── 메뉴: 실제 지도 — 출발(현재 위치·검색)·목적지 검색 → 직선거리 → 출발(지도 받기·도로 만들기) ──
+// OSM 텍스트(장소 이름·주소)는 textContent로만 넣는다. 검색은 버튼 1회당 1요청(자동완성 없음), 간격은 PP_OSMF가 지킨다.
+const REAL_MAX_D = 3000; // 한 번 운행 직선거리 상한(m) — PP_OSMF·PP_MREAL과 같은 값
+const REAL_MSG = {
+  gps: '현재 위치를 가져오지 못했어요. 출발지를 검색해 주세요',
+  empty: '결과가 없어요. 다른 이름으로 검색해 보세요',
+  search: '검색 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요',
+  'too-far': '3km 안의 목적지만 갈 수 있어요',
+  busy: '지도 서버가 바빠요. 잠시 뒤 다시 시도해 주세요',
+  'too-big': '영역이 너무 커요. 더 가까운 목적지를 골라 주세요',
+  'no-route': '이 목적지로 가는 길을 찾지 못했어요',
+};
+// 지도 받기·만들기 오류 코드 → 문구. network(미러 모두 연결 실패)도 사용자에게는 '서버가 바빠요'로 안내한다.
+const REAL_ERR = { network: 'busy', busy: 'busy', 'too-big': 'too-big', 'too-far': 'too-far', 'no-road': 'no-route', 'no-route': 'no-route', 'bad-coords': 'no-route' };
+const realMenu = (function realMenuUi() {
+  let osm = null; // PP_OSMF 클라이언트는 하나만(요청 간격을 공유)
+  const client = () => osm || (osm = PP_OSMF.create());
+  const ends = {};
+  let job = 0; // 출발 진행 중 표시: 탭을 떠나거나 다시 누르면 이전 진행은 버린다
+  const status = $('real-status'), dist = $('real-dist'), go = $('real-start');
+
+  function say(box, text, retry, error) {
+    box.hidden = !text; box.classList.toggle('is-error', !!error);
+    box.querySelector('span').textContent = text || '';
+    const b = box.querySelector('button'); b.hidden = !retry; b.onclick = retry || null;
+    if (text && box === status) box.scrollIntoView({ block: 'nearest' }); // 휴대폰 세로: 진행·오류 문구가 아래로 밀려 있지 않게
+  }
+  function update() {
+    const a = ends.from.pick, b = ends.to.pick;
+    dist.classList.remove('is-error'); dist.textContent = '';
+    if (!a || !b) { dist.textContent = '출발지와 목적지를 정해 주세요'; go.disabled = true; return; }
+    const kx = Math.cos((a.lat + b.lat) / 2 * Math.PI / 180) * 111320;
+    const d = Math.hypot((b.lon - a.lon) * kx, (b.lat - a.lat) * 110540);
+    if (d > REAL_MAX_D) { dist.textContent = REAL_MSG['too-far']; dist.classList.add('is-error'); go.disabled = true; return; }
+    const v = document.createElement('b'); v.textContent = d < 1000 ? Math.round(d) + 'm' : (d / 1000).toFixed(1) + 'km';
+    dist.append('직선거리 ', v); go.disabled = !!job;
+  }
+  function pick(end, p) {
+    const e = ends[end];
+    e.pick = p; e.input.value = p ? p.name : e.input.value;
+    e.picked.hidden = !p; e.picked.textContent = p ? '✓ ' + (p.addr || p.name) : '';
+    e.box.classList.toggle('is-set', !!p);
+    e.list.textContent = '';
+    if (p) say(e.msg, '');
+    update();
+    if (p && ends.from.pick && ends.to.pick) go.scrollIntoView({ block: 'nearest' }); // 짧은 가로 화면: 다음 할 일(출발)이 보이게
+  }
+  async function search(end) {
+    const e = ends[end], q = e.input.value.trim();
+    if (!q) { e.input.focus(); return; }
+    e.list.textContent = ''; e.btn.disabled = true;
+    say(e.msg, '검색 중…');
+    let list;
+    try { list = await client().search(q); }
+    catch (err) { say(e.msg, REAL_MSG.search, () => search(end), true); return; }
+    finally { e.btn.disabled = false; }
+    if (!list.length) { say(e.msg, REAL_MSG.empty, () => { e.input.focus(); e.input.select(); }, true); return; }
+    say(e.msg, '');
+    for (const p of list) {
+      const li = document.createElement('li'), b = document.createElement('button'), name = document.createElement('b'), addr = document.createElement('small');
+      b.type = 'button'; name.textContent = p.name; addr.textContent = p.addr; b.append(name, addr);
+      b.addEventListener('click', () => pick(end, p));
+      li.append(b); e.list.append(li);
+    }
+    e.list.firstChild.scrollIntoView({ block: 'nearest' });
+  }
+  async function here() {
+    const e = ends.from, btn = $('real-here');
+    btn.disabled = true; say(e.msg, '현재 위치 찾는 중…');
+    try {
+      const [lat, lon] = await PP_OSMF.locate();
+      e.input.value = '';
+      pick('from', { name: '현재 위치', addr: '', lat, lon });
+    } catch (err) { pick('from', null); say(e.msg, REAL_MSG.gps, here, true); }
+    finally { btn.disabled = false; }
+  }
+  const frameDrawn = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))); // 문구가 한 번 그려진 뒤
+  async function start() {
+    const a = ends.from.pick, b = ends.to.pick;
+    if (!a || !b) return;
+    const my = ++job, alive = () => my === job && game.mode === 'menu' && game.menuKind === 'real';
+    go.disabled = true;
+    const end = (text, retry) => { if (my !== job) return; job = 0; say(status, text, retry, !!text); update(); };
+    const fail = code => end(REAL_MSG[REAL_ERR[code] || 'no-route'], start);
+    say(status, '지도 받는 중…');
+    let data;
+    try { data = await client().area([a.lat, a.lon], [b.lat, b.lon]); } catch (err) { fail(err.code); return; }
+    if (!alive()) { end(''); return; } // 그사이 메뉴·탭을 떠났으면 버린다
+    say(status, '도로 만드는 중…');
+    await frameDrawn();
+    if (!alive()) { end(''); return; }
+    let out;
+    try { out = PP_MREAL.make({ osm: data, from: [a.lat, a.lon], to: [b.lat, b.lon], seed: 1 }); } catch (err) { out = { error: (err && err.code) || 'no-route' }; }
+    if (out.error) { fail(out.error); return; }
+    end('');
+    game.realBuildings = out.buildings;
+    startDrive({ ...out.mission, name: '실제 지도 · ' + a.name + ' → ' + b.name });
+  }
+
+  for (const sec of document.querySelectorAll('#real .real-field')) {
+    const end = sec.dataset.end, form = sec.querySelector('form');
+    const e = ends[end] = { box: sec, input: form.querySelector('input'), btn: form.querySelector('button'), picked: sec.querySelector('.real-picked'), msg: sec.querySelector('.real-msg'), list: sec.querySelector('.real-results'), pick: null };
+    form.addEventListener('submit', ev => { ev.preventDefault(); search(end); });
+    e.input.addEventListener('input', () => { if (e.pick) { e.pick = null; e.picked.hidden = true; sec.classList.remove('is-set'); update(); } });
+  }
+  $('real-here').addEventListener('click', here);
+  go.addEventListener('click', start);
+  $('real-privacy-ok').addEventListener('click', () => { store.set('pp-osm-notice', true); $('real-privacy').hidden = true; });
+  update();
+  // 탭을 열 때마다: 첫 사용 안내(확인 전까지). 입력·선택은 그대로 남아 결과 화면에서 돌아와도 이어서 고른다.
+  return { show() { $('real-privacy').hidden = !!store.get('pp-osm-notice'); } };
+})();
 
 // ── 볼륨 ──
 const vol = $('vol');
@@ -298,7 +429,7 @@ function updateHud(ts, ctl) {
     setText($('incline-txt'), (deg > 0 ? '오르막 ' : '내리막 ') + Math.abs(deg) + '°');
     $('incline-icon').setAttribute('transform', 'rotate(' + (-deg * 2) + ')');
   }
-  $('notice').hidden = ts > game.noticeUntil;
+  touchHint(ts); $('notice').hidden = ts > game.noticeUntil;
   setText($('btn-view'), VIEW_NAME[game.view]);
 }
 
@@ -335,17 +466,36 @@ function frame(ts) {
   if (game.city) {
     r.focusMirror = game.city.focus; r.playerBlink = game.city.blink; r.playerHazard = game.city.hazard; r.blinkOn = Math.floor(game.city.t*2)%2 === 0;
     PP_RROAD.update(r, PP_TRAFFIC.cars(game.city.sim), PP_TRAFFIC.peds(game.city.sim), game.city.t, game.city.player);
+    if (game.real) PP_RREAL.update(game.real, game.city.player);
   }
   if (game.car) PP_RENDER.update(r, game.car, game.map);
   PP_NAVUI.mirrors(navui,r,game.mode==='drive');
   requestAnimationFrame(frame);
 }
 
+// ── 개발용 확인 경로: ?real=<픽스처> → 저장된 Overpass 응답으로 실제 지도 주행(네트워크 없이 오프라인 확인) ──
+// 출발·목적지 = 픽스처 안 고정 두 점(직선 500~900m, 유턴 없는 경로). jamsil은 봇이 완주하는 테스트 경로.
+const REAL_FIXTURES = {
+  jamsil: { from: [37.5084, 127.0859], to: [37.5132, 127.0810] },
+  gangnam: { from: [37.4960, 127.0250], to: [37.5000, 127.0300] },
+  oguri: { from: [37.5570, 126.9330], to: [37.5600, 126.9380] },
+};
+function startRealFixture(name) {
+  const f = Object.prototype.hasOwnProperty.call(REAL_FIXTURES, name) ? REAL_FIXTURES[name] : null;
+  if (!f) return;
+  fetch('test/fixtures/osm-' + name + '.json').then(res => res.json()).then(osm => {
+    const out = PP_MREAL.make({ osm, from: f.from, to: f.to, seed: 1 });
+    if (out.error) { console.warn('실제 지도 픽스처:', out.error); return; }
+    game.realBuildings = out.buildings; startDrive(out.mission);
+  }).catch(e => console.warn('실제 지도 픽스처를 불러오지 못했어요', e));
+}
+
 // ── 시작: ?map=이 있으면 바로 주행, 없으면 메뉴(뒤에 첫 맵을 보여줌) ──
 layout();
-const initial = PP_MAPS.byId(new URLSearchParams(location.search).get('map'));
-const initialDrive = PP_MISSIONS.byId(new URLSearchParams(location.search).get('drive'));
+const query = new URLSearchParams(location.search);
+const initial = PP_MAPS.byId(query.get('map'));
+const initialDrive = PP_MISSIONS.byId(query.get('drive'));
 if (initialDrive) startDrive(initialDrive);
 else if (initial) start(initial);
-else { loadScene(PP_MAPS.list[0]); game.run = null; openMenu(); }
+else { loadScene(PP_MAPS.list[0]); game.run = null; openMenu(); startRealFixture(query.get('real')); }
 requestAnimationFrame(frame);

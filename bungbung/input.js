@@ -33,11 +33,11 @@ const PP_INPUT = (function ppInput() {
     window.addEventListener('blur', () => reset(inp));
   }
 
-  // 핸들: 원을 그리지 않고 좌우로 끈 거리만큼 돌린다(오른쪽 = 우회전 = 음수). 손을 떼도 각도 유지.
+  // 핸들: 원을 그리지 않고 좌우로 끈 거리만큼 돌린다(오른쪽 = 우회전 = 음수). 손을 떼면 주행 속도에 비례해 복원(car.js 자동 복원).
   const STEER_PER_PX = 3; // ponytail: 휴대폰 체감 감도 손잡이. 150px = 한쪽 끝까지.
   function wheel(inp, el) {
     el.addEventListener('pointerdown', e => {
-      if (inp.grab) return;
+      // 새 pointerdown은 항상 인계: iOS Safari에서 pointerup이 유실돼도 죽은 grab이 이후 터치를 막지 않게
       e.preventDefault();
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* 이미 뗀 포인터 */ }
       inp.grab = { id: e.pointerId, x: e.clientX, val: inp.carWheel };
@@ -53,6 +53,7 @@ const PP_INPUT = (function ppInput() {
     const end = e => { if (inp.grab && e.pointerId === inp.grab.id) inp.grab = null; };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
   }
 
   // 깊이 한 스텝. target = 누르는 중이면 목표 깊이, 떼었으면 null.
