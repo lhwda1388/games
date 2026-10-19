@@ -52,6 +52,14 @@ const PP_AUDIO = (function ppAudio() {
     if (a.cont && a.ctx) a.gain.gain.setTargetAtTime(0.25 * a.vol, a.ctx.currentTime, 0.01);
   }
 
-  return { create, resume, setDistance, contact, setVolume };
+  function tone(a,hz,duration,level) {
+    if(!a.ctx || a.ctx.state!=='running')return;
+    const t=a.ctx.currentTime,o=a.ctx.createOscillator(),g=a.ctx.createGain();
+    o.frequency.value=hz;o.type='triangle';g.gain.setValueAtTime(level*a.vol,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);
+    o.connect(g).connect(a.ctx.destination);o.start(t);o.stop(t+duration);
+    o.onended=()=>{o.disconnect();g.disconnect();};
+  }
+  const tick=a=>tone(a,700,.045,.15), warning=a=>tone(a,1100,.15,.2);
+  return { tick, warning, create, resume, setDistance, contact, setVolume };
 })();
 if (typeof module !== 'undefined') module.exports = PP_AUDIO;

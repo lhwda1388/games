@@ -8,8 +8,11 @@ const PP_CAR = (function ppCar() {
     driver: { x: 1.25, y: 0.37, z: 1.2 },
     fuelSide: 'left', fuelX: 0.15, // ponytail: 주유구 좌우·위치는 실차 확인 필요
   };
-  const P = { steerRate: 540, creep: 5 / 3.6, creepAcc: 1.2, maxAcc: 2.5, brakeDec: 6, roll: 0.15, vMax: 20 / 3.6 };
+  const P = { steerRate: 540, creep: 5 / 3.6, creepAcc: 1.2, maxAcc: 3.0, brakeDec: 6, roll: 0.15, vMax: 20 / 3.6 };
 
+  // 속도별 조향 감도: 40km/h에서 절반. ponytail: 고속 직진 안정감 손잡이.
+  const V_HALF = 40 / 3.6, CENTER_K = 9; // CENTER_K: 손 뗀 핸들 복원 °/s per m/s(100km/h ≈ 250°/s). ponytail: 너무 빠르면 줄인다.
+  const steerGain = v => 1 / (1 + Math.abs(v) / V_HALF);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   // 바깥 앞바퀴가 반경 turnRadius 원을 그리는 자전거 모델 앞바퀴각
   function maxWheelAngle(s) {
@@ -28,8 +31,9 @@ const PP_CAR = (function ppCar() {
   function create(pose, spec = SELTOS) {
     return { spec, dMax: maxWheelAngle(spec), x: pose.x, y: pose.y, th: pose.th, z: 0, pitch: 0, v: 0, wheel: 0, gear: 'P' };
   }
-  function setGear(c, g) {
-    if (!['P', 'R', 'N', 'D'].includes(g) || Math.abs(c.v) > 0.05) return false;
+  // 정지(|v|≤0.05) 상태에서만 변경. 단, 브레이크를 밟고 있으면 천천히 굴러가는 중(≈2km/h 미만)에도 허용.
+  function setGear(c, g, braking = false) {
+    if (!['P', 'R', 'N', 'D'].includes(g) || Math.abs(c.v) > (braking ? 0.6 : 0.05)) return false;
     c.gear = g; c.v = 0;
     return true;
   }
@@ -48,13 +52,20 @@ const PP_CAR = (function ppCar() {
     const lock = c.spec.wheelLock;
     c.wheel = ctl.steerAbs != null ? clamp(ctl.steerAbs, -lock, lock)
       : clamp(c.wheel + (ctl.steerRate || 0) * P.steerRate * dt, -lock, lock);
+    // 손 뗀 핸들은 속력에 비례해 중앙으로 복원(정지·잡고 있을 땐 유지)
+    if (ctl.steerAbs == null && ctl.steerRate === 0 && ctl.hold !== true) {
+      const m = CENTER_K * Math.abs(c.v) * dt;
+      c.wheel = Math.abs(c.wheel) <= m ? 0 : c.wheel - Math.sign(c.wheel) * m;
+    }
     c.pitch = pitch;
     if (c.gear === 'P') { c.v = 0; return; }
     const dir = c.gear === 'D' ? 1 : c.gear === 'R' ? -1 : 0;
     const thr = ctl.throttle || 0, brk = ctl.brake || 0;
     let a = -G * Math.sin(pitch);
-    if (dir && thr > 0) a += dir * P.maxAcc * thr;
-    else if (dir && brk === 0 && dir * c.v < P.creep) a += dir * P.creepAcc;
+    // 크리핑 힘은 엑셀을 밟아도 그대로 있고, 엑셀은 그 위에 더해진다(엑셀이 크리핑을 대체하면
+    // 살짝 밟을 때 오히려 약해지고, 오르막에서는 D인데 뒤로 밀린다).
+    if (dir && (thr > 0 || brk === 0) && dir * c.v < P.creep) a += dir * P.creepAcc;
+    if (dir) a += dir * P.maxAcc * thr;
     let v = c.v + a * dt;
     const dec = (P.brakeDec * brk + P.roll) * dt;
     v = Math.abs(v) <= dec ? 0 : v - Math.sign(v) * dec;
@@ -96,6 +107,6 @@ const PP_CAR = (function ppCar() {
     return out;
   }
 
-  return { SELTOS, P, G, poseFromCenter, create, setGear, step, delta, maxWheelAngle, frontOverhang, centerOffset, toWorld, bodyBox, corners, sensorPoints, turnCenter, predict };
+  return { SELTOS, P, G, poseFromCenter, create, setGear, step, steerGain, delta, maxWheelAngle, frontOverhang, centerOffset, toWorld, bodyBox, corners, sensorPoints, turnCenter, predict };
 })();
 if (typeof module !== 'undefined') module.exports = PP_CAR;

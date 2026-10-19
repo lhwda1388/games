@@ -9,24 +9,27 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-/* Hallmark · game HUD (no macrostructure: in-game overlay) · tone: utilitarian instrument panel
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V3 · redesign v3: visibility for beginner on phone landscape
+ * Hallmark · game HUD (no macrostructure: in-game overlay) · tone: utilitarian instrument panel
  * anchor hue: 250 (cool slate) · accent: parking-line amber oklch(84% 0.15 88) · genre: modern-minimal
  * fonts: IBM Plex Sans KR (UI) + IBM Plex Mono (instrument numbers, tabular)
  * states: default · hover · focus-visible · active · pressed · selected
  */
 :root {
   --color-paper: oklch(17% 0.012 250);
-  --color-panel: oklch(18% 0.012 250 / 0.8);
+  --color-panel: oklch(15% 0.012 250 / 0.9);
   --color-panel-solid: oklch(21% 0.012 250);
   --color-raised: oklch(27% 0.014 250);
   --color-raised-2: oklch(33% 0.014 250);
-  --color-rule: oklch(36% 0.012 250);
+  --color-rule: oklch(46% 0.012 250);
   --color-ink: oklch(95% 0.008 90);
-  --color-muted: oklch(76% 0.012 250);
-  --color-faint: oklch(60% 0.012 250);
+  --color-muted: oklch(82% 0.012 250);
+  --color-faint: oklch(66% 0.012 250);
   --color-accent: oklch(84% 0.15 88);
   --color-accent-ink: oklch(22% 0.03 88);
   --color-danger: oklch(66% 0.2 28);
+  --color-danger-deep: oklch(30% 0.09 28 / 0.92);
+  --color-ok-deep: oklch(30% 0.07 155 / 0.92);
   --color-ok: oklch(78% 0.15 155);
   --color-focus: oklch(84% 0.15 88);
   --color-scrim: oklch(12% 0.01 250 / 0.72);
@@ -35,7 +38,7 @@
   --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
-  --text-xs: 12px; --text-sm: 13px; --text-md: 15px; --text-lg: 18px; --text-xl: 22px; --text-display: 44px;
+  --text-xs: 13px; --text-sm: 14px; --text-md: 16px; --text-lg: 20px; --text-xl: 28px; --text-display: 44px;
   --radius: 6px; --radius-lg: 10px;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --dur-fast: 120ms; --dur-med: 220ms;
@@ -59,54 +62,82 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--color-focus
 .panel { background: var(--color-panel); border: 1px solid var(--color-rule); border-radius: var(--radius); }
 .info { position: absolute; top: var(--safe-t); left: var(--safe-l); max-width: min(360px, 31vw); padding: var(--space-2) var(--space-3); pointer-events: none; }
 .info-map { font-size: var(--text-xs); color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.info-goal { font-size: var(--text-md); font-weight: 600; margin-top: 2px; }
+.info-goal { font-size: var(--text-lg); font-weight: 700; margin-top: 2px; line-height: 1.3; }
 .info-tip { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--color-rule); }
 .status { position: absolute; top: var(--safe-t); right: var(--safe-r); display: flex; gap: var(--space-2); align-items: stretch; }
-.stats { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3); height: 40px; font-size: var(--text-sm); color: var(--color-muted); white-space: nowrap; }
+.stats { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3); height: 48px; font-size: var(--text-sm); color: var(--color-muted); white-space: nowrap; }
 .stats b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 600; color: var(--color-ink); margin-left: var(--space-1); }
 .stats .is-hot b { color: var(--color-danger); }
-.icon-btn { height: 40px; min-width: 52px; padding: 0 var(--space-3); border-radius: var(--radius); border: 1px solid var(--color-rule); background: var(--color-panel); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out); }
+body.touch .st-extra { display: none; }
+.icon-btn { height: 48px; min-width: 60px; padding: 0 var(--space-3); border-radius: var(--radius); border: 1px solid var(--color-rule); background: var(--color-panel); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out); }
 .icon-btn:hover { background: var(--color-raised); }
 .icon-btn:active { background: var(--color-raised-2); transform: translateY(1px); }
 
 .cluster { position: absolute; left: 50%; bottom: var(--safe-b); transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-4); padding: var(--space-2) var(--space-4); white-space: nowrap; pointer-events: none; }
-.gears { display: flex; gap: 2px; font-family: var(--font-num); font-weight: 600; font-size: var(--text-lg); }
-.gears span { width: 24px; text-align: center; color: var(--color-faint); border-bottom: 2px solid transparent; }
+.gears { display: flex; gap: 2px; font-family: var(--font-num); font-weight: 700; font-size: 24px; }
+.gears span { width: 28px; text-align: center; color: var(--color-faint); border-bottom: 3px solid transparent; }
 .gears span.is-on { color: var(--color-accent); border-bottom-color: var(--color-accent); }
 .speed { display: flex; align-items: baseline; gap: var(--space-1); }
-.speed .num { font-size: var(--text-xl); font-weight: 600; min-width: 2ch; text-align: right; }
+.speed .num { font-size: var(--text-xl); font-weight: 700; min-width: 2ch; text-align: right; }
 .speed small, .steer small { font-size: var(--text-xs); color: var(--color-muted); }
 .steer { display: flex; align-items: center; gap: var(--space-2); }
 .steer svg { width: 28px; height: 28px; display: block; }
-.steer .num { font-size: var(--text-lg); font-weight: 600; min-width: 4.2ch; text-align: right; }
+.steer .num { font-size: 24px; font-weight: 700; min-width: 4.2ch; text-align: right; }
 .sep { width: 1px; align-self: stretch; background: var(--color-rule); }
 
-.sensors { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 58px); transform: translateX(-50%); display: flex; gap: var(--space-2); pointer-events: none; }
-.sensor { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); font-size: var(--text-sm); }
+.sensors { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 70px); transform: translateX(-50%); display: flex; gap: var(--space-2); pointer-events: none; }
+.sensor { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); font-size: var(--text-md); font-weight: 600; }
 .sensor-bar { width: 72px; height: 6px; border-radius: 3px; background: var(--color-raised); overflow: hidden; }
 .sensor-bar i { display: block; height: 100%; width: 0; background: var(--color-muted); }
 .sensor.is-mid .sensor-bar i { background: var(--color-accent); }
 .sensor.is-near .sensor-bar i { background: var(--color-danger); }
 .sensor.is-near .num { color: var(--color-danger); }
-.notice { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); padding: var(--space-2) var(--space-4); font-weight: 600; pointer-events: none; }
-.keys { position: absolute; left: var(--safe-l); bottom: var(--safe-b); font-size: var(--text-xs); color: var(--color-muted); padding: var(--space-1) var(--space-2); pointer-events: none; max-width: calc(50vw - 200px); }
+.incline { position: absolute; left: 50%; top: var(--safe-t); transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border-color: var(--color-accent); color: var(--color-accent); font-size: var(--text-lg); pointer-events: none; }
+.incline svg { width: 36px; height: 22px; display: block; overflow: visible; }
+.incline b { color: var(--color-ink); font-weight: 700; }
+.notice { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); padding: var(--space-3) var(--space-5); font-size: var(--text-lg); font-weight: 700; white-space: nowrap; pointer-events: none; background: var(--color-panel-solid); border: 2px solid var(--color-accent); color: var(--color-ink); }
+.keys { background: var(--color-panel); border-radius: var(--radius); position: absolute; left: var(--safe-l); bottom: var(--safe-b); font-size: var(--text-xs); color: var(--color-muted); padding: var(--space-1) var(--space-2); pointer-events: none; max-width: calc(50vw - 320px); }
+@media (max-width: 1100px) { .keys { display: none; } }
 body.touch .keys { display: none; }
 
-/* ── 터치 조작 ── */
+/* ── 터치 조작: 왼쪽 핸들 / 오른쪽 기어 줄 + 페달 (모든 목표 ≥ 48px) ── */
 .touch-only { display: none; }
 body.touch .touch-only { display: flex; }
-.t-wheel { position: absolute; left: var(--safe-l); bottom: var(--safe-b); width: 150px; height: 150px; border-radius: 50%; touch-action: none; }
-.t-wheel svg { width: 100%; height: 100%; display: block; }
-.t-right { position: absolute; right: var(--safe-r); bottom: var(--safe-b); gap: var(--space-2); align-items: flex-end; }
-.t-gears { display: flex; flex-direction: column; gap: var(--space-1); }
-.t-gears button { width: 44px; height: 36px; border-radius: var(--radius); border: 1px solid var(--color-rule); background: var(--color-panel); font-family: var(--font-num); font-weight: 600; font-size: var(--text-md); }
+.t-wheel { position: absolute; left: var(--safe-l); bottom: var(--safe-b); width: 140px; height: 140px; border-radius: 50%; touch-action: none; }
+.t-wheel svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 2px var(--color-shadow)); }
+.t-right { position: absolute; right: var(--safe-r); bottom: var(--safe-b); width: 196px; flex-direction: column; gap: var(--space-2); }
+body.touch .t-gears { position: absolute; left: calc(var(--safe-l) + 156px); bottom: var(--safe-b); display: grid; grid-template-columns: repeat(2, 50px); gap: 6px; }
+.t-gears button { height: 46px; border-radius: var(--radius); border: 1px solid var(--color-rule); background: var(--color-panel); font-family: var(--font-num); font-weight: 700; font-size: var(--text-lg); }
 .t-gears button.is-on { background: var(--color-accent); color: var(--color-accent-ink); border-color: var(--color-accent); }
 .t-gears button:active { background: var(--color-raised-2); }
-.pedal { height: 150px; border-radius: var(--radius-lg); border: 1px solid var(--color-rule); background: var(--color-panel); display: flex; align-items: flex-end; justify-content: center; padding-bottom: var(--space-3); font-size: var(--text-sm); font-weight: 600; color: var(--color-muted); touch-action: none; background-image: repeating-linear-gradient(0deg, transparent 0 14px, var(--color-rule) 14px 16px); background-size: 60% 100%; background-repeat: no-repeat; background-position: center 12px; }
-.pedal.is-pressed { background-color: var(--color-raised-2); color: var(--color-ink); border-color: var(--color-muted); }
-.pedal-brake { width: 84px; }
-.pedal-gas { width: 52px; }
+.t-pedals { display: flex; gap: var(--space-2); }
+.pedal { position: relative; overflow: hidden; height: 132px; border-radius: var(--radius-lg); border: 2px solid var(--pedal-color); background: var(--pedal-bg); display: flex; align-items: flex-end; justify-content: center; padding-bottom: var(--space-2); font-size: var(--text-md); font-weight: 700; color: var(--color-ink); touch-action: none; background-image: repeating-linear-gradient(0deg, transparent 0 12px, var(--color-rule) 12px 14px); background-size: 56% 62%; background-repeat: no-repeat; background-position: center 10px; }
+.pedal.is-pressed { border-color: var(--color-ink); }
+.pedal > span { position: relative; pointer-events: none; }
+.pedal-fill { position: absolute; left: 0; right: 0; bottom: 0; height: var(--depth, 0%); background: var(--pedal-color); opacity: 0.55; pointer-events: none; }
+.pedal-brake { flex: 1.3; --pedal-color: var(--color-danger); --pedal-bg: var(--color-danger-deep); }
+.pedal-gas { flex: 1; --pedal-color: var(--color-ok); --pedal-bg: var(--color-ok-deep); }
+.pdepth { display: flex; flex-direction: column; gap: 3px; }
+.pdepth-row { display: flex; align-items: center; gap: var(--space-2); justify-content: space-between; }
+.pdepth small { font-size: var(--text-xs); color: var(--color-muted); }
+.pdepth-bar { width: 64px; height: 8px; border-radius: 4px; background: var(--color-raised); overflow: hidden; }
+.pdepth-bar i { display: block; height: 100%; width: 0; }
+.pdepth-bar.is-brake i { background: var(--color-danger); }
+.pdepth-bar.is-gas i { background: var(--color-ok); }
+/* 휴대폰: 계기판·센서는 핸들과 페달 사이 빈 칸 가운데. 페달 깊이는 페달 안 채움으로 보이므로 계기판 막대는 숨김 */
+body.touch .cluster, body.touch .sensors { left: calc(var(--safe-l) + 274px); right: calc(var(--safe-r) + 206px); transform: none; width: max-content; margin: 0 auto; }
+body.touch .cluster .gears, body.touch .cluster .gears + .sep { display: none; } /* 기어 버튼이 현재 기어를 보여 줌 */
+body.touch .cluster { gap: var(--space-3); padding: var(--space-2) var(--space-3); }
+body.touch .pdepth, body.touch .pdepth-sep, body.touch #steer-dir { display: none; }
+body.touch .info { max-width: min(300px, 34vw); }
+body.touch .info-goal { font-size: 15px; }
 
+/* 시야 확보: 가로 휴대폰 팁을 짧게 접고, 조작부와 정보가 겹치지 않도록 한다. */
+@media (max-height: 500px) {
+  .info-tip { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .info-goal { font-size: var(--text-sm); }
+  .info { max-width: min(300px, 36vw); }
+}
 /* ── 오버레이 공통 ── */
 .overlay { position: fixed; inset: 0; background: var(--color-scrim); display: flex; }
 .btn { height: 44px; padding: 0 var(--space-5); border-radius: var(--radius); border: 1px solid var(--color-rule); background: var(--color-raised); font-weight: 600; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
@@ -169,11 +200,27 @@ body.touch .touch-only { display: flex; }
   *, *::before, *::after { transition-duration: 1ms !important; }
 }
 </style>
+<link rel="stylesheet" href="drive-ui.css">
 </head>
 <body>
 <canvas id="view"></canvas>
 
 <div class="hud" id="hud" hidden>
+  <section class="nav-panel panel city-only" aria-label="주행 안내">
+    <span class="nav-arrow" id="nav-arrow" aria-hidden="true">↑</span>
+    <div><div class="nav-distance" id="nav-distance"></div><div class="nav-turn" id="nav-turn"></div></div>
+    <div class="nav-lanes" id="nav-lanes" aria-label="이용할 차로"></div>
+  </section>
+  <figure class="nav-map panel city-only" style="margin:0"><canvas id="nav-map" width="240" height="180" aria-label="진행 방향 기준 경로 지도"></canvas><figcaption>진행 방향 ↑</figcaption></figure>
+  <div class="nav-limit city-only" id="nav-limit" aria-label="제한속도"></div>
+  <div class="nav-camera panel city-only" id="nav-camera" hidden></div>
+  <div class="drive-toast panel" id="drive-toast" role="status" hidden></div>
+  <div class="blink-controls city-only" aria-label="방향지시등">
+    <button id="blink-left" data-blink="-1" aria-label="왼쪽 깜빡이" aria-pressed="false"><span aria-hidden="true">◀</span><small>좌측</small></button>
+    <button id="blink-right" data-blink="1" aria-label="오른쪽 깜빡이" aria-pressed="false"><span aria-hidden="true">▶</span><small>우측</small></button>
+  </div>
+  <button class="mirror-hit" id="mirror-left" data-mirror="left" aria-label="왼쪽 미러 확인" hidden><span>왼쪽 미러</span></button>
+  <button class="mirror-hit" id="mirror-right" data-mirror="right" aria-label="오른쪽 미러 확인" hidden><span>오른쪽 미러</span></button>
   <div class="info panel">
     <div class="info-map" id="hud-map"></div>
     <div class="info-goal" id="hud-goal"></div>
@@ -182,8 +229,8 @@ body.touch .touch-only { display: flex; }
   <div class="status">
     <div class="stats panel">
       <span id="st-contacts">접촉<b>0</b></span>
-      <span>전환<b id="st-switches">0</b></span>
-      <span>시간<b id="st-time">0:00</b></span>
+      <span class="st-extra">전환<b id="st-switches">0</b></span>
+      <span class="st-extra">시간<b id="st-time">0:00</b></span>
     </div>
     <button class="icon-btn" data-pp="view" id="btn-view" aria-label="시점 바꾸기">운전석</button>
     <button class="icon-btn" data-pp="menu" aria-label="메뉴 열기">메뉴</button>
@@ -192,22 +239,32 @@ body.touch .touch-only { display: flex; }
     <div class="sensor panel" id="sn-front" hidden><span>앞</span><span class="sensor-bar"><i></i></span><span class="num"></span></div>
     <div class="sensor panel" id="sn-rear" hidden><span>뒤</span><span class="sensor-bar"><i></i></span><span class="num"></span></div>
   </div>
-  <div class="notice panel" id="notice" hidden>정지 후 변경</div>
+  <div class="incline panel" id="incline" hidden>
+    <svg viewBox="-16 -10 32 20" aria-hidden="true"><g id="incline-icon"><path d="M-14 4h28" stroke="currentColor" stroke-width="2.5"/><rect x="-9" y="-3" width="16" height="6" rx="1.5" fill="currentColor"/><path d="M7 -1h6l-2 -2m2 2l-2 2" stroke="currentColor" stroke-width="1.6" fill="none"/></g></svg>
+    <b id="incline-txt"></b>
+  </div>
+  <div class="notice panel" id="notice" role="status" hidden>정지 후 변경 — 브레이크를 밟으세요</div>
   <div class="cluster panel">
     <div class="gears" id="gears"><span>P</span><span>R</span><span>N</span><span>D</span></div>
     <span class="sep"></span>
     <div class="speed"><span class="num" id="speed">0</span><small>km/h</small></div>
     <span class="sep"></span>
+    <div class="pdepth" aria-label="페달 깊이">
+      <span class="pdepth-row"><small>브레이크</small><span class="pdepth-bar is-brake"><i id="pd-brake"></i></span></span>
+      <span class="pdepth-row"><small>엑셀</small><span class="pdepth-bar is-gas"><i id="pd-gas"></i></span></span>
+    </div>
+    <span class="sep pdepth-sep"></span>
     <div class="steer">
       <svg viewBox="-16 -16 32 32" aria-hidden="true"><g id="steer-icon" fill="none" stroke="currentColor" stroke-width="2.4"><circle r="13"/><path d="M-13 0h26M0 0v13"/><circle r="3" fill="currentColor" stroke="none"/></g></svg>
       <span class="num" id="steer-deg">0°</span><small id="steer-dir">가운데</small>
     </div>
   </div>
-  <div class="keys">←→ 또는 Q E 핸들 · ↑ 엑셀(Shift 세게) · ↓ 브레이크 · P R N D 기어 · V 시점 · Esc 메뉴</div>
+  <div class="keys">←→ 핸들 · Q/E 미러 · Z/C 깜빡이 · ↑ 엑셀 · ↓ 브레이크(누르고 있으면 점점 깊게) · P R N D 기어 · V 시점 · Esc 메뉴</div>
 
   <div class="t-wheel touch-only" data-pp="wheel" aria-label="핸들">
     <svg viewBox="-80 -80 160 160" aria-hidden="true">
       <g id="t-wheel-g">
+        <circle r="70" fill="none" style="stroke: var(--color-shadow)" stroke-width="18"/>
         <circle r="70" fill="none" stroke="currentColor" stroke-opacity="0.85" stroke-width="12"/>
         <path d="M-64 6 L-14 14 L0 64 L14 14 L64 6" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="10" stroke-linejoin="round"/>
         <circle r="16" fill="currentColor" fill-opacity="0.75"/>
@@ -215,26 +272,34 @@ body.touch .touch-only { display: flex; }
       </g>
     </svg>
   </div>
+  <!-- 기어는 핸들 옆: 오른손으로 브레이크를 누른 채 왼손으로 바꾼다 -->
+  <div class="t-gears touch-only" id="t-gears" aria-label="기어">
+    <button data-gear="P">P</button><button data-gear="R">R</button><button data-gear="N">N</button><button data-gear="D">D</button>
+  </div>
   <div class="t-right touch-only">
-    <div class="t-gears" id="t-gears">
-      <button data-gear="P">P</button><button data-gear="R">R</button><button data-gear="N">N</button><button data-gear="D">D</button>
+    <div class="t-pedals">
+      <div class="pedal pedal-brake" data-pp="brake"><i class="pedal-fill"></i><span>브레이크</span></div>
+      <div class="pedal pedal-gas" data-pp="gas"><i class="pedal-fill"></i><span>엑셀</span></div>
     </div>
-    <div class="pedal pedal-brake" data-pp="brake">브레이크</div>
-    <div class="pedal pedal-gas" data-pp="gas">엑셀</div>
   </div>
 </div>
 
 <div class="overlay menu" id="menu" hidden>
   <div class="menu-head">
     <h1 class="menu-title">붕붕이</h1>
-    <p class="menu-sub">실제 치수로 만든 주차장에서 궤적과 순서를 익혀요.</p>
+    <p class="menu-sub">주차와 시내 주행을 상황별로 연습해요.</p>
     <button class="btn btn-primary" id="btn-resume" hidden>이어서 주행</button>
   </div>
-  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="mode-tabs" role="tablist" aria-label="연습 종류">
+    <button class="btn" id="mode-parking" role="tab" aria-selected="true">주차</button>
+    <button class="btn" id="mode-city" role="tab" aria-selected="false">주행</button>
+  </div>
+  <div class="tabs" role="tablist" aria-label="주차 장소" id="tabs"></div>
   <div class="cards" id="cards" role="tabpanel"></div>
   <div class="menu-foot">
     <span class="spec" id="spec"></span>
-    <label class="vol">센서음 <input type="range" id="vol" min="0" max="1" step="0.05" aria-label="센서음 크기"></label>
+    <label class="voice-toggle"><input type="checkbox" id="voice-enabled" checked>내비 음성</label>
+    <label class="vol">효과음 <input type="range" id="vol" min="0" max="1" step="0.05" aria-label="효과음 크기"></label>
   </div>
 </div>
 
@@ -247,6 +312,8 @@ body.touch .touch-only { display: flex; }
       <div><dt>전후진 전환</dt><dd id="res-switches"></dd></div>
       <div><dt>시간</dt><dd id="res-time"></dd></div>
     </dl>
+    <p class="result-reason" id="res-reason" hidden></p>
+    <ol class="penalties" id="res-penalties" hidden></ol>
     <p class="result-best" id="res-best"></p>
     <div class="result-actions">
       <button class="btn" id="res-retry">다시</button>
@@ -265,7 +332,19 @@ body.touch .touch-only { display: flex; }
 <script src="scoring.js"></script>
 <script src="input.js"></script>
 <script src="audio.js"></script>
+<script src="roads.js"></script>
+<script src="roads-build.js"></script>
+<script src="traffic-peds.js"></script>
+<script src="traffic-junction.js"></script>
+<script src="traffic.js"></script>
+<script src="nav.js"></script>
+<script src="drive-score.js"></script>
+<script src="missions.js"></script>
+<script src="drive.js"></script>
+<script src="render-cockpit.js"></script>
 <script src="render.js"></script>
+<script src="render-road.js"></script>
+<script src="navui.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

@@ -4,15 +4,16 @@
 const PP_TRAFFIC = (function ppTraffic() {
   const R = typeof PP_ROADS !== 'undefined' ? PP_ROADS : require('./roads.js');
   const P = typeof PP_PEDS !== 'undefined' ? PP_PEDS : require('./traffic-peds.js');
+  const J = typeof PP_TJUNC !== 'undefined' ? PP_TJUNC : require('./traffic-junction.js');
   const { laneLength, pointAt, signalState, movement, canChange, mapS, clamp } = R;
   const CAR_L = 4.5, CAR_W = 1.8, PL_L = 4.39, PL_W = 1.8;
   const A_MAX = 1.5, B_COMF = 2.0, B_MAX = 8, S0 = 2, S0_STOP = 1.0, SQ_AB = Math.sqrt(A_MAX * B_COMF);
   const ZONE = CAR_W + 0.8; // 연결 차로 중심선이 이보다 가까우면 충돌 구역
   // head: 진입 차로당 생성 간격(s), gap: 시작 배치 간격(m), f: 목표 속도/제한속도, peds: 보행 신호마다 보행자 수
   const DENS = {
-    easy: { head: [12, 20], gap: [80, 130], f: [0.85, 1.0], peds: [0, 1] },
-    normal: { head: [7, 12], gap: [40, 70], f: [0.8, 1.0], peds: [1, 2] },
-    rush: { head: [3.5, 6], gap: [18, 30], f: [0.6, 0.85], peds: [2, 4] },
+    easy: { head: [16, 28], gap: [90, 140], f: [0.85, 1.0], peds: [0, 1] },
+    normal: { head: [10, 16], gap: [45, 75], f: [0.8, 1.0], peds: [1, 2] },
+    rush: { head: [4.5, 7], gap: [20, 32], f: [0.6, 0.85], peds: [2, 4] },
   };
   const PLAYER = { id: 0, player: true, T: 1.2 };
 
@@ -25,54 +26,6 @@ const PP_TRAFFIC = (function ppTraffic() {
   const rnd = sim => mulberry32(sim.rng) / 4294967296;
   const range = (sim, ab) => ab[0] + (ab[1] - ab[0]) * rnd(sim);
 
-  // 교차로 연결 차로 쌍의 충돌 구역 [c0,c1](자기 s)·[d0,d1](상대 s). 같은 진입 차로에서 갈라지는 쌍은 제외.
-  function conflicts(net) {
-    const byJ = {}, conf = {}, div = {};
-    for (const id in net.lanes) {
-      const ln = net.lanes[id];
-      if (ln.kind !== 'connector') continue;
-      const L = laneLength(ln), pts = [];
-      for (let s = 0; s < L; s += 1) pts.push([s, pointAt(ln, s)]);
-      pts.push([L, pointAt(ln, L)]);
-      (byJ[ln.road] = byJ[ln.road] || []).push({ ln, pts });
-      conf[id] = []; div[id] = [];
-    }
-    for (const k in byJ) {
-      const g = byJ[k];
-      for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
-        const A = g[i], B = g[j];
-        if (A.ln.from === B.ln.from) { // 같은 차로에서 갈라지는 쌍: 중심선이 ZONE 이상 벌어질 때까지는 같은 차로처럼 앞차 취급
-          let sa = 0, sb = 0;
-          for (const [s1, pa] of A.pts) for (const [s2, pb] of B.pts) if (Math.hypot(pa.x - pb.x, pa.y - pb.y) < ZONE) { sa = Math.max(sa, s1); sb = Math.max(sb, s2); }
-          div[A.ln.id].push({ D: B.ln.id, s: sb });
-          div[B.ln.id].push({ D: A.ln.id, s: sa });
-          continue;
-        }
-        let c0 = Infinity, c1 = -Infinity, d0 = Infinity, d1 = -Infinity;
-        for (const [sa, pa] of A.pts) for (const [sb, pb] of B.pts) {
-          if (Math.abs(pa.x - pb.x) > ZONE || Math.abs(pa.y - pb.y) > ZONE || Math.hypot(pa.x - pb.x, pa.y - pb.y) >= ZONE) continue;
-          c0 = Math.min(c0, sa); c1 = Math.max(c1, sa); d0 = Math.min(d0, sb); d1 = Math.max(d1, sb);
-        }
-        if (c0 === Infinity) continue;
-        conf[A.ln.id].push({ D: B.ln.id, c0, c1, d0, d1 });
-        conf[B.ln.id].push({ D: A.ln.id, c0: d0, c1: d1, d0: c0, d1: c1 });
-      }
-    }
-    return { conf, div };
-  }
-  // 연결 차로 곡률 → 회전 속도 상한(횡가속 2.5m/s²)
-  function turnCap(ln) {
-    const L = laneLength(ln);
-    let rmin = Infinity;
-    for (let s = 2; s + 2 <= L; s += 1) {
-      const a = pointAt(ln, s - 2), b = pointAt(ln, s), c = pointAt(ln, s + 2);
-      const ab = Math.hypot(b.x - a.x, b.y - a.y), bc = Math.hypot(c.x - b.x, c.y - b.y), ca = Math.hypot(a.x - c.x, a.y - c.y);
-      const area2 = Math.abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
-      if (area2 > 1e-6) rmin = Math.min(rmin, ab * bc * ca / (2 * area2));
-    }
-    return clamp(Math.sqrt(2.5 * rmin), 3, ln.limit / 3.6);
-  }
-
   function create(net, o = {}) {
     const dens = o.density === 'none' ? null : DENS[o.density || 'normal'];
     const sim = { net, dens, rng: { s: (o.seed | 0) || 1 }, list: [], peds: [], nid: 1, pid: 1, seq: 0, t: 0, idx: {},
@@ -82,9 +35,9 @@ const PP_TRAFFIC = (function ppTraffic() {
     sim.sources = Object.keys(net.lanes).filter(id => !pred[id] && net.lanes[id].kind === 'normal');
     for (const st of net.stops) sim.stopOf[st.laneId] = st;
     for (const cw of net.crosswalks) for (const l of cw.lanes) (sim.cwOf[l.laneId] = sim.cwOf[l.laneId] || []).push({ cw: cw.id, s0: l.s0, s1: l.s1 });
-    for (const id in net.lanes) if (net.lanes[id].kind === 'connector') sim.vcap[id] = turnCap(net.lanes[id]);
+    for (const id in net.lanes) if (net.lanes[id].kind === 'connector') sim.vcap[id] = J.turnCap(net.lanes[id]);
     for (const s of net.signals) sim.unprot[s.id] = !!s.unprotected;
-    const cd = conflicts(net);
+    const cd = J.conflicts(net, ZONE);
     sim.conf = cd.conf; sim.div = cd.div;
     for (const sp of o.spawn || []) addCar(sim, sp.laneId, sp.s, sp.v || 0, { turn: sp.turn });
     for (const def of o.scripts || []) {
@@ -289,6 +242,7 @@ const PP_TRAFFIC = (function ppTraffic() {
       if (g < Math.max(4, 0.6 * c.v + 2) || idmTerm(c.v, lead.v, g, c.T, S0) < -2) return false;
     }
     if (foll) {
+      if (foll.car.commit) return false; // 교차로 진입 허가를 받은 차 앞으로는 끼어들지 않는다
       const g = sT - foll.s - (c.l + foll.l) / 2;
       if (scripted ? g < 3 : g < Math.max(4, 0.8 * foll.v + 2) || idmTerm(foll.v, c.v, g, foll.car.T || 1.2, S0) < -2.5) return false;
     }
@@ -306,10 +260,17 @@ const PP_TRAFFIC = (function ppTraffic() {
     const net = sim.net, lane = net.lanes[c.laneId], L = laneLength(lane), sc = c.script;
     if (c.from) { c.lat += dt / c.latDur; if (c.lat >= 1) { c.from = null; c.lat = 1; c.blink = 0; } }
     const st = sim.stopOf[c.laneId], C = c.path[0] && net.lanes[c.path[0]];
-    if (st && C && C.kind === 'connector' && !c.commit) {
-      const dStop = st.s - (c.s + c.l / 2);
-      if (c.v < 0.1 && dStop < 3) c.stopped = true;
-      if (dStop < c.v * c.v / (2 * B_COMF) + 10) tryCommit(sim, c, st, C, t);
+    if (st && C && C.kind === 'connector') {
+      // 진입 허가는 줄 맨 앞 차만: 앞에 허가 없는 차가 끼어들면 취소
+      const pl = sim.player;
+      const head = !(pl && pl.laneId === c.laneId && pl.s > c.s)
+        && !sim.list.some(o => o !== c && (o.laneId === c.laneId || o.from === c.laneId) && o.s > c.s && !o.commit);
+      if (!head) c.commit = null;
+      else if (!c.commit) {
+        const dStop = st.s - (c.s + c.l / 2);
+        if (c.v < 0.1 && dStop < 3) c.stopped = true;
+        if (dStop < c.v * c.v / (2 * B_COMF) + 10) tryCommit(sim, c, st, C, t);
+      }
     }
     if (sc) return scriptDecide(sim, c, sc, t);
     if (c.from) return;
@@ -500,6 +461,6 @@ const PP_TRAFFIC = (function ppTraffic() {
   const peds = sim => P.list(sim);
   const addPed = (sim, cwId, o) => P.add(sim, cwId, Object.assign({ forced: true }, o));
 
-  return { CAR_L, CAR_W, DENS, mulberry32, create, step, cars, peds, trigger, addPed, conflicts };
+  return { CAR_L, CAR_W, DENS, mulberry32, create, step, cars, peds, trigger, addPed };
 })();
 if (typeof module !== 'undefined') module.exports = PP_TRAFFIC;
