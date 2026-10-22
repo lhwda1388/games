@@ -68,6 +68,42 @@ test('run: 접촉은 닿기 시작할 때만, D↔R 전환 집계, via 후 goal'
   assert.strictEqual(r.grade, '통과');
   assert(Math.abs(r.time - 0.9) < 1e-9);
 });
+test('방지턱: 10km/h 넘게 넘으면 방지턱당 접촉 1회, 천천히는 0, 구역을 벗어나면 재무장', () => {
+  const map = { par: 1, goal: slot, bumps: [{ x: 0, y: 0, l: 3.6, w: 6, a: 0 }, { x: 20, y: 0, l: 3.6, w: 6, a: 0 }] };
+  const drive = (run, v, x0, x1) => {
+    const c = C.create({ x: x0, y: 0, th: 0 }); c.gear = 'D'; c.v = v;
+    for (let x = x0; x <= x1; x += v * 0.05) { c.x = x; S.tick(run, map, c, 0.05, false); }
+  };
+  const fast = S.createRun(map);
+  drive(fast, 15 / 3.6, -10, 5);
+  assert.strictEqual(fast.contacts, 1, '한 번 통과에 1회');
+  drive(fast, 15 / 3.6, 5, 30);
+  assert.strictEqual(fast.contacts, 2, '두 번째 방지턱');
+  drive(fast, 15 / 3.6, -10, 5);
+  assert.strictEqual(fast.contacts, 3, '벗어났다 다시 넘으면 또 1회');
+  assert.strictEqual(fast.bumpHit, true, '방지턱 접촉은 bumpHit로 표시(main의 안내용)');
+  assert.strictEqual(fast.bumps, 3, '접촉 중 방지턱 몫은 bumps로 따로 센다(판 기록)');
+  const slow = S.createRun(map);
+  drive(slow, 9 / 3.6, -10, 30);
+  assert.strictEqual(slow.contacts, 0);
+  assert(!slow.bumpHit);
+  const wall = S.createRun(map), cw = C.create({ x: 40, y: 0, th: 0 }); cw.v = 5;
+  S.tick(wall, map, cw, 0.05, true);
+  assert.strictEqual(wall.contacts, 1);
+  assert(!wall.bumpHit, '장애물 접촉은 방지턱 안내 아님');
+  assert(!wall.bumps);
+  const back = S.createRun(map);
+  const c = C.create({ x: 5, y: 0, th: 0 }); c.gear = 'R'; c.v = -12 / 3.6;
+  for (let x = 5; x >= -8; x += c.v * 0.05) { c.x = x; S.tick(back, map, c, 0.05, false); }
+  assert.strictEqual(back.contacts, 1, '후진으로 빠르게 넘어도 1회');
+});
+test('방지턱: bumps 없는 맵은 속도와 무관하게 접촉 0', () => {
+  const map = { par: 1, goal: slot };
+  const run = S.createRun(map), c = carAt(0, 0, 0, 'D'); c.v = 20;
+  S.tick(run, map, c, 0.1, false);
+  assert.strictEqual(run.contacts, 0);
+  assert.deepStrictEqual(Object.keys(run).sort(), Object.keys(S.createRun(map)).sort());
+});
 test('better: 접촉 → 전환 → 시간 순', () => {
   assert(S.better({ contacts: 0, switches: 5, time: 99 }, { contacts: 1, switches: 0, time: 1 }));
   assert(S.better({ contacts: 1, switches: 1, time: 50 }, { contacts: 1, switches: 2, time: 10 }));

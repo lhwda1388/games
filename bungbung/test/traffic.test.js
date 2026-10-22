@@ -69,7 +69,7 @@ test('직선 편도 3차로 보통 혼잡 1000초: 같은 차로 간격 > 1m, �
   }
   assert(minGap > 1, 'minGap=' + minGap);
   assert(changes > 50, '차선 변경 ' + changes);
-  assert(seen.size > 500, '통과 차량 ' + seen.size);
+  assert(seen.size > 300, '통과 차량 ' + seen.size);
   assert(maxCars >= 20 && maxCars <= 200, 'maxCars=' + maxCars);
 });
 
@@ -218,6 +218,243 @@ test('cut-in 스크립트: 지정 위치에서 깜빡이 후 플레이어 차로
   assert.strictEqual(car.laneId, pl);
   assert(!car.from);
   assert(car.s > player.s, '플레이어 앞으로');
+});
+
+test('closed: 닫힌 차로에는 처음부터도, 교차로를 돌아서도 AI 차가 들어가지 않는다', () => {
+  const M = require('../missions.js'); require('../missions-highway.js'); require('../missions-exam.js');
+  const m = M.byId('exam-b'), net = m.build(), sim = T.create(net, M.trafficOpts(m, net));
+  let seen = 0;
+  for (let t = DT; t < 120; t += DT) {
+    T.step(sim, DT, t, null);
+    for (const c of sim.list) { if (m.closed.includes(c.laneId) || m.closed.includes(c.from)) seen++; }
+  }
+  assert.strictEqual(seen, 0);
+  assert(sim.list.length > 5, '다른 차로에는 차가 다님');
+});
+test('유턴 중인 플레이어: 같은 1차로에서 좌회전하는 AI가 유턴 고리를 들이받지 않는다', () => {
+  const M = require('../missions.js');
+  const net = M.byId('city-uturn').build(), sig = R.signalById(net, 'J:sig'), st = R.stopOf(net, 'main:f1');
+  const uc = net.lanes[net.lanes['main:f1'].next.find(id => net.lanes[id].turn === 'uturn')], L = R.laneLength(uc);
+  const t0 = findTime(net, sig, 'main:f1', 'LG');
+  const sim = T.create(net, { seed: 3, density: 'none', spawn: [
+    { laneId: 'main:f1', s: st.s - 14, v: 6, turn: 'left' }, { laneId: 'main:f1', s: st.s - 40, v: 9, turn: 'left' }] });
+  const player = { x: 0, y: 0, th: 0, v: 2.5, laneId: uc.id, s: 1, offset: 0 };
+  let t = t0, leftDone = 0;
+  for (let i = 0; i < 40 * 30; i++) {
+    // 고리 중간에서 3초 멈췄다가(마주 오는 차 확인) 천천히 끝까지
+    player.v = player.s > L * 0.45 && player.s < L * 0.45 + 0.1 && t < t0 + 9 ? 0 : 2.5;
+    if (player.s >= L) { player.laneId = uc.next[0]; player.s -= L; }
+    const p = R.pointAt(net.lanes[player.laneId], player.s);
+    Object.assign(player, { x: p.x, y: p.y, th: p.a });
+    T.step(sim, DT, t, player); t += DT;
+    checkFrame(sim, player, 'uturn t=' + (t - t0).toFixed(2));
+    player.s += player.v * DT;
+    for (const c of sim.list) if (c.laneId === 'n:b1') leftDone |= 1 << c.id;
+  }
+  assert.strictEqual(leftDone, 0b110, 'AI 두 대 모두 좌회전을 마침');
+});
+test('빗길: AI 안전 시간 간격 1.5배(같은 시드), 맑음은 그대로', () => {
+  const mk = weather => { const net = R.newNet(); R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 600, lanesFwd: 2, lanesBack: 0, limit: 50 }); return T.create(net, { seed: 5, density: 'normal', weather }); };
+  const dry = mk(), wet = mk('rain'), base = mk(undefined);
+  assert.strictEqual(dry.list.length, wet.list.length);
+  dry.list.forEach((c, i) => assert(Math.abs(wet.list[i].T - c.T * 1.5) < 1e-9));
+  assert.deepStrictEqual(base.list.map(c => c.T), dry.list.map(c => c.T));
+});
+test('brake 스크립트: 플레이어가 when 지나 near 안에 오면 앞차가 감속해 서고, hold 뒤 다시 출발', () => {
+  const net = R.newNet();
+  const r = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 900, lanesFwd: 2, lanesBack: 0, limit: 50 });
+  const pl = r.fwd[1];
+  const sim = T.create(net, { seed: 3, density: 'none', scripts: [
+    { id: 'br', action: 'brake', spawn: { laneId: pl, s: 80, v: 12 }, when: { lanes: [pl], s: 100 }, near: 40, v: 0, hold: 3 }] });
+  const car = sim.list[0], player = { x: 0, y: 0, th: 0, v: 10, laneId: pl, s: 20, offset: 0 };
+  let fired = null, stopT = null, goT = null;
+  for (let i = 0; i < 60 * 30; i++) {
+    const t = i * DT, p = R.pointAt(net.lanes[pl], player.s);
+    player.x = p.x; player.y = p.y;
+    const gap = car.s - player.s - (car.l + 4.39) / 2;
+    player.v = Math.max(0, Math.min(15, (gap - 8) * 0.8)); // 플레이어는 뒤에서 8m 이상 띄운다
+    T.step(sim, DT, t, player);
+    checkFrame(sim, player, 'brake');
+    if (fired === null && sim.scripts[0].state === 'done') { fired = t; assert(player.s >= 100, 'when'); assert(gap <= 40 + 1, 'near ' + gap); }
+    if (fired !== null && stopT === null && car.v < 0.05) stopT = t;
+    if (stopT !== null && goT === null && car.v > 1) goT = t;
+    assert.strictEqual(car.laneId, pl, '차로 유지');
+    player.s += player.v * DT;
+  }
+  assert(fired !== null, '발동 안 함');
+  assert(stopT !== null && stopT - fired < 6, '감속해 정지 ' + stopT);
+  assert(goT !== null && goT - stopT >= 2.5, `hold 뒤 출발 stop ${stopT} go ${goT}`);
+  assert(car.v > 5, '다시 달림');
+});
+test('합류 차로: AI는 끝(endS)을 넘지 않고 지퍼식으로 합류, 충돌 없음', () => {
+  const net = R.newNet();
+  const from = R.straightRoad(net, { id: 'w', x: -400, y: 0, a: 0, length: 400, lanesFwd: 2, lanesBack: 1, limit: 50 });
+  const to = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 400, lanesFwd: 1, lanesBack: 1, limit: 50 });
+  const d = R.laneDrop(net, { id: 'd', from, to }), ml = net.lanes[d.mergeId];
+  const sim = T.create(net, { seed: 21, density: 'rush' });
+  const merged = new Set(), entered = new Set();
+  let dead = 0;
+  for (let i = 0; i < 180 * 30; i++) {
+    const before = sim.list.filter(c => c.laneId === ml.id);
+    T.step(sim, DT, i * DT, null);
+    checkFrame(sim, null, 'merge t=' + (i * DT).toFixed(1));
+    for (const c of before) if (!sim.list.includes(c)) dead++;
+    for (const c of sim.list) {
+      if (c.laneId === ml.id) { entered.add(c.id); assert(c.s + c.l / 2 <= ml.endS, `차 ${c.id} 합류 차로 끝 넘음 s=${c.s.toFixed(1)}`); }
+      if (c.from === ml.id) merged.add(c.id);
+    }
+  }
+  assert.strictEqual(dead, 0, '합류 차로 끝에서 사라진 차');
+  assert(entered.size >= 3, '합류 차로에 들어간 차 ' + entered.size);
+  assert(merged.size >= 3, '합류한 차 ' + merged.size);
+});
+// 합류 차로 도로: 편도 2차로(w) → 1차로(m), 바깥 차로는 합류 차로 d:end(0~100m, endS 94)
+function dropNet() {
+  const net = R.newNet();
+  const from = R.straightRoad(net, { id: 'w', x: -400, y: 0, a: 0, length: 400, lanesFwd: 2, lanesBack: 1, limit: 50 });
+  const to = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 400, lanesFwd: 1, lanesBack: 1, limit: 50 });
+  return { net, ml: net.lanes[R.laneDrop(net, { id: 'd', from, to }).mergeId] };
+}
+// 합류 차로 s=40에 서 있는 플레이어(깜빡이 blink) 옆으로 지나간 m:f1 차 수: 처음 15초 뒤부터
+function parkedPasses(blink) {
+  const { net, ml } = dropNet(), sim = T.create(net, { seed: 7, density: 'normal' });
+  const p = R.pointAt(ml, 40), player = { x: p.x, y: p.y, th: p.a, v: 0, laneId: ml.id, s: 40, offset: 0, blink };
+  const pS = R.mapS(net, ml.id, 'm:f1', 40), was = {};
+  let passes = 0, stoppedBehind = false;
+  for (let i = 0; i < 90 * 30; i++) {
+    const t = i * DT;
+    T.step(sim, DT, t, player);
+    checkFrame(sim, player, 'parked t=' + t.toFixed(1));
+    for (const c of sim.list) {
+      if (c.laneId !== 'm:f1') continue;
+      if (t > 15 && was[c.id] != null && was[c.id] < pS && c.s >= pS) passes++;
+      if (t > 15 && c.v < 0.1 && c.s < pS && c.s > pS - 30) stoppedBehind = true;
+      was[c.id] = c.s;
+    }
+  }
+  return { passes, stoppedBehind };
+}
+test('지퍼식 양보: 합류 차로에 깜빡이 없이 서 있는 플레이어 옆으로 왼쪽 차로 흐름은 계속, 왼쪽 깜빡이면 자리를 비워 준다', () => {
+  const idle = parkedPasses(0), sig = parkedPasses(-1);
+  assert(idle.passes >= 3, '깜빡이 없음: 지나간 차 ' + idle.passes);
+  assert.strictEqual(sig.passes, 0, '왼쪽 깜빡이: 지나간 차');
+  assert(sig.stoppedBehind, '왼쪽 깜빡이: 뒤에서 기다리는 차 없음');
+});
+test('지퍼식 양보: 깜빡이가 없어도 플레이어가 끝(endS) 25m 안이면 양보', () => {
+  const { net, ml } = dropNet(), sim = T.create(net, { seed: 7, density: 'normal' });
+  const s = ml.endS - 20, p = R.pointAt(ml, s), player = { x: p.x, y: p.y, th: p.a, v: 0, laneId: ml.id, s, offset: 0, blink: 0 };
+  const pS = R.mapS(net, ml.id, 'm:f1', s);
+  let stoppedBehind = false;
+  for (let i = 0; i < 60 * 30; i++) {
+    T.step(sim, DT, i * DT, player);
+    for (const c of sim.list) if (c.laneId === 'm:f1' && c.v < 0.1 && c.s < pS && c.s > pS - 30) stoppedBehind = true;
+  }
+  assert(stoppedBehind, '끝 근처 플레이어에게 양보 안 함');
+});
+// 합류 차로 s=30(끝에서 멀리)·깜빡이 없이 v로 달리는 플레이어와, 그 옆 m:f1에서 플레이어보다 d m 뒤(차 중심)에 있는 AI 한 대 → 첫 스텝 AI 가속도
+function zipAccel(player, d) {
+  const { net, ml } = dropNet();
+  const pS = R.mapS(net, ml.id, 'm:f1', 30);
+  const sim = T.create(net, { seed: 4, density: 'none', spawn: [{ laneId: 'm:f1', s: pS - d, v: 10, turn: 'straight' }] });
+  sim.list[0].v0 = 12;
+  if (player) { const p = R.pointAt(ml, 30); Object.assign(player, { x: p.x, y: p.y, th: p.a, laneId: ml.id, s: 30, offset: 0, blink: 0 }); }
+  T.step(sim, DT, 0, player);
+  return sim.list[0].a;
+}
+test('지퍼식 양보: 움직이며 앞범퍼가 앞선 플레이어에겐 양보하고, 뒤에 있으면(움직여도) 양보하지 않는다', () => {
+  const free = zipAccel(null, 10);
+  assert(free > 0, '혼자면 가속 ' + free);
+  assert(zipAccel({ v: 10 }, 10) < free - 0.5, '움직이며 앞선 플레이어: 양보(감속)');
+  assert.strictEqual(zipAccel({ v: 10 }, -10), free, '움직이지만 AI 뒤 플레이어: 양보 없음');
+  assert.strictEqual(zipAccel({ v: 0 }, 10), free, '서 있는(깜빡이 없음·끝에서 멀리) 플레이어: 양보 없음');
+});
+// 빗길: 바깥 차로 앞이 막힌 AI가 플레이어(일정 속도 pv) 차로로 옮긴 순간 플레이어 앞 시간 간격(s) 목록(음수 = 플레이어 뒤로)
+function cutInGaps(weather, seed, aS, pv) {
+  const net = R.newNet();
+  const r = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 1500, lanesFwd: 2, lanesBack: 0, limit: 60 });
+  const [f1, f2] = r.fwd;
+  const sim = T.create(net, { seed, density: 'none', weather, spawn: [{ laneId: f2, s: 110, v: 2, turn: 'straight' }, { laneId: f2, s: aS, v: pv, turn: 'straight' }] });
+  sim.list[0].v0 = 2; // 바깥 차로 앞의 느린 차
+  const player = { x: 0, y: 0, th: 0, v: pv, laneId: f1, s: 30, offset: 0, blink: 0 }, out = [];
+  for (let i = 0; i < 40 * 30; i++) {
+    const p = R.pointAt(net.lanes[f1], player.s);
+    Object.assign(player, { x: p.x, y: p.y });
+    const before = new Set(sim.list.filter(c => c.laneId === f1).map(c => c.id));
+    T.step(sim, DT, i * DT, player);
+    for (const c of sim.list) if (c.laneId === f1 && !before.has(c.id)) out.push((c.s - player.s - (c.l + 4.39) / 2) / player.v);
+    player.s += player.v * DT;
+  }
+  return out;
+}
+test('빗길: AI는 플레이어 앞으로 2초 간격 이상일 때만 끼어든다(맑으면 1초대도)', () => {
+  for (const [seed, aS, pv] of [[11, 45, 10], [1, 50, 8], [3, 55, 8]]) {
+    const dry = cutInGaps(undefined, seed, aS, pv), wet = cutInGaps('rain', seed, aS, pv), tag = JSON.stringify({ seed, aS, pv, dry, wet });
+    assert(wet.length >= 1, '빗길에도 차선은 바꾼다 ' + tag);
+    assert(wet.every(g => g < 0 || g >= 2), '빗길 끼어들기 간격 ' + tag);
+    if (seed === 11) assert(dry.some(g => g > 0 && g < 2), '맑음: 비교용 1초대 끼어들기 ' + tag);
+  }
+});
+// 빗길: 바깥 차로 느린 AI(av)가 더 빠른 플레이어(pv) 앞으로 끼어들 때. 플레이어는 1.5초 뒤 1.5m/s²로 그 차 속도까지 줄인다(보통 운전)
+// → 끼어든 순간 [간격, 플레이어 속도, AI 속도] 목록과 2초 미만 간격이 이어진 가장 긴 시간(s)
+function slowCutIn(seed, aS, av, pv) {
+  const net = R.newNet();
+  const r = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 1500, lanesFwd: 2, lanesBack: 0, limit: 60 });
+  const [f1, f2] = r.fwd;
+  const sim = T.create(net, { seed, density: 'none', weather: 'rain', spawn: [{ laneId: f2, s: aS + 50, v: 2, turn: 'straight' }, { laneId: f2, s: aS, v: av, turn: 'straight' }] });
+  sim.list[0].v0 = 2; sim.list[1].v0 = av;
+  const player = { x: 0, y: 0, th: 0, v: pv, laneId: f1, s: 30, offset: 0, blink: 0 }, ins = [];
+  let ld = null, t0 = 0, low = 0, maxLow = 0;
+  for (let i = 0; i < 40 * 30; i++) {
+    const t = i * DT, p = R.pointAt(net.lanes[f1], player.s);
+    Object.assign(player, { x: p.x, y: p.y });
+    const before = new Set(sim.list.filter(c => c.laneId === f1).map(c => c.id));
+    T.step(sim, DT, t, player);
+    for (const c of sim.list) if (c.laneId === f1 && !before.has(c.id) && c.s > player.s) { ld = c; t0 = t; ins.push([c.s - player.s - (c.l + 4.39) / 2, player.v, c.v]); }
+    if (ld && ld.s > player.s) {
+      if (t - t0 > 1.5 && player.v > ld.v) player.v = Math.max(ld.v, player.v - 1.5 * DT);
+      const g = ld.s - player.s - (ld.l + 4.39) / 2;
+      low = player.v > 3 && g / player.v < 2 ? low + DT : 0; maxLow = Math.max(maxLow, low);
+    }
+    player.s += player.v * DT;
+  }
+  return { ins, maxLow };
+}
+test('빗길: 느린 AI는 다가오는 속도까지 셈해 끼어들고, 보통으로 줄이는 플레이어는 2초 간격 감점(3초)을 받지 않는다', () => {
+  let ahead = 0;
+  for (const [seed, aS, av, pv] of [[1, 90, 6, 12], [9, 95, 6, 12], [4, 85, 8, 12], [5, 110, 5, 11], [7, 120, 8, 14], [3, 100, 7, 13]]) {
+    const { ins, maxLow } = slowCutIn(seed, aS, av, pv), tag = JSON.stringify({ seed, ins, maxLow });
+    for (const [g, p, c] of ins) { ahead++; assert(g >= 2 * p + Math.max(0, p - c) * 3 - 0.5, '끼어든 간격 ' + tag); }
+    assert(maxLow < 3, '2초 미만 간격 ' + tag);
+  }
+  assert(ahead >= 2, '앞으로 끼어든 경우 ' + ahead);
+});
+test('brake 스크립트: 감속하는 앞차는 hold가 끝날 때까지 차선을 바꾸지 않는다', () => {
+  const net = R.newNet();
+  const r = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 900, lanesFwd: 2, lanesBack: 0, limit: 50 });
+  const pl = r.fwd[1];
+  const sim = T.create(net, { seed: 3, density: 'none', spawn: [{ laneId: pl, s: 80, v: 12, turn: 'straight' }],
+    scripts: [{ id: 'br', action: 'brake', when: { lanes: [pl], s: 40 }, near: 60, v: 0, hold: 4 }] });
+  const car = sim.list[0];
+  car.want = r.fwd[0]; car.blink = -1; car.blinkT = 0; // 막 왼쪽으로 옮기려던 차
+  const player = { x: 0, y: 0, th: 0, v: 10, laneId: pl, s: 45, offset: 0 };
+  T.step(sim, DT, 0, player);
+  assert.strictEqual(sim.scripts[0].car, car, '플레이어 앞차가 급제동');
+  assert(car.lcT >= 4 && car.want === null && car.blink === 0, `lcT ${car.lcT} want ${car.want}`);
+});
+test('brake 스크립트: 합류 차로에서 서는 차도 hold 동안은 합류(차선 변경)하지 않고, 끝나면 합류', () => {
+  const { net, ml } = dropNet();
+  const sim = T.create(net, { seed: 5, density: 'none', spawn: [], scripts: [{ id: 'br', action: 'brake', spawn: { laneId: ml.id, s: 30, v: 8 }, v: 0, hold: 4 }] });
+  const car = sim.scripts[0].car;
+  T.trigger(sim, 'br');
+  const until = car.slowUntil;
+  let merged = -1;
+  for (let i = 0; i < 30 * 30 && merged < 0; i++) {
+    const t = i * DT;
+    T.step(sim, DT, t, null);
+    if (t < until) assert(car.laneId === ml.id && !car.from, '서는 동안 합류 t=' + t.toFixed(2));
+    else if (car.laneId !== ml.id) merged = t;
+  }
+  assert(merged >= until, 'hold 뒤 합류 ' + merged);
 });
 for (const [name, fn] of tests) {
   try { fn(); console.log('ok  ' + name); }

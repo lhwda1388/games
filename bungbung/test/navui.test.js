@@ -1,0 +1,12 @@
+const assert = require('assert');
+const UI = require('../navui.js');
+const calls = [], engine = { cancel(){calls.push('cancel');}, speak(u){calls.push(u.text);}, getVoices(){return [];} };
+const voice = UI.voiceQueue(engine, function(text){this.text=text;});
+voice.say('100m 앞 우회전입니다'); assert.strictEqual(calls.length,0);
+voice.unlock(); assert.strictEqual(calls.at(-1),'100m 앞 우회전입니다');
+voice.say('잠시 후 우회전입니다'); voice.stop(); voice.unlock();
+assert.strictEqual(calls.at(-1),'cancel');
+voice.enable(false); voice.say('읽지 않음'); assert(!calls.includes('읽지 않음'));
+assert.doesNotThrow(()=>UI.voiceQueue(null,null).say('음성 없음'));
+assert.doesNotThrow(()=>UI.voiceQueue({cancel(){throw Error();},speak(){throw Error();}},function(){}).enable(false));
+console.log('all voice queue tests passed');
