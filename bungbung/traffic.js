@@ -19,9 +19,11 @@ const PP_TRAFFIC = (function ppTraffic() {
     highway: { head: [3, 5], gap: [60, 110], f: [0.85, 1.1], T: 1.5 }, // T: 안전 시간 간격(s) 고정
   };
   const PLAYER = { id: 0, player: true, T: 1.2 };
-  // ring(실제 지도): 영역 끝 대신 플레이어 둘레 r0~r1 차로에서 생성, drop 밖은 제거
-  const RING_TRY = 8, RING_GAP = 20; // 생성 지점 시도 횟수, 같은 방향 앞뒤 빈 거리(m)
-  const RING_LANES = 40; // ponytail: 영역 끝 sources 수 대신 반경 안 차로 수 / 이 값을 생성 지점 수로 본다(실제 지도 차로는 교차로 사이 짧은 조각이라 많다)
+  const WET = { T: 1.5, b: 0.7 }; // 빗길(o.weather 'rain'): 안전 시간 간격 배율, 최대 감속 배율
+  const RAIN_GAP = 2; // 빗길에 플레이어 앞으로 차선을 바꿀 때 플레이어와 둘 최소 시간 간격(s) = drive-score 빗길 간격 기준
+  const BRAKE_A = 3; // brake 스크립트 감속(m/s²) — accel의 자유 주행 항 하한과 같다
+  const MERGE_WAIT = 10, MERGE_GAP = 1.5, ZIP_R = 30, ZIP_S0 = 6; // 합류 차로: 끝(endS) 앞 대기 거리(m), 뒤차 시간 간격(s), 옆 차로 양보 범위(m)·양보 정지 간격(m)
+  const ZIP_END = 25; // 플레이어가 합류 차로 끝(endS) 이만큼 안이면 깜빡이가 없어도 양보
 
   function mulberry32(r) {
     let t = (r.s = (r.s + 0x6D2B79F5) | 0);
@@ -35,11 +37,13 @@ const PP_TRAFFIC = (function ppTraffic() {
   function create(net, o = {}) {
     const dens = o.density === 'none' ? null : DENS[o.density || 'normal'];
     const sim = { net, dens, rng: { s: (o.seed | 0) || 1 }, list: [], peds: [], nid: 1, pid: 1, seq: 0, t: 0, idx: {},
-      player: null, scripts: [], spawnAt: {}, walkPrev: {}, busy: {}, stopOf: {}, cwOf: {}, vcap: {}, unprot: {} };
+      player: null, scripts: [], spawnAt: {}, walkPrev: {}, busy: {}, stopOf: {}, cwOf: {}, vcap: {}, unprot: {}, closed: {},
+      rain: o.weather === 'rain' };
+    sim.bMax = B_MAX * (sim.rain ? WET.b : 1);
+    for (const id of o.closed || []) sim.closed[id] = true; // AI 차가 들어가지 않는 차로(시험 코스의 장면 확보용)
     const pred = {};
     for (const id in net.lanes) for (const n of net.lanes[id].next) pred[n] = true;
-    sim.sources = o.ring ? [] : Object.keys(net.lanes).filter(id => !pred[id] && (net.lanes[id].kind === 'normal' || net.lanes[id].kind === 'ramp'));
-    sim.ring = o.ring || null; sim.ringAt = 0;
+    sim.sources = Object.keys(net.lanes).filter(id => !pred[id] && (net.lanes[id].kind === 'normal' || net.lanes[id].kind === 'ramp'));
     for (const st of net.stops) sim.stopOf[st.laneId] = st;
     for (const cw of net.crosswalks) for (const l of cw.lanes) (sim.cwOf[l.laneId] = sim.cwOf[l.laneId] || []).push({ cw: cw.id, s0: l.s0, s1: l.s1 });
     for (const id in net.lanes) if (net.lanes[id].kind === 'connector') sim.vcap[id] = J.turnCap(net.lanes[id]);
@@ -53,6 +57,10 @@ const PP_TRAFFIC = (function ppTraffic() {
       if (def.action === 'cut-in' && def.spawn) {
         sc.car = addCar(sim, def.spawn.laneId, def.spawn.s, def.spawn.v || 0, { script: sc });
         sc.car.v0 = net.lanes[def.spawn.laneId].limit / 3.6 * 1.15;
+      } else if (def.action === 'brake' && def.spawn) { // 앞차 급제동: 평범한 차 1대(차로 유지), 발동 때 감속
+        sc.car = addCar(sim, def.spawn.laneId, def.spawn.s, def.spawn.v || 0, { turn: def.turn || 'straight' });
+        sc.car.lcT = Infinity;
+        if (def.cruise) sc.car.v0 = def.cruise; // 플레이어가 따라붙도록 조금 느리게
       }
       else if (sim.hw) H.initScript(sim, sc, K);
       sim.scripts.push(sc);
@@ -68,6 +76,7 @@ const PP_TRAFFIC = (function ppTraffic() {
       from: null, lat: 1, latDur: 2, blink: 0, blinkT: 0, want: null, path: [], commit: null, commitN: 0, stopped: false,
       yellowGo: false, turn: opt.turn || null, lcT: 1 + 3 * rnd(sim), script: opt.script || null, slowUntil: -1, slowV: 0 };
     if (sim.dens && sim.dens.T) c.T = sim.dens.T;
+    if (sim.rain) c.T *= WET.T;
     if (sim.hw) H.initCar(sim, c, rnd);
     if (!c.turn && !c.script) c.turn = pickTurn(sim, c);
     ensurePath(sim, c);
@@ -86,16 +95,18 @@ const PP_TRAFFIC = (function ppTraffic() {
     const net = sim.net, set = [];
     let x = c.laneId;
     while (net.lanes[x].left) x = net.lanes[x].left;
-    for (; x; x = net.lanes[x].right) if (sim.stopOf[x]) for (const id of net.lanes[x].next) { const t = net.lanes[id].turn; if (t && !set.includes(t)) set.push(t); }
+    for (; x; x = net.lanes[x].right) if (sim.stopOf[x]) for (const id of net.lanes[x].next) { const t = net.lanes[id].turn; if (t && !set.includes(t) && !closedTo(sim, id)) set.push(t); }
     const w = set.map(t => W_TURN[t] || 0), sum = w.reduce((a, b) => a + b, 0);
     if (!sum) return null;
     let r = rnd(sim) * sum;
     for (let i = 0; i < set.length; i++) { r -= w[i]; if (r < 0) return set[i]; }
     return set[set.length - 1];
   }
+  const closedTo = (sim, id) => sim.net.lanes[id].next.some(n => sim.closed[n]);
   function choose(sim, c, ln) {
     if (ln.next.length === 1) return ln.next[0];
-    const opts = ln.next.map(id => sim.net.lanes[id]);
+    let opts = ln.next.map(id => sim.net.lanes[id]);
+    if (opts.some(x => !closedTo(sim, x.id))) opts = opts.filter(x => !closedTo(sim, x.id));
     if (sim.hw) { const h = H.choose(sim, c, opts, rnd); if (h) return h; }
     if (c.turn) { const f = opts.find(x => x.turn === c.turn); if (f) return f.id; }
     const w = opts.map(x => W_TURN[x.turn] != null ? W_TURN[x.turn] : 1), sum = w.reduce((a, b) => a + b, 0);
@@ -116,13 +127,11 @@ const PP_TRAFFIC = (function ppTraffic() {
     const net = sim.net;
     for (const id in net.lanes) {
       const ln = net.lanes[id];
-      if (ln.kind !== 'normal') continue;
+      if (ln.kind !== 'normal' || sim.closed[id]) continue;
       const st = sim.stopOf[id], sMax = st ? st.s - CAR_L : laneLength(ln) - 8;
       for (let s = 8 + range(sim, sim.dens.gap) * rnd(sim); s < sMax; s += range(sim, sim.dens.gap)) {
-        const p = pointAt(ln, s), rg = sim.ring;
+        const p = pointAt(ln, s);
         if (avoid.some(a => Math.hypot(p.x - a.x, p.y - a.y) < a.r)) continue;
-        if (rg && Math.hypot(p.x - rg.x, p.y - rg.y) > rg.r1) continue;
-        if (ln.traffic != null && rnd(sim) >= ln.traffic) continue; // 도로 등급 배율(없으면 1, 난수도 안 씀)
         if (sim.list.some(c => (c.laneId === id || c.from === id) && Math.abs(c.s - s) < 12)) continue;
         addCar(sim, id, s, 0);
       }
@@ -248,7 +257,9 @@ const PP_TRAFFIC = (function ppTraffic() {
     for (let x = s; x <= e; x += 4) if (!canChange(net, from, to, x)) return false;
     return canChange(net, from, to, e);
   }
-  function changeOk(sim, c, to, scripted) {
+  // o.scripted: 끼어들기 스크립트 / o.skipFollIdm: 가속차로 대기 차 합류(뒤차 기준은 traffic-highway.js가 정지 거리로 따로 봄) — 둘 다 뒤차는 3m만 본다
+  function changeOk(sim, c, to, o = {}) {
+    const loose = o.scripted || o.skipFollIdm;
     const sT = mapS(sim.net, c.laneId, to, c.s);
     let lead = null, foll = null;
     for (const e of sim.idx[to] || []) { if (e.car === c) continue; if (e.s > sT) { lead = e; break; } foll = e; }
@@ -259,7 +270,10 @@ const PP_TRAFFIC = (function ppTraffic() {
     if (foll) {
       if (foll.car.commit) return false; // 교차로 진입 허가를 받은 차 앞으로는 끼어들지 않는다
       const g = sT - foll.s - (c.l + foll.l) / 2;
-      if (scripted ? g < 3 : g < Math.max(4, 0.8 * foll.v + 2) || idmTerm(foll.v, c.v, g, foll.car.T || 1.2, S0) < -2.5) return false;
+      const fT = foll.car === PLAYER && sim.rain ? PLAYER.T * WET.T : foll.car.T || 1.2; // 빗길 플레이어도 AI처럼 1.5배 간격
+      if (loose ? g < 3 : g < Math.max(4, 0.8 * foll.v + 2) || idmTerm(foll.v, c.v, g, fT, S0) < -2.5) return false;
+      // 빗길: 플레이어 앞으로는 빗길 간격(drive-score GAP_RAIN 2초) + 다가오는 속도 3초치 이상일 때만 — 끼어든 느린 차 때문에 간격 감점을 받지 않게
+      if (!loose && sim.rain && foll.car === PLAYER && g < RAIN_GAP * foll.v + Math.max(0, foll.v - c.v) * 3) return false;
     }
     return true;
   }
@@ -289,10 +303,14 @@ const PP_TRAFFIC = (function ppTraffic() {
     }
     if (sc) return scriptDecide(sim, c, sc, t);
     if (c.from) return;
+    // brake 스크립트로 줄이는 차(감속·hold 동안, 목표 속도와 무관), 대기 합류 차 뒤에서 capB로 줄이는 차는
+    // 어떤 경로로도 차선을 바꾸지 않는다(톨게이트 정지 판정은 그대로) — capB 중 차선을 바꾸면 옛 차로 앞차 항이 상한 없이 급제동한다
+    if ((c.braked > t || (c.capB && c.capB.until > t)) && lane.kind !== 'toll') { if (c.want) { c.want = null; c.blink = 0; } return; }
+    if (lane.kind === 'merge') return mergeEnd(sim, c, t, lane);
     if (sim.hw && H.decide(sim, c, t, dt, K)) return;
     if (c.want) {
       if (t - c.blinkT >= 2) {
-        if (spanAllowed(net, c.laneId, c.want, c.s, c.v) && changeOk(sim, c, c.want, false)) startChange(sim, c, c.want, 1.5 + 1.5 * rnd(sim));
+        if (spanAllowed(net, c.laneId, c.want, c.s, c.v) && changeOk(sim, c, c.want)) startChange(sim, c, c.want, 1.5 + 1.5 * rnd(sim));
         else if (t - c.blinkT > 8) { c.want = null; c.blink = 0; }
       }
       return;
@@ -305,7 +323,7 @@ const PP_TRAFFIC = (function ppTraffic() {
       const side = sideFor(sim, lane, c.turn), to = side && lane[side];
       if ((c.lcT -= dt) > 0 || !to || c.s < 10 || c.commit) return;
       c.lcT = 0.5;
-      if (spanAllowed(net, c.laneId, to, c.s, c.v) && changeOk(sim, c, to, false)) { c.want = to; c.blink = side === 'left' ? -1 : 1; c.blinkT = t; }
+      if (spanAllowed(net, c.laneId, to, c.s, c.v) && changeOk(sim, c, to)) { c.want = to; c.blink = side === 'left' ? -1 : 1; c.blinkT = t; }
       return;
     }
     if ((c.lcT -= dt) > 0) return;
@@ -316,11 +334,24 @@ const PP_TRAFFIC = (function ppTraffic() {
       if (!to || net.lanes[to].kind !== 'normal') continue;
       const roll = rnd(sim);
       if (!offers(sim, net.lanes[to], c.turn)) continue;
+      if (net.lanes[to].next.some(n => net.lanes[n].kind === 'merge')) continue; // 곧 끝나는 차로로는 옮기지 않는다
       if (!spanAllowed(net, c.laneId, to, c.s, c.v)) continue;
       const ld = leaderAhead(sim, c, to, mapS(net, c.laneId, to, c.s), 150, false), g = ld ? ld.gap : 999;
       const want = (og < 50 && g > og + 20 && own.v < c.v0 * 0.85) || roll < 0.03;
-      if (want && changeOk(sim, c, to, false)) { c.want = to; c.blink = to === lane.left ? -1 : 1; c.blinkT = t; return; }
+      if (want && changeOk(sim, c, to)) { c.want = to; c.blink = to === lane.left ? -1 : 1; c.blinkT = t; return; }
     }
+  }
+
+  // 합류 차로(차로 감소): 왼쪽 깜빡이 1초 뒤, 옆 차로 앞뒤 간격(뒤차 MERGE_GAP초)이 되면 합류. 못 하면 obstacles가 endS − MERGE_WAIT에 세운다
+  function mergeEnd(sim, c, t, lane) {
+    const net = sim.net, to = lane.left;
+    if (c.blink !== -1) { c.blink = -1; c.blinkT = t; }
+    if (!to || t - c.blinkT < 1 || !canChange(net, lane.id, to, c.s)) return;
+    const sT = mapS(net, lane.id, to, c.s);
+    let foll = null;
+    for (const e of sim.idx[to] || []) { if (e.car === c) continue; if (e.s > sT) break; foll = e; }
+    if (foll && sT - foll.s - (c.l + foll.l) / 2 < MERGE_GAP * foll.v) return;
+    if (changeOk(sim, c, to)) startChange(sim, c, to, 1.5 + rnd(sim));
   }
 
   function scriptDecide(sim, c, sc, t) {
@@ -328,7 +359,7 @@ const PP_TRAFFIC = (function ppTraffic() {
     const tgt = p && (lane.left === p.laneId || lane.right === p.laneId) ? p.laneId : null;
     if (sc.state === 'fire' && !c.from && tgt) { sc.state = 'blink'; c.blink = tgt === lane.left ? -1 : 1; c.blinkT = t; }
     else if (sc.state === 'blink') {
-      if (t - c.blinkT >= (sc.def.blink || 1.2) && tgt && changeOk(sim, c, tgt, true)) { startChange(sim, c, tgt, sc.def.dur || 2.0); sc.state = 'move'; }
+      if (t - c.blinkT >= (sc.def.blink || 1.2) && tgt && changeOk(sim, c, tgt, { scripted: true })) { startChange(sim, c, tgt, sc.def.dur || 2.0); sc.state = 'move'; }
       else if (t - c.blinkT > 10) { sc.state = 'done'; c.blink = 0; }
     } else if (sc.state === 'move' && !c.from) {
       sc.state = 'done'; c.blink = 0; c.slowUntil = t + 3; c.slowV = Math.max(3, (p ? p.v : c.v) * 0.7);
@@ -348,8 +379,10 @@ const PP_TRAFFIC = (function ppTraffic() {
         else if (rankOf(sim, c, nx, t) === 0 || (nx.turn === 'right' && rankOf(sim, c, nx, t) < 2)) out.push(off + st.s);
       }
       for (const x of sim.cwOf[id] || []) if (sim.busy[x.cw] && !(i === 0 && front > x.s0)) out.push(off + x.s0 - 0.5);
+      if (ln.kind === 'merge' && ln.endS != null) out.push(Math.max(off + ln.endS - MERGE_WAIT, 0.01)); // 합류 차로 끝 앞에서 기다린다
       base = off + laneLength(ln) + front;
     }
+    siblingPlayer(sim, c, out);
     const C = net.lanes[c.laneId].kind === 'connector' ? c.laneId : c.commit;
     if (!C) return;
     const fC = C === c.laneId ? front : front - laneLength(net.lanes[c.laneId]);
@@ -361,6 +394,22 @@ const PP_TRAFFIC = (function ppTraffic() {
         if (B !== c && (B.laneId === cf.D || B.commit === cf.D) && B.commitN < c.commitN && uncleared(B, cf.D, cf.d1)) block = true;
       }
       if (block) out.push(cf.c0 - fC - 0.5);
+    }
+  }
+
+  // 플레이어가 같은 진입 차로에서 갈라진 다른 연결 차로(예: 1차로 유턴 고리 vs 좌회전)에 있으면 차로 s로는 거리를 알 수 없다
+  // → 내 앞길(현재 차로 + 경로)을 1m씩 따라가며 플레이어 차체(여유 포함)에 처음 닿는 지점을 정지물로 둔다. 플레이어가 교차로를 나가면 끝.
+  function siblingPlayer(sim, c, out) {
+    const p = sim.player, net = sim.net, P = p && net.lanes[p.laneId];
+    if (!P || P.kind !== 'connector') return;
+    const own = net.lanes[c.laneId], A = own.kind === 'connector' ? own : c.laneId === P.from && net.lanes[c.path[0]];
+    if (!A || A.kind !== 'connector' || A.id === P.id || A.from !== P.from) return;
+    const cs = Math.cos(p.th), sn = Math.sin(p.th), lanes = [c.laneId].concat(c.path);
+    let k = 0, s = c.s;
+    for (let d = 0; d <= 35; d += 1, s += 1) {
+      while (s > laneLength(net.lanes[lanes[k]]) && k < lanes.length - 1) { s -= laneLength(net.lanes[lanes[k]]); k++; }
+      const q = pointAt(net.lanes[lanes[k]], s), dx = q.x - p.x, dy = q.y - p.y;
+      if (Math.abs(dx * cs + dy * sn) < (PL_L + c.l) / 2 + 0.5 && Math.abs(-dx * sn + dy * cs) < (PL_W + c.w) / 2 + 0.4) { out.push(Math.max(d, 0.01)); return; }
     }
   }
 
@@ -389,11 +438,29 @@ const PP_TRAFFIC = (function ppTraffic() {
       const lf = leaderAhead(sim, c, c.from, mapS(net, c.laneId, c.from, c.s), 80, false);
       if (lf) a = Math.min(a, idmTerm(c.v, lf.v, lf.gap, c.T, S0));
     }
+    if (c.slowUntil > t && c.slowV <= 0) a = Math.min(a, -BRAKE_A); // brake 스크립트: 완전히 선다
+    // 지퍼식 양보: 오른쪽 합류 차로에서 합류하려는 차(깜빡이)·플레이어가 ZIP_R m 안 앞에 있으면 그 차를 앞차로 보고 ZIP_S0 m 띄워 선다.
+    // 플레이어는 왼쪽 깜빡이·끝(endS) ZIP_END m 안·움직이며 앞범퍼가 내 앞범퍼보다 앞일 때만(서 있기만 하면 옆 차로 흐름은 계속)
+    const mr = lane.right && net.lanes[lane.right];
+    if (mr && mr.kind === 'merge') for (const e of sim.idx[mr.id] || []) {
+      if (e.car === c) continue;
+      const d = mapS(net, mr.id, lane.id, e.s) - c.s, g = d - (c.l + e.l) / 2;
+      if (e.car === PLAYER ? !(p.blink === -1 || mr.endS - (e.s + e.l / 2) < ZIP_END || (e.v > 1 && d + (e.l - c.l) / 2 > 0))
+        : e.car.from || e.car.blink !== -1) continue;
+      if (d > 0 && d < ZIP_R && g > 1) a = Math.min(a, idmTerm(c.v, e.v, g, c.T, ZIP_S0));
+    }
     obs.length = 0;
     obstacles(sim, c, t, obs);
     if (sim.hw) { H.obstacles(sim, c, obs); a = H.accel(sim, c, a, K); }
     for (const g of obs) a = Math.min(a, idmTerm(c.v, 0, g, c.T, S0_STOP));
-    return clamp(a, -B_MAX, A_MAX * 1.6);
+    // 가속차로 대기 차가 앞에 합류했으면(traffic-highway.js merge) capB.b까지만 줄인다 — 그 차가 바로 앞차이고 간격이
+    // capB.b로 서도 S0 남는 동안만(매 프레임 다시 봄, 아니면 상한을 버리고 보통 IDM 제동)
+    const cb = c.capB;
+    if (cb) {
+      if (cb.until > t && !c.from && ld && ld.car.id === cb.id && ld.gap >= c.v * c.v / (2 * cb.b) + S0 && !obs.some(g => g < ld.gap)) a = Math.max(a, -cb.b);
+      else c.capB = null;
+    }
+    return clamp(a, -sim.bMax, A_MAX * 1.6);
   }
 
   function advance(sim, c) {
@@ -420,7 +487,7 @@ const PP_TRAFFIC = (function ppTraffic() {
   function spawn(sim, t) {
     const net = sim.net;
     for (const src of sim.sources) {
-      if (t < sim.spawnAt[src]) continue;
+      if (t < sim.spawnAt[src] || sim.closed[src]) continue;
       let first = null;
       for (const c of sim.list) if ((c.laneId === src || c.from === src) && (!first || c.s < first.s)) first = c;
       const p = sim.player;
@@ -439,50 +506,15 @@ const PP_TRAFFIC = (function ppTraffic() {
     }
   }
 
-  // ring: 생성 시각마다 플레이어 둘레 r0~r1 normal 차로 위 점 하나(앞뒤 RING_GAP 같은 방향 차 없으면). 간격 = head / (반경 안 차로 수 / RING_LANES)
-  const center = sim => (sim.player && sim.player.x != null ? sim.player : sim.ring);
-  function ringSpawn(sim, t) {
-    if (t < sim.ringAt) return;
-    const net = sim.net, rg = sim.ring, o = center(sim), cand = [];
-    let total = 0, n = 0;
-    for (const id in net.lanes) {
-      const ln = net.lanes[id];
-      if (ln.kind !== 'normal' || R.projectLane(ln, o.x, o.y).dist > rg.r1) continue;
-      n++;
-      const st = sim.stopOf[id], s1 = st ? st.s - CAR_L : laneLength(ln) - 8;
-      if (s1 > 8) { cand.push({ id, ln, s1, at: total }); total += s1 - 8; }
-    }
-    sim.ringAt = t + (n ? range(sim, sim.dens.head) / (n / RING_LANES) : 1);
-    if (!total) return;
-    const cs = cars(sim), pl = sim.player;
-    for (let k = 0; k < RING_TRY; k++) {
-      let u = rnd(sim) * total, i = 0;
-      while (i + 1 < cand.length && cand[i + 1].at <= u) i++;
-      const { id, ln } = cand[i], s = 8 + u - cand[i].at, p = pointAt(ln, s), d = Math.hypot(p.x - o.x, p.y - o.y);
-      if (d < rg.r0 || d > rg.r1) continue;
-      const near = q => Math.hypot(q.x - p.x, q.y - p.y) < RING_GAP && Math.cos(q.th - p.a) > 0;
-      if (cs.some(near) || (pl && pl.x != null && near(pl))) continue;
-      if (ln.traffic != null && rnd(sim) >= ln.traffic) return;
-      const c = addCar(sim, id, s, 0), ld = leaderAhead(sim, c, id, s, 200, true), st = sim.stopOf[id];
-      let g = ld ? ld.gap : 200;
-      if (st) g = Math.min(g, st.s - s - c.l / 2);
-      c.v = Math.min(c.v0 * 0.85, Math.sqrt(2 * 1.5 * Math.max(0, g - 4)));
-      return;
-    }
-  }
-  function ringDrop(sim) {
-    const o = center(sim), r = sim.ring.drop, far = (x, y) => Math.hypot(x - o.x, y - o.y) > r;
-    sim.list = sim.list.filter(c => { const p = pointAt(sim.net.lanes[c.laneId], c.s); return c.script || !far(p.x, p.y); });
-    const pl = P.list(sim);
-    sim.peds = sim.peds.filter((q, i) => !far(pl[i].x, pl[i].y));
-  }
-
   function step(sim, dt, t, player) {
     sim.t = t; sim.player = player || null;
     const p = sim.player;
     for (const sc of sim.scripts) {
       const w = sc.def.when;
-      if (sc.state === 'wait' && w && p && w.lanes.includes(p.laneId) && p.s >= w.s) fire(sim, sc);
+      if (sc.state !== 'wait' || !w || !p || !w.lanes.includes(p.laneId) || p.s < w.s) continue;
+      if (sc.def.action !== 'brake') { fire(sim, sc); continue; }
+      const c = leadOf(sim, p, sc.def.near || 60); // 급제동은 그때 플레이어 바로 앞차(스폰한 차가 아니어도)가 한다
+      if (c) { sc.car = c; fire(sim, sc); }
     }
     P.update(sim, t, dt, rnd, cars(sim));
     buildIdx(sim);
@@ -490,12 +522,32 @@ const PP_TRAFFIC = (function ppTraffic() {
     for (const c of sim.list) c.a = accel(sim, c, t);
     for (const c of sim.list) { c.v = Math.max(0, c.v + c.a * dt); c.s += c.v * dt; advance(sim, c); }
     if (sim.list.some(c => c.dead)) sim.list = sim.list.filter(c => !c.dead);
-    if (sim.dens) { if (sim.ring) ringSpawn(sim, t); else spawn(sim, t); }
+    if (sim.dens) spawn(sim, t);
     P.move(sim, dt, cars(sim));
-    if (sim.ring) ringDrop(sim);
+  }
+  // 플레이어와 같은 차로 바로 앞차(앞범퍼 → 뒤범퍼 near m 안), 없으면 null
+  function leadOf(sim, p, near) {
+    let best = null, bg = near;
+    for (const c of sim.list) {
+      if (c.laneId !== p.laneId || c.from) continue;
+      const g = c.s - p.s - (c.l + PL_L) / 2;
+      if (g >= 0 && g <= bg) { best = c; bg = g; }
+    }
+    return best;
   }
   function fire(sim, sc) {
     if (sc.state !== 'wait') return;
+    if (sc.def.action === 'brake') { // v까지 BRAKE_A로 줄이고(0이면 정지) hold초 뒤 다시 원래 속도로
+      const c = sc.car;
+      if (c && sim.list.includes(c)) {
+        c.slowV = sc.def.v || 0; c.slowUntil = sim.t + Math.max(0, c.v - c.slowV) / BRAKE_A + (sc.def.hold != null ? sc.def.hold : 3);
+        c.lcT = Math.max(c.lcT, c.slowUntil - sim.t); // 감속·정지 동안 차선을 바꾸지 않는다
+        c.braked = c.slowUntil; // decide 차선 변경 금지 표시(양보 감속 slowUntil과 구분)
+        if (c.want) { c.want = null; c.blink = 0; }
+      }
+      sc.state = 'done';
+      return;
+    }
     if (sc.def.action === 'peds') {
       for (let i = 0; i < (sc.def.count || 2); i++) P.add(sim, sc.def.crosswalk, { from: i % 2, delay: i * 0.8, speed: 1.2, forced: true });
       sc.state = 'done';

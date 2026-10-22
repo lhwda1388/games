@@ -8,6 +8,7 @@ const PP_INPUT = (function ppInput() {
   // 페달 깊이(0..1): 누르고 있는 동안 목표 깊이까지 서서히 깊어지고, 떼면 빠르게 돌아온다.
   // 초당 변화량: 엑셀 0→1 약 1.2초, 브레이크 0→1 약 0.6초, 떼기 1→0 약 0.15초.
   const PRESS_RATE = { gas: 1 / 1.2, brake: 1 / 0.6 }, RELEASE_RATE = 1 / 0.15;
+  const BRAKE_BITE = 0.4; // 터치 브레이크는 누르는 순간 이만큼 바로 물린다: 휴대폰에서 짧게 눌러도 확실히 감속(키보드는 서서히). ponytail: 체감 손잡이.
   const SLIDE_START = 10; // px: 이만큼 위아래로 밀면 '깊이 조절' 모드(위 = 깊게, 아래 = 얕게)
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   // code가 빈 이벤트(일부 가상 키보드·자동화 도구)는 key로 대신 판단
@@ -33,21 +34,33 @@ const PP_INPUT = (function ppInput() {
     window.addEventListener('blur', () => reset(inp));
   }
 
-  // 핸들: 원을 그리지 않고 좌우로 끈 거리만큼 돌린다(오른쪽 = 우회전 = 음수). 손을 떼면 주행 속도에 비례해 복원(car.js 자동 복원).
-  const STEER_PER_PX = 3; // ponytail: 휴대폰 체감 감도 손잡이. 150px = 한쪽 끝까지.
+  // 핸들: 중심을 기준으로 손가락을 원을 따라 돌린 각도만큼 돌린다(시계 방향 = 우회전 = 음수).
+  // 좌우 끌기와 달리 화면 끝에 막히지 않는다. 손을 떼면 주행 속도에 비례해 복원(car.js 자동 복원).
+  const ROT_GAIN = 2;  // ponytail: 손가락 1° → 핸들 2°. 225° 돌리면 한쪽 끝. 휴대폰 체감 감도 손잡이.
+  const DEAD_R = 14;   // px: 중심 가까이는 각도가 튀므로 회전으로 치지 않는다
+  const MAX_STEP = 60 * Math.PI / 180; // 한 이벤트에 이보다 크게 돌면 중심을 가로지른 튐(최대 180°)으로 보고 무시
   function wheel(inp, el) {
+    const angle = (e, g) => {
+      const dx = e.clientX - g.cx, dy = e.clientY - g.cy;
+      return Math.hypot(dx, dy) < DEAD_R ? null : Math.atan2(dy, dx);
+    };
     el.addEventListener('pointerdown', e => {
       // 새 pointerdown은 항상 인계: iOS Safari에서 pointerup이 유실돼도 죽은 grab이 이후 터치를 막지 않게
       e.preventDefault();
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* 이미 뗀 포인터 */ }
-      inp.grab = { id: e.pointerId, x: e.clientX, val: inp.carWheel };
+      const r = el.getBoundingClientRect(), g = { id: e.pointerId, cx: r.left + r.width / 2, cy: r.top + r.height / 2, val: inp.carWheel }; // 중심은 잡을 때 한 번만
+      g.a = angle(e, g); inp.grab = g;
       inp.steerAbs = inp.grab.val;
     });
     el.addEventListener('pointermove', e => {
       const g = inp.grab;
       if (!g || e.pointerId !== g.id) return;
-      g.val = clamp(g.val - (e.clientX - g.x) * STEER_PER_PX * PP_CAR_.steerGain(inp.v || 0), -LOCK, LOCK);
-      g.x = e.clientX;
+      const a = angle(e, g);
+      const d = a != null && g.a != null ? Math.atan2(Math.sin(a - g.a), Math.cos(a - g.a)) : 0; // -π..π: ±180° 경계를 넘어도 연속
+      if (Math.abs(d) <= MAX_STEP) {
+        g.val = clamp(g.val - d * 180 / Math.PI * ROT_GAIN * PP_CAR_.steerGain(inp.v || 0), -LOCK, LOCK);
+      }
+      g.a = a;
       inp.steerAbs = g.val;
     });
     const end = e => { if (inp.grab && e.pointerId === inp.grab.id) inp.grab = null; };
@@ -56,9 +69,10 @@ const PP_INPUT = (function ppInput() {
     el.addEventListener('lostpointercapture', end);
   }
 
-  // 깊이 한 스텝. target = 누르는 중이면 목표 깊이, 떼었으면 null.
-  function depthStep(depth, target, kind, dt) {
+  // 깊이 한 스텝. target = 누르는 중이면 목표 깊이, 떼었으면 null. bite = 터치 페달로 누름(브레이크 즉시 물림).
+  function depthStep(depth, target, kind, dt, bite = false) {
     if (target == null) return Math.max(0, depth - RELEASE_RATE * dt);
+    if (bite && kind === 'brake' && depth < BRAKE_BITE) depth = Math.min(target, BRAKE_BITE);
     if (depth < target) return Math.min(target, depth + PRESS_RATE[kind] * dt);
     return Math.max(target, depth - RELEASE_RATE * dt);
   }
@@ -142,8 +156,9 @@ const PP_INPUT = (function ppInput() {
     const k = c => inp.down.has(c);
     const left = k('ArrowLeft'), right = k('ArrowRight');
     const target = { gas: k('ArrowUp') || k('KeyW') ? 1 : null, brake: k('ArrowDown') || k('KeyS') ? 1 : null };
-    for (const p of inp.pedals.values()) target[p.kind] = Math.max(target[p.kind] ?? 0, p.target);
-    for (const kind of ['gas', 'brake']) inp.depth[kind] = depthStep(inp.depth[kind], target[kind], kind, dt);
+    const touched = { gas: false, brake: false };
+    for (const p of inp.pedals.values()) { target[p.kind] = Math.max(target[p.kind] ?? 0, p.target); touched[p.kind] = true; }
+    for (const kind of ['gas', 'brake']) inp.depth[kind] = depthStep(inp.depth[kind], target[kind], kind, dt, touched[kind]);
     const out = {
       steerRate: ((left ? 1 : 0) - (right ? 1 : 0)) * PP_CAR_.steerGain(v),
       steerAbs: inp.steerAbs, hold: !!inp.grab, hazardReq: inp.hazardReq || 0,

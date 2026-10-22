@@ -8,11 +8,14 @@ const PP_DSCORE = (function ppDScore() {
   // 고속도로 채점(미션 highway). 브라우저에서 score-highway.js가 아직 안 실렸으면 없이 동작
   const H = typeof PP_HSCORE !== 'undefined' ? PP_HSCORE : typeof require === 'function' ? require('./score-highway.js') : null;
   const PL = 4.39; // 셀토스 길이
+  const GAP_T = 1, GAP_RAIN = 2; // 앞차 시간 간격 기준(s): 맑음 / 빗길(mission.weather 'rain')
+  const OVER = 1.5; // 정지선 너머 이만큼(횡단보도 앞)까지는 아직 교차로 진입으로 보지 않는다
   const TEXT = {
     blink: '깜빡이를 켜지 않았어요 — 차선 변경·회전 1초 전에는 켜 두세요',
     mirror: '사이드미러를 보지 않았어요 — 차선을 바꾸기 3초 안에 확인하세요',
     solid: '실선에서 차선을 바꿨어요 — 실선 구간에서는 차선 변경 금지예요',
     bus: '버스전용차로 청색 실선을 넘었어요 — 점선 구간에서만 들어갈 수 있어요',
+    stopline: '정지선을 넘어 멈췄어요 — 정지선 앞에 멈추세요',
     red: '신호를 위반했어요 — 적색 신호에 정지선을 넘었어요',
     yellow: '황색 신호에 멈출 수 있었는데 지나갔어요',
     left: '좌회전 신호가 아닐 때 좌회전했어요',
@@ -21,6 +24,7 @@ const PP_DSCORE = (function ppDScore() {
     unprotected: '비보호 좌회전은 녹색 신호일 때만 할 수 있어요',
     speed: lim => `제한속도를 넘었어요 (제한 ${lim}km/h)`,
     gap: '앞차와 너무 가까워요 — 1초 이상 간격을 두세요',
+    gapRain: '빗길이에요 — 제동 거리가 길어지니 앞차와 2초 이상 간격을 두세요',
     cutin: '뒤차와 너무 가깝게 끼어들었어요',
     route: '안내를 놓쳐 경로를 이탈했어요',
     // 고속도로(score-highway.js)
@@ -34,11 +38,16 @@ const PP_DSCORE = (function ppDScore() {
     gapHw: '앞차와 너무 가까워요 — 100km/h면 100m 이상', // 고속도로의 gap 문구(코드는 gap 그대로)
   };
   const FAIL = { car: '다른 차와 충돌했어요', ped: '보행자와 충돌했어요', wall: '구조물에 부딪혔어요', reverse: '역주행했어요', offroad: '도로를 벗어났어요',
-    accelEnd: '가속차로 끝까지 합류하지 못했어요', tollLane: '하이패스 단말기 없이 하이패스 차로로 지나갔어요', missedExit: '출구·분기를 놓쳤어요' };
+    accelEnd: '가속차로 끝까지 합류하지 못했어요', tollLane: '하이패스 단말기 없이 하이패스 차로로 지나갔어요', missedExit: '출구·분기를 놓쳤어요',
+    laneEnd: '차로가 끝나는 곳까지 합류하지 못했어요' };
 
   function create(mission, net = mission.build()) {
     const cwByLane = {};
-    for (const cw of net.crosswalks) for (const l of cw.lanes) (cwByLane[l.laneId] = cwByLane[l.laneId] || []).push({ cw, s0: l.s0, s1: l.s1 });
+    for (const cw of net.crosswalks) for (const l of cw.lanes) {
+      // 내 차로 중심선이 횡단보도 축을 지나는 위치(pts[0]에서 m)와 그 좌우 범위: 반대편 차도 보행자는 감점하지 않는다
+      const ln = net.lanes[l.laneId], c = R.pointAt(ln, (l.s0 + l.s1) / 2);
+      (cwByLane[l.laneId] = cwByLane[l.laneId] || []).push({ cw, s0: l.s0, s1: l.s1, at: along(cw, c.x, c.y), half: ln.width / 2 + 1.0 });
+    }
     return { mission, net, cwByLane, t: 0, penalties: [], done: false, failReason: null, prev: null, centerT: 0,
       blinks: [], appr: null, cross: null, cwDone: {}, overT: 0, overHit: false, gapT: 0, gapHit: false, revT: 0, offT: 0,
       hs: mission.highway && H ? H.create(mission, net) : null };
@@ -47,11 +56,12 @@ const PP_DSCORE = (function ppDScore() {
   function blinkOk(ds, dir, tStart) {
     return ds.blinks.some(b => b.dir === dir && b.from <= tStart - 1 + 1e-6 && (b.to === null || b.to >= tStart - 1e-6));
   }
-  const pedOn = (cw, peds) => (peds || []).some(p => {
+  function along(cw, x, y) { const [a, b] = cw.pts; return ((x - a[0]) * (b[0] - a[0]) + (y - a[1]) * (b[1] - a[1])) / Math.hypot(b[0] - a[0], b[1] - a[1]); }
+  // 내 차로 몫(x.at ± x.half) 위에서 걷는 보행자만
+  const pedOn = (x, peds) => (peds || []).some(p => {
     if (p.walking === false) return false;
-    const [a, b] = cw.pts, dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
-    const u = ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / L2;
-    return u >= 0 && u <= 1 && Math.abs((p.y - a[1]) * dx - (p.x - a[0]) * dy) / Math.sqrt(L2) <= cw.width / 2 + 0.5;
+    const [a, b] = x.cw.pts, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), u = along(x.cw, p.x, p.y);
+    return u >= 0 && u <= L && Math.abs(u - x.at) <= x.half && Math.abs((p.y - a[1]) * dx - (p.x - a[0]) * dy) / L <= x.cw.width / 2 + 0.5;
   });
   // 같은 차로 위 다른 차: 앞차 간격(+) / 뒤차 간격(-)을 차로 s로
   function neighbors(lane, car, others) {
@@ -59,7 +69,7 @@ const PP_DSCORE = (function ppDScore() {
     for (const o of others || []) {
       const p = R.projectLane(lane, o.x, o.y);
       if (p.dist > lane.width / 2) continue; // dist는 차로 끝 너머까지 포함(offset만 보면 연장선 위 차도 잡힌다)
-      if (p.s > car.s) { const g = p.s - o.l / 2 - (car.s + PL / 2); if (g < 80 && (!lead || g < lead.gap)) lead = { gap: g, v: o.v }; }
+      if (p.s > car.s) { const g = p.s - o.l / 2 - (car.s + PL / 2); if (g < 80 && (!lead || g < lead.gap)) lead = { gap: g, v: o.v, id: o.id }; }
       else { const g = car.s - PL / 2 - (p.s + o.l / 2); if (g < 40 && (!foll || g < foll.gap)) foll = { gap: g, v: o.v }; }
     }
     return { lead, foll };
@@ -74,6 +84,7 @@ const PP_DSCORE = (function ppDScore() {
     const net = ds.net, out = [], car = f.car, lane = net.lanes[car.laneId], v = car.v, prev = ds.prev;
     const pen = (code, text) => { const e = { t: f.t, code, text: text || TEXT[code] }; ds.penalties.push(e); out.push(e); };
     const failWith = k => { ds.failReason = FAIL[k]; ds.t = f.t; };
+    const commit = A => { A.crossed = true; ds.cross = { laneId: A.laneId, state: A.state || A.last, minV: A.minV, couldStop: A.couldStop, signal: A.signal }; };
     ds.t = f.t;
     const last = ds.blinks[ds.blinks.length - 1], curDir = last && last.to === null ? last.dir : 0;
     if (f.blink !== curDir) {
@@ -97,6 +108,7 @@ const PP_DSCORE = (function ppDScore() {
       } else if (lane.kind === 'connector' && lane.from === prev.laneId) {
         const turn = lane.turn;
         if ((turn === 'left' || turn === 'uturn' || turn === 'right') && !blinkOk(ds, turn === 'right' ? 1 : -1, f.t)) pen('blink');
+        if (ds.appr && ds.appr.laneId === prev.laneId && !ds.appr.crossed) commit(ds.appr); // 정지선 판정 구간 안에서 차로를 벗어남
         const c = ds.cross;
         if (c && c.laneId === prev.laneId) {
           const unp = R.signalById(net, c.signal).unprotected, dilemma = c.state === 'Y' && !c.couldStop;
@@ -113,27 +125,41 @@ const PP_DSCORE = (function ppDScore() {
     const st = R.stopOf(net, car.laneId);
     if (st && st.signal) {
       const state = R.signalState(net, f.t, st.signal, car.laneId);
-      if (!ds.appr || ds.appr.laneId !== car.laneId) ds.appr = { laneId: car.laneId, minV: Infinity, couldStop: false, last: state, crossed: front >= st.s };
+      if (!ds.appr || ds.appr.laneId !== car.laneId) ds.appr = { laneId: car.laneId, signal: st.signal, minV: Infinity, couldStop: false, last: state,
+        crossed: front >= st.s + OVER, state: null, rest: false, lineHit: false, stopped: false };
       const A = ds.appr;
       if (!A.crossed) {
-        if (front >= st.s - 15 && front < st.s) A.minV = Math.min(A.minV, Math.abs(v));
-        if (state === 'Y' && A.last !== 'Y') A.couldStop = v * v / (2 * Math.max(st.s - front, 0.1)) <= 3.0;
-        if (front >= st.s) { A.crossed = true; ds.cross = { laneId: car.laneId, state, minV: A.minV, couldStop: A.couldStop, signal: st.signal }; }
+        if (front >= st.s - 15) A.minV = Math.min(A.minV, Math.abs(v));
+        if (front < st.s && Math.abs(v) < 0.3 / 3.6) A.stopped = true; // 정지선 앞에서 한 번 섰다(그 뒤 횡단보도 앞까지 다가가 서는 건 괜찮다)
+        if (front < st.s && state === 'Y' && A.last !== 'Y') A.couldStop = v * v / (2 * Math.max(st.s - front, 0.1)) <= 3.0;
+        if (front >= st.s) {
+          // 정지선 앞에서 서지 않고 살짝 넘어 멈춘 경우: 신호는 다시 움직이기 시작할 때로 판정하고, 정지선 위반만 한 번 감점
+          const still = Math.abs(v) < 0.3 / 3.6;
+          if (A.state === null || (A.rest && !still)) { if (A.state !== null) A.couldStop = false; A.state = state; }
+          if (still && !A.lineHit && !A.stopped && (state === 'R' || state === 'Y')) { A.lineHit = true; pen('stopline'); }
+          A.rest = still;
+          if (front >= st.s + OVER) commit(A);
+        }
       }
       A.last = state;
     }
     for (const x of ds.cwByLane[car.laneId] || []) {
       const key = x.cw.id + '|' + car.laneId, pf = prev && prev.laneId === car.laneId ? prev.front : -Infinity;
-      if (!ds.cwDone[key] && pf < x.s0 && front >= x.s0 && front - PL < x.s1) { ds.cwDone[key] = true; if (pedOn(x.cw, f.peds)) pen('stop', TEXT.ped); }
+      if (!ds.cwDone[key] && pf < x.s0 && front >= x.s0 && front - PL < x.s1) { ds.cwDone[key] = true; if (pedOn(x, f.peds)) pen('stop', TEXT.ped); }
     }
 
     if (v * 3.6 > lane.limit * 1.1) { ds.overT += f.dt; if (ds.overT >= 2 - 1e-6 && !ds.overHit) { ds.overHit = true; pen('speed', TEXT.speed(lane.limit)); } }
     else { ds.overT = 0; ds.overHit = false; }
     const { lead } = neighbors(lane, car, f.others);
-    if (lead && v > 3 && lead.gap / v < 1) { ds.gapT += f.dt; if (ds.gapT >= 3 - 1e-6 && !ds.gapHit) { ds.gapHit = true; pen('gap', ds.hs ? TEXT.gapHw : null); } }
+    const rain = ds.mission.weather === 'rain';
+    if (lead && lead.id !== ds.gapLead) ds.gapT = 0; // 앞차가 바뀌면(끼어든 차 등) 간격 시간을 새로 센다
+    ds.gapLead = lead ? lead.id : null;
+    if (lead && v > 3 && lead.gap / v < (rain ? GAP_RAIN : GAP_T)) { ds.gapT += f.dt; if (ds.gapT >= 3 - 1e-6 && !ds.gapHit) { ds.gapHit = true; pen('gap', rain ? TEXT.gapRain : ds.hs ? TEXT.gapHw : null); } }
     else { ds.gapT = 0; ds.gapHit = false; }
-    if (f.rerouted) pen('route');
+    if (f.rerouted && lane.kind !== 'merge') pen('route'); // 합류 차로(차로 감소)로 들어간 건 경로 이탈이 아니다 — 끝까지 가면 laneEnd 실패
     if (ds.hs) { H.update(ds.hs, f, pen, failWith); if (ds.failReason) return out; }
+    // 차로 감소: 합류 차로(roads-build laneDrop) 끝까지 가면 실패
+    if (lane.kind === 'merge' && lane.endS != null && front >= lane.endS) { failWith('laneEnd'); return out; }
 
     const hd = R.pointAt(lane, car.s).a;
     if (v > 1 && Math.abs(R.wrap(car.th - hd)) > 2.1) { ds.revT += f.dt; if (ds.revT >= 5 - 1e-6) failWith('reverse'); } else ds.revT = 0;

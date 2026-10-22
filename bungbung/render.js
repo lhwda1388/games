@@ -10,16 +10,16 @@ const PP_RENDER = (function ppRender() {
     line: 0xffffff, goal: 0x2fe08a, via: 0x4fb3ff, guide: 0xffd23a, guideNear: 0xff4a3d, edge: 0x101216,
     wall: 0xd9d5cb, base: 0x2e3238, pillar: 0xe6e3da, guard: 0x26282c, label: 0x1f4e8c, labelInk: '#f4f2ec',
     yellow: 0xf2c230, dark: 0x1d1f22, curb: 0xa7a59f, steel: 0x9aa3ab, pole: 0x6f777f, lamp: 0xfff1c4,
-    building: 0xc9b9a0, window: 0x2c3a48, kiosk: 0x2f6db5, pump: 0xeceae5, pumpTop: 0xc8323a, sign: 0x2f6db5,
+    lampR: 0xff3b30, lampG: 0x2fe08a, lampOff: 0x2a2c30, building: 0xc9b9a0, window: 0x2c3a48, kiosk: 0x2f6db5, pump: 0xeceae5, pumpTop: 0xc8323a, sign: 0x2f6db5,
     bike: 0xc23b33, bike2: 0x2a8a8a, bar: 0xd23a32, white: 0xf2f0ea, fluor: 0xf4f8ff,
-    me: 0x99552c, glass: 0x253345, tire: 0x141516, hub: 0xb9bec4, head: 0xfff3cf, tail: 0xe0262e, dash: 0x202226, trim: 0x3a3e45, pillar: 0x5d6066, headliner: 0x9a9b98,
+    me: 0x99552c, glass: 0x253345, tire: 0x141516, hub: 0xb9bec4, head: 0xfff3cf, tail: 0xe0262e, dash: 0x202226, trim: 0x3a3e45, aPillar: 0x5d6066, headliner: 0x9a9b98,
   };
   const HAZARD = ['#f2c230', '#1d1f22'];
   // 한국 주차장 차색 분포(흰·은·회·검 위주, 가끔 남색·빨강·파랑). 맵의 차 순번으로 고정 선택.
   const PARKED = [0xe6e6e3, 0xe6e6e3, 0xaab0b6, 0x6b7078, 0xe6e6e3, 0x1d1f23, 0xaab0b6, 0x26355a,
     0xe6e6e3, 0x6b7078, 0x1d1f23, 0xa3262a, 0xe6e6e3, 0xaab0b6, 0x2d5fa8];
   const KIND = { // 기본 높이(실내)
-    wall: 2.6, pillar: 2.6, curb: 0.15, rail: 0.12, stop: 0.15, pole: 6, building: 4, kiosk: 1.4, pump: 1.8, cart: 1.0, bike: 1.0, bar: 0.1,
+    wall: 2.6, pillar: 2.6, curb: 0.15, rail: 0.12, stop: 0.15, pole: 6, light: 3, building: 4, kiosk: 1.4, pump: 1.8, cart: 1.0, bike: 1.0, bar: 0.1,
   };
   const CEIL_H = 2.6;
 
@@ -125,8 +125,8 @@ const PP_RENDER = (function ppRender() {
   }
   // 바닥 높이를 따라 휘는 사각형 (경사로 위에서도 바닥에 붙음). (cx,cy) 중심, l×w, 방향 a. 로컬 v=-w/2 쪽이 텍스처 아래(v=0).
   let quadNo = 0;
-  function groundQuad(res, map, cx, cy, l, w, a, material, lift = 0.012) {
-    const nx = Math.max(1, Math.ceil(l / 2)), geo = new THREE.PlaneGeometry(1, 1, nx, 1), pos = geo.attributes.position;
+  function groundQuad(res, map, cx, cy, l, w, a, material, lift = 0.012, step = 2) {
+    const nx = Math.max(1, Math.ceil(l / step)), geo = new THREE.PlaneGeometry(1, 1, nx, 1), pos = geo.attributes.position;
     const co = Math.cos(a), si = Math.sin(a);
     for (let i = 0; i < pos.count; i++) {
       const u = pos.getX(i) * l, v = pos.getY(i) * w, x = cx + co * u - si * v, y = cy + si * u + co * v;
@@ -180,8 +180,8 @@ const PP_RENDER = (function ppRender() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.autoClear = false;
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x5a5650, 0.8));
-    scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x5a5650, 0.8), amb = new THREE.AmbientLight(0xffffff, 0.15);
+    scene.add(hemi, amb);
     // 해는 -x(서쪽) 위: 오르막(+x로 오르는 면)은 평지보다 밝고, 내리막은 어둡게 → 경사가 명암으로 드러남
     const sun = new THREE.DirectionalLight(0xffffff, 0.7);
     sun.position.set(-45, 50, 20);
@@ -234,6 +234,7 @@ const PP_RENDER = (function ppRender() {
     const ticks = [1, 2, 3, 4, 5, 6].map(m => ribbon(2, m === 1 ? COL.guideNear : COL.guide));
 
     const r = {
+      lights: [[hemi, 0.8], [amb, 0.15], [sun, 0.7]], // [빛, 주간 세기]: 야간 맵(render-road.js)이 낮추고 clearMap이 되돌린다
       renderer, scene, carGroup, camDriver, camRear, camTop, mirrors, hudScene, hudCam, sides, ticks, N,
       view: 'driver', mapGroup: null, mapRes: null, carRes: null, goalGroup: null, carSpec: null, wheels: null,
       w: 1, h: 1, map: null, goalMarker: null, layout: { mirrorY: 0.58, insetBottom: 84, insetW: 0.34, roomW: 0.26, roomBottom: 0 },
@@ -487,9 +488,29 @@ const PP_RENDER = (function ppRender() {
         });
         break;
       }
+      case 'light': { // 신호등: 기둥 + 남쪽(다가오는 차)을 보는 적·녹 램프. 램프 색은 setLight로
+        const rad = Math.min(l, w) * 0.3;
+        const post = new THREE.Mesh(cyl, lam(res, COL.pole)); post.scale.set(rad, h, rad); post.position.y = h / 2; g.add(post);
+        part(g, box, lam(res, COL.dark), 0, 0, h - 0.9, l, 0.9, w);
+        const lamps = res.lamps = {};
+        for (const [k, z] of [['R', h - 0.3], ['G', h - 0.68]]) {
+          const m = cached(res.mat, 'lamp-' + k, () => new THREE.MeshBasicMaterial({ color: COL.lampOff }));
+          const disc = new THREE.Mesh(cyl, m); disc.scale.set(0.12, 0.04, 0.12); disc.rotation.x = Math.PI / 2;
+          disc.position.set(0, z, w / 2 + 0.02); g.add(disc); lamps[k] = m; // 논리 -y(남쪽) = three +z
+        }
+        break;
+      }
       default:
         part(g, box, lam(res, COL.wall), 0, 0, 0, l, h, w, res);
     }
+  }
+  // 신호등 소품 상태: 'R' | 'G' | null(둘 다 꺼짐)
+  function setLight(r, state) {
+    const lamps = r.mapRes && r.mapRes.lamps;
+    if (!lamps || r.lightState === state) return;
+    r.lightState = state;
+    lamps.R.color.setHex(state === 'R' ? COL.lampR : COL.lampOff);
+    lamps.G.color.setHex(state === 'G' ? COL.lampG : COL.lampOff);
   }
 
   // 실내 천장 + 형광등 줄 (레이어 2: 위 시점에서는 안 그림). 형광등은 실제 조명 없이 발광색만.
@@ -534,7 +555,7 @@ const PP_RENDER = (function ppRender() {
     const b = map.bounds;
     for (const rp of map.ramps) {
       const dz = rp.z1 - rp.z0;
-      if (Math.abs(dz) < 0.05) continue;
+      if (Math.abs(dz) < 0.05 || rp.bump) continue; // 과속방지턱 경사는 표지 대신 노랑 줄무늬(loadMap)
       const co = Math.cos(rp.a), si = Math.sin(rp.a), at = (u, v) => [rp.x + co * u - si * v, rp.y + si * u + co * v];
       if (rp.w <= 6) { // 좁은 경사로: 양쪽 가장자리 노랑·검정 줄무늬
         const edge = cached(res.mat, 'rampEdge' + rp.l, () => {
@@ -576,10 +597,11 @@ const PP_RENDER = (function ppRender() {
   }
 
   function clearMap(r) {
-    if (r.mapGroup) r.scene.remove(r.mapGroup);
+    if (r.mapGroup) { r.scene.remove(r.mapGroup); r.mapGroup.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); } // instanceMatrix·instanceColor 버퍼(지오메트리·재질은 disposeRes)
     disposeRes(r.mapRes);
+    for (const [light, day] of r.lights) light.intensity = day; // 야간 → 주간 복귀(가로등·전조등은 mapGroup에 있어 함께 빠짐)
     disposeGroup(r.goalGroup); r.goalGroup = null; r.goalMarker = null;
-    r.road = null; r.roadMode = false; r.focusMirror = null; r.playerHazard = false;
+    r.road = null; r.roadMode = false; r.focusMirror = null; r.playerHazard = false; r.playerBlink = 0; r.lightState = undefined;
     if (r.camDriver.far !== 300) { r.camDriver.far = 300; r.camDriver.updateProjectionMatrix(); } // 고속도로(600m)에서 돌아올 때
   }
 
@@ -599,11 +621,13 @@ const PP_RENDER = (function ppRender() {
     if (indoor) ceiling(g, res, map, Math.max(...zs) + CEIL_H);
     const lineMat = basic(res, COL.line), box = unitBox(res);
     for (const [x1, y1, x2, y2] of map.lines) {
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, z = M.heightAt(map, mx, my) + 0.005;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, len = Math.hypot(x2 - x1, y2 - y1);
+      const z1 = M.heightAt(map, x1, y1), z2 = M.heightAt(map, x2, y2), z = (z1 + z2) / 2 + 0.005;
       const m = new THREE.Mesh(box, lineMat);
-      m.scale.set(Math.hypot(x2 - x1, y2 - y1) + 0.15, 0.01, 0.15);
+      m.scale.set(len + 0.15, 0.01, 0.15);
       m.position.copy(v3(mx, my, z + 0.005));
-      m.rotation.y = Math.atan2(y2 - y1, x2 - x1);
+      m.rotation.order = 'YZX'; // 경사를 따라 기울임: 수평으로 두면 끝이 노면 아래로 묻힌다
+      m.rotation.set(0, Math.atan2(y2 - y1, x2 - x1), Math.atan2(z2 - z1, len));
       g.add(m);
     }
     const cars = [];
@@ -627,6 +651,15 @@ const PP_RENDER = (function ppRender() {
     if (cars.length) parkedCars(g, res, cars, map);
     contactShadows(g, res, map);
     slopeCues(g, res, map, indoor);
+    for (const bp of map.bumps || []) { // 과속방지턱: 노랑·검정 사선 도색(0.4m 간격으로 굴곡을 따라감)
+      const t = canvasTex(res, 'bump' + bp.l + 'x' + bp.w, 64, 64, gg => {
+        gg.fillStyle = HAZARD[0]; gg.fillRect(0, 0, 64, 64); gg.fillStyle = HAZARD[1];
+        for (let i = -64; i < 128; i += 64) { gg.beginPath(); gg.moveTo(i, 64); gg.lineTo(i + 32, 64); gg.lineTo(i + 96, 0); gg.lineTo(i + 64, 0); gg.fill(); }
+      });
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(bp.l / 1.2, bp.w / 1.2);
+      const mat = cached(res.mat, 'bump' + bp.l + 'x' + bp.w, () => new THREE.MeshLambertMaterial({ map: t, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      g.add(groundQuad(res, map, bp.x, bp.y, bp.l, bp.w, bp.a, mat, 0.015, 0.4));
+    }
     r.scene.add(g);
     r.mapGroup = g;
   }
@@ -738,7 +771,11 @@ const PP_RENDER = (function ppRender() {
       m.frame.scale.set(mw + 2 * b, mw / 2 + 2 * b, 1); m.frame.position.set(cx, cy, 1);
       m.rim.scale.set(mw + 2 * (b + rim), mw / 2 + 2 * (b + rim), 1); m.rim.position.set(cx, cy, 0);
     };
-    const my = h * r.layout.mirrorY;
+    let my = h * r.layout.mirrorY;
+    const cb = r.layout.clearBelow; // 화면 왼쪽 아래 버튼 줄(x부터 오른쪽, 아래에서 y까지)을 피해서
+    if (cb && pad + side + b + rim > cb.x) my = Math.max(my, cb.y + side / 4 + b + rim);
+    const ct = r.layout.ctlTop; // 터치: 미러 아래 테두리가 핸들·페달 위로(태블릿은 8px 띄움). 짧은 휴대폰은 위 미니맵과 붙지 않게 띄움 없이
+    if (ct != null) my = Math.max(my, ct + (h < 500 ? 0 : 8) + side / 4 + b + rim);
     place(r.mirrors[0], pad + side / 2, my, side);
     place(r.mirrors[1], w - pad - side / 2, my, side);
     const top = r.layout.roomTop ?? pad + 6;
@@ -774,7 +811,8 @@ const PP_RENDER = (function ppRender() {
     if (r.carSpec !== car.spec) buildCar(r, car.spec);
     r.carGroup.position.copy(v3(car.x, car.y, car.z));
     r.carGroup.rotation.set(0, car.th, car.pitch);
-    for (const lamp of r.blinkLights) lamp.visible = r.roadMode && (r.playerHazard || lamp.userData.side === r.playerBlink) && r.blinkOn; // 비상등: 좌우 동시
+    // 비상등: 좌우 동시. roadMode로 가리지 않는다 — 주차·장내 맵에서도 켜고, 맵을 바꿀 때 clearMap이 playerHazard·playerBlink를 0으로 되돌린다
+    for (const lamp of r.blinkLights) lamp.visible = (r.playerHazard || lamp.userData.side === r.playerBlink) && r.blinkOn;
     const steer = C.delta(car);
     for (const wh of r.wheels) wh.rotation.y = steer;
     if (r.roadMode) r.sides.concat(r.ticks).forEach(l => { l.visible = false; });
@@ -782,7 +820,16 @@ const PP_RENDER = (function ppRender() {
     r.camDriver.rotation.x = -DRIVER_PITCH * D2R;
     if (r.steering) r.steering.rotation.z = car.wheel * D2R;
     const b = C.bodyBox(car);
-    r.camTop.position.copy(v3(b.x, b.y, car.z + (r.roadMode ? 40 : 14)));
+    let tx = b.x, ty = b.y;
+    if (r.layout.topLead && !r.roadMode && r.goalMarker) { // 휴대폰: 차와 목표의 중간(최대 8m)을 보고, 아래 조작부만큼 2m 위로 올려 본다
+      const gx = r.goalMarker.position.x - tx, gy = -r.goalMarker.position.z - ty, k = Math.min(0.5, 8 / Math.max(Math.hypot(gx, gy), 1e-6));
+      // 차가 화면 안(가장자리에서 3m 이상)에 남도록 이동 길이 제한: 보이는 반높이(반폭) = 높이·tan(fov/2)
+      const half = (r.layout.topH || 14) * Math.tan(r.camTop.fov / 2 * D2R) * Math.min(1, r.camTop.aspect);
+      const lx = gx * k, ly = gy * k - 2;
+      const s = Math.min(1, Math.max(0, Math.min(8, half - 3)) / Math.max(Math.hypot(lx, ly), 1e-6));
+      tx += lx * s; ty += ly * s;
+    }
+    r.camTop.position.copy(v3(tx, ty, car.z + (r.roadMode ? 40 : r.layout.topH || 14)));
     if (r.goalMarker) { r.goalMarker.position.y = r.goalMarker.userData.z + Math.sin(performance.now() / 300) * 0.08; r.goalMarker.rotation.y += 0.02; }
 
     const R = r.renderer, w = r.w, h = r.h, driver = r.view === 'driver';
@@ -825,7 +872,7 @@ const PP_RENDER = (function ppRender() {
     }
   }
 
-  return { create, loadMap, clearMap, showGoal, setView, update, resize,
+  return { create, loadMap, clearMap, showGoal, setView, update, resize, setLight,
     assets: { makeRes, cached, unitBox, unitPlane, lam, basic, canvasTex, carParts, carPartMat, COL } };
 })();
 if (typeof module !== 'undefined') module.exports = PP_RENDER;

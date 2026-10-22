@@ -14,7 +14,7 @@ const PP_COCKPIT = (function ppCockpit() {
     box(dashX+dashL/2,0,top-.01,dashL,1.62,.03,H.COL.trim);                    // 윗면 밝은 패드: 앞유리 경계가 보이게
     box(dashX+.15,d.y,top+.04,.25,.36,.08,H.COL.dash);                          // 계기판 덮개: 핸들 테 바로 위로 보임
     for(const side of [-1,1]) {
-      bar([dashX+dashL,side*.8,top],[d.x+.7,side*.72,1.62],.05,H.COL.pillar);  // A필러
+      bar([dashX+dashL,side*.8,top],[d.x+.7,side*.72,1.62],.05,H.COL.aPillar);  // A필러
       box(d.x+.1,side*.84,top-.14,2.4,.14,.24,H.COL.dash);                    // 도어 윗선: 바깥 차체 윗면을 가림
     }
     box(d.x+.22,0,1.62,.96,1.5,.04,H.COL.headliner);                          // 천장 앞끝: 화면 위 얇은 띠

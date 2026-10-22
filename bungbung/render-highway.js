@@ -16,7 +16,8 @@ const PP_RHWR = (function ppHighwayRender() {
   function load(r, net, road) {
     const H = PP_RENDER.assets, res = road.res, g = road.g, R = PP_ROADS;
     r.camDriver.far = FAR; r.camDriver.updateProjectionMatrix();
-    r.scene.fog = new THREE.Fog(H.COL.sky, FOG[0], FOG[1]);
+    const rain = road.rain && PP_RROAD.RAIN; // 빗길: 회청색·가까운 안개
+    r.scene.fog = rain ? new THREE.Fog(rain.sky, rain.fogHw[0], rain.fogHw[1]) : new THREE.Fog(H.COL.sky, FOG[0], FOG[1]);
     road.carRadius = CAR_RADIUS;
     if (!tmpl) tmpl = new THREE.BoxGeometry(1, 1, 1).toNonIndexed();
     const chunks = new Map(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), yAxis = new THREE.Vector3(0, 1, 0);

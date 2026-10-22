@@ -11,7 +11,8 @@ const PP_CAR = (function ppCar() {
   const P = { steerRate: 540, creep: 5 / 3.6, creepAcc: 1.2, maxAcc: 3.0, brakeDec: 6, roll: 0.15, vMax: 20 / 3.6 };
 
   // 속도별 조향 감도: 40km/h에서 절반. ponytail: 고속 직진 안정감 손잡이.
-  const V_HALF = 40 / 3.6, CENTER_K = 9; // CENTER_K: 손 뗀 핸들 복원 °/s per m/s(100km/h ≈ 250°/s). ponytail: 너무 빠르면 줄인다.
+  const WET_GRIP = 0.7; // 빗길(미션 weather 'rain') 제동 마찰 배율 — drive.js가 car.grip에 넣는다. 가속·구름 저항은 그대로
+  const V_HALF = 40 / 3.6, CENTER_K = 9, CENTER_V0 = 10 / 3.6; // CENTER_K: 손 뗀 핸들 복원 °/s per m/s(100km/h ≈ 250°/s). ponytail: 너무 빠르면 줄인다.
   const steerGain = v => 1 / (1 + Math.abs(v) / V_HALF);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   // 바깥 앞바퀴가 반경 turnRadius 원을 그리는 자전거 모델 앞바퀴각
@@ -54,7 +55,7 @@ const PP_CAR = (function ppCar() {
       : clamp(c.wheel + (ctl.steerRate || 0) * P.steerRate * dt, -lock, lock);
     // 손 뗀 핸들은 속력에 비례해 중앙으로 복원(정지·잡고 있을 땐 유지)
     if (ctl.steerAbs == null && ctl.steerRate === 0 && ctl.hold !== true) {
-      const m = CENTER_K * Math.abs(c.v) * dt;
+      const m = CENTER_K * Math.max(0, Math.abs(c.v) - CENTER_V0) * dt; // 저속(주차·크리핑)에선 복원 없음: 실차도 거의 안 풀린다
       c.wheel = Math.abs(c.wheel) <= m ? 0 : c.wheel - Math.sign(c.wheel) * m;
     }
     c.pitch = pitch;
@@ -67,7 +68,7 @@ const PP_CAR = (function ppCar() {
     if (dir && (thr > 0 || brk === 0) && dir * c.v < P.creep) a += dir * P.creepAcc;
     if (dir) a += dir * P.maxAcc * thr;
     let v = c.v + a * dt;
-    const dec = (P.brakeDec * brk + P.roll) * dt;
+    const dec = (P.brakeDec * brk * (c.grip ?? 1) + P.roll) * dt;
     v = Math.abs(v) <= dec ? 0 : v - Math.sign(v) * dec;
     const vm = c.vMax ?? P.vMax; // 상태별 최고 속도(주행 미션), 후진은 기본값 이하
     c.v = clamp(v, -Math.min(vm, P.vMax), vm);
@@ -107,6 +108,6 @@ const PP_CAR = (function ppCar() {
     return out;
   }
 
-  return { SELTOS, P, G, poseFromCenter, create, setGear, step, steerGain, delta, maxWheelAngle, frontOverhang, centerOffset, toWorld, bodyBox, corners, sensorPoints, turnCenter, predict };
+  return { SELTOS, P, G, WET_GRIP, poseFromCenter, create, setGear, step, steerGain, delta, maxWheelAngle, frontOverhang, centerOffset, toWorld, bodyBox, corners, sensorPoints, turnCenter, predict };
 })();
 if (typeof module !== 'undefined') module.exports = PP_CAR;

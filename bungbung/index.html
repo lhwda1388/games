@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1c2026">
+<link rel="icon" href="data:,">
 <title>붕붕이</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -98,7 +99,7 @@ body.touch .st-extra { display: none; }
 .notice { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); padding: var(--space-3) var(--space-5); font-size: var(--text-lg); font-weight: 700; white-space: nowrap; pointer-events: none; background: var(--color-panel-solid); border: 2px solid var(--color-accent); color: var(--color-ink); }
 .keys { background: var(--color-panel); border-radius: var(--radius); position: absolute; left: var(--safe-l); bottom: var(--safe-b); font-size: var(--text-xs); color: var(--color-muted); padding: var(--space-1) var(--space-2); pointer-events: none; max-width: calc(50vw - 320px); }
 @media (max-width: 1100px) { .keys { display: none; } }
-body.touch .t-hint { position: absolute; left: var(--safe-l); bottom: calc(var(--safe-b) + 150px); max-width: min(300px, 40vw); padding: var(--space-2) var(--space-3); font-size: var(--text-sm); font-weight: 700; line-height: 1.4; pointer-events: none; background: var(--color-panel-solid); border: 2px solid var(--color-accent); color: var(--color-ink); }
+body.touch .t-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--safe-b) + 164px); width: max-content; max-width: min(340px, 44vw); /* 가운데, 깜빡이 줄 위: 사이드미러·버튼을 가리지 않게 */ padding: var(--space-2) var(--space-3); font-size: var(--text-sm); font-weight: 700; line-height: 1.4; pointer-events: none; background: var(--color-panel-solid); border: 2px solid var(--color-accent); color: var(--color-ink); }
 body:not(.touch) .t-hint { display: none; }
 body.touch .keys { display: none; }
 
@@ -133,6 +134,17 @@ body.touch .cluster { gap: var(--space-3); padding: var(--space-2) var(--space-3
 body.touch .pdepth, body.touch .pdepth-sep, body.touch #steer-dir { display: none; }
 body.touch .info { max-width: min(300px, 34vw); }
 body.touch .info-goal { font-size: 15px; }
+/* 좁은 가로 휴대폰: 센서 두 줄로 쌓아 페달과 겹치지 않게 */
+@media (max-width: 900px) {
+  body.touch .sensors { flex-direction: column; align-items: center; gap: var(--space-1); }
+  body.touch .sensor { padding: 2px var(--space-2); font-size: var(--text-sm); }
+  body.touch .sensor-bar { width: 40px; }
+}
+/* 더 좁으면 핸들 각도 숫자는 숨김: 핸들 그림이 각도를 보여 줌 */
+@media (max-width: 760px) {
+  body.touch .cluster { gap: var(--space-2); padding: var(--space-1) var(--space-2); }
+  body.touch .cluster .steer .num { display: none; }
+}
 
 /* 시야 확보: 가로 휴대폰 팁을 짧게 접고, 조작부와 정보가 겹치지 않도록 한다. */
 @media (max-height: 500px) {
@@ -154,7 +166,7 @@ body.touch .info-goal { font-size: 15px; }
 .menu-title { font-size: var(--text-xl); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
 .menu-sub { color: var(--color-muted); font-size: var(--text-sm); margin: 0; flex: 1; min-width: 0; }
 .tabs { display: flex; gap: var(--space-1); padding: var(--space-3) var(--space-2) 0; border-bottom: 1px solid var(--color-rule); overflow-x: auto; scrollbar-width: none; }
-.tab { height: 40px; padding: 0 var(--space-4); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--color-muted); font-weight: 600; white-space: nowrap; margin-bottom: -1px; }
+.tab { height: 44px; padding: 0 var(--space-4); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--color-muted); font-weight: 600; white-space: nowrap; margin-bottom: -1px; }
 .tab:hover { color: var(--color-ink); }
 .tab[aria-selected="true"] { color: var(--color-ink); border-bottom-color: var(--color-accent); }
 .tab .num { font-weight: 500; color: var(--color-faint); margin-left: var(--space-1); font-size: var(--text-sm); }
@@ -170,11 +182,11 @@ body.touch .info-goal { font-size: 15px; }
 .menu-foot { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-2) var(--safe-b); border-top: 1px solid var(--color-rule); font-size: var(--text-sm); color: var(--color-muted); flex-wrap: wrap; }
 .spec { flex: 1 1 220px; min-width: 0; } /* 좁은 세로 화면: 한 줄을 다 쓰고 음성·효과음은 아래 줄로 */
 .vol { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
-.vol input { width: 120px; accent-color: var(--color-accent); touch-action: none; }
+.vol input { width: 120px; height: 44px; margin: 0; accent-color: var(--color-accent); touch-action: none; } /* 손가락 닿는 높이 */
 
 /* ── 결과 ── */
 .result { align-items: center; justify-content: center; padding: var(--space-4); }
-.result-card { width: min(440px, 100%); padding: var(--space-6); border-radius: var(--radius-lg); background: var(--color-panel-solid); border: 1px solid var(--color-rule); box-shadow: 0 20px 60px var(--color-shadow); }
+.result-card { display: flex; flex-direction: column; width: min(440px, 100%); padding: var(--space-6); border-radius: var(--radius-lg); background: var(--color-panel-solid); border: 1px solid var(--color-rule); box-shadow: 0 20px 60px var(--color-shadow); }
 .result-map { font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
 .result-grade { font-size: var(--text-display); font-weight: 700; margin: 0; line-height: 1.1; letter-spacing: -0.02em; }
 .result-grade.is-perfect { color: var(--color-accent); }
@@ -189,7 +201,8 @@ body.touch .info-goal { font-size: 15px; }
 
 .rotate { position: fixed; inset: 0; background: var(--color-paper); display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: var(--space-6); font-size: var(--text-lg); font-weight: 600; }
 .rotate small { display: block; font-size: var(--text-sm); font-weight: 400; color: var(--color-muted); margin-top: var(--space-2); }
-@media (orientation: portrait) { body.touch .rotate { display: flex; } }
+.rotate .btn { margin-top: var(--space-5); }
+@media (orientation: portrait) and (max-width: 600px) { body.touch:not(.rotate-skip) .rotate { display: flex; } } /* 휴대폰만: 태블릿 세로는 그대로 */
 
 @media (max-height: 480px) {
   .result-card { padding: var(--space-4); }
@@ -247,8 +260,8 @@ body.touch .info-goal { font-size: 15px; }
     <b id="incline-txt"></b>
   </div>
   <div class="notice panel" id="notice" role="status" hidden>정지 후 변경 — 브레이크를 밟으세요</div>
+  <div class="notice panel lesson-toast" id="lesson-toast" role="status" hidden></div>
   <div class="t-hint panel" id="touch-hint" role="status" hidden></div>
-  <p class="osm-attr" id="osm-attr" hidden>© OpenStreetMap contributors</p>
   <div class="cluster panel">
     <div class="gears" id="gears"><span>P</span><span>R</span><span>N</span><span>D</span></div>
     <span class="sep"></span>
@@ -295,39 +308,19 @@ body.touch .info-goal { font-size: 15px; }
     <p class="menu-sub">주차와 시내 주행을 상황별로 연습해요.</p>
     <button class="btn btn-primary" id="btn-resume" hidden>이어서 주행</button>
   </div>
+  <div class="lesson-ask panel" id="lesson-ask" role="group" aria-labelledby="lesson-ask-q" hidden>
+    <p id="lesson-ask-q">처음이라면 튜토리얼부터 할까요?</p>
+    <button class="btn btn-primary" id="ask-start">시작</button>
+    <button class="btn" id="ask-skip">건너뛰기</button>
+  </div>
   <div class="mode-tabs" role="tablist" aria-label="연습 종류">
+    <button class="btn" id="mode-lesson" role="tab" aria-selected="false">처음이라면</button>
     <button class="btn" id="mode-parking" role="tab" aria-selected="true">주차</button>
     <button class="btn" id="mode-city" role="tab" aria-selected="false">주행</button>
-    <button class="btn" id="mode-real" role="tab" aria-selected="false">실제 지도</button>
+    <button class="btn" id="mode-records" role="tab" aria-selected="false">내 기록</button>
   </div>
   <div class="tabs" role="tablist" aria-label="주차 장소" id="tabs"></div>
   <div class="cards" id="cards" role="tabpanel"></div>
-  <div class="real" id="real" role="tabpanel" aria-label="실제 지도" hidden>
-    <p class="real-privacy" id="real-privacy" hidden><span>검색어와 지역 좌표가 OpenStreetMap 서버로 전송됩니다</span><button class="btn btn-sm" id="real-privacy-ok" type="button">확인</button></p>
-    <div class="real-grid">
-      <section class="real-field" data-end="from" aria-labelledby="real-from-label">
-        <h2 class="real-label" id="real-from-label">출발</h2>
-        <button class="btn btn-sm real-here" id="real-here" type="button">📍 현재 위치</button>
-        <form class="real-search"><input type="search" placeholder="출발지 이름" aria-label="출발지 검색" autocomplete="off" enterkeyhint="search" maxlength="100"><button class="btn" type="submit">검색</button></form>
-        <p class="real-picked" hidden></p>
-        <p class="real-msg" role="status" hidden><span></span><button class="btn btn-sm" type="button">다시 시도</button></p>
-        <ul class="real-results" aria-label="출발지 검색 결과"></ul>
-      </section>
-      <section class="real-field" data-end="to" aria-labelledby="real-to-label">
-        <h2 class="real-label" id="real-to-label">목적지</h2>
-        <form class="real-search"><input type="search" placeholder="목적지 이름" aria-label="목적지 검색" autocomplete="off" enterkeyhint="search" maxlength="100"><button class="btn" type="submit">검색</button></form>
-        <p class="real-picked" hidden></p>
-        <p class="real-msg" role="status" hidden><span></span><button class="btn btn-sm" type="button">다시 시도</button></p>
-        <ul class="real-results" aria-label="목적지 검색 결과"></ul>
-      </section>
-    </div>
-    <div class="real-go">
-      <p class="real-dist" id="real-dist">출발지와 목적지를 정해 주세요</p>
-      <button class="btn btn-primary" id="real-start" type="button" disabled>출발</button>
-    </div>
-    <p class="real-msg real-status" id="real-status" role="status" hidden><span></span><button class="btn btn-sm" type="button">다시 시도</button></p>
-    <p class="real-attr">© OpenStreetMap contributors</p>
-  </div>
   <div class="menu-foot">
     <span class="spec" id="spec"></span>
     <label class="voice-toggle"><input type="checkbox" id="voice-enabled" checked>내비 음성</label>
@@ -346,6 +339,7 @@ body.touch .info-goal { font-size: 15px; }
     </dl>
     <p class="result-reason" id="res-reason" hidden></p>
     <ol class="penalties" id="res-penalties" hidden></ol>
+    <p class="result-praise" id="res-praise" hidden></p>
     <p class="result-best" id="res-best"></p>
     <div class="result-actions">
       <button class="btn" id="res-retry">다시</button>
@@ -355,7 +349,19 @@ body.touch .info-goal { font-size: 15px; }
   </div>
 </div>
 
-<div class="rotate">휴대폰을 가로로 돌려주세요<small>핸들과 페달을 함께 쓰려면 가로 화면이 필요해요.</small></div>
+<div class="overlay result" id="review-done" hidden>
+  <div class="result-card" role="dialog" aria-labelledby="rv-title">
+    <p class="result-map" id="rv-map"></p>
+    <h2 class="result-grade" id="rv-title">복습 끝</h2>
+    <p class="result-reason" id="rv-line"></p>
+    <p class="result-best" id="rv-tip"></p>
+    <div class="result-actions">
+      <button class="btn btn-primary" id="rv-records">내 기록 보기</button>
+    </div>
+  </div>
+</div>
+
+<div class="rotate">휴대폰을 가로로 돌려주세요<small>핸들과 페달을 함께 쓰려면 가로 화면이 필요해요.</small><button class="btn" id="rotate-skip" type="button">그냥 계속</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
 <script src="car.js"></script>
@@ -376,17 +382,17 @@ body.touch .info-goal { font-size: 15px; }
 <script src="drive-score.js"></script>
 <script src="missions.js"></script>
 <script src="missions-highway.js"></script>
-<script src="osm-graph.js"></script>
-<script src="osm-convert.js"></script>
-<script src="missions-real.js"></script>
-<script src="osm-fetch.js"></script>
+<script src="missions-exam.js"></script>
+<script src="exam.js"></script>
 <script src="drive.js"></script>
+<script src="lessons.js"></script>
+<script src="yard.js"></script>
 <script src="render-cockpit.js"></script>
 <script src="render.js"></script>
 <script src="render-road.js"></script>
 <script src="render-highway.js"></script>
-<script src="render-real.js"></script>
 <script src="navui.js"></script>
+<script src="progress.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

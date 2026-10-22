@@ -2,7 +2,7 @@
 const PP_SCORE = (function ppScore() {
   const C = typeof PP_CAR !== 'undefined' ? PP_CAR : require('./car.js');
   const K = typeof PP_COL !== 'undefined' ? PP_COL : require('./collision.js');
-  const PI = Math.PI;
+  const PI = Math.PI, BUMP_V = 10 / 3.6;
 
   function angDiff(a, b) {
     let d = (a - b) % (2 * PI);
@@ -49,6 +49,15 @@ const PP_SCORE = (function ppScore() {
     run.t += dt;
     if (touchingNow && !run.touching) run.contacts++;
     run.touching = touchingNow;
+    // 과속방지턱: 앞·뒤 바퀴 축이 구역 안일 때 10km/h 초과면 방지턱당 1회(구역을 벗어나면 재무장)
+    if (map.bumps) {
+      run.onBump = run.onBump || [];
+      const fx = C.toWorld(c, c.spec.wheelbase, 0);
+      map.bumps.forEach((b, i) => {
+        if (!K.contains(b, c.x, c.y) && !K.contains(b, fx[0], fx[1])) run.onBump[i] = false;
+        else if (!run.onBump[i] && Math.abs(c.v) > BUMP_V) { run.contacts++; run.bumps = (run.bumps || 0) + 1; run.onBump[i] = true; run.bumpHit = true; } // bumpHit: main이 안내를 띄우고 지운다, bumps: 판 기록(접촉 중 방지턱 몫)
+      });
+    }
     const dir = c.gear === 'D' ? 1 : c.gear === 'R' ? -1 : 0;
     if (dir && run.lastDir && dir !== run.lastDir) run.switches++;
     if (dir) run.lastDir = dir;

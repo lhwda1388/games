@@ -1,4 +1,4 @@
-// 붕붕이 — 시내 주행 미션 7개. 치수는 한국 도시부 기준: 차로 폭 3.2m, 제한속도 50km/h, 신호 교차로마다 횡단보도.
+// 붕붕이 — 시내 주행 미션 12개. 치수는 한국 도시부 기준: 차로 폭 3.2m, 제한속도 50km/h, 신호 교차로마다 횡단보도.
 // 교차로 팔 길이 H = 교차 도로 한쪽 폭 + 8m(모서리 회전 반경 확보). 팔 도로는 바깥 끝에서 교차로를 향해 진행(fwd = 진입).
 const PP_MISSIONS = (function ppMissions() {
   const R = typeof PP_ROADS !== 'undefined' ? PP_ROADS : require('./roads.js');
@@ -139,12 +139,97 @@ const PP_MISSIONS = (function ppMissions() {
       return net;
     } });
 
+  add({ id: 'city-uturn', name: '유턴', seed: 808, density: 'easy',
+    tip: '좌회전 화살표 신호에 유턴하세요. 1차로에서 미리 왼쪽 깜빡이를 켜고, 마주 오는 차로의 바깥쪽 차로로 크게 도세요.',
+    start: { laneId: 'main:f2', s: 40 }, goal: { laneId: 'main:b2', s: 300 },
+    build() {
+      const net = R.newNet();
+      arterial(net, { lanes: 2, len: 450, signal: { cycle: 100, protectedLeft: true }, turns: [['left', 'uturn'], ['straight', 'right']] });
+      sign(net, 'main:f1', 330, 'uturn', { text: '유턴' });
+      align(net, 'J:sig', 'main:f1', 'LG', 40); // 도착(약 35초) 무렵 좌회전 화살표
+      return net;
+    } });
+
+  // 어린이보호구역: 편도 1차로 제한 30, 신호 없는 사거리(옆길은 AI 차 없음 — 신호 없이 가로지르는 차와 엉키지 않게)
+  add({ id: 'city-school', name: '어린이보호구역', seed: 909, density: 'easy', limit: 30,
+    tip: '어린이보호구역은 30km/h. 신호 없는 횡단보도에 사람이 있으면 반드시 멈췄다가 다 건넌 뒤 출발하세요.',
+    start: { laneId: 'main:f1', s: 40 }, goal: { laneId: 'e:b1', s: 180 },
+    closed: ['n:f1', 'n:b1', 's:f1', 's:b1'],
+    scripts: [{ id: 'kids', action: 'peds', crosswalk: 'J:cw0', count: 3, when: { lanes: ['main:f1'], s: 250 } }],
+    build() {
+      const net = R.newNet(), Z = 30, H = half(1), o = { limit: Z };
+      const main = R.straightRoad(net, { id: 'main', x: -H - 300, y: 0, a: 0, length: 300, lanesFwd: 1, lanesBack: 1, width: W, limit: Z });
+      const e = arm(net, 'e', 0, 0, 0, H, 220, 1, 1, o), nn = arm(net, 'n', 0, 0, 90, H, 120, 1, 1, o), ss = arm(net, 's', 0, 0, 270, H, 120, 1, 1, o);
+      const T1 = [['left', 'straight', 'right']];
+      R.junction4(net, { id: 'J', x: 0, y: 0, arms: [main, e, nn, ss].map(road => ({ road, turns: T1 })), signal: null, crosswalks: true });
+      sign(net, 'main:f1', 20, 'school', { text: '어린이 보호구역' });
+      sign(net, 'main:f1', 30, 'limit', { limit: Z, text: String(Z) });
+      return net;
+    } });
+
+  // 야간: 신호 교차로 2개 직진·우회전 + 차로 변경, 첫 교차로 횡단보도에 보행자(렌더는 timeOfDay로)
+  add({ id: 'city-night', name: '야간 주행', seed: 1010, density: 'easy', timeOfDay: 'night',
+    tip: '밤에는 보행자와 차가 잘 안 보여요. 속도를 줄이고 교차로마다 주위를 살피세요.',
+    start: { laneId: 'w:f1', s: 40 }, goal: { laneId: 'J2s:b2', s: 110 },
+    scripts: [{ id: 'peds', action: 'peds', crosswalk: 'J1:cw0', count: 2, when: { lanes: ['w:f1', 'w:f2'], s: 200 } }],
+    build() {
+      const net = R.newNet(), H = half(2), gap = 260;
+      const w = R.straightRoad(net, { id: 'w', x: -H - 280, y: 0, a: 0, length: 280, lanesFwd: 2, lanesBack: 2, width: W, limit: LIM, solidEnd: 30 });
+      const l1 = R.straightRoad(net, { id: 'l1', x: H, y: 0, a: 0, length: gap - 2 * H, lanesFwd: 2, lanesBack: 2, width: W, limit: LIM, solidEnd: 30, solidStart: 15 });
+      const x = R.straightRoad(net, { id: 'x', x: gap + H, y: 0, a: 0, length: 200, lanesFwd: 2, lanesBack: 2, width: W, limit: LIM, solidStart: 15 });
+      [[w, l1, 0], [l1, x, gap]].forEach(([a, b, cx], k) => {
+        const id = 'J' + (k + 1), nn = arm(net, id + 'n', cx, 0, 90, H, 130, 2, 2), ss = arm(net, id + 's', cx, 0, 270, H, 140, 2, 2);
+        R.junction4(net, { id, x: cx, y: 0, arms: [{ road: a, turns: T2S }, { road: b, turns: T2S }, { road: nn, turns: T2 }, { road: ss, turns: T2 }],
+          signal: { cycle: 70, protectedLeft: true }, crosswalks: true });
+      });
+      align(net, 'J1:sig', 'w:f1', 'G', 22);  // 첫 교차로는 보행자가 다 건넌 무렵 녹색
+      align(net, 'J2:sig', 'l1:f2', 'G', 62); // 두 번째는 녹색에 우회전
+      sign(net, 'w:f1', 20, 'limit', { limit: LIM, text: String(LIM) });
+      return net;
+    } });
+
+  // 빗길: 제한 40(50의 20% 감속), 신호 교차로 2개 직진. 출발 직후 앞차가 급제동, 첫 교차로는 도착 무렵 적색(빗길 정지 거리), 두 번째는 녹색
+  const WET = 40;
+  add({ id: 'city-rain', name: '빗길 주행', seed: 1111, density: 'easy', weather: 'rain', limit: WET,
+    tip: '비 오는 날은 제한속도를 20% 줄여 40km/h로 달려요. 제동 거리가 길어지니 앞차와 2초 이상 띄우고, 앞차 브레이크등이나 신호가 바뀌는 게 보이면 일찍 부드럽게 브레이크를 밟으세요.',
+    start: { laneId: 'w:f2', s: 40 }, goal: { laneId: 'x:f2', s: 120 },
+    scripts: [{ id: 'brake', action: 'brake', spawn: { laneId: 'w:f2', s: 75, v: 0 }, cruise: 30 / 3.6, turn: 'right', when: { lanes: ['w:f2'], s: 90 }, near: 45, v: 0, hold: 3 }],
+    build() {
+      const net = R.newNet(), H = half(2), gap = 260, o = { limit: WET };
+      const w = R.straightRoad(net, { id: 'w', x: -H - 360, y: 0, a: 0, length: 360, lanesFwd: 2, lanesBack: 2, width: W, limit: WET, solidEnd: 30 });
+      const l1 = R.straightRoad(net, { id: 'l1', x: H, y: 0, a: 0, length: gap - 2 * H, lanesFwd: 2, lanesBack: 2, width: W, limit: WET, solidEnd: 30, solidStart: 15 });
+      const x = R.straightRoad(net, { id: 'x', x: gap + H, y: 0, a: 0, length: 200, lanesFwd: 2, lanesBack: 2, width: W, limit: WET, solidStart: 15 });
+      [[w, l1, 0], [l1, x, gap]].forEach(([a, b, cx], k) => {
+        const id = 'J' + (k + 1), nn = arm(net, id + 'n', cx, 0, 90, H, 130, 2, 2, o), ss = arm(net, id + 's', cx, 0, 270, H, 130, 2, 2, o);
+        R.junction4(net, { id, x: cx, y: 0, arms: [{ road: a, turns: T2S }, { road: b, turns: T2S }, { road: nn, turns: T2 }, { road: ss, turns: T2 }],
+          signal: { cycle: 70, protectedLeft: true }, crosswalks: true });
+      });
+      align(net, 'J1:sig', 'w:f2', 'G', 52); // 첫 교차로: 도착(약 45초) 때 적색 → 잠시 정지 후 녹색
+      align(net, 'J2:sig', 'l1:f2', 'G', 78); // 두 번째: 녹색(약 19초) 중간에 통과
+      sign(net, 'w:f2', 70, 'limit', { limit: WET, text: String(WET) }); // 출발(40m) 앞에 보이게
+      sign(net, 'w:f2', 85, 'slippery', { text: '미끄러운 도로' });
+      return net;
+    } });
+
+  // 차로 감소: 편도 2차로 → 1차로(roads-build laneDrop). 바깥 차로에서 출발해 끝나기 전에 왼쪽으로 옮긴다
+  add({ id: 'city-merge', name: '차로 감소', seed: 1212,
+    tip: "'우측 차로 없어짐' 표지와 노면의 비스듬한 화살표가 보이면 미러를 보고 깜빡이를 켠 뒤 미리 왼쪽 차로로 옮기세요. 차로 끝까지 가면 실패예요. 끝에서 합류하는 차는 한 대씩 번갈아 끼워 줘요(지퍼식).",
+    start: { laneId: 'w:f2', s: 40 }, goal: { laneId: 'm:f1', s: 250 },
+    build() {
+      const net = R.newNet();
+      const w = R.straightRoad(net, { id: 'w', x: -420, y: 0, a: 0, length: 420, lanesFwd: 2, lanesBack: 1, width: W, limit: LIM });
+      const m = R.straightRoad(net, { id: 'm', x: 0, y: 0, a: 0, length: 320, lanesFwd: 1, lanesBack: 1, width: W, limit: LIM });
+      R.laneDrop(net, { id: 'drop', from: w, to: m });
+      sign(net, 'w:f2', 20, 'limit', { limit: LIM, text: String(LIM) });
+      return net;
+    } });
+
   // 교통 생성 옵션: 플레이어 시작 지점 주변 40m에는 처음에 차를 두지 않는다
   function trafficOpts(m, net) {
     const p = R.pointAt(net.lanes[m.start.laneId], m.start.s);
-    return { seed: m.seed, density: m.density, scripts: m.scripts, avoid: [{ x: p.x, y: p.y, r: 40 }] };
+    return { seed: m.seed, density: m.density, scripts: m.scripts, closed: m.closed, weather: m.weather, avoid: [{ x: p.x, y: p.y, r: 40 }] };
   }
   const byId = id => list.find(m => m.id === id);
-  return { list, byId, trafficOpts };
+  return { list, byId, trafficOpts, align, arm, sign, half };
 })();
 if (typeof module !== 'undefined') module.exports = PP_MISSIONS;

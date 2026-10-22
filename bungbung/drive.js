@@ -6,6 +6,7 @@ const PP_DRIVE = (function ppDrive() {
   const N = typeof PP_NAV !== 'undefined' ? PP_NAV : require('./nav.js');
   const S = typeof PP_DSCORE !== 'undefined' ? PP_DSCORE : require('./drive-score.js');
   const M = typeof PP_MISSIONS !== 'undefined' ? PP_MISSIONS : require('./missions.js');
+  const E = typeof PP_EXAM !== 'undefined' ? PP_EXAM : typeof require === 'function' ? require('./exam.js') : null; // 시험 채점(브라우저는 drive.js 앞에 로드)
   const COL = typeof PP_COL !== 'undefined' ? PP_COL : require('./collision.js');
   // 같은 차로 앞차 간격(앞뒤 범퍼, m)·속도 — 고속도로 채점(최저속도의 느린 앞차 제외)용
   function leaderGap(d, others) {
@@ -26,13 +27,14 @@ const PP_DRIVE = (function ppDrive() {
   function create(mission, spec = C.SELTOS) {
     const net = mission.build(), p = R.pointAt(net.lanes[mission.start.laneId], mission.start.s);
     const car = C.create(C.poseFromCenter(p.x, p.y, p.a, spec), spec); car.vMax = mission.vMax;
+    if (mission.weather === 'rain') car.grip = C.WET_GRIP; // 빗길 제동 0.7배
     const d = { mission, net, car, t: 0, blink: 0, armed: false, mirrorL: -Infinity, mirrorR: -Infinity,
-      focus: null, hazard: false, obstacles: [], score: S.create(mission, net), sim: null, events: [], speech: [] };
-    d.sim = T.create(net, mission.trafficOpts ? mission.trafficOpts(net, d) : M.trafficOpts(mission, net)); // 실제 지도: ring 교통
+      focus: null, hazard: false, obstacles: [], score: S.create(mission, net), sim: T.create(net, M.trafficOpts(mission, net)), events: [], speech: [],
+      exam: mission.exam && E ? E.create() : null };
     locate(d);
     d.route = mission.via ? N.routeVia(net, d.player.laneId, d.player.s, mission.via, mission.goal.laneId, mission.goal.s)
       : N.route(net, d.player.laneId, d.player.s, mission.goal.laneId, mission.goal.s);
-    d.guide = N.guide(net, d.route, d.player.laneId, d.player.s, mission);
+    d.guide = d.route ? N.guide(net, d.route, d.player.laneId, d.player.s, mission) : null;
     return d;
   }
   function controls(d, ctl) {
@@ -54,6 +56,7 @@ const PP_DRIVE = (function ppDrive() {
     C.step(d.car, ctl, dt); locate(d);
     if (d.blink && d.car.wheel * -d.blink > 90) d.armed = true;
     if (d.armed && Math.abs(d.car.wheel) < 15) { d.blink = 0; d.armed = false; }
+    d.player.blink = d.blink; // 합류 차로 지퍼식 양보는 플레이어 왼쪽 깜빡이를 본다(traffic.js)
     T.step(d.sim, dt, d.t, d.player);
     const others = T.cars(d.sim), peds = T.peds(d.sim);
     const hit = collision(C.bodyBox(d.car), others, peds, d.obstacles);
@@ -68,6 +71,7 @@ const PP_DRIVE = (function ppDrive() {
     d.guide = d.route ? N.guide(d.net, d.route, d.player.laneId, d.player.s, d.mission) : null;
     const events = S.update(d.score, { t: d.t, dt, car: d.player, blink: d.blink,
       mirrorL: d.mirrorL, mirrorR: d.mirrorR, collision: hit, others, peds, rerouted, hazard: d.hazard, leaderGap: leaderGap(d, others) });
+    if (d.exam) { E.update(d.exam, d, events, dt); if (d.exam.end && !d.score.failReason) d.score.failReason = d.exam.end; }
     if (rerouted) d.speech.push(N.REROUTE_SAY);
     else if (d.guide && d.guide.say) d.speech.push(d.guide.say);
     d.events = events;

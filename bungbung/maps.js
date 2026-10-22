@@ -50,7 +50,7 @@ const PP_MAPS = (function ppMaps() {
   {
     const g = garage(5.5);
     add({ id: 'apt-exit', group: 'apt', name: '좁은 칸에서 빼기', tip: '전면 주차된 차를 후진으로 빼요. 앞 모서리가 옆 차를 스치지 않게 천천히.',
-      start: { cx: 0, cy: 8, th: PI / 2 }, obstacles: g.obstacles.concat(parkRow(g.row, [4])), lines: g.row.lines,
+      start: { cx: 0.1, cy: 8, th: PI / 2 } /* 왼쪽 기둥(x≤-0.85)을 5cm 비켜 똑바로 후진 가능 */, obstacles: g.obstacles.concat(parkRow(g.row, [4])), lines: g.row.lines,
       goal: zone(8.5, 2.75, 6, 5.5), par: 2, bounds: g.bounds });
   }
   {
@@ -87,6 +87,22 @@ const PP_MAPS = (function ppMaps() {
       floors: [{ x: -7, y: 0, l: 14, w: 12, a: 0, z: 0 }, { x: 25, y: 6, l: 10, w: 15.6, a: 0, z: -2 }, { x: -7, y: 12.25, l: 14, w: 11.5, a: 0, z: -4 }],
       ramps: [{ x: 10, y: 0, l: 20, w: 3.6, a: 0, z0: 0, z1: -2 }, { x: 10, y: 12, l: 20, w: 3.6, a: 0, z0: -4, z1: -2 }],
       via: zone(-7, 12, 8, 7), goal: zone(-7, 0, 8, 7), par: 4, bounds: { x0: -14, y0: -6, x1: 30, y1: 18 } });
+  }
+  {
+    // 단지 도로 y∈[0,6.5], 방지턱 3개(폭 3.6m·높이 0.1m = 짧은 ramp 쌍 + 꼭대기), 끝에 지상 주차칸
+    const row = slotRow({ x: 6.15, y: 9.0, a: PI / 2, n: 6 });
+    const bx = [-18, -9, 0];
+    add({ id: 'apt-bump', group: 'apt', name: '단지 과속방지턱 지나 주차', tip: '방지턱을 10km/h 넘게 넘으면 접촉으로 쳐요. 방지턱 앞에서 브레이크로 속도를 줄이세요.',
+      env: 'outdoor', start: { x: -26, y: 1.6, th: 0 },
+      obstacles: [
+        seg(-30, -0.15, 20, -0.15, 0.3, 'curb', { h: 0.15 }), seg(-30, 6.65, 4.7, 6.65, 0.3, 'curb', { h: 0.15 }),
+        seg(-30, -0.15, -30, 6.65), seg(4.7, 6.65, 4.7, 11.65), seg(4.7, 11.65, 20, 11.65), seg(20, -0.15, 20, 11.65),
+      ].concat(parkRow(row, [3])),
+      // 오르막 1.6m + 평평한 꼭대기 0.4m(floor, 경계 부동소수 틈 없게 살짝 겹침) + 내리막 1.6m
+      ramps: bx.flatMap(x => [{ x: x - 1.0, y: 3.25, l: 1.6, w: 6.5, a: 0, z0: 0, z1: 0.1, bump: true }, { x: x + 1.0, y: 3.25, l: 1.6, w: 6.5, a: 0, z0: 0.1, z1: 0, bump: true }]),
+      floors: bx.map(x => ({ x, y: 3.25, l: 0.42, w: 6.5, a: 0, z: 0.1 })),
+      bumps: bx.map(x => ({ x, y: 3.25, l: 3.6, w: 6.5, a: 0 })),
+      lines: row.lines, goal: slotGoal(row.slots[3], 'in'), par: 2, bounds: { x0: -30, y0: -0.3, x1: 20, y1: 11.8 } });
   }
 
   // ── 상가·마트·공영 ──
@@ -134,6 +150,26 @@ const PP_MAPS = (function ppMaps() {
     goal: zone(-14, 0, 8, 6.5, { th: PI, tolA: 20 * D2R }), par: 2, bounds: { x0: -25, y0: -3.5, x1: 0.2, y1: 3.5 } });
   parallel('street-slope', '경사진 골목 평행 주차', '8도 오르막이에요. 후진할 때 브레이크를 떼면 뒤로 밀려 내려가니 브레이크로 속도를 조절하세요.',
     [{ x: 0, y: 3.5, l: 40, w: 12, a: 0, z0: -2.81, z1: 2.81 }]);
+  {
+    // 15% 오르막(x∈[-10,20]) 중간 정지선에서 출발. 뒤 1m에 주차된 차. 15%: 셀토스 크리핑(1.2m/s²)으로는 못 버텨 D에서도 밀린다.
+    const curb = y => poly([[-20, y], [-10, y], [20, y], [35, y]], 0.3, 'curb', { h: 0.15 }); // 경사 꺾이는 곳마다 끊어 바닥을 따라가게
+    add({ id: 'street-hill-start', group: 'street', name: '언덕길 정지선에서 출발', tip: '15% 오르막이에요. 브레이크를 떼면 뒤로 밀려 뒤차에 닿아요. 브레이크에서 엑셀로 빠르게 옮기세요.',
+      env: 'outdoor', start: { x: -2, y: -1.6, th: 0 },
+      obstacles: [...curb(-3.4), ...curb(3.4), seg(-20, -3.4, -20, 3.4), seg(35, -3.4, 35, 3.4), car(-6.16, -1.6, 0), car(10, 1.6, PI)],
+      ramps: [{ x: 5, y: 0, l: 30, w: 7, a: 0, z0: 0, z1: 4.5 }], floors: [{ x: 27.5, y: 0, l: 15, w: 7, a: 0, z: 4.5 }],
+      lines: [[1.9, -3.25, 1.9, 0]], goal: zone(28, -1.6, 8, 3.2), par: 1, bounds: { x0: -20, y0: -3.6, x1: 35, y1: 3.6 } });
+  }
+  {
+    // 칸 쪽(+y)으로 7% 내리막. 후진하면 중력이 차를 칸 안으로 끈다
+    const row = slotRow({ x: -9.2, y: 8.5, a: PI / 2, n: 9 });
+    // 선 하나는 중간 높이로 평평하게 그려지므로 1m씩 끊어 경사를 따라가게
+    const lines = row.lines.flatMap(([x1, y1, x2, y2]) => [0, 1, 2, 3, 4].map(i => [x1 + (x2 - x1) * i / 5, y1 + (y2 - y1) * i / 5, x1 + (x2 - x1) * (i + 1) / 5, y1 + (y2 - y1) * (i + 1) / 5]));
+    add({ id: 'street-slope-reverse', group: 'street', name: '내리막 칸에 후진 주차', tip: '칸 쪽이 7% 내리막이라 후진하면 저절로 빨라져요. 브레이크로 속도를 누르며 들어가세요.',
+      env: 'outdoor', start: { x: -8, y: 3, th: 0 },
+      obstacles: [seg(-12, -0.15, 12, -0.15), seg(-12, 11.15, 12, 11.15), seg(-12, -0.15, -12, 11.15), seg(12, -0.15, 12, 11.15)].concat(parkRow(row, [4])),
+      ramps: [{ x: 0, y: 5.5, l: 12, w: 26, a: PI / 2, z0: 0.42, z1: -0.42 }],
+      lines, goal: slotGoal(row.slots[4], 'out'), par: 3, bounds: { x0: -12, y0: -0.3, x1: 12, y1: 11.3 } });
+  }
 
   // ── 특수 상황 ──
   add({ id: 'special-tower', group: 'special', name: '기계식 주차 진입', tip: '팔레트 폭이 2.0m로 양쪽 여유가 10cm예요. 입구 전에 차를 똑바로 맞추고 들어가세요.',

@@ -4,6 +4,7 @@ const PP_NAV = (function ppNav() {
   const R = typeof PP_ROADS !== 'undefined' ? PP_ROADS : require('./roads.js');
   const { laneLength, canChange, mapS, projectLane, wrap } = R;
   const CHANGE_COST = 25, BUS_COST = 200, STAGES = [300, 100, 30], CAM_STAGES = [500, 300];
+  const DROP_COST = 200; // 합류 차로(차로 감소, kind 'merge')로 들어가는 경로 비용: 끝나기 전에 옆 차로로 옮기는 경로를 고른다
   const HW_STAGES = [2000, 1000, 500, 150], JAM_STAGES = [1000, 300]; // 고속도로 마지막 단계(150m)는 "잠시 후"
   const SIGN_RANGE = 2100; // 안내 지점 앞 이 거리 안의 머리 위 표지판에서 이름을 읽는다(가장 먼 안내판 2km)
   const JAM_SAY = '전방 정체 구간입니다. 비상등을 켜고 감속하세요';
@@ -42,7 +43,7 @@ const PP_NAV = (function ppNav() {
         best[id] = { cost, s }; prev[id] = p;
         open.push({ id, s, cost });
       };
-      for (const n of ln.next) relax(n, 0, cur.cost + L - cur.s, { id: cur.id, via: 'next', x: L });
+      for (const n of ln.next) relax(n, 0, cur.cost + L - cur.s + (net.lanes[n].kind === 'merge' ? DROP_COST : 0), { id: cur.id, via: 'next', x: L });
       for (const side of ['left', 'right']) {
         const to = ln[side];
         if (!to) continue;
@@ -154,9 +155,13 @@ const PP_NAV = (function ppNav() {
         const covered = nextTurn && TURN_NAME[net.lanes[nextTurn.laneId].turn] && net.lanes[net.lanes[nextTurn.laneId].from].road === ln.road;
         const j = hw.findIndex((h, k) => k > i && h && h.kind !== 'toll');
         const hwCovered = j > 0 && net.lanes[prevId].kind !== 'accel' && chain(net, st[j - 1].laneId).includes(x.laneId);
-        if (!covered && !hwCovered) man.push({ kind: net.lanes[prevId].left === x.laneId ? 'lane-left' : 'lane-right', at: C[i], laneHint: null });
+        const kind = net.lanes[prevId].left === x.laneId ? 'lane-left' : 'lane-right';
+        // 차로 감소: 안내 지점 = 그 차로가 끝나는 곳(경로가 일찍 옮겨도 "○○m 앞 차로가 줄어듭니다")
+        if (net.lanes[prevId].next.some(n => net.lanes[n].kind === 'merge')) man.push({ kind, at: C[i - 1] + laneLength(net.lanes[prevId]) - st[i - 1].s0, laneHint: null, drop: prevId });
+        else if (!covered && !hwCovered) man.push({ kind, at: C[i], laneHint: null });
       }
     });
+    man.sort((a, b) => a.at - b.at); // 차로 감소 안내만 뒤로 밀린다(나머지는 이미 순서대로)
     man.push({ kind: 'arrive', at: route.length, laneHint: null });
     return (route._man = man);
   }
@@ -204,8 +209,8 @@ const PP_NAV = (function ppNav() {
     const D = round10(dist) + 'm 앞 ';
     if (m.kind === 'arrive') return stage === 100 ? D + '목적지입니다' : null;
     if (m.kind === 'lane-left' || m.kind === 'lane-right') {
-      const side = m.kind === 'lane-left' ? '왼쪽' : '오른쪽';
-      return stage === 30 ? `${side} 차로로 이동하세요` : `${D}${side} 차로로 이동하세요`;
+      const side = m.kind === 'lane-left' ? '왼쪽' : '오른쪽', drop = m.drop ? '차로가 줄어듭니다. ' : '';
+      return stage === 30 ? `${drop}${side} 차로로 이동하세요` : `${D}${drop}${side} 차로로 이동하세요`;
     }
     const name = TURN_NAME[m.kind];
     if (stage === 30) return `잠시 후 ${name}입니다`;
@@ -238,7 +243,8 @@ const PP_NAV = (function ppNav() {
     let say = null;
     if (m.kind === 'arrive' && dist <= 10) {
       if (!route.said.arrive) { route.said.arrive = 1; say = '목적지에 도착했습니다'; }
-    } else say = hw ? stageSay(route, 'm' + mi, HW_STAGES, dist, b => hwPhrase(m, b, dist))
+    } else if (m.drop && laneId !== m.drop) say = null; // 이미 옮겼으면 차로 감소 안내는 그만
+    else say = hw ? stageSay(route, 'm' + mi, HW_STAGES, dist, b => hwPhrase(m, b, dist))
       : stageSay(route, 'm' + mi, STAGES, dist, b => phrase(m, b, dist));
     if (opts.jamAt && !say) {
       const jp = routePos(net, route, opts.jamAt.laneId, opts.jamAt.s);

@@ -8,6 +8,8 @@ const PP_THW = (function ppTHw() {
   const HW_GAP = 1.5; // 합류 때 본선 앞뒤 차와의 최소 시간 간격(s)
   const ACC_STOP = 22; // ponytail: 합류 못 한 차가 앞범퍼를 세우는 가속차로 끝까지 거리(m) — 합류 허용 구간(끝 20m 전까지) 안에 서도록
   const ACC_BRAKE = 30; // 대기 감속 시작: 정지 거리 + 이 거리(m) 안에 들어오면
+  const WAIT_V = 3, WAIT_B = 4; // 가속차로에서 (거의) 선 차(WAIT_V m/s 아래): 본선 뒤 AI가 WAIT_B m/s²로 줄여 맞출 수 있는 간격이면 합류(뒤차 IDM 기준은 선 차에겐 130m+라 몇 분씩 못 낀다)
+  const WAIT_PL = 60, WAIT_CAP_T = 1; // 그 뒤차 뒤 이 거리(m) 안에 플레이어가 있으면 대기 기준을 안 씀 / 뒤차 감속 상한 유지: WAIT_B로 설 시간 + 이 여유(s)
   const YIELD_R = 50, YIELD_P = 0.5, YIELD_SLOW = 0.7, YIELD_T = 4; // 양보: 옆 거리(m), 확률, 감속 비율, 감속 시간(s)
   const KEEP_T = 1, KEEP_GAP = 50; // 1차로 복귀 검사 주기(s), 오른쪽 차로 앞차가 이보다 멀거나 빠르면 복귀
   const HIPASS_P = 0.7; // ponytail: AI 차량 하이패스 단말기 비율 — 실제(약 85%)보다 낮춰 일반 부스 정지도 자주 보이게
@@ -70,14 +72,19 @@ const PP_THW = (function ppTHw() {
     if (!canChange(net, lane.id, ML, c.s) || !canChange(net, lane.id, ML, Math.min(c.s + c.v, L))) return;
     const sT = mapS(net, lane.id, ML, c.s), { lead, foll } = around(sim, c, ML, sT);
     if (lead && lead.s - sT - (c.l + lead.l) / 2 < HW_GAP * c.v) return;
-    if (foll && sT - foll.s - (c.l + foll.l) / 2 < HW_GAP * foll.v) return;
-    if (!K.changeOk(sim, c, ML, false)) return;
+    // 플레이어 앞으로, 또 플레이어가 그 뒤차 WAIT_PL m 안 뒤에 있으면 늘 보통 기준(뒤차가 줄이면 플레이어 앞도 갑자기 선다)
+    const waiting = c.v < WAIT_V && foll && !foll.car.player && !foll.car.from // 차선 바꾸는 중인 뒤차는 옛 차로 앞차도 보므로 보통 기준
+      && !(sim.idx[ML] || []).some(e => e.car.player && e.s < foll.s && foll.s - e.s < WAIT_PL);
+    if (foll && sT - foll.s - (c.l + foll.l) / 2 < (waiting ? foll.v * foll.v / (2 * WAIT_B) + K.S0 : HW_GAP * foll.v)) return;
+    if (!K.changeOk(sim, c, ML, { skipFollIdm: waiting })) return; // waiting: 뒤차 IDM 검사 대신 위 정지 거리 기준
     K.startChange(sim, c, ML, 1.5 + K.rnd(sim));
+    if (waiting) foll.car.capB = { until: t + foll.v / WAIT_B + WAIT_CAP_T, b: WAIT_B, id: c.id }; // 뒤차는 WAIT_B까지만 줄인다(traffic.js accel), WAIT_B로 설 시간 + 여유
   }
 
   // 본선 끝 차로: 옆 가속차로에 합류 차(플레이어 포함)가 50m 안이면 시드 확률로 왼쪽 이동 또는 감속
   function yieldTo(sim, c, t, lane, K) {
     const net = sim.net;
+    if (c.braked > t) return false; // brake 스크립트 중인 차는 양보 감속으로 덮어쓰지 않는다
     for (const A of sim.hw.acc[lane.id] || []) for (const e of sim.idx[A] || []) {
       if (e.car === c || (!e.car.player && e.car.laneId !== A)) continue;
       if (c.ySeen[A] || Math.abs(mapS(net, A, lane.id, e.s) - c.s) > YIELD_R) continue;
@@ -86,7 +93,7 @@ const PP_THW = (function ppTHw() {
       sim.hw.yields++;
       c.yieldUntil = t + 10;
       const L = lane.left;
-      if (L && net.lanes[L].kind === 'normal' && K.spanAllowed(net, lane.id, L, c.s, c.v) && K.changeOk(sim, c, L, false)) { want(c, L, 'left', t); return true; }
+      if (L && net.lanes[L].kind === 'normal' && K.spanAllowed(net, lane.id, L, c.s, c.v) && K.changeOk(sim, c, L)) { want(c, L, 'left', t); return true; }
       c.slowUntil = t + YIELD_T; c.slowV = c.v * YIELD_SLOW;
     }
     return false;
@@ -112,7 +119,7 @@ const PP_THW = (function ppTHw() {
       if (!tn.some(x => x.toll === c.toll) && (c.keepT -= dt) <= 0) {
         c.keepT = 0.5;
         const side = sideWith(net, lane, c.toll), to = side && lane[side];
-        if (to && K.spanAllowed(net, lane.id, to, c.s, c.v) && K.changeOk(sim, c, to, false)) want(c, to, side, t);
+        if (to && K.spanAllowed(net, lane.id, to, c.s, c.v) && K.changeOk(sim, c, to)) want(c, to, side, t);
         else if (to) { // 옆 차로 흐름과 나란히 달리면 간격이 안 생긴다 → 그 흐름보다 살짝 늦게 달려 뒤로 끼어든다
           const sT = mapS(net, lane.id, to, c.s), { lead, foll } = around(sim, c, to, sT);
           const near = !lead ? foll : !foll ? lead : lead.s - sT < sT - foll.s ? lead : foll;
@@ -127,7 +134,7 @@ const PP_THW = (function ppTHw() {
     if (!lane.left && lane.minSpeed != null && right && right.kind === 'normal' && t >= c.yieldUntil) {
       if ((c.keepT -= dt) > 0) return false;
       c.keepT = KEEP_T;
-      if (!K.spanAllowed(net, lane.id, right.id, c.s, c.v) || !K.changeOk(sim, c, right.id, false)) return false;
+      if (!K.spanAllowed(net, lane.id, right.id, c.s, c.v) || !K.changeOk(sim, c, right.id)) return false;
       const ld = K.leaderAhead(sim, c, right.id, mapS(net, lane.id, right.id, c.s), 150, false);
       if (!ld || ld.gap > KEEP_GAP || ld.v >= c.v * 0.95) { want(c, right.id, 'right', t); return true; }
     }

@@ -1,4 +1,4 @@
-// 붕붕이 — 고속도로 주행 미션 7개. PP_MISSIONS.list에 group 'highway'로 붙는다(브라우저는 missions.js 다음에 로드).
+// 붕붕이 — 고속도로 주행 미션 8개. PP_MISSIONS.list에 group 'highway'로 붙는다(브라우저는 missions.js 다음에 로드).
 // 차로 폭 3.6m, 본선 제한 100km/h·최저 50km/h, 도로는 모두 동쪽(a=0)으로 진행. 지명은 가상.
 const PP_MISSIONS_HW = (function ppMissionsHw() {
   const R = typeof PP_ROADS !== 'undefined' ? PP_ROADS : require('./roads.js');
@@ -74,6 +74,18 @@ const PP_MISSIONS_HW = (function ppMissionsHw() {
     build() {
       const net = R.newNet(), m = main(net, 2, 4000);
       R.restArea(net, { id: 'ra', main: m, at: 1200, name: '행담도' });
+      return net;
+    } });
+
+  // 빗길: 제한 80(100의 20% 감속), 앞차(66km/h)가 50km/h로 줄였다가 다시 달린다
+  add({ id: 'hw-rain', name: '빗길 고속도로', seed: 1112, weather: 'rain', limit: 80,
+    tip: '비가 오면 제한속도 100km/h 도로도 80km/h로 줄여 달려요. 앞차와 평소의 두 배(2초) 간격을 두고, 앞차 브레이크등이 켜지면 일찍 속도를 줄이세요.',
+    start: { laneId: 'm:f2', s: 40 }, goal: { laneId: 'm:f2', s: 3300 },
+    scripts: [{ id: 'brake', action: 'brake', spawn: { laneId: 'm:f2', s: 85, v: 0 }, cruise: 66 / 3.6, when: { lanes: ['m:f2'], s: 500 }, near: 70, v: 50 / 3.6, hold: 4 }],
+    build() {
+      const net = R.newNet();
+      main(net, 2, 3600, { limit: 80 });
+      M.sign(net, 'm:f2', 120, 'slippery', { text: '미끄러운 도로' });
       return net;
     } });
 

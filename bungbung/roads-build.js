@@ -6,8 +6,8 @@ const PP_RBUILD = (function ppRBuild() {
   const CW_GAP = 1, CW_W = 4, STOP_GAP = 2, Y_DUR = 3; // 교차로 가장자리↔횡단보도, 횡단보도 폭, 횡단보도↔정지선, 황색
   const TURN_A = { left: PI / 2, straight: 0, right: -PI / 2, uturn: PI };
   const TURNS = ['left', 'straight', 'right', 'uturn'];
-  const TURN_TOL = PI / 3; // ponytail: 실제 지도 교차로는 팔 각도가 불규칙(5갈래 등) — 60°까지 가장 가까운 팔로 연결, 넘으면 에러
-  const TURN_TOL2 = 5 * PI / 12; // ponytail: 남은 회전만 75°까지(강남 간선에서 69° 갈라지는 연결로). 90°면 직진 팔이 우회전으로 잡힌다
+  const TURN_TOL = PI / 3; // ponytail: 팔 각도가 불규칙한 교차로(5갈래 등)도 60°까지 가장 가까운 팔로 연결, 넘으면 에러
+  const TURN_TOL2 = 5 * PI / 12; // ponytail: 남은 회전만 75°까지(비스듬히 갈라지는 연결로). 90°면 직진 팔이 우회전으로 잡힌다
 
   // 꺾은선 기하: 누적 길이로 선형 보간. 꺾임점 a는 앞뒤 선분 방향 평균, 바깥쪽 오프셋은 부채꼴 점으로 2m 간격 유지.
   function polyGeom(pts) {
@@ -137,7 +137,7 @@ const PP_RBUILD = (function ppRBuild() {
   }
   const straightRoad = (net, o) => road(net, o, false);
   const curvedRoad = (net, o) => road(net, o, true);
-  const polyRoad = (net, o) => road(net, o, false); // o.pts 꺾은선(OSM 변환용 진입점)
+  const polyRoad = (net, o) => road(net, o, false); // o.pts 꺾은선
 
   // 차로 끝 → 차로 시작을 쌍으로 잇는다. 끝점이 0.05m 안이면 next만, 아니면 연결 차로를 만든다.
   function connect(net, fromIds, toIds) {
@@ -162,6 +162,27 @@ const PP_RBUILD = (function ppRBuild() {
     for (const q of p) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
     for (const q of p.reverse()) { while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
     return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  // 유턴 연결선: 같은 반경 RU 원호 셋(오른쪽 α → 왼쪽 π+2α → 오른쪽 α)인 열쇠 구멍 모양. 차가 돌 수 있는 반경을 지키며
+  // 옆으로 |v|(진입↔진출 차로 중심 간격)만큼 옮겨 간다. |v| ≥ 2·RU면 반원.
+  const RU = 6; // ponytail: 셀토스 최소 회전 반경(5.3m) + 여유. 교차로 안쪽으로 약 2·RU 들어간다
+  function uturnPts(pa, pb) {
+    const c = Math.cos(pa.a), s = Math.sin(pa.a), dx = pb.x - pa.x, dy = pb.y - pa.y;
+    const V = -s * dx + c * dy, sg = Math.sign(V) || 1, r = Math.max(RU, Math.abs(V) / 2);
+    const al = Math.acos(Math.min(1, (Math.abs(V) / (2 * r) + 1) / 2));
+    const W = (lu, lv) => [pa.x + c * lu - s * lv * sg, pa.y + s * lu + c * lv * sg];
+    // 원호: 중심 (au,av), 시작 각 t0(중심에서 본 점의 방향), 회전 dt(+ = 왼쪽으로 돈다)
+    const out = [], arc = (au, av, t0, dt) => {
+      const n = Math.max(2, Math.ceil(Math.abs(dt) * r / 0.6));
+      for (let i = 1; i <= n; i++) { const t = t0 + dt * i / n; out.push(W(au + r * Math.cos(t), av + r * Math.sin(t))); }
+    };
+    const cv = Math.abs(V) / 2;
+    out.push(W(0, 0));
+    if (al > 1e-6) arc(0, -r, PI / 2, -al);                   // 오른쪽으로 α
+    arc(2 * r * Math.sin(al), cv, -PI / 2 - al, PI + 2 * al);    // 왼쪽으로 π+2α (중심 v = |V|/2)
+    if (al > 1e-6) arc(0, Math.abs(V) + r, -PI / 2 + al, -al); // 오른쪽으로 α → 진출점
+    out[out.length - 1] = [pb.x, pb.y];
+    return out;
   }
   const arrowName = t => ['straight', 'left', 'right', 'uturn'].filter(x => t.includes(x)).join('-');
 
@@ -189,13 +210,12 @@ const PP_RBUILD = (function ppRBuild() {
       const inIds = atEnd ? r.fwd : r.back, outIds = atEnd ? r.back : r.fwd;
       const turns = (arm.turns || []).map(t => [].concat(t));
       if (turns.length !== inIds.length) throw new Error(`${id}: arm ${k} turns ${turns.length} ≠ 진입 차로 ${inIds.length}`);
-      return { k, r, atEnd, inIds, outIds, turns, to: arm.to, h: wrap(atEnd ? r.end.a : r.start.a + PI) };
+      return { k, r, atEnd, inIds, outIds, turns, h: wrap(atEnd ? r.end.a : r.start.a + PI) };
     });
     const conns = [];
     for (const X of arms) {
-      // arm.to = { 회전: 팔 번호 | [팔 번호…] } 가 있으면 그대로(실제 지도 변환이 정함), 없으면 가장 가까운 각도
-      const pick = X.to ? Object.fromEntries(Object.entries(X.to).map(([T, k]) => [T, [].concat(k).map(i => arms[i])]))
-        : pickArms(arms, X, TURNS.filter(T => T !== 'uturn' && X.inIds.some((_, j) => X.turns[j].includes(T))));
+      // 회전마다 가장 가까운 각도의 팔
+      const pick = pickArms(arms, X, TURNS.filter(T => T !== 'uturn' && X.inIds.some((_, j) => X.turns[j].includes(T))));
       for (const T of TURNS) {
       const Ls = X.inIds.filter((_, j) => X.turns[j].includes(T));
       if (!Ls.length) continue;
@@ -204,11 +224,11 @@ const PP_RBUILD = (function ppRBuild() {
       Ys.forEach((Y, n) => {  // 같은 회전의 두 번째 팔부터 연결 차로 id에 번호(left2…)
       const O = Y.outIds;
       Ls.forEach((inId, j) => {
-        const oi = T === 'right' ? O.length - 1 - Math.min(Ls.length - 1 - j, O.length - 1)
+        const oi = T === 'right' || T === 'uturn' ? O.length - 1 - Math.min(Ls.length - 1 - j, O.length - 1)
           : T === 'straight' ? clamp(O.length - Ls.length + j, 0, O.length - 1) : Math.min(j, O.length - 1);
         const a = net.lanes[inId], b = net.lanes[O[oi]];
         const pa = pointAt(a, laneLength(a)), pb = pointAt(b, 0), cid = `${id}:${inId}>${T}${n ? n + 1 : ''}`;
-        addLane(net, { id: cid, pts: connectorPts(pa, pa.a, pb, pb.a), width: a.width, next: [b.id], left: null, right: null,
+        addLane(net, { id: cid, pts: T === 'uturn' ? uturnPts(pa, pb) : connectorPts(pa, pa.a, pb, pb.a), width: a.width, next: [b.id], left: null, right: null,
           limit: a.limit, kind: 'connector', turn: T, road: id, from: inId, arm: X.k, toArm: Y.k });
         a.next.push(cid);
         conns.push(net.lanes[cid]);
@@ -314,10 +334,55 @@ const PP_RBUILD = (function ppRBuild() {
     return phases;
   }
 
+  // 차로 감소: from(직선, 편도 n차로) 끝에서 to(직선, 편도 n−1차로)가 시작. 안쪽 n−1 차로는 to로 바로 잇고, 바깥 차로는 to 바깥에
+  // 나란히 붙는 합류 차로(kind 'merge', id:end, next 없음)로 잇는다. length − 15 m까지 폭 그대로, 그 뒤 taper m 동안 바깥 경계가 사선으로 줄어 없어진다.
+  // endS(= length − wait + 4): 앞범퍼가 닿으면 실패(drive-score)·사선 드럼통 시작 근처. AI는 endS − 10에서 기다린다(traffic.js).
+  const DRUM_OUT = 0.9; // 차로 안 ±0.7m(차로 반폭 − 차 반폭)까지 붙어 방향 ±0.05rad로 달려도 endS 전 드럼통에 안 닿는다(0.85부터)
+  function laneDrop(net, o) {
+    o = Object.assign({ length: 100, taper: 40, wait: 10 }, o);
+    const F = o.from, T = o.to, n = F.lanesFwd, w = F.width, A = o.length, full = A - 15, tEnd = full + o.taper, endS = A - o.wait + 4;
+    if (T.lanesFwd !== n - 1) throw new Error(`${o.id}: 차로 ${n} → ${T.lanesFwd}`);
+    if (Math.hypot(F.end.x - T.start.x, F.end.y - T.start.y) > 1e-6) throw new Error(`${o.id}: from 끝이 to 시작과 다름`);
+    if ((F.lanesBack || 0) !== (T.lanesBack || 0)) throw new Error(`${o.id}: 반대 방향 차로 ${F.lanesBack || 0} ≠ ${T.lanesBack || 0}`);
+    const c = Math.cos(T.start.a), s = Math.sin(T.start.a);
+    const P = (u, off) => [T.start.x + c * u - s * off, T.start.y + s * u + c * off];
+    connect(net, F.fwd.slice(0, n - 1), T.fwd);
+    if (T.lanesBack && F.lanesBack) connect(net, T.back, F.back);
+    const id = `${o.id}:end`, left = T.fwd[n - 2], outer = F.fwd[n - 1];
+    addLane(net, { id, pts: [P(0, -(n - 0.5) * w), P(A, -(n - 0.5) * w)], width: w, next: [], left, right: null,
+      limit: F.limit != null ? F.limit : net.lanes[outer].limit, kind: 'merge', road: o.id, along: { lane: left, s0: 0 }, endS });
+    net.lanes[outer].next.push(id);
+    net.lanes[left].right = id;
+    net.changes.push({ from: id, to: left, s0: 0, s1: endS, allowed: true }, { from: id, to: left, s0: endS, s1: A, allowed: false },
+      { from: left, to: id, s0: 0, s1: laneLength(net.lanes[left]), allowed: false });
+    net.areas.push({ kind: 'road', id, pts: [P(0, -(n - 1) * w), P(tEnd, -(n - 1) * w), P(full, -n * w), P(0, -n * w)] });
+    // to의 바깥 실선은 사선이 닿는 곳부터, 합류 구간은 점선 + 사선 바깥 실선
+    const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.01, e0 = P(0, -(n - 1) * w);
+    const edge = net.lines.find(l => l.type === 'white-solid' && near(l.pts[0], e0) && l.pts.length === 2);
+    if (edge) edge.pts[0] = P(tEnd, -(n - 1) * w);
+    net.lines.push({ type: 'white-solid', pts: [P(0, -n * w), P(full, -n * w), P(tEnd, -(n - 1) * w)] });
+    net.lines.push({ type: 'white-dashed', pts: [e0, P(endS, -(n - 1) * w)] });
+    // 드럼통은 사선 실선보다 DRUM_OUT m 바깥: 합류 차로 안 차(가운데 ±0.7m)가 endS 전에는 닿지 않는다(그 앞은 laneEnd 실패가 먼저)
+    for (let u = full; u <= tEnd + 1e-9; u += 5) { const [x, y] = P(u, -n * w + w * (u - full) / o.taper - DRUM_OUT); net.marks.push({ kind: 'drum', x, y }); }
+    // 진로 변경 유도 화살표(바깥 차로 끝 60·30m 전, 합류 차로 20·50m), '우측 차로 없어짐' 경고 표지(끝 150m 전·합류 차로 시작)
+    const Lo = laneLength(net.lanes[outer]);
+    for (const [lid, at] of [[outer, Lo - 60], [outer, Lo - 30], [id, 20], [id, 50]]) {
+      if (at < 0) continue;
+      const p = pointAt(net.lanes[lid], at);
+      net.marks.push({ kind: 'arrow', arrow: 'merge-left', x: p.x, y: p.y, a: p.a, laneId: lid });
+    }
+    for (const [lid, at] of [[outer, Lo - 150], [id, 5]]) {
+      if (at < 0) continue;
+      const p = pointAt(net.lanes[lid], at), off = w / 2 + 1.5;
+      net.signs.push({ kind: 'lane-end', x: p.x + Math.sin(p.a) * off, y: p.y - Math.cos(p.a) * off, a: p.a, text: '우측 차로 없어짐' });
+    }
+    return { mergeId: id, endS };
+  }
+
   const junction4 = (net, o) => { if (o.arms.length !== 4) throw new Error('junction4: 팔 4개 필요'); return junction(net, o); };
   const junction3 = (net, o) => { if (o.arms.length !== 3) throw new Error('junction3: 팔 3개 필요'); return junction(net, o); };
 
-  const api = { CW_GAP, CW_W, STOP_GAP, TURN_TOL, pickArms, straightRoad, curvedRoad, polyRoad, connect, junction, junction4, junction3 };
+  const api = { CW_GAP, CW_W, STOP_GAP, TURN_TOL, pickArms, straightRoad, curvedRoad, polyRoad, connect, laneDrop, junction, junction4, junction3 };
   Object.assign(R, api);
   return api;
 })();
