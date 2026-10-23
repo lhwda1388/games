@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#15130f">
+<title>부적난무</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Hallmark · redesign (visual layer only): pixel UI · tone: playful-retro · anchor hue: amber 75
+ * Galmuri pixel face for short labels, body face for long text · stepped 2px borders · segmented bars */
+@font-face { font-family: "Galmuri11"; src: url("vendor/fonts/Galmuri11.woff2?v=pub1") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Galmuri11"; src: url("vendor/fonts/Galmuri11-Bold.woff2?v=pub1") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Galmuri9"; src: url("vendor/fonts/Galmuri9.woff2?v=pub1") format("woff2"); font-weight: 400; font-display: swap; }
+:root {
+  --color-paper: oklch(17% 0.012 70);
+  --color-panel: oklch(20% 0.015 70 / 0.94);
+  --color-raised: oklch(27% 0.018 70);
+  --color-rule: oklch(42% 0.02 70);
+  --color-ink: oklch(94% 0.015 85);
+  --color-muted: oklch(78% 0.02 80);
+  --color-accent: oklch(78% 0.14 75);
+  --color-accent-ink: oklch(22% 0.04 75);
+  --color-danger: oklch(64% 0.2 28);
+  --color-ok: oklch(76% 0.14 150);
+  --color-xp: oklch(78% 0.1 235);
+  --color-scrim: oklch(10% 0.01 70 / 0.72);
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-title: "Gowun Batang", serif;
+  --font-pixel: "Galmuri11", var(--font-body);
+  --font-pixel-sm: "Galmuri9", var(--font-body);
+  --color-ink-dark: oklch(19% 0.025 315);
+  --color-shadow: oklch(8% 0.01 70 / 0.85);
+  --color-track: oklch(30% 0.01 70 / 0.8);
+  --step: 0 0 0 2px var(--color-ink-dark), 4px 4px 0 0 var(--color-shadow);
+  --step-pressed: 0 0 0 2px var(--color-ink-dark), 2px 2px 0 0 var(--color-shadow);
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px;
+  --radius: 10px;
+  --view-w: 100vw;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); overscroll-behavior: none; }
+button { font: inherit; color: inherit; min-height: 44px; padding: var(--space-2) var(--space-4); border-radius: var(--radius); border: 1px solid var(--color-accent); background: var(--color-accent); color: var(--color-accent-ink); font-weight: 700; cursor: pointer; }
+button.ghost { background: transparent; color: var(--color-ink); border-color: var(--color-rule); }
+button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+#app { position: fixed; inset: 0; }
+#stage { position: absolute; inset: 0; }
+#hud { position: absolute; inset: 0; pointer-events: none; padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) 0; width: var(--view-w); margin: 0 auto; }
+#hud button { pointer-events: auto; }
+.hud-top { position: relative; display: grid; gap: var(--space-1); }
+/* 미니맵 자리: 빈 상자. 그림은 render.js가 이 위치에 Pixi로 그린다 */
+.radar-slot { position: absolute; right: 0; top: calc(100% + var(--space-2)); width: 96px; height: 96px; }
+.bar { height: 8px; border-radius: 0; background: var(--color-track); overflow: hidden; box-shadow: 0 0 0 2px var(--color-ink-dark); }
+.bar i { display: block; height: 100%; width: 0; }
+.bar.hp i { background: repeating-linear-gradient(90deg, var(--color-danger) 0 4px, transparent 4px 5px); }
+.bar.xp i { background: repeating-linear-gradient(90deg, var(--color-xp) 0 4px, transparent 4px 5px); }
+.hud-row { display: flex; align-items: center; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.hud-row .pause, .hud-row .mute { min-height: 44px; min-width: 44px; padding: 0; background: var(--color-panel); color: var(--color-ink); border-color: var(--color-rule); }
+.hud-btns { display: flex; gap: var(--space-1); }
+.hud-row .mute[aria-pressed="true"] { color: var(--color-muted); text-decoration: line-through; }
+.slots { display: flex; gap: var(--space-1); margin-top: var(--space-2); }
+.slot { position: relative; width: 36px; height: 36px; border-radius: 8px; background: var(--color-panel); border: 1px solid var(--color-rule); display: grid; place-items: center; font-family: var(--font-title); }
+.slot.fused { border-color: var(--color-accent); }
+.slot small { position: absolute; right: 1px; bottom: 0; font-size: 10px; line-height: 1; color: var(--color-ink); font-family: var(--font-pixel-sm); text-shadow: 1px 0 var(--color-ink-dark), 0 1px var(--color-ink-dark), -1px 0 var(--color-ink-dark), 0 -1px var(--color-ink-dark); }
+.fusion-badge { position: absolute; right: var(--space-4); top: calc(max(var(--space-3), env(safe-area-inset-top)) + 184px); }
+@media (max-width: 359px) { .radar-slot { top: calc(100% + 52px); } .fusion-badge { top: calc(max(var(--space-3), env(safe-area-inset-top)) + 228px); } }
+.save-fail { position: absolute; left: var(--space-4); right: var(--space-4); bottom: max(var(--space-4), env(safe-area-inset-bottom)); padding: var(--space-2); background: var(--color-panel); border: 1px solid var(--color-danger); border-radius: var(--radius); font-size: 13px; }
+@media (min-width: 900px) and (min-aspect-ratio: 4/5) {
+  .slots { position: fixed; left: 0; top: 0; bottom: 0; width: calc((100vw - var(--view-w)) / 2); flex-direction: column; align-items: flex-end; padding: var(--space-6); }
+}
+#modal, #overlay { position: absolute; inset: 0; display: grid; place-items: center; background: var(--color-scrim); padding: var(--space-4); }
+#modal, #overlay { z-index: 5; }
+#modal[hidden], #overlay[hidden], .discard-list[hidden] { display: none; }
+.sheet { width: min(100%, 520px); max-height: 100%; overflow: auto; background: var(--color-panel); border: 1px solid var(--color-rule); border-radius: 14px; padding: var(--space-4); display: grid; gap: var(--space-3); }
+.sheet h1, .sheet h2 { margin: 0; font-family: var(--font-title); }
+.sheet .hint, .sheet .sub { margin: 0; color: var(--color-muted); font-size: 14px; }
+.cards { display: grid; gap: var(--space-2); }
+.card { display: grid; grid-template-columns: 48px 1fr auto; gap: 2px var(--space-2); text-align: left; background: var(--color-raised); color: var(--color-ink); border: 1px solid var(--color-rule); font-weight: 400; padding: var(--space-3); }
+.card.poor { opacity: 0.5; cursor: not-allowed; }
+.sheet h2 .lv-more { font-size: 0.7em; font-weight: 400; color: var(--color-muted); }
+.purse { color: var(--color-accent); font-variant-numeric: tabular-nums; }
+.card.target { border-color: var(--color-accent); }
+.card .glyph { grid-row: span 4; font-family: var(--font-title); font-size: 28px; align-self: center; text-align: center; }
+.card .name { font-weight: 700; }
+.card .lvl, .card .tag { color: var(--color-accent); font-size: 13px; }
+.card .tag { grid-column: 2 / -1; white-space: nowrap; }
+.card .how, .card .stats, .card .weak, .card .pairs { grid-column: 2 / -1; font-size: 14px; }
+.card .stats { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.card .weak, .card em { color: var(--color-muted); font-style: normal; }
+.card .pairs { margin: 0; padding-left: 1.1em; }
+.cardwrap { display: grid; gap: 2px; }
+.more { font-size: 13px; color: var(--color-muted); padding: 0 var(--space-3); }
+.more summary { min-height: 32px; display: flex; align-items: center; cursor: pointer; }
+.more .pairs { margin: 0 0 var(--space-2); padding-left: 1.1em; }
+@media (max-width: 599px), (max-height: 759px) {
+  .sheet { padding: var(--space-3); gap: var(--space-2); }
+  .sheet h2 { font-size: 18px; }
+  .sheet .hint { font-size: 13px; }
+  .card { padding: var(--space-2) var(--space-3); gap: 0 var(--space-2); }
+  .card .glyph { font-size: 24px; }
+  .card .how, .card .stats, .card .weak { font-size: 13px; line-height: 1.35; }
+  .cards .cardwrap { gap: 0; }
+  .sheet .row button { min-height: 40px; }
+}
+.row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.result dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; }
+.result dd { margin: 0; font-variant-numeric: tabular-nums; }
+.menu .title { font-size: 40px; }
+.resume-tap { font-size: 20px; }
+.count { font-family: var(--font-title); font-size: 72px; }
+#toasts { position: absolute; left: 50%; top: 140px; transform: translateX(-50%); width: max-content; max-width: min(90vw, 480px); word-break: keep-all; text-wrap: balance; padding: var(--space-2) var(--space-4); border-radius: var(--radius); background: var(--color-panel); border: 1px solid var(--color-accent); pointer-events: none; text-align: center; }
+#toasts:empty { display: none; }
+#dev { position: absolute; right: 0; bottom: 0; max-width: 340px; background: var(--color-panel); border: 1px solid var(--color-rule); font-size: 12px; padding: var(--space-2); }
+#dev button, #dev select, #dev input { min-height: 32px; padding: 2px var(--space-2); font-size: 12px; }
+#dev .dev-row { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-bottom: var(--space-1); }
+#dev pre { margin: 0; white-space: pre-wrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.chapters { display: grid; gap: var(--space-2); }
+.chapter { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.chapter .tag { font-size: 12px; font-weight: 600; }
+.chapter.locked { background: transparent; color: var(--color-muted); border: 1px dashed var(--color-rule); cursor: not-allowed; }
+.chapter.locked .reason { font-size: 12px; font-weight: 400; }
+.hero[aria-pressed="true"] { border-color: var(--color-accent); box-shadow: inset 0 0 0 2px var(--color-accent), var(--step); }
+.hero:disabled { opacity: 0.55; cursor: not-allowed; }
+.sheet h3 { margin: 0; font-size: 15px; }
+.curses { display: grid; gap: var(--space-1); }
+.curse { display: grid; grid-template-columns: 24px 1fr; gap: 0 var(--space-2); align-items: center; min-height: 44px; padding: var(--space-1) var(--space-3); background: var(--color-raised); border: 1px solid var(--color-rule); border-radius: var(--radius); }
+.curse input { grid-row: span 2; width: 20px; height: 20px; accent-color: var(--color-danger); }
+.curse .how { grid-column: 2; font-size: 13px; color: var(--color-muted); }
+.curse-note:empty { display: none; }
+.facilities { display: grid; gap: var(--space-2); }
+.facility { display: grid; grid-template-columns: 48px 1fr auto; gap: 2px var(--space-2); background: var(--color-raised); border: 1px solid var(--color-rule); border-radius: var(--radius); padding: var(--space-3); }
+.facility .glyph { grid-row: span 3; font-family: var(--font-title); font-size: 28px; align-self: center; text-align: center; }
+.facility .name { font-weight: 700; }
+.facility .dots { color: var(--color-accent); letter-spacing: 2px; }
+.facility .how, .facility .stats, .facility button { grid-column: 2 / -1; font-size: 14px; }
+.facility .stats { color: var(--color-muted); }
+.facility button { justify-self: start; }
+.facility button:disabled { opacity: 0.5; cursor: not-allowed; }
+.tabs { display: flex; gap: var(--space-1); }
+.tabs [role="tab"] { flex: 1; padding: var(--space-2); font-size: 14px; }
+.tabs [aria-selected="true"] { border-color: var(--color-accent); color: var(--color-accent); }
+.entries, .rewards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+.entries { max-height: 40vh; overflow: auto; }
+.entry { display: grid; grid-template-columns: 32px 1fr; gap: 0 var(--space-2); align-items: center; padding: var(--space-2); background: var(--color-raised); border-color: var(--color-rule); }
+.entry .glyph { grid-row: span 2; font-family: var(--font-title); font-size: 22px; text-align: center; }
+.entry .how { grid-column: 2; font-size: 13px; color: var(--color-muted); }
+.entry.unseen { opacity: 0.45; }
+.rewards { font-size: 13px; color: var(--color-muted); }
+.rewards .got { color: var(--color-accent); }
+.credits-link { justify-self: center; min-width: 50%; }
+.credit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.credit-list li { display: grid; grid-template-columns: 1fr auto; gap: 2px var(--space-2); padding: var(--space-2) var(--space-3); background: var(--color-raised); border: 2px solid var(--color-rule); box-shadow: var(--step); }
+.credit-list .lic { color: var(--color-accent); font-size: 13px; white-space: nowrap; }
+.credit-list .links { grid-column: 1 / -1; font-size: 13px; }
+.credits .hint { word-break: keep-all; }
+.sheet a { color: var(--color-xp); text-underline-offset: 3px; }
+.sheet a:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+/* 픽셀 UI: 짧은 글자는 갈무리, 긴 설명은 본문 글꼴. 도트 테두리 = 2px 선 + 바깥 잉크 2px + 계단 그림자 */
+button, .sheet h1, .sheet h2, .sheet h3, .hud-row, .card .name, .card .lvl, .card .tag, .card .stats, .facility .name, .facility .dots, .entry .name, .purse, .count, .rewards, .result dl, .credit-list .name { font-family: var(--font-pixel); }
+.how, .desc, .sub, .hint, .weak, .pairs, .more, .reason, .goal, .curse .how, .credit-list .lic, .credit-list .links { font-family: var(--font-body); }
+.sheet h1, .sheet h2 { font-weight: 700; letter-spacing: 0; }
+.card, .sheet, button, .facility, .entry, .curse, .slot { border-radius: 0; border-width: 2px; box-shadow: var(--step); }
+button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--step-pressed); }
+img.icon { image-rendering: pixelated; display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage" aria-label="전장"></div>
+  <div id="hud" hidden></div>
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <div id="modal" hidden></div>
+  <div id="overlay" hidden></div>
+  <div id="dev" hidden></div>
+</div>
+<script src="vendor/pixi.min.js?v=pub1"></script>
+<script src="content/rules.js?v=pub1"></script>
+<script src="content/talismans.js?v=pub1"></script>
+<script src="content/recipes.js?v=pub1"></script>
+<script src="content/enemies.js?v=pub1"></script>
+<script src="content/heroes.js?v=pub1"></script>
+<script src="content/chapters/tutorial.js?v=pub1"></script>
+<script src="content/chapters/ch1-dokkaebi.js?v=pub1"></script>
+<script src="content/chapters/ch2-fox.js?v=pub1"></script>
+<script src="content/events.js?v=pub1"></script>
+<script src="content/mutations.js?v=pub1"></script>
+<script src="content/village.js?v=pub1"></script>
+<script src="content/curses.js?v=pub1"></script>
+<script src="content/codex.js?v=pub1"></script>
+<script src="content/sfx.js?v=pub1"></script>
+<script src="content/music.js?v=pub1"></script>
+<script src="content/index.js?v=pub1"></script>
+<script src="art/palette.js?v=pub1"></script>
+<script src="art/heroes.js?v=pub1"></script>
+<script src="art/enemies.js?v=pub1"></script>
+<script src="art/world.js?v=pub1"></script>
+<script src="art/icons.js?v=pub1"></script>
+<script src="art/index.js?v=pub1"></script>
+<script src="engine/rng.js?v=pub1"></script>
+<script src="engine/loop.js?v=pub1"></script>
+<script src="engine/world.js?v=pub1"></script>
+<script src="engine/entities.js?v=pub1"></script>
+<script src="engine/behaviors.js?v=pub1"></script>
+<script src="engine/skills.js?v=pub1"></script>
+<script src="engine/patterns.js?v=pub1"></script>
+<script src="engine/hooks.js?v=pub1"></script>
+<script src="engine/spawner.js?v=pub1"></script>
+<script src="engine/events.js?v=pub1"></script>
+<script src="engine/sim.js?v=pub1"></script>
+<script src="engine/save.js?v=pub1"></script>
+<script src="engine/meta.js?v=pub1"></script>
+<script src="engine/log.js?v=pub1"></script>
+<script src="engine/audio.js?v=pub1"></script>
+<script src="engine/input.js?v=pub1"></script>
+<script src="engine/render.js?v=pub1"></script>
+<script src="ui/text.js?v=pub1"></script>
+<script src="ui/hud.js?v=pub1"></script>
+<script src="ui/modals.js?v=pub1"></script>
+<script src="ui/dev.js?v=pub1"></script>
+<script src="main.js?v=pub1"></script>
+</body>
+</html>
