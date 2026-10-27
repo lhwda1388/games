@@ -1,0 +1,1635 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>메모</title>
+<link rel="icon" href="data:,">
+<style>
+/* Hallmark · macrostructure: single-scene game (n/a) · genre: playful · tone: quiet monochrome pixel · anchor hue: none (grayscale only)
+ * pre-emit critique: P4 H4 E4 S4 R5 V4
+ * Every colour in this file (DOM and canvas) comes from the five --g* tokens below. No hue anywhere.
+ */
+:root{
+  --g0: #f2f2ef;  /* paper */
+  --g1: #dcdcd8;  /* light */
+  --g2: #a9a9a5;  /* mid */
+  --g3: #6b6b68;  /* dark */
+  --g4: #2a2a29;  /* ink */
+  --bg: var(--g0); /* page background; ?bg=transparent sets it to transparent */
+  --font: ui-rounded, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;overflow-x:clip}
+body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#app{position:relative;width:360px;height:480px;flex:none;transform-origin:center;background:var(--bg);
+  user-select:none;-webkit-user-select:none;touch-action:none;overflow:hidden;outline:2px solid var(--g4)}
+#hud{position:absolute;left:0;top:0;right:0;height:36px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
+  padding:0 8px;background:var(--g0);border-bottom:2px solid var(--g4)}
+.coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
+#coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em}
+.spacer{flex:1}
+.mono-emoji{filter:grayscale(1) contrast(1.2)}
+button{font:700 12px var(--font);color:var(--g4);background:var(--g0);border:2px solid var(--g4);border-radius:0;
+  padding:3px 7px;box-shadow:0 2px 0 var(--g4);cursor:pointer;white-space:nowrap;line-height:1.2}
+button:hover{background:var(--g1)}
+button:active{transform:translateY(2px);box-shadow:none}
+button:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
+button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--g2);cursor:default}
+#cv{position:absolute;left:0;top:36px;width:360px;height:400px;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
+#tray{position:absolute;left:0;right:0;bottom:0;height:44px;box-sizing:border-box;display:flex;gap:4px;align-items:center;
+  padding:0 6px;background:var(--g0);border-top:2px solid var(--g4)}
+#tray button{display:flex;align-items:center;gap:3px;padding:3px 5px;flex:1;justify-content:center;min-width:0}
+#tray button[aria-pressed="true"]{background:var(--g4);color:var(--g0)}
+#tray button[aria-pressed="true"] canvas{filter:invert(1)}
+#tray button.poor{color:var(--g3)}
+#tray canvas{width:20px;height:20px;image-rendering:pixelated;flex:none}
+#tray .cost{font:700 11px var(--mono)}
+#tray button.shake,.up button.shake{animation:shake .3s}
+.up button.poor{color:var(--g3)}
+@keyframes shake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+#toast{position:absolute;left:50%;top:216px;transform:translateX(-50%);max-width:320px;box-sizing:border-box;padding:4px 9px;
+  background:var(--g0);border:2px solid var(--g4);font:700 12px var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  opacity:0;transition:opacity .2s var(--ease-out);pointer-events:none}
+#toast.on{opacity:1}
+/* reel gauges: one thin strip under the pond so the eye stays on the water */
+#reelHud{position:absolute;left:10px;right:10px;bottom:50px;height:18px;box-sizing:border-box;padding:0 6px;display:flex;align-items:center;gap:5px;
+  background:var(--g0);border:2px solid var(--g4)}
+#reelHud span{font:700 10px var(--font);color:var(--g3);flex:none}
+.bar{flex:1;height:6px;border:1px solid var(--g4);background:var(--g0);position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--g3)}
+.bar.catch i{background:repeating-linear-gradient(90deg,var(--g4) 0 2px,var(--g2) 2px 4px)}
+.bar.hot i{background:repeating-linear-gradient(45deg,var(--g4) 0 3px,var(--g0) 3px 5px)}
+.bar.hot{animation:jit .08s steps(2) infinite}
+@keyframes jit{50%{transform:translateX(1px)}}
+#reelCue{position:absolute;transform:translate(-50%,0);font:700 12px var(--font);color:var(--g4);pointer-events:none;white-space:nowrap;
+  text-shadow:1px 0 var(--g0),-1px 0 var(--g0),0 1px var(--g0),0 -1px var(--g0),1px 1px var(--g0),-1px -1px var(--g0)}
+#reelCue.loud{font-size:14px;animation:jit .08s steps(2) infinite}
+#result{position:absolute;left:50%;top:150px;transform:translateX(-50%);width:220px;box-sizing:border-box;padding:10px;text-align:center;
+  background:var(--g0);border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4)}
+#result canvas{width:72px;height:36px;image-rendering:pixelated;display:block;margin:0 auto 4px}
+#result .nm{font:700 15px var(--font)}
+#result .sz{font:700 13px var(--mono);margin-top:2px}
+#result .tag{display:inline-block;margin-top:5px;padding:1px 6px;border:2px solid var(--g4);font:700 11px var(--font)}
+#floats{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.float{position:absolute;font:700 12px var(--mono);color:var(--g4);text-shadow:1px 0 var(--g0),-1px 0 var(--g0),0 1px var(--g0),0 -1px var(--g0);
+  transform:translate(-50%,0);animation:up 1.1s var(--ease-out) forwards;white-space:nowrap}
+@keyframes up{to{transform:translate(-50%,-26px);opacity:0}}
+.overlay{position:absolute;inset:0;background:var(--g0);z-index:5;overflow:auto;box-sizing:border-box}
+#dex,#shop{padding:10px 12px 14px}
+.overlay h2{font:700 15px var(--font);margin:0 0 6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.overlay h2 .wallet{font:700 13px var(--mono);margin-left:auto;display:flex;align-items:center;gap:5px}
+.overlay h3{font:700 12px var(--font);margin:12px 0 4px;border-bottom:2px solid var(--g4);padding-bottom:2px;display:flex;justify-content:space-between}
+.overlay h3 b{font:700 11px var(--mono)}
+.up{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--g2)}
+.up canvas{width:24px;height:24px;image-rendering:pixelated;flex:none}
+.up .n{flex:1;min-width:0;font:700 12px var(--font)}
+.up .n small{display:block;font:400 10px/1.35 var(--font);color:var(--g3)}
+.pips{display:inline-flex;gap:2px;margin-left:5px;vertical-align:1px}
+.pips i{width:6px;height:6px;border:1px solid var(--g4);box-sizing:border-box}
+.pips i.on{background:var(--g4)}
+.up button{min-width:58px;font-family:var(--mono)}
+.up button.max{font-family:var(--font)}
+.ms{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--g2);font:700 12px var(--font)}
+.ms .box{width:10px;height:10px;border:2px solid var(--g4);flex:none;box-sizing:border-box}
+.ms.done .box{background:var(--g4);box-shadow:inset 0 0 0 2px var(--g0)}
+.ms .n{flex:1;min-width:0}
+.ms .n small{display:block;font:400 10px var(--font);color:var(--g3)}
+.ms .v{font:700 11px var(--mono);color:var(--g3)}
+.ms:not(.done) .n{color:var(--g3)}
+.dx{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px dashed var(--g2)}
+.dx canvas{width:36px;height:18px;image-rendering:pixelated;flex:none}
+.dx canvas.sq{width:18px;height:18px;margin:0 9px}
+.dx .n{font:700 12px var(--font);flex:1;min-width:0}
+.dx .n small{display:block;font:400 10px var(--font);color:var(--g3)}
+.dx .v{font:700 11px var(--mono);text-align:right}
+.dx.unk .n{color:var(--g3)}
+#boss{overflow:hidden;background:var(--g0);font:12px/1.3 var(--font);color:var(--g4);z-index:9}
+#boss .bh{padding:6px 8px;border-bottom:1px solid var(--g2);font-weight:700}
+#boss .fx{padding:3px 8px;border-bottom:1px solid var(--g2);font:11px var(--mono);color:var(--g3)}
+#boss table{border-collapse:collapse;width:100%;table-layout:fixed}
+#boss th,#boss td{border:1px solid var(--g1);padding:3px 4px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#boss th{background:var(--g1);font-weight:400;color:var(--g3)}
+#boss td.num{text-align:right;font-family:var(--mono)}
+/* main-tab hint for auto picture-in-picture; lives outside #app so it never travels into the PiP window */
+#pipHint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;box-sizing:border-box;width:236px;padding:12px 12px 10px;
+  text-align:center;background:var(--g0);border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);font:12px/1.4 var(--font);color:var(--g4);
+  pointer-events:none}
+#pipHint p{margin:0 0 8px;font:700 14px var(--font)}
+#pipHint label{display:inline-flex;align-items:center;gap:5px;font:400 11px var(--font);color:var(--g3);cursor:pointer;pointer-events:auto}
+.setRow{display:flex;align-items:center;gap:6px;padding:6px 0;font:700 12px var(--font);cursor:pointer}
+.setRow small{display:block;font:400 10px var(--font);color:var(--g3)}
+input[type=checkbox]{accent-color:var(--g4);width:14px;height:14px;margin:0}
+input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion: reduce){ .float,.bar.hot,#tray button.shake,#reelCue.loud{animation:none} #toast{transition:none} }
+</style>
+</head>
+<body>
+<div id="stage"><div id="app">
+  <header id="hud">
+    <span class="coin" aria-hidden="true"></span><b id="coins" aria-label="코인">0</b>
+    <span class="spacer"></span>
+    <button id="shopBtn" type="button">상점</button>
+    <button id="dexBtn" type="button">도감</button>
+    <button id="pipBtn" type="button" hidden><span class="mono-emoji">📌</span> 작게 띄우기</button>
+  </header>
+  <canvas id="cv" width="180" height="200" aria-label="농장과 연못"></canvas>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="reelHud" hidden>
+    <span>장력</span><div class="bar" id="tWrap"><i id="tBar"></i></div>
+    <span>낚기</span><div class="bar catch"><i id="cBar"></i></div>
+  </div>
+  <div id="reelCue" hidden></div>
+  <div id="result" hidden></div>
+  <nav id="tray" aria-label="씨앗"></nav>
+  <div id="floats"></div>
+  <section id="dex" class="overlay" hidden aria-label="도감"></section>
+  <section id="shop" class="overlay" hidden aria-label="상점"></section>
+  <section id="boss" class="overlay" hidden aria-hidden="true">
+    <div class="bh">4분기_업무정리_v3 (최종).xlsx</div>
+    <div class="fx">fx&nbsp;&nbsp;=SUM(D2:D14)</div>
+    <table>
+      <colgroup><col style="width:24px"><col><col style="width:42px"><col style="width:44px"><col style="width:72px"></colgroup>
+      <tr><th></th><th>A 항목</th><th>B 담당</th><th>C 진도</th><th>D 비용</th></tr>
+      <tr><th>1</th><td>주간 회의록 정리</td><td>운영팀</td><td class="num">80%</td><td class="num">0</td></tr>
+      <tr><th>2</th><td>거래처 견적 비교</td><td>구매</td><td class="num">45%</td><td class="num">1,240,000</td></tr>
+      <tr><th>3</th><td>분기 예산 재배분</td><td>재무</td><td class="num">60%</td><td class="num">3,800,000</td></tr>
+      <tr><th>4</th><td>사내 교육 일정 확정</td><td>인사</td><td class="num">100%</td><td class="num">420,000</td></tr>
+      <tr><th>5</th><td>고객 문의 분류 기준</td><td>CS</td><td class="num">30%</td><td class="num">0</td></tr>
+      <tr><th>6</th><td>서버 비용 점검</td><td>개발</td><td class="num">75%</td><td class="num">2,115,000</td></tr>
+      <tr><th>7</th><td>신규 입사자 장비</td><td>총무</td><td class="num">90%</td><td class="num">1,560,000</td></tr>
+      <tr><th>8</th><td>연말 행사 장소 후보</td><td>총무</td><td class="num">20%</td><td class="num">0</td></tr>
+      <tr><th>9</th><td>계약서 갱신 목록</td><td>법무</td><td class="num">55%</td><td class="num">0</td></tr>
+      <tr><th>10</th><td>KPI 중간 점검</td><td>기획</td><td class="num">65%</td><td class="num">0</td></tr>
+      <tr><th>11</th><td>복리후생 설문 집계</td><td>인사</td><td class="num">40%</td><td class="num">180,000</td></tr>
+      <tr><th>12</th><td>사무용품 재고 확인</td><td>총무</td><td class="num">100%</td><td class="num">96,000</td></tr>
+      <tr><th>13</th><td>보안 점검 체크리스트</td><td>개발</td><td class="num">35%</td><td class="num">0</td></tr>
+      <tr><th>14</th><td></td><td></td><td></td><td class="num">9,411,000</td></tr>
+      <tr><th>15</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>16</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>17</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>18</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>19</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>20</th><td></td><td></td><td></td><td></td></tr>
+    </table>
+  </section>
+</div></div>
+<div id="pipHint" hidden role="status">
+  <p>아무 곳이나 클릭하면 작게 떠요</p>
+  <label><input type="checkbox" id="pipAuto" checked> 열면 바로 작게 띄우기</label>
+</div>
+
+<script id="logic">
+(function () {
+  'use strict';
+  // Pure game rules. No DOM, no Date.now(), no Math.random(): time and rng are passed in.
+  var CROPS = {
+    radish: { id: 'radish', name: '무',      grow: 120e3,  cost: 10,  sell: 30 },
+    berry:  { id: 'berry',  name: '딸기',    grow: 600e3,  cost: 40,  sell: 160 },
+    melon:  { id: 'melon',  name: '수박',    grow: 1800e3, cost: 120, sell: 520 },
+    gold:   { id: 'gold',   name: '황금 수박', grow: 1800e3, cost: 0,   sell: 2400, rare: true }
+  };
+  var SEEDS = ['radish', 'berry', 'melon'];
+  var FISH = [
+    { id: 'minnow',  name: '피라미',   rarity: '흔함',    w: 40, min: 6,  max: 14,  power: 0.8,  price: 12 },
+    { id: 'crucian', name: '붕어',     rarity: '흔함',    w: 34, min: 14, max: 32,  power: 1.0,  price: 28 },
+    { id: 'catfish', name: '메기',     rarity: '드묾',    w: 16, min: 30, max: 72,  power: 1.3,  price: 70 },
+    { id: 'carp',    name: '비단잉어', rarity: '희귀',    w: 7,  min: 40, max: 90,  power: 1.6,  price: 160 },
+    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
+    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.0,  price: 1200, window: 'friday' },
+    { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 1.8,  price: 600, unlock: 'koi' }
+  ];
+  var N = 6, N_MAX = 9, COLS = 3;
+  var CROW_MS = 60e3, CROW_LOSS = 0.3, BITE_MS = 2500;
+  var EVENT_MIN = 100e3, EVENT_SPAN = 140e3;     // one crow/weed every 100–240 s while something grows
+  var CROSS_CHANCE = 0.12, CROSS_WINDOW = 300e3;
+  var WAIT_MIN = 20e3, WAIT_SPAN = 70e3;
+  var NIBBLE_MS = 700, NIB_MIN = 5e3, NIB_SPAN = 11e3, NIB_GAP = 3e3;
+  var REEL_MAX = 10, WARN = 0.4;
+  var FERT_MUL = 2, FERT_COST = 40;
+  // Shop. costs[t] is the price of going from tier t to t+1; effect arrays are indexed by current tier.
+  var UPG = {
+    rod:   { name: '낚싯대',  costs: [150, 700, 2400],  tgain: [1, 0.8, 0.65, 0.5] },
+    bait:  { name: '미끼',    costs: [120, 550, 1800],  wait: [1, 0.75, 0.6, 0.45], rare: [1, 1.5, 2, 2.6] },
+    field: { name: '밭 확장', costs: [300, 1200],       plots: [6, 8, 9] },
+    scare: { name: '허수아비', costs: [200, 800, 2000], chance: [0, 0.35, 0.6, 0.85] }
+  };
+  var UPG_IDS = ['rod', 'bait', 'field', 'scare'];
+  var MILESTONES = [
+    { id: 'cat',     need: 5,     name: '고양이',   desc: '선착장에 고양이가 와서 같이 찌를 본다' },
+    { id: 'lantern', need: 8,     name: '석등',     desc: '연못가에 석등이 켜진다' },
+    { id: 'koi',     crop: 'gold', name: '금빛 잉어', desc: '연못에 새 물고기가 산다' },
+    { id: 'boat',    need: 'all', name: '나룻배',   desc: '연못에 작은 배가 묶인다' }
+  ];
+  var DEX_TOTAL = Object.keys(CROPS).length + FISH.length;
+
+  function emptyPlot() { return { crop: null, progress: 0, t: 0, yieldMul: 1, weed: false, crow: null, fert: false, last: null }; }
+  function newState(now, rng) {
+    var plots = [];
+    for (var i = 0; i < N; i++) plots.push(emptyPlot());
+    return { v: 1, coins: 60, sel: 'radish', plots: plots, seeds: { gold: 0 },
+      up: { rod: 0, bait: 0, field: 0, scare: 0 }, items: { fert: 0 }, ms: {},
+      nextEventAt: now + 45e3 + rng() * 60e3, fish: { phase: 'idle' },
+      dex: { crops: {}, fish: {}, goldSeed: false }, savedAt: now };
+  }
+  function tier(s, id) { return (s.up && s.up[id]) || 0; }
+  function plotCount(s) { return UPG.field.plots[tier(s, 'field')]; }
+  function upgradeCost(s, id) {
+    if (id === 'fert') return FERT_COST;
+    var u = UPG[id]; if (!u) return null;
+    var t = tier(s, id);
+    return t < u.costs.length ? u.costs[t] : null;
+  }
+  function buy(s, id) {
+    var c = upgradeCost(s, id);
+    if (c === null || s.coins < c) return false;
+    s.coins -= c;
+    if (id === 'fert') { s.items.fert++; return true; }
+    s.up[id] = tier(s, id) + 1;
+    if (id === 'field') while (s.plots.length < plotCount(s)) s.plots.push(emptyPlot());
+    return true;
+  }
+
+  function isReady(p) { return !!p.crop && p.progress >= CROPS[p.crop].grow; }
+  function stage(p) {
+    if (!p.crop) return -1;
+    if (isReady(p)) return 4;
+    var f = p.progress / CROPS[p.crop].grow;
+    return f < 0.1 ? 0 : f < 0.4 ? 1 : f < 0.75 ? 2 : 3;
+  }
+  function timeLeft(p) { return p.crop ? Math.max(0, (CROPS[p.crop].grow - p.progress) / (p.fert ? FERT_MUL : 1)) : 0; }
+  function advancePlot(p, now) {
+    if (!p.crop) return null;
+    var ev = null, dt = Math.max(0, now - p.t);
+    p.t = now;
+    if (p.crow && now >= p.crow.until) {
+      p.yieldMul = Math.round(p.yieldMul * (1 - CROW_LOSS) * 1000) / 1000;
+      p.crow = null; ev = 'crowAte';
+    }
+    if (!p.weed) p.progress = Math.min(CROPS[p.crop].grow, p.progress + dt * (p.fert ? FERT_MUL : 1));
+    return ev;
+  }
+  function advance(s, now) {
+    var out = [];
+    for (var i = 0; i < s.plots.length; i++) {
+      var ev = advancePlot(s.plots[i], now);
+      if (ev) out.push({ type: ev, i: i });
+    }
+    return out;
+  }
+  // actScale stretches player-reaction windows (crow, bite, nibble) so they stay real-time under ?speed.
+  function spawnEvent(s, now, rng, actScale) {
+    actScale = actScale || 1;
+    if (now < s.nextEventAt) return null;
+    var c = [];
+    s.plots.forEach(function (p, i) { if (p.crop && !isReady(p) && !p.weed && !p.crow) c.push(i); });
+    if (!c.length) { s.nextEventAt = now + 20e3; return null; }
+    s.nextEventAt = now + EVENT_MIN + rng() * EVENT_SPAN;
+    var i = c[Math.floor(rng() * c.length)];
+    if (rng() < 0.5) {
+      var sc = UPG.scare.chance[tier(s, 'scare')];
+      if (sc > 0 && rng() < sc) return { type: 'scared', i: i };
+      s.plots[i].crow = { until: now + CROW_MS * actScale };
+      return { type: 'crow', i: i };
+    }
+    s.plots[i].weed = true;
+    return { type: 'weed', i: i };
+  }
+  function resume(s, now, rng) {
+    if (s.nextEventAt < now || s.nextEventAt > now + EVENT_MIN + EVENT_SPAN) s.nextEventAt = now + 30e3 + rng() * 60e3;
+    if (s.fish.phase === 'reel') s.fish = { phase: 'idle' };
+  }
+  function plant(s, i, id, now) {
+    var p = s.plots[i];
+    if (!p || p.crop || !CROPS[id]) return false;
+    if (id === 'gold') { if (s.seeds.gold < 1) return false; s.seeds.gold--; }
+    else { if (s.coins < CROPS[id].cost) return false; s.coins -= CROPS[id].cost; }
+    p.crop = id; p.progress = 0; p.t = now; p.yieldMul = 1; p.weed = false; p.crow = null; p.fert = false;
+    return true;
+  }
+  function fertilize(s, i, now) {
+    var p = s.plots[i];
+    if (!p || !p.crop || s.items.fert < 1) return false;
+    advancePlot(p, now);
+    if (isReady(p) || p.fert) return false;
+    p.fert = true; s.items.fert--;
+    return true;
+  }
+  function shoo(s, i, now) {
+    var p = s.plots[i]; advancePlot(p, now);
+    if (!p.crow) return false;
+    p.crow = null; return true;
+  }
+  function pullWeed(s, i, now) {
+    var p = s.plots[i]; advancePlot(p, now);
+    if (!p.weed) return false;
+    p.weed = false; return true;
+  }
+  function neighbors(i, n) {
+    n = n || N;
+    var r = Math.floor(i / COLS), c = i % COLS, out = [];
+    if (c > 0) out.push(i - 1);
+    if (c < COLS - 1 && i + 1 < n) out.push(i + 1);
+    if (r > 0) out.push(i - COLS);
+    if (i + COLS < n) out.push(i + COLS);
+    return out;
+  }
+  function harvest(s, i, now, rng) {
+    var p = s.plots[i]; advancePlot(p, now);
+    if (!isReady(p)) return null;
+    var crop = p.crop, coins = Math.round(CROPS[crop].sell * p.yieldMul), lost = p.yieldMul < 1;
+    s.coins += coins;
+    s.dex.crops[crop] = (s.dex.crops[crop] || 0) + 1;
+    var gold = false;
+    var partner = crop === 'berry' ? 'melon' : crop === 'melon' ? 'berry' : null;
+    if (partner && neighbors(i, s.plots.length).some(function (j) {
+      var q = s.plots[j];
+      return (q.crop === partner && isReady(q)) || (q.last && q.last.crop === partner && now - q.last.t <= CROSS_WINDOW);
+    })) {
+      if (rng() < CROSS_CHANCE) { s.seeds.gold++; s.dex.goldSeed = true; gold = true; }
+    }
+    var e = emptyPlot(); e.last = { crop: crop, t: now };
+    s.plots[i] = e;
+    return { crop: crop, coins: coins, gold: gold, lost: lost };
+  }
+
+  // ---------- 도감 milestones ----------
+  function dexCount(s) {
+    var n = 0;
+    Object.keys(CROPS).forEach(function (k) { if (s.dex.crops[k]) n++; });
+    FISH.forEach(function (f) { if (s.dex.fish[f.id]) n++; });
+    return n;
+  }
+  function milestoneMet(s, m) {
+    if (m.crop) return !!s.dex.crops[m.crop];
+    return dexCount(s) >= (m.need === 'all' ? DEX_TOTAL : m.need);
+  }
+  function checkMilestones(s) {
+    var out = [];
+    MILESTONES.forEach(function (m) { if (!s.ms[m.id] && milestoneMet(s, m)) { s.ms[m.id] = true; out.push(m.id); } });
+    return out;
+  }
+
+  // ---------- fishing ----------
+  function fishById(id) { for (var k = 0; k < FISH.length; k++) if (FISH[k].id === id) return FISH[k]; return null; }
+  function inWindow(f, d) {
+    if (!f.window) return true;
+    var h = d.getHours();
+    if (f.window === 'lunch') return h === 12;
+    if (f.window === 'friday') return d.getDay() === 5 && h >= 17;
+    return false;
+  }
+  // s is optional: without it, unlock-only species are excluded and bait has no effect.
+  function availableFish(d, s) {
+    return FISH.filter(function (f) { return inWindow(f, d) && (!f.unlock || !!(s && s.ms && s.ms[f.unlock])); });
+  }
+  function rollFish(d, rng, s) {
+    var pool = availableFish(d, s), tot = 0, k, rare = s ? UPG.bait.rare[tier(s, 'bait')] : 1;
+    var wt = pool.map(function (f) { return f.w * (f.rarity === '흔함' ? 1 : rare); });
+    for (k = 0; k < pool.length; k++) tot += wt[k];
+    var r = rng() * tot, pick = pool[pool.length - 1];
+    for (k = 0; k < pool.length; k++) { r -= wt[k]; if (r < 0) { pick = pool[k]; break; } }
+    var size = Math.round((pick.min + (pick.max - pick.min) * Math.pow(rng(), 1.6)) * 10) / 10;
+    return { id: pick.id, size: size };
+  }
+  function sizeFrac(roll) {
+    var f = fishById(roll.id);
+    return Math.max(0, Math.min(1, (roll.size - f.min) / (f.max - f.min)));
+  }
+  function waitMs(s, rng) { return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
+  function nextNibble(s, from, rng) { return from + Math.round((NIB_MIN + rng() * NIB_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
+  function cast(s, now, rng, x, y) {
+    if (s.fish.phase !== 'idle') return false;
+    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng), nibAt: 0, nibEnd: 0 };
+    s.fish.nibAt = nextNibble(s, now, rng);
+    return true;
+  }
+  function reelIn(s) {
+    if (s.fish.phase !== 'wait') return false;
+    s.fish = { phase: 'idle' }; return true;
+  }
+  // Decoy nibbles: a fish tastes the bait (bobber taps) before the real bite. Striking then scares it.
+  function updateFishing(s, now, rng, actScale) {
+    actScale = actScale || 1;
+    var f = s.fish;
+    if (f.phase === 'wait' && now < f.biteAt) {
+      if (now >= f.nibAt) {
+        var fresh = now - f.nibAt <= 1000 * actScale && f.nibAt < f.biteAt - NIB_GAP;
+        f.nibAt = nextNibble(s, now, rng);
+        if (fresh) { f.nibEnd = now + NIBBLE_MS * actScale; return 'nibble'; }
+      }
+      return null;
+    }
+    if (f.phase === 'wait' && now >= f.biteAt) {
+      var end = f.biteAt + BITE_MS * actScale;
+      if (now > end) { s.fish = { phase: 'idle' }; return 'missed'; }
+      f.phase = 'bite'; f.biteEnd = end; f.roll = rollFish(new Date(f.biteAt), rng, s);
+      return 'bite';
+    }
+    if (f.phase === 'bite' && now > f.biteEnd) { s.fish = { phase: 'idle' }; return 'missed'; }
+    return null;
+  }
+  function hook(s, now) {
+    var f = s.fish;
+    if (f.phase !== 'bite' || now > f.biteEnd) return null;
+    f.phase = 'reel';
+    return f.roll;
+  }
+  // Player jerks the rod. On a real bite this hooks; any earlier it spooks the fish and the wait starts over.
+  function strike(s, now, rng) {
+    var f = s.fish;
+    if (f.phase === 'bite') { var roll = hook(s, now); return roll ? { type: 'hook', roll: roll } : null; }
+    if (f.phase !== 'wait') return null;
+    var wasNibble = now < f.nibEnd;
+    f.biteAt = now + waitMs(s, rng);
+    f.nibAt = nextNibble(s, now, rng);
+    f.nibEnd = 0;
+    return { type: 'scared', nibble: wasNibble };
+  }
+  // Reel minigame: holding raises catch and tension; the fish pulls in telegraphed bursts toward r.dir.
+  function newReel(roll, rodTier) {
+    var f = fishById(roll.id);
+    return { tension: 0, catch: 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
+      tgain: UPG.rod.tgain[rodTier || 0], dir: 1, burst: 0, warn: 0, next: 0.9, result: null };
+  }
+  function reelStep(r, dt, holding, rng) {
+    if (r.result) return r.result;
+    r.t += dt;
+    if (r.burst > 0) r.burst = Math.max(0, r.burst - dt);
+    else if (r.warn > 0) { r.warn -= dt; if (r.warn <= 0) { r.warn = 0; r.burst = 0.4 + rng() * 0.45; } }
+    else {
+      r.next -= dt;
+      if (r.next <= 0) { r.warn = WARN; r.dir = rng() < 0.5 ? -1 : 1; r.next = (0.6 + rng() * 1.1) / Math.pow(r.power, 0.35); }
+    }
+    var pulling = r.burst > 0;
+    if (holding) {
+      r.tension += (0.2 + (pulling ? 1.3 * r.power : 0)) * r.tgain * dt;
+      if (!pulling) r.catch += 0.3 / Math.pow(r.power, 0.3) * dt;
+    } else {
+      r.tension = Math.max(0, r.tension - 0.8 * dt);
+      r.catch -= (pulling ? 0.04 * r.power : 0.02) * dt;
+    }
+    if (r.tension >= 1) r.result = 'snap';
+    else if (r.catch >= 1) r.result = 'caught';
+    else if (r.catch <= 0 || r.t >= REEL_MAX) r.result = 'escaped';
+    return r.result;
+  }
+  function landFish(s, roll) {
+    var f = fishById(roll.id);
+    var coins = Math.round(f.price * (0.7 + 0.6 * sizeFrac(roll)));
+    var d = s.dex.fish[f.id] || { n: 0, best: 0 };
+    var newBest = roll.size > d.best;
+    s.dex.fish[f.id] = { n: d.n + 1, best: Math.max(d.best, roll.size) };
+    s.coins += coins;
+    s.fish = { phase: 'idle' };
+    return { coins: coins, newBest: newBest, first: d.n === 0 };
+  }
+  function loseFish(s) { s.fish = { phase: 'idle' }; }
+
+  function encode(s) { return JSON.stringify(s); }
+  function num(x) { return typeof x === 'number' && isFinite(x); }
+  function decode(str) {
+    try {
+      if (typeof str !== 'string' || str.length > 200000) return null;
+      var o = JSON.parse(str);
+      if (!o || typeof o !== 'object' || o.v !== 1 || !num(o.coins) || o.coins < 0) return null;
+      if (!Array.isArray(o.plots) || o.plots.length < N || o.plots.length > N_MAX) return null;
+      var s = newState(0, function () { return 0; });
+      s.coins = Math.floor(o.coins);
+      if (o.up && typeof o.up === 'object') {
+        UPG_IDS.forEach(function (k) { if (num(o.up[k])) s.up[k] = Math.max(0, Math.min(UPG[k].costs.length, Math.floor(o.up[k]))); });
+      }
+      // saves from before the shop have 6 plots; a longer list implies the field tier that holds it
+      while (plotCount(s) < o.plots.length) s.up.field++;
+      while (s.plots.length < plotCount(s)) s.plots.push(emptyPlot());
+      if (SEEDS.indexOf(o.sel) >= 0 || o.sel === 'gold' || o.sel === 'fert') s.sel = o.sel;
+      for (var i = 0; i < o.plots.length; i++) {
+        var q = o.plots[i], p = s.plots[i];
+        if (!q || typeof q !== 'object') return null;
+        if (q.crop !== null && !CROPS[q.crop]) return null;
+        if (q.crop) {
+          if (!num(q.progress) || !num(q.t) || !num(q.yieldMul)) return null;
+          p.crop = q.crop;
+          p.progress = Math.max(0, Math.min(CROPS[q.crop].grow, q.progress));
+          p.t = q.t;
+          p.yieldMul = Math.max(0, Math.min(1, q.yieldMul));
+          p.weed = q.weed === true;
+          p.fert = q.fert === true;
+          p.crow = q.crow && num(q.crow.until) ? { until: q.crow.until } : null;
+        }
+        if (q.last && CROPS[q.last.crop] && num(q.last.t)) p.last = { crop: q.last.crop, t: q.last.t };
+      }
+      if (o.seeds && num(o.seeds.gold) && o.seeds.gold >= 0) s.seeds.gold = Math.floor(o.seeds.gold);
+      if (o.items && num(o.items.fert) && o.items.fert >= 0) s.items.fert = Math.floor(o.items.fert);
+      if (o.ms && typeof o.ms === 'object') MILESTONES.forEach(function (m) { if (o.ms[m.id] === true) s.ms[m.id] = true; });
+      if (num(o.nextEventAt)) s.nextEventAt = o.nextEventAt;
+      if (num(o.savedAt)) s.savedAt = o.savedAt;
+      var f = o.fish;
+      if (f && f.phase === 'wait' && num(f.biteAt) && num(f.x) && num(f.y)) {
+        s.fish = { phase: 'wait', x: f.x, y: f.y, biteAt: f.biteAt, nibAt: num(f.nibAt) ? f.nibAt : f.biteAt, nibEnd: 0 };
+      } else if (f && f.phase === 'bite' && num(f.biteAt) && num(f.biteEnd) && num(f.x) && num(f.y) &&
+               f.roll && fishById(f.roll.id) && num(f.roll.size)) {
+        s.fish = { phase: 'bite', x: f.x, y: f.y, biteAt: f.biteAt, biteEnd: f.biteEnd, roll: { id: f.roll.id, size: f.roll.size } };
+      }
+      if (o.dex && typeof o.dex === 'object') {
+        if (o.dex.crops && typeof o.dex.crops === 'object') {
+          Object.keys(CROPS).forEach(function (k) { if (num(o.dex.crops[k]) && o.dex.crops[k] > 0) s.dex.crops[k] = Math.floor(o.dex.crops[k]); });
+        }
+        if (o.dex.fish && typeof o.dex.fish === 'object') {
+          FISH.forEach(function (fd) {
+            var e = o.dex.fish[fd.id];
+            if (e && num(e.n) && num(e.best) && e.n > 0) s.dex.fish[fd.id] = { n: Math.floor(e.n), best: e.best };
+          });
+        }
+        s.dex.goldSeed = o.dex.goldSeed === true;
+      }
+      return s;
+    } catch (e) { return null; }
+  }
+
+  globalThis.Logic = {
+    CROPS: CROPS, SEEDS: SEEDS, FISH: FISH, N: N, N_MAX: N_MAX, COLS: COLS,
+    CROW_MS: CROW_MS, CROW_LOSS: CROW_LOSS, BITE_MS: BITE_MS, CROSS_CHANCE: CROSS_CHANCE, REEL_MAX: REEL_MAX,
+    NIBBLE_MS: NIBBLE_MS, FERT_MUL: FERT_MUL, FERT_COST: FERT_COST,
+    UPG: UPG, UPG_IDS: UPG_IDS, MILESTONES: MILESTONES, DEX_TOTAL: DEX_TOTAL,
+    newState: newState, tier: tier, plotCount: plotCount, upgradeCost: upgradeCost, buy: buy, fertilize: fertilize,
+    isReady: isReady, stage: stage, timeLeft: timeLeft, advance: advance,
+    spawnEvent: spawnEvent, resume: resume, plant: plant, shoo: shoo, pullWeed: pullWeed,
+    neighbors: neighbors, harvest: harvest, dexCount: dexCount, milestoneMet: milestoneMet, checkMilestones: checkMilestones,
+    fishById: fishById, inWindow: inWindow,
+    availableFish: availableFish, rollFish: rollFish, sizeFrac: sizeFrac, waitMs: waitMs, cast: cast, reelIn: reelIn,
+    updateFishing: updateFishing, hook: hook, strike: strike, newReel: newReel, reelStep: reelStep,
+    landFish: landFish, loseFish: loseFish, encode: encode, decode: decode
+  };
+})();
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+  var L = globalThis.Logic;
+  var qs = new URLSearchParams(location.search);
+  var SPEED = Math.max(1, Math.min(3600, Number(qs.get('speed')) || 1));
+  var SAVE_KEY = SPEED === 1 ? 'farmfish.v1' : 'farmfish.debug';
+  var T0 = Date.now(), base = T0;
+  function now() { return SPEED === 1 ? Date.now() : base + (Date.now() - T0) * SPEED; }
+
+  // ---------- palette: read the five grayscale tokens so canvas and DOM share them ----------
+  if (qs.get('bg') === 'transparent') document.documentElement.style.setProperty('--bg', 'transparent');
+  var css = getComputedStyle(document.documentElement);
+  var G = ['--g0', '--g1', '--g2', '--g3', '--g4'].map(function (v) { return css.getPropertyValue(v).trim(); });
+
+  // ---------- state ----------
+  var S = null;
+  try { var raw = localStorage.getItem(SAVE_KEY); if (raw) S = L.decode(raw); } catch (e) { S = null; }
+  var fresh = !S;
+  if (S && SPEED !== 1 && S.savedAt > base) base = S.savedAt;
+  if (!S) S = L.newState(now(), Math.random);
+  else L.resume(S, now(), Math.random);
+  function save() {
+    S.savedAt = now();
+    try { localStorage.setItem(SAVE_KEY, L.encode(S)); } catch (e) { /* storage blocked: play without saving */ }
+  }
+
+  // ---------- DOM ----------
+  var app = document.getElementById('app');
+  var stageEl = document.getElementById('stage');
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var W = 180, H = 200;
+  var $ = function (id) { return document.getElementById(id); };
+  var coinsEl = $('coins'), toastEl = $('toast'), trayEl = $('tray'), reelHud = $('reelHud');
+  var tBar = $('tBar'), cBar = $('cBar'), tWrap = $('tWrap'), cueEl = $('reelCue');
+  var resultEl = $('result'), dexEl = $('dex'), shopEl = $('shop'), bossEl = $('boss'), floatsEl = $('floats');
+  var dexBtn = $('dexBtn'), shopBtn = $('shopBtn'), pipBtn = $('pipBtn');
+
+  // ---------- pixel helpers ----------
+  function px(x, y, w, h, c) { ctx.fillStyle = G[c]; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
+  // sprite rows: '.' transparent, '0'–'4' palette index
+  function spr(rows, x, y, flip, c2) {
+    c2 = c2 || ctx;
+    var w = rows[0].length;
+    for (var j = 0; j < rows.length; j++) for (var i = 0; i < rows[j].length; i++) {
+      var ch = rows[j][i]; if (ch === '.') continue;
+      c2.fillStyle = G[+ch];
+      c2.fillRect(Math.round(x) + (flip ? w - 1 - i : i), Math.round(y) + j, 1, 1);
+    }
+  }
+  function hash(n) { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; }
+
+  var SP = {
+    sprout: ['3...3', '43.34', '.434.', '..4..'],
+    radish2: ['..3.3..', '.34343.', '3433343', '.34443.', '...4...'],
+    radish3: ['.3.3.3.', '3434343', '.33433.', '..343..', '..404..', '..000..'],
+    radish4: ['.3.3.3.', '3434343', '.33433.', '..444..', '.40004.', '4000014', '4000114', '.40114.', '..444..', '...4...'],
+    berry2: ['...4...', '..404..', '.40404.', '..404..', '3.343.3', '334.433', '.3.4.3.'],
+    // unripe: small pale berry under a leaf cap
+    berry3: ['4.4.4', '.424.', '41114', '41314', '.414.', '..4..'],
+    // ripe strawberry: light leaf crown, dark body, light seeds, pointed tip
+    berry4: ['..4.4.4..', '.4242424.', '444444444', '433033034', '430330334', '.4330334.', '.4303034.', '..43334..', '..43034..', '...434...', '....4....'],
+    // low leaf rosette the berries rest on (no stalk, so the fruit doesn't read as a figure)
+    rosette: ['33.....33', '.333.333.', '..33333..'],
+    scarecrow: ['...444...', '..44444..', '444444444', '..40404..', '..40004..', '...444...', '434343434', '4.43334.4', '..43334..',
+      '..43334..', '...444...', '....4....', '....4....', '....4....', '...444...'],
+    cat: ['......4.4', '......444', '4.....404', '4...44444', '.4.44444.', '..444444.', '..444444.', '..44.4.4.'],
+    catBlink: ['......4.4', '......444', '4.....444', '4...44444', '.4.44444.', '..444444.', '..444444.', '..44.4.4.'],
+    catAlert: ['4.....4.4', '4.....4.4', '4.....444', '4.....404', '.4..44444', '..444444.', '..444444.', '..44.4.4.'],
+    lantern: ['..444..', '.44444.', '4444444', '.40004.', '.40004.', '.44444.', '4444444', '..434..', '..434..', '..434..', '.44444.', '4444444'],
+    boat: ['4................4', '444444444444444444', '.4000000000000004.', '..43333333333334..', '...444444444444...'],
+    sack: ['..4..4..', '...44...', '..4004..', '.400004.', '40020004', '40222004', '40020004', '.400004.', '..4444..'],
+    can: ['.4.4..', '4.4.4.', '444444', '400004', '433334', '444444'],
+    vine: ['..3......', '.343..3..', '343334343', '.4..4343.', '......4..'],
+    crow: ['.....444......', '....44444.....', '...4440444....', '...444444433..', '..44444444....', '.4444333344...', '444443333344..', '44444433344...', '.444444444....', '...44444......', '....4..4......', '...44.44......'],
+    crowFlap: ['.....444......', '....44444.....', '...4440444....', '...444444433..', '..44444444....', '.444444444.3..', '4444444444333.', '444444444..3..', '.444444444....', '...44444......', '....4..4......', '...44.44......'],
+    crowPeck: ['..............', '..............', '..............', '.....444......', '....44444.....', '..44440444....', '.444444444433.', '444443333344..', '44444433344...', '.444444444....', '....4..4......', '...44.44......'],
+    weed: ['.4.....4.', '434.4.434', '.3434343.', '343434343', '.4343434.'],
+    farmer: ['...4444....', '..422224...', '.44444444..', '44444444444', '..400004...', '..400404...', '..410014...', '...4444....', '..4333334..', '.43333300..', '.4333334...', '..4444444..', '..44...44..'],
+    farmerBlink: ['...4444....', '..422224...', '.44444444..', '44444444444', '..400004...', '..400004...', '..410014...', '...4444....', '..4333334..', '.43333300..', '.4333334...', '..4444444..', '..44...44..'],
+    // head left with eye, round body, forked tail on the right
+    fish: ['...4444....4', '..400004..44', '.40400004444', '40000000044.', '.40000004444', '..400004..44', '...4444....4'],
+    star: ['..4..', '..4..', '44044', '..4..', '..4..'],
+    bang: ['.444.', '40004', '.404.', '.404.', '.404.', '..4..', '.....', '.404.', '..4..']
+  };
+  // bang drawn as speech bubble with a tail
+  var BANG = ['4444444', '4000004', '4004004', '4004004', '4004004', '4000004', '4004004', '4000004', '4444444', '..404..', '...4...'];
+
+  function melon(cx, by, w, h, light) {
+    // ellipse with stripes; light=true draws the rare white melon with a dotted rind
+    for (var j = 0; j < h; j++) {
+      var yy = (j + 0.5 - h / 2) / (h / 2);
+      var half = Math.round((w / 2) * Math.sqrt(Math.max(0, 1 - yy * yy)));
+      if (half <= 0) continue;
+      var y = by - h + j;
+      px(cx - half, y, half * 2, 1, 4);
+      if (j === 0 || j === h - 1 || half < 2) continue;
+      for (var x = cx - half + 1; x < cx + half - 1; x++) {
+        var c;
+        if (light) c = ((x + j) % 4 === 0) ? 2 : 0;
+        else c = ((x - cx + 64) % 3 === 0) ? 4 : 2;
+        px(x, y, 1, 1, c);
+      }
+    }
+    px(cx - Math.floor(w / 4), by - h + 2, 2, 1, light ? 1 : 0);
+    px(cx, by - h - 2, 1, 2, 4);                 // stem
+  }
+  function sparkle(x, y, t) {
+    var k = Math.floor(t * 2) % 2;
+    if (k) { px(x, y - 1, 1, 3, 4); px(x - 1, y, 3, 1, 4); }
+    else { px(x, y, 1, 1, 4); }
+  }
+
+  // ---------- layout ----------
+  var PX0 = 18, PY0 = 5, PW = 44, PH = 26, GAPX = 6, GAPY = 5, FENCE_Y = 100;
+  function plotRect(i) { return { x: PX0 + (i % 3) * (PW + GAPX), y: PY0 + Math.floor(i / 3) * (PH + GAPY), w: PW, h: PH }; }
+  var POND = { cx: 116, cy: 148, rx: 58, ry: 38 };
+  var ROD_BASE = { x: 57, y: 133 }, ROD_TIP = { x: 74, y: 117 };
+  function inPond(x, y, k) { var a = (x - POND.cx) / POND.rx, b = (y - POND.cy) / POND.ry; return a * a + b * b < (k || 1); }
+
+  // ---------- static background, pre-rendered ----------
+  var bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  function paintBg() {
+    var b = bg.getContext('2d');
+    var save = ctx; ctx = b;
+    // no full-scene fill: the canvas stays transparent so --bg shows through
+    for (var k = 0; k < 260; k++) {           // grass ticks
+      var x = Math.floor(hash(k * 7 + 1) * W), y = Math.floor(hash(k * 13 + 5) * H);
+      if (inPond(x, y, 1.25)) continue;
+      var c = hash(k * 3 + 9) < 0.7 ? 1 : 2;
+      px(x, y, 1, 1, c); if (hash(k + 99) < 0.4) px(x + 1, y - 1, 1, 1, c);
+    }
+    for (k = 0; k < 14; k++) {                // tiny flowers
+      var fx = Math.floor(hash(k * 31 + 3) * (W - 4)) + 2, fy = Math.floor(hash(k * 17 + 2) * (H - 4)) + 2;
+      if (inPond(fx, fy, 1.4) || (fy < FENCE_Y + 2 && fx > 12 && fx < 168)) continue;
+      px(fx, fy - 1, 1, 1, 2); px(fx - 1, fy, 1, 1, 2); px(fx + 1, fy, 1, 1, 2); px(fx, fy + 1, 1, 1, 2); px(fx, fy, 1, 1, 0);
+    }
+    // fence between farm and pond
+    for (x = 4; x < 176; x++) { px(x, FENCE_Y, 1, 1, 3); if (x % 2) px(x, FENCE_Y + 3, 1, 1, 2); }
+    for (x = 6; x < 176; x += 10) { px(x, FENCE_Y - 3, 2, 9, 4); px(x, FENCE_Y - 3, 2, 1, 3); }
+    // pond: shore dither, water, deep center
+    for (var y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var a = (x - POND.cx) / (POND.rx + 4), bb = (y - POND.cy) / (POND.ry + 4), d = a * a + bb * bb;
+      var a2 = (x - POND.cx) / POND.rx, b2 = (y - POND.cy) / POND.ry, d2 = a2 * a2 + b2 * b2;
+      if (d2 < 1) {
+        var deep = d2 < 0.35;
+        var c2 = deep ? (((x + y) % 2 === 0) ? 2 : 1) : ((x % 4 === 0 && y % 2 === 0) ? 2 : 1);
+        px(x, y, 1, 1, c2);
+        if (d2 > 0.9) px(x, y, 1, 1, 2);
+      } else if (d < 1) {
+        px(x, y, 1, 1, (x + y * 3) % 5 === 0 ? 2 : 0);
+      }
+    }
+    // pond outline
+    for (var t = 0; t < 720; t++) {
+      var an = t / 720 * Math.PI * 2;
+      px(POND.cx + Math.cos(an) * POND.rx, POND.cy + Math.sin(an) * POND.ry, 1, 1, 4);
+    }
+    // lily pads
+    [[150, 132], [96, 172], [158, 160]].forEach(function (l, n) {
+      var lx = l[0], ly = l[1];
+      px(lx - 3, ly, 7, 1, 4); px(lx - 4, ly + 1, 9, 2, 4); px(lx - 3, ly + 3, 7, 1, 4);
+      px(lx - 3, ly + 1, 7, 2, 0); px(lx, ly + 1, 1, 1, 4); px(lx + 1, ly + 1, 2, 1, 4);
+      if (n === 0) { px(lx - 1, ly - 2, 1, 1, 4); px(lx + 1, ly - 2, 1, 1, 4); px(lx, ly - 3, 1, 2, 4); px(lx, ly - 1, 1, 1, 0); }
+    });
+    // reeds at right shore
+    [[170, 128], [173, 132], [167, 133]].forEach(function (r) {
+      px(r[0], r[1], 1, 10, 4); px(r[0], r[1] - 3, 1, 3, 4); px(r[0] - 1, r[1] - 2, 3, 2, 3);
+    });
+    // dock
+    px(24, 134, 40, 9, 4);
+    for (x = 25; x < 63; x++) px(x, 135, 1, 7, (x % 5 === 0) ? 3 : 0);
+    for (x = 25; x < 63; x += 1) if ((x * 7) % 11 === 0) px(x, 138, 1, 1, 2);
+    px(30, 143, 3, 6, 4); px(56, 143, 3, 6, 4);
+    // little sign
+    px(4, 106, 1, 12, 4); px(0, 106, 14, 8, 4); px(1, 107, 12, 6, 0);
+    px(3, 109, 2, 2, 3); px(6, 109, 2, 2, 3); px(9, 109, 2, 2, 3);
+    ctx = save;
+  }
+  paintBg();
+
+  // ---------- runtime UI state ----------
+  var reel = null, reelRoll = null, reelVis = null;
+  var holdPointer = false, holdSpace = false, boss = false;
+  var castAnim = null, particles = [], shake = 0, lastFishRes = 0;
+  var swimmers = [], nextSwim = 3, scareFx = null, flyCrows = [], scareWob = 0, earlyTips = 0;
+
+  // ---------- toast / floats ----------
+  var toastTimer = 0;
+  function toast(msg, ms) {
+    toastEl.textContent = msg; toastEl.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
+  }
+  function floatText(text, x, y) {
+    var d = document.createElement('div');
+    d.className = 'float'; d.textContent = text;
+    d.style.left = (x * 2) + 'px'; d.style.top = (36 + y * 2) + 'px';
+    floatsEl.appendChild(d);
+    setTimeout(function () { d.remove(); }, 1150);
+  }
+  function burst(x, y, n, c, spread) {
+    for (var k = 0; k < n; k++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * (spread || 40), vy: -Math.random() * 40 - 10, life: 0.6 + Math.random() * 0.4, c: c });
+  }
+
+  // ---------- tray (seed shop) ----------
+  var TRAY = ['radish', 'berry', 'melon', 'gold', 'fert'];
+  var trayBtns = {};
+  function iconCanvas(id, w, h) {
+    var c = document.createElement('canvas'); c.width = w || 12; c.height = h || 12;
+    var c2 = c.getContext('2d'), saved = ctx; ctx = c2;
+    if (id === 'radish') spr(SP.radish4, 2, 1);
+    else if (id === 'berry') spr(SP.berry4, 1, 0);
+    else if (id === 'melon') melon(6, 11, 11, 8, false);
+    else if (id === 'gold') { melon(6, 11, 11, 8, true); }
+    else if (id === 'fert') spr(SP.sack, 2, 2);
+    ctx = saved;
+    return c;
+  }
+  TRAY.forEach(function (id) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.appendChild(iconCanvas(id));
+    // gold/fert are counters, not seeds for sale: icon + ×n keeps five buttons on one row
+    var nm = document.createElement('span'); nm.textContent = id === 'gold' ? '★' : id === 'fert' ? '' : L.CROPS[id].name;
+    if (id === 'gold' || id === 'fert') b.setAttribute('aria-label', id === 'gold' ? '황금 수박 씨앗' : '비료');
+    var cost = document.createElement('span'); cost.className = 'cost';
+    b.appendChild(nm); b.appendChild(cost);
+    b.addEventListener('click', function () { S.sel = id; renderTray(); });
+    trayEl.appendChild(b);
+    trayBtns[id] = { b: b, cost: cost };
+  });
+  function renderTray() {
+    TRAY.forEach(function (id) {
+      var t = trayBtns[id];
+      if (id === 'gold' || id === 'fert') {
+        var have = id === 'gold' ? S.seeds.gold : S.items.fert;
+        t.b.hidden = have < 1;
+        t.cost.textContent = '×' + have;
+        if (S.sel === id && have < 1) S.sel = 'radish';
+      } else {
+        t.cost.textContent = L.CROPS[id].cost;
+        t.b.classList.toggle('poor', S.coins < L.CROPS[id].cost);
+      }
+      t.b.setAttribute('aria-pressed', String(S.sel === id));
+    });
+    coinsEl.textContent = S.coins.toLocaleString('ko-KR');
+  }
+
+  // ---------- pointer / keys ----------
+  function toLocal(e) {
+    var r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    if (boss) return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (er) { /* capture not available */ }
+    holdPointer = true;
+    var p = toLocal(e);
+    tap(p.x, p.y);
+  });
+  function release() { holdPointer = false; }
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+  cv.addEventListener('lostpointercapture', release);
+
+  function fmtLeft(ms) {
+    var s = Math.ceil(ms / 1000 / SPEED);
+    if (s >= 60) return Math.floor(s / 60) + '분 ' + (s % 60) + '초';
+    return s + '초';
+  }
+  function tap(x, y) {
+    if (reel) return;
+    if (!resultEl.hidden) hideResult();
+    if (S.fish.phase === 'bite') { doStrike(); return; }
+    var t = now();
+    for (var i = 0; i < L.N_MAX; i++) {
+      var r = plotRect(i);
+      if (x < r.x - 2 || x > r.x + r.w + 2 || y < r.y - 2 || y > r.y + r.h + 3) continue;
+      if (i >= S.plots.length) {
+        var c = L.upgradeCost(S, 'field');
+        toast(c === null ? '여기는 아직 풀밭' : '상점에서 밭 확장 · ' + c + '코인');
+        return;
+      }
+      var p = S.plots[i];
+      if (p.crow) {
+        if (L.shoo(S, i, t)) { burst(r.x + 22, r.y + 10, 8, 4, 70); toast('훠이! 까마귀를 쫓았다'); }
+        return refresh();
+      }
+      if (p.weed) {
+        L.pullWeed(S, i, t); burst(r.x + 22, r.y + 14, 8, 3, 50); toast('잡초 뽑기 완료 · 다시 자란다');
+        return refresh();
+      }
+      if (L.isReady(p)) {
+        var hv = L.harvest(S, i, t, Math.random);
+        burst(r.x + 22, r.y + 14, 10, 3, 60);
+        floatText('+' + hv.coins, r.x + 22, r.y + 4);
+        if (hv.gold) toast('★ 딸기×수박 교배! 황금 수박 씨앗을 얻었다', 3500);
+        else if (hv.lost) toast(L.CROPS[hv.crop].name + ' 수확 · 까마귀가 조금 먹었다');
+        else toast(L.CROPS[hv.crop].name + ' 수확!');
+        milestones();
+        return refresh();
+      }
+      if (S.sel === 'fert') {
+        if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return; }
+        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
+        else toast(p.fert ? '이미 비료를 줬어요' : '비료가 없어요');
+        return refresh();
+      }
+      if (!p.crop) {
+        var id = S.sel;
+        if (L.plant(S, i, id, t)) { burst(r.x + 22, r.y + 20, 5, 2, 30); floatText(id === 'gold' ? '★' : '-' + L.CROPS[id].cost, r.x + 22, r.y + 6); }
+        else { toast('코인이 부족해요'); var tb = trayBtns[id].b; tb.classList.remove('shake'); void tb.offsetWidth; tb.classList.add('shake'); }
+        return refresh();
+      }
+      toast(L.CROPS[p.crop].name + ' · ' + fmtLeft(L.timeLeft(p)) + ' 남음' + (p.fert ? ' · 비료' : ''));
+      return;
+    }
+    if (inPond(x, y, 1.0)) {
+      if (S.fish.phase === 'idle') {
+        var bx = x, by = y;
+        if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
+        L.cast(S, now(), Math.random, Math.round(bx), Math.round(by));
+        castAnim = { t: 0 };
+        return refresh();
+      }
+      if (S.fish.phase === 'wait') {
+        // tapping at the bobber is a strike; tapping elsewhere on the water just takes the line in
+        if (Math.hypot(x - S.fish.x, y - S.fish.y) < 16) doStrike();
+        else { L.reelIn(S); toast('줄을 걷었다'); refresh(); }
+      }
+    }
+  }
+  function refresh() { renderTray(); save(); updateTitle(); }
+
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); toggleBoss(); return; }
+    if (isPipKey(e)) { e.preventDefault(); if (pipOK && !e.repeat) togglePip(); return; }
+    if (boss) return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (e.repeat) return;
+      holdSpace = true;
+      if (reel) return;
+      if (!resultEl.hidden) hideResult();
+      if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
+      else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden) {
+        var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
+        L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k));
+        castAnim = { t: 0 }; refresh();
+      }
+    }
+  }
+  // P toggles PiP on any layout or case: physical KeyP, p/P, or the Korean IME jamo on that key
+  function isPipKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    var t = e.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return false;
+    return e.code === 'KeyP' || (typeof e.key === 'string' && (e.key.toLowerCase() === 'p' || e.key === 'ㅔ'));
+  }
+  function onKeyUp(e) { if (e.code === 'Space') holdSpace = false; }
+  function bindDoc(doc, win) {
+    doc.addEventListener('keydown', onKeyDown);
+    doc.addEventListener('keyup', onKeyUp);
+    win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; updateTitle(); });
+    win.addEventListener('focus', updateTitle);
+    win.addEventListener('resize', fit);
+  }
+  bindDoc(document, window);
+  document.addEventListener('visibilitychange', function () { updateTitle(); if (document.hidden) save(); });
+  window.addEventListener('pagehide', save);
+
+  function toggleBoss() {
+    boss = !boss;
+    bossEl.hidden = !boss;
+    holdPointer = false; holdSpace = false;
+  }
+
+  // ---------- fishing flow ----------
+  function doStrike() {
+    var f = S.fish, res = L.strike(S, now(), Math.random);
+    if (!res) return;
+    if (res.type === 'scared') {
+      // the fish bolts away from the bobber; the wait starts over
+      scareFx = { t: 0, x: f.x + 4, y: f.y + 3, dir: f.x > POND.cx ? 1 : -1 };
+      burst(f.x, f.y, 4, 0, 30);
+      earlyTips++;
+      if (res.nibble && earlyTips <= 3) toast('톡톡은 간보기 · 찌가 쑥 잠길 때 챔질!', 3200);
+      else toast(res.nibble ? '간보기에 속았다 · 물고기가 달아났다' : '너무 일렀다 · 물고기가 놀랐다', 2400);
+      refresh();
+      return;
+    }
+    reelRoll = res.roll;
+    reel = L.newReel(res.roll, L.tier(S, 'rod'));
+    reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false };
+    reelHud.hidden = false;
+    dexBtn.disabled = true; shopBtn.disabled = true;
+    shake = 2;
+    burst(f.x, f.y, 10, 0, 60);
+  }
+  function endReel(res) {
+    reelHud.hidden = true; cueEl.hidden = true;
+    dexBtn.disabled = false; shopBtn.disabled = false;
+    var f = L.fishById(reelRoll.id);
+    if (res === 'caught') {
+      var out = L.landFish(S, reelRoll);
+      burst(reelVis.x, reelVis.y, 14, 0, 80);
+      floatText('+' + out.coins, ROD_BASE.x, ROD_BASE.y - 16);
+      showResult(f, reelRoll, out);
+      milestones();
+    } else {
+      L.loseFish(S);
+      toast(res === 'snap' ? '툭… 줄이 끊어졌다' : (f.power >= 1.6 ? '묵직한 녀석이 도망갔다…' : '도망갔다…'), 2600);
+      burst(reelVis.x, reelVis.y, 6, 2, 40);
+    }
+    reel = null; reelRoll = null;
+    lastFishRes = performance.now();
+    refresh();
+  }
+  function fishCanvas(id, unknown) {
+    var c = document.createElement('canvas'); c.width = 16; c.height = 8;
+    var c2 = c.getContext('2d'), saved = ctx; ctx = c2;
+    var rows = SP.fish;
+    if (unknown) rows = rows.map(function (r) { return r.replace(/0/g, '2'); });
+    else if (id === 'carp') rows = rows.map(function (r, j) { return r.replace(/0/g, function (m, i) { return (i + j) % 3 === 0 ? '3' : '0'; }); });
+    else if (id === 'catfish') rows = rows.map(function (r) { return r.replace(/0/g, '2'); });
+    else if (id === 'tuna') rows = rows.map(function (r, j) { return j < 3 ? r.replace(/0/g, '3') : r; });
+    else if (id === 'lunch') rows = rows.map(function (r, j) { return j === 3 ? r.replace(/0/g, '1') : r; });
+    else if (id === 'koi') rows = rows.map(function (r, j) { return r.replace(/0/g, function (m, i) { return (i * 2 + j) % 5 === 0 ? '4' : '1'; }); });
+    else if (id === 'minnow') rows = rows.map(function (r, j) { return j === 3 ? r.replace(/0/g, '3') : r; });
+    spr(rows, 2, 0, false, c2);
+    if (id === 'catfish' && !unknown) { c2.fillStyle = G[4]; c2.fillRect(0, 2, 2, 1); c2.fillRect(0, 5, 2, 1); }
+    ctx = saved;
+    return c;
+  }
+  function showResult(f, roll, out) {
+    resultEl.innerHTML = '';
+    resultEl.appendChild(fishCanvas(f.id));
+    var nm = document.createElement('div'); nm.className = 'nm';
+    nm.textContent = (f.window === 'friday' ? '★ ' : '') + f.name;
+    var sz = document.createElement('div'); sz.className = 'sz';
+    sz.textContent = roll.size.toFixed(1) + 'cm · +' + out.coins;
+    resultEl.appendChild(nm); resultEl.appendChild(sz);
+    if (out.first || out.newBest) {
+      var tg = document.createElement('div'); tg.className = 'tag';
+      tg.textContent = out.first ? '도감 등록!' : '최고 기록!';
+      resultEl.appendChild(tg);
+    }
+    resultEl.hidden = false;
+    clearTimeout(showResult.t);
+    showResult.t = setTimeout(hideResult, 2600);
+  }
+  function hideResult() { resultEl.hidden = true; }
+
+  // ---------- 도감 ----------
+  function renderDex() {
+    dexEl.innerHTML = '';
+    var h = document.createElement('h2'); h.textContent = '도감';
+    var close = document.createElement('button'); close.type = 'button'; close.textContent = '닫기';
+    close.addEventListener('click', function () { dexEl.hidden = true; });
+    h.appendChild(close); dexEl.appendChild(h);
+    var h3 = document.createElement('h3'); h3.textContent = '모은 만큼 생기는 것';
+    var cnt = document.createElement('b'); cnt.textContent = L.dexCount(S) + ' / ' + L.DEX_TOTAL + '종'; h3.appendChild(cnt);
+    dexEl.appendChild(h3);
+    L.MILESTONES.forEach(function (m) {
+      var done = !!S.ms[m.id];
+      var r = document.createElement('div'); r.className = 'ms' + (done ? ' done' : '');
+      var bx = document.createElement('span'); bx.className = 'box';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = done ? m.name : '???';
+      var sm = document.createElement('small'); sm.textContent = done ? m.desc : '아직 비밀'; n.appendChild(sm);
+      var v = document.createElement('div'); v.className = 'v';
+      v.textContent = m.crop ? '황금 수박 수확' : m.need === 'all' ? '도감 전부' : '도감 ' + m.need + '종';
+      r.appendChild(bx); r.appendChild(n); r.appendChild(v); dexEl.appendChild(r);
+    });
+    h3 = document.createElement('h3'); h3.textContent = '작물'; dexEl.appendChild(h3);
+    ['radish', 'berry', 'melon', 'gold'].forEach(function (id) {
+      var c = L.CROPS[id], n = S.dex.crops[id] || 0;
+      var known = n > 0 || (id === 'gold' && S.dex.goldSeed);
+      var ic = iconCanvas(id); ic.className = 'sq';
+      row(ic, known ? (c.rare ? '★ ' : '') + c.name : '???',
+        known ? (c.rare ? '교배로만 얻는 씨앗 · ' + c.sell + '코인' : '성장 ' + (c.grow / 60e3) + '분 · ' + c.sell + '코인')
+              : (id === 'gold' ? '딸기와 수박을 나란히 수확하면…' : '아직 수확 안 함'),
+        n ? n + '개' : '', !known);
+    });
+    h3 = document.createElement('h3'); h3.textContent = '물고기'; dexEl.appendChild(h3);
+    L.FISH.forEach(function (f) {
+      var d = S.dex.fish[f.id];
+      var hint = f.window === 'lunch' ? '12시~13시에만' : f.window === 'friday' ? '금요일 17시 이후에만'
+        : f.unlock ? (S.ms[f.unlock] ? '연못 어딘가에' : '황금 수박을 거두면…') : f.rarity;
+      row(fishCanvas(f.id, !d), d ? (f.window === 'friday' ? '★ ' : '') + f.name : '???',
+        d ? f.rarity + ' · ' + d.n + '마리' : hint, d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);
+    });
+    function row(icon, name, sub, val, unk) {
+      var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = name;
+      var sm = document.createElement('small'); sm.textContent = sub; n.appendChild(sm);
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = val;
+      if (unk) icon.style.opacity = '0.35';
+      r.appendChild(icon); r.appendChild(n); r.appendChild(v); dexEl.appendChild(r);
+    }
+  }
+  function renderSettings() {
+    if (!pipOK) return;
+    var h3 = document.createElement('h3'); h3.textContent = '설정'; dexEl.appendChild(h3);
+    var lb = document.createElement('label'); lb.className = 'setRow';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
+    cb.addEventListener('change', function () { setAutoPip(cb.checked); });
+    var tx = document.createElement('span'); tx.textContent = '열면 바로 작게 띄우기';
+    var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
+    lb.appendChild(cb); lb.appendChild(tx); dexEl.appendChild(lb);
+  }
+  dexBtn.addEventListener('click', function () { shopEl.hidden = true; renderDex(); renderSettings(); dexEl.hidden = false; });
+
+  // ---------- 상점 ----------
+  function pct(x) { return Math.round(x * 100) + '%'; }
+  var SHOP = {
+    rod:   { what: '줄이 덜 팽팽해진다', eff: function (t) { return t ? '장력 −' + pct(1 - L.UPG.rod.tgain[t]) : '기본 낚싯대'; } },
+    bait:  { what: '입질이 빨라지고 귀한 물고기가 잘 문다',
+             eff: function (t) { return t ? '대기 −' + pct(1 - L.UPG.bait.wait[t]) + ' · 희귀 ×' + L.UPG.bait.rare[t] : '맨 바늘'; } },
+    field: { what: '밭이 늘어난다', eff: function (t) { return L.UPG.field.plots[t] + '칸'; } },
+    scare: { what: '까마귀를 저절로 쫓는다', eff: function (t) { return t ? '쫓을 확률 ' + pct(L.UPG.scare.chance[t]) : '없음'; } }
+  };
+  function shopIcon(id) {
+    var c = document.createElement('canvas'); c.width = 16; c.height = 16;
+    var saved = ctx; ctx = c.getContext('2d');
+    if (id === 'rod') { for (var k = 0; k < 12; k++) px(2 + k, 14 - k, 1, 1, 4); px(3, 10, 3, 3, 4); px(4, 11, 1, 1, 0); px(14, 2, 1, 9, 3); px(13, 11, 3, 2, 4); }
+    else if (id === 'bait') { spr(SP.can, 5, 8); px(7, 4, 1, 4, 3); px(8, 3, 2, 1, 3); px(10, 4, 1, 2, 3); }
+    else if (id === 'field') { px(1, 4, 14, 10, 4); px(2, 5, 12, 8, 1); for (var x = 3; x < 13; x++) { if (x % 3) { px(x, 8, 1, 1, 2); px(x, 11, 1, 1, 2); } } spr(SP.sprout, 6, 3); }
+    else if (id === 'scare') spr(SP.scarecrow, 3, 0);
+    else if (id === 'fert') spr(SP.sack, 4, 4);
+    ctx = saved;
+    return c;
+  }
+  function renderShop() {
+    shopEl.innerHTML = '';
+    var h = document.createElement('h2'); h.textContent = '상점';
+    var wallet = document.createElement('span'); wallet.className = 'wallet';
+    var coin = document.createElement('span'); coin.className = 'coin';
+    wallet.appendChild(coin); wallet.appendChild(document.createTextNode(S.coins.toLocaleString('ko-KR')));
+    var close = document.createElement('button'); close.type = 'button'; close.textContent = '닫기';
+    close.addEventListener('click', function () { shopEl.hidden = true; });
+    h.appendChild(wallet); h.appendChild(close); shopEl.appendChild(h);
+    var h3 = document.createElement('h3'); h3.textContent = '도구'; shopEl.appendChild(h3);
+    L.UPG_IDS.forEach(function (id) {
+      var u = L.UPG[id], t = L.tier(S, id), cost = L.upgradeCost(S, id);
+      var pips = '<span class="pips">' + u.costs.map(function (c, k) { return '<i' + (k < t ? ' class="on"' : '') + '></i>'; }).join('') + '</span>';
+      row(id, u.name + pips, SHOP[id].what + ' · ' + (cost === null ? SHOP[id].eff(t) : SHOP[id].eff(t) + ' → ' + SHOP[id].eff(t + 1)), cost);
+    });
+    h3 = document.createElement('h3'); h3.textContent = '소모품'; shopEl.appendChild(h3);
+    row('fert', '비료 <span class="pips">보유 ' + S.items.fert + '</span>', '한 칸의 작물이 두 배로 자란다 · 1회용', L.upgradeCost(S, 'fert'));
+    function row(id, nameHtml, sub, cost) {
+      var r = document.createElement('div'); r.className = 'up';
+      var n = document.createElement('div'); n.className = 'n'; n.innerHTML = nameHtml;
+      var sm = document.createElement('small'); sm.textContent = sub; n.appendChild(sm);
+      var b = document.createElement('button'); b.type = 'button';
+      if (cost === null) { b.textContent = '최대'; b.disabled = true; b.className = 'max'; }
+      else {
+        b.textContent = cost.toLocaleString('ko-KR');
+        b.setAttribute('aria-label', '사기 ' + cost + '코인');
+        if (S.coins < cost) b.classList.add('poor');
+        b.addEventListener('click', function () { buyItem(id, b); });
+      }
+      r.appendChild(shopIcon(id)); r.appendChild(n); r.appendChild(b); shopEl.appendChild(r);
+    }
+  }
+  function buyItem(id, btn) {
+    if (!L.buy(S, id)) {
+      toast('코인이 부족해요');
+      btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+      return;
+    }
+    if (id === 'fert') { S.sel = 'fert'; toast('비료 · 자라는 밭을 눌러 뿌리기'); }
+    else if (id === 'field') toast('밭이 ' + S.plots.length + '칸이 됐다');
+    else toast(L.UPG[id].name + ' ' + L.tier(S, id) + '단계');
+    refresh(); renderShop();
+  }
+  shopBtn.addEventListener('click', function () { dexEl.hidden = true; renderShop(); shopEl.hidden = false; });
+
+  var MS_TOAST = { cat: '도감 5종 · 고양이가 선착장에 놀러 왔다', lantern: '도감 8종 · 연못가에 석등이 켜졌다',
+    koi: '황금 수박 · 연못에 금빛 잉어가 산다는 소문', boat: '도감 완성 · 연못에 작은 배가 생겼다' };
+  function milestones() {
+    var got = L.checkMilestones(S);
+    if (got.length) setTimeout(function () { toast('★ ' + MS_TOAST[got[got.length - 1]], 4000); }, 1400);
+  }
+
+  // ---------- title notification ----------
+  function attention() {
+    var n = S.fish.phase === 'bite' ? 1 : 0;
+    S.plots.forEach(function (p) { if (p.crow || p.weed || L.isReady(p)) n++; });
+    return n;
+  }
+  function updateTitle() {
+    var away = document.hidden || !document.hasFocus();
+    var n = attention();
+    var want = away && n > 0 ? '(' + n + ') 메모' : '메모';
+    if (document.title !== want) document.title = want;
+  }
+
+  // ---------- logic tick ----------
+  function tick() {
+    var t = now();
+    L.advance(S, t).forEach(function (ev) {
+      var r = plotRect(ev.i);
+      toast('까마귀가 쪼아먹었다… 수확량 -30%');
+      burst(r.x + 22, r.y + 8, 6, 4, 60);
+    });
+    var e = L.spawnEvent(S, t, Math.random, SPEED);
+    if (e && e.type === 'scared') {
+      var pr = plotRect(e.i);
+      flyCrows.push({ x: pr.x + 16, y: pr.y + 2, t: 0 });
+      scareWob = 1.5;
+      toast('허수아비가 까마귀를 쫓아냈다', 2400);
+    } else if (e) toast(e.type === 'crow' ? '까마귀다! 1분 안에 쫓아내자' : '잡초가 났다 · 성장이 멈췄다', 2600);
+    if (!reel) {
+      var f = L.updateFishing(S, t, Math.random, SPEED);
+      if (f === 'missed') toast('놓쳤다… 다시 던져보자');
+      if (f === 'bite') { burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
+      if (f && f !== 'nibble') save();
+    }
+    renderTray();
+    updateTitle();
+  }
+  setInterval(tick, 200);
+  setInterval(save, 5000);
+
+  // ---------- render ----------
+  function drawLocked(i) {
+    // unbought ground: rough grass inside a dashed stake line, so the expansion reads as a goal
+    var r = plotRect(i);
+    for (var x = r.x + 1; x < r.x + r.w - 1; x += 3) { px(x, r.y, 1, 1, 2); px(x, r.y + r.h - 1, 1, 1, 2); }
+    for (var y = r.y + 1; y < r.y + r.h - 1; y += 3) { px(r.x, y, 1, 1, 2); px(r.x + r.w - 1, y, 1, 1, 2); }
+    for (var k = 0; k < 7; k++) {
+      var gx = r.x + 4 + Math.floor(hash(i * 31 + k * 7) * (r.w - 9)), gy = r.y + 6 + Math.floor(hash(i * 17 + k * 3) * (r.h - 10));
+      px(gx, gy, 1, 2, 3); px(gx + 2, gy - 1, 1, 3, 3); px(gx + 1, gy + 1, 1, 1, 2);
+    }
+    px(r.x + r.w - 9, r.y + 3, 1, 9, 4); px(r.x + r.w - 13, r.y + 3, 9, 5, 4); px(r.x + r.w - 12, r.y + 4, 7, 3, 0);
+    px(r.x + r.w - 11, r.y + 5, 5, 1, 3);
+  }
+  function drawPlot(i, tt) {
+    var r = plotRect(i), p = S.plots[i];
+    // soil with furrows
+    px(r.x + 1, r.y, r.w - 2, r.h, 4); px(r.x, r.y + 1, r.w, r.h - 2, 4);
+    px(r.x + 1, r.y + 1, r.w - 2, r.h - 2, p.crop ? 1 : 0);
+    for (var fy = r.y + 6; fy < r.y + r.h - 2; fy += 7)
+      for (var fx = r.x + 3; fx < r.x + r.w - 3; fx++) if ((fx + fy) % 3 !== 0) px(fx, fy, 1, 1, 2);
+    if (p.fert) for (var k3 = 0; k3 < 9; k3++) px(r.x + 3 + Math.floor(hash(i * 13 + k3) * (r.w - 6)), r.y + r.h - 3 - (k3 % 3) * 2, 1, 1, 3);
+    if (!p.crop) {
+      if (i === 0 && fresh && S.dex.crops.radish === undefined) { px(r.x + 20, r.y + 12, 4, 1, 3); px(r.x + 21, r.y + 10, 2, 5, 3); }
+      return;
+    }
+    var st = L.stage(p), ready = st === 4;
+    var bob = ready ? (Math.floor(tt * 2 + i) % 2) : 0;
+    var xs = (p.crop === 'melon' || p.crop === 'gold') ? [13, 31] : [8, 22, 36];
+    var baseY = r.y + r.h - 5;
+    xs.forEach(function (ox, k) {
+      var cx = r.x + ox, sway = (st >= 1 && st < 4 && Math.floor(tt * 1.5 + k + i) % 4 === 0) ? 1 : 0;
+      if (st === 0) { px(cx - 1, baseY - 1, 3, 1, 3); px(cx, baseY - 2, 1, 1, 4); return; }
+      if (st === 1) { spr(SP.sprout, cx - 2 + sway, baseY - 4); return; }
+      if (p.crop === 'radish') spr(st === 2 ? SP.radish2 : st === 3 ? SP.radish3 : SP.radish4, cx - 3 + sway, baseY - (st === 2 ? 5 : st === 3 ? 6 : 10) - bob);
+      else if (p.crop === 'berry') {
+        if (st === 2) spr(SP.berry2, cx - 3 + sway, baseY - 7);
+        else if (st === 3) { spr(SP.rosette, cx - 4, baseY - 2); spr(SP.berry3, cx - 2 + sway, baseY - 7); }
+        else { spr(SP.rosette, cx - 4, baseY - 2); spr(SP.berry4, cx - 4, baseY - 12 - bob); }
+      }
+      else {
+        spr(SP.vine, cx - 4 + sway, baseY - 5);
+        if (st === 3) melon(cx + 1, baseY, 7, 5, p.crop === 'gold');
+        if (st === 4) melon(cx, baseY + 1 - bob, 13, 10, p.crop === 'gold');
+      }
+    });
+    if (ready) {
+      sparkle(r.x + r.w - 5, r.y + 4, tt + i * 0.37);
+      if (p.crop === 'gold') { sparkle(r.x + 5, r.y + 6, tt + 0.5); sparkle(r.x + 22, r.y + 2, tt + 0.25); }
+    } else {
+      // progress bar: solid while growing, dashed while paused by weed
+      var f = p.progress / L.CROPS[p.crop].grow, bw = r.w - 4;
+      px(r.x + 2, r.y + r.h + 1, bw, 3, 4);
+      px(r.x + 3, r.y + r.h + 2, bw - 2, 1, 0);
+      var fill = Math.round((bw - 2) * f);
+      for (var q = 0; q < fill; q++) if (!p.weed || q % 2 === 0) px(r.x + 3 + q, r.y + r.h + 2, 1, 1, 3);
+    }
+    if (p.crop === 'gold') spr(SP.star, r.x + 2, r.y + 2);
+    if (p.weed) {
+      spr(SP.weed, r.x + 6, r.y + 3); spr(SP.weed, r.x + 28, r.y + 4, true);
+      spr(SP.weed, r.x + 17, r.y + 9);
+    }
+    if (p.crow) {
+      var leftMs = (p.crow.until - now()) / SPEED;
+      var urgent = leftMs < 15000;
+      var ph = Math.floor(tt * (urgent ? 6 : 2.5) + i) % 4;
+      var hop = ph === 2 ? 2 : 0;
+      var cx2 = r.x + 14 + Math.round(Math.sin(tt * 0.6 + i) * 8);
+      // white halo so the crow reads against plants without any colour
+      var rows = ph === 0 ? SP.crowPeck : ph === 1 ? SP.crowFlap : SP.crow, flip = Math.cos(tt * 0.6 + i) < 0;
+      for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) if (ox || oy) spr(rows.map(function (rw) { return rw.replace(/[0-4]/g, '0'); }), cx2 + ox, r.y + 4 - hop + oy, flip);
+      spr(rows, cx2, r.y + 4 - hop, flip);
+      // countdown pips above the crow: one pip per 10 s left
+      var pips = Math.max(0, Math.min(6, Math.ceil(leftMs / 10000)));
+      for (var k2 = 0; k2 < pips; k2++) px(cx2 + 1 + k2 * 2, r.y + 1 - hop, 1, 1, 4);
+    }
+  }
+
+  function bez(ax, ay, bx, by, cx, cy, t) {
+    var u = 1 - t;
+    return { x: u * u * ax + 2 * u * t * cx + t * t * bx, y: u * u * ay + 2 * u * t * cy + t * t * by };
+  }
+  function drawLine(ax, ay, bx, by, sag, jit) {
+    var cx = (ax + bx) / 2, cy = Math.max(ay, by) + sag;
+    var n = Math.ceil(Math.hypot(bx - ax, by - ay)) + 2;
+    for (var k = 0; k <= n; k++) {
+      var p = bez(ax, ay, bx, by, cx, cy, k / n);
+      var j = jit ? ((k % 2) ? jit : -jit) : 0;
+      px(p.x, p.y + j, 1, 1, 4);
+    }
+  }
+  function drawFarmer(tt) {
+    var blink = Math.floor(tt * 10) % 37 === 0;
+    var breathe = reel ? 0 : Math.floor(tt) % 2;
+    spr(blink ? SP.farmerBlink : SP.farmer, 46, 121 + breathe);
+  }
+  // Rod keeps its butt angle and bends along a curve toward the (pulled) tip.
+  function drawRod(tip) {
+    var t3 = L.tier(S, 'rod');
+    var cx = ROD_BASE.x + (ROD_TIP.x - ROD_BASE.x) * 0.6, cy = ROD_BASE.y + (ROD_TIP.y - ROD_BASE.y) * 0.6;
+    for (var k = 0; k <= 24; k++) {
+      var p = bez(ROD_BASE.x, ROD_BASE.y, tip.x, tip.y, cx, cy, k / 24);
+      px(p.x, p.y, 1, 1, 4);
+      if (k < 6 + t3 * 4) px(p.x + 1, p.y, 1, 1, t3 ? 4 : 3);
+    }
+    if (t3) { px(ROD_BASE.x + 2, ROD_BASE.y - 4, 3, 3, 4); px(ROD_BASE.x + 3, ROD_BASE.y - 3, 1, 1, 0); }
+  }
+  function drawBobber(x, y, dip, sunk) {
+    if (sunk) {
+      // the float is pulled under: only the antenna pokes out of the water
+      px(x, y - 1 + dip, 1, 2, 4); px(x - 2, y + 1, 1, 1, 0); px(x + 2, y + 1, 1, 1, 0);
+      return;
+    }
+    px(x, y - 4 + dip, 1, 2, 4);
+    px(x - 1, y - 2 + dip, 3, 2, 4);
+    px(x - 1, y + dip, 3, 2, 0); px(x - 2, y + dip, 1, 2, 4); px(x + 2, y + dip, 1, 2, 4); px(x - 1, y + 2 + dip, 3, 1, 4);
+  }
+  function ring(x, y, rx, ry, c) {
+    var n = Math.max(12, Math.round(rx * 5));
+    for (var k = 0; k < n; k++) {
+      var a = k / n * Math.PI * 2;
+      var xx = x + Math.cos(a) * rx, yy = y + Math.sin(a) * ry;
+      if (inPond(xx, yy, 0.97)) px(xx, yy, 1, 1, c);
+    }
+  }
+  // Fish seen from above as a dark shape: body ellipse plus a tail that flaps; facing +1 = head to the right.
+  function fishShadow(x, y, len, facing, flap, alpha) {
+    ctx.globalAlpha = alpha;
+    var bl = Math.max(4, Math.round(len * 0.7)), bh = Math.max(3, Math.round(len * 0.3));
+    for (var j = 0; j < bh; j++) {
+      var yy = (j + 0.5 - bh / 2) / (bh / 2);
+      var half = Math.max(1, Math.round(bl / 2 * Math.sqrt(1 - yy * yy)));
+      px(x - half, y - bh / 2 + j, half * 2, 1, 4);
+    }
+    var tl = Math.max(2, len - bl), bx = x - facing * Math.round(bl / 2);
+    for (var k = 0; k < tl; k++) {
+      var sp = Math.round(k * 0.7), off = Math.round(flap * (k + 1) / tl);
+      px(bx - facing * (k + 1), y - sp + off, 1, sp * 2 + 1, 4);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function inside(v) {
+    for (var k = 0; k < 20 && !inPond(v.x, v.y, 0.8); k++) { v.x = POND.cx + (v.x - POND.cx) * 0.94; v.y = POND.cy + (v.y - POND.cy) * 0.94; }
+  }
+
+  function drawScarecrows(tt) {
+    var t = L.tier(S, 'scare');
+    if (!t) return;
+    var wob = scareWob > 0 ? (Math.floor(tt * 12) % 2 ? 1 : -1) : 0;
+    spr(SP.scarecrow, 4 + wob, 38);
+    if (t >= 2) { px(4 + wob, 44, 1, 3, 0); px(3 + wob, 45, 1, 3, 2); }           // tin can on the arm
+    if (t >= 3) spr(SP.scarecrow, 170 - wob, 38, true);
+  }
+  function drawDecor(tt) {
+    if (L.tier(S, 'bait')) spr(SP.can, 37, 128);
+    if (S.ms.lantern) {
+      spr(SP.lantern, 50, 160);
+      if (Math.floor(tt * 3) % 5) { px(52, 163, 3, 2, 0); } else px(53, 163, 1, 2, 1);
+    }
+    if (S.ms.boat) {
+      var bb = Math.floor(tt * 1.2) % 2;
+      spr(SP.boat, 126, 172 + bb);
+      for (var k = 0; k < 8; k++) px(144 + k, 174 + Math.round(k * 0.5) + bb, 1, 1, 3);
+    }
+    if (S.ms.cat) {
+      var alert = !!reel || S.fish.phase === 'bite';
+      var blink = !alert && Math.floor(tt * 10) % 41 === 0;
+      spr(alert ? SP.catAlert : blink ? SP.catBlink : SP.cat, 27, 126);
+      if (!alert && Math.floor(tt * 0.8) % 3 === 0) px(26, 129, 1, 1, 4);          // tail flick
+    }
+  }
+  function drawSwimmers(tt, dt) {
+    nextSwim -= dt;
+    if (nextSwim <= 0) {
+      nextSwim = 7 + Math.random() * 12;
+      var d = Math.random() < 0.5 ? -1 : 1;
+      swimmers.push({ x: POND.cx - d * POND.rx * 0.75, y: POND.cy + (Math.random() - 0.5) * POND.ry * 1.1,
+        dir: d, sp: 7 + Math.random() * 9, len: 6 + Math.floor(Math.random() * 5), ph: Math.random() * 6, age: 0 });
+    }
+    for (var n = swimmers.length - 1; n >= 0; n--) {
+      var s = swimmers[n];
+      s.age += dt; s.x += s.dir * s.sp * dt; s.y += Math.sin(tt * 1.3 + s.ph) * dt * 4;
+      if (s.age > 1 && !inPond(s.x, s.y, 0.85)) { swimmers.splice(n, 1); continue; }
+      fishShadow(s.x, s.y, s.len, s.dir, Math.round(Math.sin(tt * 7 + s.ph)), 0.22);
+    }
+  }
+
+  function frame(dt) {
+    var tt = performance.now() / 1000;
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);
+    var sx = shake > 0.3 ? Math.round((Math.random() - 0.5) * shake) : 0;
+    var sy = shake > 0.3 ? Math.round((Math.random() - 0.5) * shake) : 0;
+    shake = Math.max(0, shake - dt * 8);
+    scareWob = Math.max(0, scareWob - dt);
+    ctx.translate(sx, sy);
+    ctx.drawImage(bg, 0, 0);
+
+    // water glints: slow, sparse
+    for (var k = 0; k < 7; k++) {
+      var ph = (tt * 0.25 + hash(k * 11) * 4) % 4;
+      if (ph > 1.2) continue;
+      var a = hash(k * 5 + 1) * Math.PI * 2, rr = Math.sqrt(hash(k * 9 + 2)) * 0.8;
+      var gx = POND.cx + Math.cos(a) * POND.rx * rr, gy = POND.cy + Math.sin(a) * POND.ry * rr;
+      px(gx - 1, gy, ph < 0.6 ? 3 : 2, 1, 0);
+    }
+    if (!reel) drawSwimmers(tt, dt);
+
+    for (var i = 0; i < L.N_MAX; i++) { if (i < S.plots.length) drawPlot(i, tt); else drawLocked(i); }
+    drawScarecrows(tt);
+    for (var c = flyCrows.length - 1; c >= 0; c--) {
+      var fc = flyCrows[c]; fc.t += dt;
+      if (fc.t > 1.6) { flyCrows.splice(c, 1); continue; }
+      spr(Math.floor(fc.t * 10) % 2 ? SP.crowFlap : SP.crow, fc.x + fc.t * 50, fc.y - fc.t * 30 - fc.t * fc.t * 10);
+    }
+    drawDecor(tt);
+
+    // ---- fishing ----
+    var f = S.fish, tip = { x: ROD_TIP.x, y: ROD_TIP.y }, nowT = now();
+    if (reel) {
+      var held = holdPointer || holdSpace;
+      var rs = L.reelStep(reel, dt, held, Math.random);
+      var pulling = reel.burst > 0, warning = reel.warn > 0;
+      if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, 2.5); }
+      reelVis.pulling = pulling;
+      // the fish is dragged from where it bit toward the dock as catch grows; bursts yank it away along reel.dir
+      var tx = reelVis.sx + (ROD_TIP.x + 10 - reelVis.sx) * reel.catch * 0.85;
+      var ty = reelVis.sy + (142 - reelVis.sy) * reel.catch * 0.85;
+      var surge = pulling ? reel.dir * 18 : warning ? -reel.dir * 4 : 0;
+      reelVis.jx += (surge - reelVis.jx) * Math.min(1, dt * (pulling ? 7 : 5));
+      if (pulling) reelVis.jy += (Math.random() - 0.5) * 3;
+      reelVis.jy *= 0.85;
+      reelVis.x += (tx + reelVis.jx - reelVis.x) * Math.min(1, dt * 8);
+      reelVis.y += (ty + reelVis.jy - reelVis.y) * Math.min(1, dt * 8);
+      inside(reelVis);
+      var facing = (pulling || warning) ? reel.dir : (reelVis.x > ROD_TIP.x ? -1 : 1);
+      var len = Math.round(14 + 10 * Math.max(0, Math.min(1, (reel.power - 0.7) / 1.4)));
+      var flap = Math.round(Math.sin(tt * (pulling ? 26 : warning ? 16 : 7)) * (pulling ? 3 : warning ? 2 : 1));
+      var hx = reelVis.x + facing * len * 0.35, hy = reelVis.y;
+      // wake and rings: wide and churning when pulling, a tight bright coil when about to pull
+      if (pulling) {
+        for (var w = 1; w < 8; w++) { px(reelVis.x - facing * (len * 0.5 + w * 2), reelVis.y - w * 0.8, 1, 1, 0); px(reelVis.x - facing * (len * 0.5 + w * 2), reelVis.y + w * 0.8, 1, 1, 0); }
+        if (Math.random() < 0.7) burst(hx, hy - 1, 1 + (Math.random() < 0.4 ? 1 : 0), 0, 70);
+        ring(reelVis.x, reelVis.y, len * 0.7 + (tt * 10 % 4), len * 0.3 + (tt * 5 % 2), 4);
+      } else if (warning) {
+        var wr = 2 + (tt * 14 % 3);
+        ring(hx, hy, wr + 3, wr, 4); ring(hx, hy, wr + 6, wr + 1.5, 0);
+      } else ring(reelVis.x, reelVis.y, len * 0.6 + (tt * 6 % 3), len * 0.25 + (tt * 3 % 1.5), 3);
+      fishShadow(reelVis.x, reelVis.y + 1, len, facing, flap, warning ? 0.8 : pulling ? 0.7 : 0.55);
+      // rod: bends toward the fish with tension, extra when the fish runs
+      var ten = Math.min(1, reel.tension), ddx = hx - ROD_TIP.x, ddy = hy - ROD_TIP.y, dl = Math.hypot(ddx, ddy) || 1;
+      var bendAmt = 2 + ten * 13 + (pulling ? 4 : 0) + (held ? 2 : 0);
+      tip.x = ROD_TIP.x + ddx / dl * bendAmt * 0.55; tip.y = ROD_TIP.y + ddy / dl * bendAmt * 0.4 + bendAmt * 0.55;
+      drawLine(tip.x, tip.y, hx, hy - 1, Math.max(0, 9 * (1 - ten) - (held ? 4 : 0) - (pulling ? 4 : 0)), ten > 0.75 || pulling ? 1 : 0);
+      drawBobber(Math.round(hx + facing * 2), Math.round(hy - 2), 0, pulling || warning);
+      if (warning && Math.floor(tt * 10) % 2 === 0) spr(BANG, hx - 3, hy - 20);
+      // HUD strip
+      tBar.style.width = Math.round(Math.min(1, reel.tension) * 100) + '%';
+      cBar.style.width = Math.round(Math.max(0, Math.min(1, reel.catch)) * 100) + '%';
+      tWrap.classList.toggle('hot', reel.tension > 0.75);
+      var cue = warning ? '손 떼!' : pulling ? (held ? '줄 끊어져요!' : '버텨…') : held ? '' : (reel.t < 2.5 ? '꾹 눌러 감기' : '감아!');
+      cueEl.hidden = !cue;
+      if (cue) {
+        cueEl.textContent = cue;
+        cueEl.classList.toggle('loud', warning || (pulling && held));
+        cueEl.style.left = Math.round(Math.max(40, Math.min(140, hx)) * 2) + 'px';
+        cueEl.style.top = (36 + Math.round((hy - (warning ? 34 : 18)) * 2)) + 'px';
+      }
+      if (rs) endReel(rs);
+    } else if (f.phase === 'wait' || f.phase === 'bite') {
+      var bx = f.x, byy = f.y, dip = 0, sunk = false;
+      if (castAnim) {
+        castAnim.t += dt / 0.45;
+        var ct = Math.min(1, castAnim.t);
+        bx = ROD_TIP.x + (f.x - ROD_TIP.x) * ct;
+        byy = ROD_TIP.y + (f.y - ROD_TIP.y) * ct - Math.sin(ct * Math.PI) * 18;
+        if (castAnim.t >= 1) { castAnim = null; burst(f.x, f.y, 4, 0, 30); }
+      }
+      if (f.phase === 'wait' && !castAnim) {
+        var leftReal = (f.biteAt - nowT) / SPEED / 1000;
+        // the biter: a shadow that circles in during the last seconds
+        if (leftReal < 4) {
+          var ap = Math.max(0, leftReal) / 4;
+          fishShadow(f.x + 7 + ap * 22 * Math.cos(tt), f.y + 4 + ap * 8, 10, Math.cos(tt) > 0 ? -1 : 1, Math.round(Math.sin(tt * 9)), 0.45 - ap * 0.2);
+        }
+        if (nowT < f.nibEnd) {
+          // decoy nibble: a small fish taps the bait twice; the float stays up
+          var np = 1 - (f.nibEnd - nowT) / SPEED / L.NIBBLE_MS;
+          dip = (np < 0.18 || (np > 0.45 && np < 0.6)) ? 1 : 0;
+          fishShadow(f.x + 6, f.y + 3, 7, -1, Math.round(Math.sin(tt * 14)), 0.32);
+          ring(f.x, f.y + 1, 2 + np * 4, 1 + np * 2, 3);
+        } else ring(f.x, f.y + 1, 3 + (tt * 2 % 3), 1 + (tt % 1.5), 2);
+      }
+      if (f.phase === 'bite') {
+        // real bite: the float is dragged under and big rings spread
+        sunk = true; dip = Math.floor(tt * 8) % 2;
+        ring(f.x, f.y + 1, 3 + (tt * 10 % 5), 1.5 + (tt * 5 % 2.5), 4);
+        ring(f.x, f.y + 1, 6 + (tt * 10 % 5), 3 + (tt * 5 % 2.5), 0);
+        fishShadow(f.x + 3, f.y + 2, 11, -1, Math.round(Math.sin(tt * 20) * 2), 0.6);
+        spr(BANG, f.x - 3, f.y - 18 + (Math.floor(tt * 6) % 2));
+      }
+      drawLine(tip.x, tip.y, bx, byy - 3, castAnim ? 0 : (sunk ? 2 : 8), 0);
+      if (sunk) { tip.y += 2; tip.x += 1; }
+      drawBobber(Math.round(bx), Math.round(byy), dip, sunk);
+    }
+    if (scareFx) {
+      scareFx.t += dt;
+      if (scareFx.t > 0.7) scareFx = null;
+      else {
+        var sxp = { x: scareFx.x + scareFx.dir * scareFx.t * 70, y: scareFx.y + scareFx.t * 6 };
+        fishShadow(sxp.x, sxp.y, 9, scareFx.dir, Math.round(Math.sin(tt * 30) * 2), 0.5 * (1 - scareFx.t / 0.7));
+        ring(scareFx.x - scareFx.dir * 4, scareFx.y - 2, 4 + scareFx.t * 10, 2 + scareFx.t * 4, 3);
+      }
+    }
+    drawFarmer(tt);
+    drawRod(tip);
+
+    // particles
+    for (var n = particles.length - 1; n >= 0; n--) {
+      var q = particles[n];
+      q.life -= dt; if (q.life <= 0) { particles.splice(n, 1); continue; }
+      q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt;
+      px(q.x, q.y, 1, 1, q.c);
+      if (q.c === 0) px(q.x + 1, q.y, 1, 1, 4);
+    }
+    ctx.restore();
+  }
+
+  // ---------- loop (rAF of whichever window currently hosts the game) ----------
+  var curWin = window, gen = 0;
+  function startLoop() {
+    var my = ++gen, w = curWin, last = 0;
+    function step(ts) {
+      if (my !== gen) return;
+      var dt = last ? Math.min(0.05, (ts - last) / 1000) : 0.016;
+      last = ts;
+      frame(dt);
+      w.requestAnimationFrame(step);
+    }
+    w.requestAnimationFrame(step);
+  }
+
+  // ---------- fit to window ----------
+  function fit() {
+    var w = curWin.innerWidth, h = curWin.innerHeight;
+    var s = Math.min(w / 360, h / 480);
+    app.style.transform = 'scale(' + s + ')';
+    // the main-tab hint sits over the pond, scaled with the game, clear of the toast line
+    if (curWin === window) pipHint.style.transform = 'translate(-50%,-50%) translateY(' + Math.round(80 * s) + 'px) scale(' + s + ')';
+  }
+
+  // ---------- Document Picture-in-Picture ----------
+  // Browsers only open PiP from a user gesture, so "open small right away" arms the first click/key on the page.
+  var pipWin = null, pipClosed = false, pipArmed = false, swallowClickUntil = 0;
+  var pipOK = 'documentPictureInPicture' in window && window.top === window;
+  var PIP_KEY = 'farmfish.autopip', pipHint = $('pipHint'), pipAuto = $('pipAuto');
+  var PIP_LABEL = '<span class="mono-emoji">📌</span> ';
+  function autoPip() { try { return localStorage.getItem(PIP_KEY) !== '0'; } catch (e) { return true; } }
+  function arm() { pipArmed = pipOK && autoPip() && !pipWin && !pipClosed; pipHint.hidden = !pipArmed; }
+  function setAutoPip(on) {
+    try { localStorage.setItem(PIP_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    pipAuto.checked = on; arm();
+  }
+  function openPip() {
+    pipArmed = false; pipHint.hidden = true;
+    window.documentPictureInPicture.requestWindow({ width: 360, height: 480 }).then(function (pw) {
+      pipWin = pw;
+      var st = pw.document.createElement('style');
+      st.textContent = Array.prototype.map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
+      pw.document.head.appendChild(st);
+      pw.document.title = '메모';
+      var holder = pw.document.createElement('div'); holder.id = 'stage';
+      pw.document.body.appendChild(holder);
+      holder.appendChild(app);
+      pipBtn.textContent = '돌아가기';
+      curWin = pw; bindDoc(pw.document, pw); fit(); startLoop();
+      pw.addEventListener('pagehide', function () {
+        stageEl.appendChild(app);
+        pipWin = null; curWin = window; pipClosed = true;
+        pipBtn.innerHTML = PIP_LABEL + '다시 띄우기';
+        fit(); startLoop();
+        toast('작게 띄운 창을 닫았어요 · 위의 다시 띄우기', 3200);
+      });
+    }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
+  }
+  function togglePip() { if (pipWin) pipWin.close(); else openPip(); }
+  if (pipOK) {
+    pipBtn.hidden = false;
+    pipBtn.addEventListener('click', togglePip);
+    pipAuto.checked = autoPip();
+    pipAuto.addEventListener('change', function () { setAutoPip(pipAuto.checked); });
+    window.addEventListener('pointerdown', function (e) {
+      if (!pipArmed || pipAuto.parentNode.contains(e.target)) return;
+      // this gesture only opens PiP: it must not also plant, cast or press a button
+      e.preventDefault(); e.stopPropagation();
+      swallowClickUntil = performance.now() + 1500;
+      openPip();
+    }, true);
+    window.addEventListener('click', function (e) {
+      if (performance.now() < swallowClickUntil) { e.preventDefault(); e.stopPropagation(); swallowClickUntil = 0; }
+    }, true);
+    window.addEventListener('keydown', function (e) {
+      // Esc stays the boss key and P is the toggle itself; bare modifiers are not a decision to open
+      if (!pipArmed || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || isPipKey(e) ||
+          /^(Shift|Control|Alt|Meta|Tab|CapsLock|Process)$/.test(e.key)) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      openPip();
+    }, true);
+    arm();
+  }
+
+  // ---------- boot ----------
+  renderTray();
+  fit();
+  startLoop();
+  tick();
+  if (fresh) toast('빈 밭을 눌러 무 심기 · 연못을 눌러 낚시', 4000);
+  else {
+    var ready = S.plots.filter(L.isReady).length;
+    toast(ready ? '다녀오셨어요 · 수확할 작물 ' + ready + '개' : '다녀오셨어요', 3000);
+  }
+  if (SPEED !== 1) setTimeout(function () { toast('디버그 속도 ×' + SPEED + ' (별도 저장)', 2500); }, 3100);
+  if (L.checkMilestones(S).length) save();     // saves from before milestones existed: unlock silently
+
+  // console hooks for testing
+  globalThis.FF = {
+    get state() { return S; },
+    get reel() { return reel; },
+    now: now,
+    forceBite: function () { if (S.fish.phase === 'wait') S.fish.biteAt = now(); },
+    forceNibble: function () { if (S.fish.phase === 'wait') { S.fish.nibAt = now(); S.fish.biteAt = Math.max(S.fish.biteAt, now() + 10e3 * SPEED); } },
+    coins: function (n) { S.coins += n; refresh(); },
+    forceEvent: function () { S.nextEventAt = now(); },
+    giveGold: function () { S.seeds.gold++; S.dex.goldSeed = true; renderTray(); },
+    grow: function () { S.plots.forEach(function (p) { if (p.crop) p.progress = L.CROPS[p.crop].grow; }); },
+    save: save
+  };
+})();
+</script>
+</body>
+</html>
