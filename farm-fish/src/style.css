@@ -21,7 +21,7 @@ body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
 #hud{position:absolute;left:0;top:0;right:0;height:36px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 8px;background:var(--g0);border-bottom:2px solid var(--g4)}
 .coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
-#coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em}
+#coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em;white-space:nowrap}
 .spacer{flex:1}
 .mono-emoji{filter:grayscale(1) contrast(1.2)}
 button{font:700 12px var(--font);color:var(--g4);background:var(--g0);border:2px solid var(--g4);border-radius:0;

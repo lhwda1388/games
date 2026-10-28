@@ -1,4 +1,4 @@
-// test/spots.test.js — stage 2: fishing spots, time of day, weather, new fish, new milestones
+// farm-fish/test/spots.test.js — stage 2: fishing spots, time of day, weather, new fish, new milestones
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
@@ -43,13 +43,13 @@ test('spots: 강 needs ★5 + 1000, 바다 ★40 + 30000; ★ is kept, coins are
 });
 
 test('fish table: 30 species + 12 seasonal, original 7 unchanged, 강·바다 each 9–12 year-round', () => {
-  assert.equal(L.FISH.filter((f) => !f.egg).length, 42);   // + stage 3's 시계 물고기 (egg); stage 4 adds 12 seasonal
+  assert.equal(L.FISH.filter((f) => !f.egg && !f.fest).length, 42);   // + stage 3's 시계 물고기 (egg); stage 4 adds 12 seasonal; stage 5B festival fish (fest) apart
   assert.deepEqual(L.FISH.slice(0, 7).map((f) => f.id), ['minnow', 'crucian', 'catfish', 'carp', 'lunch', 'tuna', 'koi']);
   assert.ok(L.FISH.slice(0, 7).every((f) => !f.spot && !f.phase && !f.weather && !f.season));
   const by = (sp) => L.FISH.filter((f) => f.spot === sp && (!f.season || f.id === 'snakehead'));
   assert.ok(by('river').length >= 9 && by('river').length <= 12);
   assert.ok(by('sea').length >= 9 && by('sea').length <= 12);
-  assert.equal(new Set(L.FISH.filter((f) => !f.egg).map((f) => f.id)).size, 42);
+  assert.equal(new Set(L.FISH.filter((f) => !f.egg && !f.fest).map((f) => f.id)).size, 42);
   assert.ok(L.FISH.filter((f) => f.weather === 'rain').length >= 3);
   assert.ok(L.FISH.filter((f) => f.weather === 'fog').length >= 2);
   assert.ok(L.FISH.filter((f) => f.weather === 'snow').length >= 2);

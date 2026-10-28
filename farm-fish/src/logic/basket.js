@@ -26,6 +26,7 @@
     var f = fishById(id); if (f) return { id: id, kind: 'fish', name: f.name, price: f.price };
     var r = recipeById(id); if (r) return { id: id, kind: 'dish', name: r.name, price: r.sell };
     if (PRODUCTS[id]) return { id: id, kind: 'product', name: PRODUCTS[id].name, price: PRODUCTS[id].price };
+    var g = forageById(id); if (g) return { id: id, kind: 'forage', name: g.name, price: g.price };   // stage 5A
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -34,6 +35,7 @@
     var f = fishById(id); if (f) return fishOpen(s, f);
     if (PRODUCTS[id]) return !!(s.animals && s.animals[PRODUCTS[id].from] > 0);
     var r = recipeById(id); if (r) return recipeKnown(s, r) && r.need.every(function (x) { return obtainable(s, x); });
+    if (forageById(id)) return forestOk(s);
     return false;
   }
 
@@ -76,14 +78,16 @@
     var out = [];
     if (special) {
       // harder: a rarer pond fish, or two of a dish already cooked
-      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
+      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && !f.fest && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
       RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
       return out;
     }
     SEEDS.forEach(function (id) { if (seedUnlocked(s, id) && !seasonalItem(id)) out.push({ id: id, w: 3 }); });
     // seasonal fish (and 장마 가물치) stay off like seasonal crops: an order outlives the season it was posted in
-    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
+    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
     RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
+    forageOrders(s, out);   // stage 5A: common 숲 finds
+    festPool(s, out);   // stage 5B: festival items while a festival is on
     return out;
   }
   function between(rng, a, b) { return a + Math.floor(rng() * (b - a + 1)); }
@@ -97,11 +101,12 @@
     if (special) n = it.kind === 'dish' ? 2 : between(rng, 1, 2);
     else if (it.kind === 'crop') { var g = CROPS[it.id].grow; n = g <= 300e3 ? between(rng, 3, 6) : g <= 1200e3 ? between(rng, 2, 4) : between(rng, 1, 2); }
     else if (it.kind === 'fish') n = it.price < 50 ? between(rng, 2, 4) : between(rng, 1, 2);
+    else if (it.kind === 'forage') n = between(rng, 2, 4);
     else n = 1;
     var mult = special ? 3 + rng() : 1.5 + rng();
     var o = { id: it.id, n: n, reward: Math.round(it.price * n * mult), rep: special ? 3 : it.kind === 'dish' ? 2 : 1 };
     if (special) o.special = true;
-    return o;
+    return festMark(s, o);   // stage 5B: festival orders pay more
   }
   // fills every empty slot whose wait is over; time-based so it catches up after being away
   function refreshOrders(s, now, rng) {
@@ -143,14 +148,15 @@
     return true;
   }
   function potReady(s, now) { return readyPot(s, now) >= 0; }
-  function takeDish(s, now) {
+  // mult (stage 5B 불 조절 도전): the dish is worth that much more; omitted = the plain dish
+  function takeDish(s, now, mult) {
     var k = readyPot(s, now);
     if (k < 0) return null;
     var r = recipeById(potGet(s, k).id), first = !s.dex.dish[r.id];
     s.dex.dish[r.id] = (s.dex.dish[r.id] || 0) + 1;
     dailyBump(s, 'cook');
     potSet(s, k, null);
-    return { id: r.id, first: first, sold: bagAdd(s, r.id, r.sell) };
+    return { id: r.id, first: first, sold: bagAdd(s, r.id, Math.round(r.sell * (mult || 1))) };
   }
 
   expose({

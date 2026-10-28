@@ -256,6 +256,7 @@
     }
     drawAnimals(tt);
     drawVisitors(tt, dt, 'yard');
+    drawPet(tt, dt, 'yard');   // stage 5A
     drawYardWeather(tt, wx);
     if (night || ph === 'evening') { ctx.globalAlpha = night ? 0.32 : 0.12; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
     if (night) {
@@ -361,6 +362,7 @@
     if (d.id === 'windmill') { millSpin = 3; openPick('deco', d.id, '빙글빙글'); return; }
     if (d.id === 'chime') { chimeRing = 2; openPick('deco', d.id, '딸랑… · ' + likes); return; }
     if (d.id === 'bench') { openPick('deco', d.id, '고양이가 좋아하는 자리'); return; }
+    if (d.id === 'snowman') { openPick('deco', d.id, snowWear(), ['꾸미기', function () { L.snowmanStyle(S); refresh(); closePick(); }]); return; }   // stage 5B
     var r = decoRect(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
     openPick('deco', d.id, likes);
   }
@@ -460,43 +462,48 @@
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : '집 안');
     renderSceneBtn();
   }
   var sceneKey = '';
   function renderSceneBtn() {
+    var nx = nextScene();   // stage 5A: 밭·연못 → 마당 → 숲 → 밭·연못
     var other = view === 'farm' ? yardAttention() > 0 || S.yard.vis.some(function (v) { return L.visitorById(v.id).slot !== 'pond'; })
-                                 : S.yard.vis.some(function (v) { return L.visitorById(v.id).slot === 'pond'; });
+                                 : nx === 'forest' ? forestAttention() : S.yard.vis.some(function (v) { return L.visitorById(v.id).slot === 'pond'; });
     var bite = view !== 'farm' && S.fish.phase === 'bite';
-    var key = view + other + !!reel + bite;
+    var key = view + nx + other + !!reel + bite;
     if (key === sceneKey) return;
     sceneKey = key;
     sceneBtn.innerHTML = '';
     sceneBtn.disabled = !!reel;
     sceneBtn.classList.toggle('bite', bite);
     if (bite) { sceneBtn.textContent = '찌!'; sceneBtn.setAttribute('aria-label', '입질! 연못으로 가서 챔질'); return; }
-    var label = view === 'farm' ? '마당' : view === 'yard' ? '밭' : '마당';
-    sceneBtn.setAttribute('aria-label', view === 'farm' ? '마당으로' : view === 'yard' ? '밭과 연못으로' : '마당으로 나가기');
+    var label = nx === 'yard' ? '마당' : nx === 'forest' ? '숲' : '밭';
+    sceneBtn.setAttribute('aria-label', nx === 'yard' ? (view === 'house' ? '마당으로 나가기' : '마당으로') : nx === 'forest' ? '숲으로' : '밭과 연못으로');
     sceneBtn.appendChild(document.createTextNode(label));
     if (other) { var d = document.createElement('i'); d.className = 'dot'; sceneBtn.appendChild(d); }
   }
   sceneBtn.addEventListener('click', function () {
     if (view !== 'farm' && S.fish.phase === 'bite') { goScene('farm'); doStrike(); renderSceneBtn(); return; }
-    goScene(view === 'yard' ? 'farm' : 'yard');
+    goScene(nextScene());
   });
+  function nextScene() { return view === 'farm' || view === 'house' ? 'yard' : view === 'yard' && forestShown() ? 'forest' : 'farm'; }
 
   // ---------- hooks used by loop.js / input.js ----------
   // draws 마당 or 집 안 instead of the farm; returns false on the farm so the normal frame runs
   function drawScene(tt, dt) {
     if (view === 'yard') { drawYard(tt, dt); return true; }
     if (view === 'house') { drawRoom(tt, dt); return true; }
+    if (view === 'forest') { drawForest(tt, dt); return true; }   // stage 5A
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
   function tapScene(x, y) {
-    if (view === 'yard') { tapYard(x, y); return true; }
+    if (view === 'yard') { if (!pick && tapPet(x, y)) return true; tapYard(x, y); return true; }
     if (view === 'house') { tapRoom(x, y); return true; }
+    if (view === 'forest') { tapForest(x, y); return true; }   // stage 5A
     if (S.fish.phase === 'bite') return false;
+    if (tapPet(x, y)) return true;
     if (tapVisitorAt(x, y, 'pond')) return true;
     var st = L.tier(S, 'scare');
     if (st && ((x >= 2 && x < 15 && y >= 36 && y < 54) || (st >= 3 && x >= 168 && y >= 36 && y < 54))) {

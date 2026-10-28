@@ -1,9 +1,9 @@
-// test/logic.test.js
+// farm-fish/test/logic.test.js
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 
-// built in memory from src/, so tests never need `node build.js` first
+// built in memory from src/, so tests never need `node farm-fish/build.js` first
 function loadLogic() {
   const html = require('../build.js').build();
   const m = html.match(/<script id="logic">([\s\S]*?)<\/script>/);
@@ -193,7 +193,7 @@ test('rod upgrade slows tension gain; bait shortens waits and favours rare fish'
   // same rng value lands on a rarer species with better bait
   const tue10 = new Date(2026, 9, 27, 10, 0);
   assert.equal(L.rollFish(tue10, seq(0.7, 0.5), undefined, noSeason(tue10)).id, 'crucian');
-  assert.equal(L.rollFish(tue10, seq(0.7, 0.5), b).id, 'catfish');
+  assert.equal(L.rollFish(tue10, seq(0.7, 0.5), b, noSeason(tue10)).id, 'catfish');
 });
 
 test('field expansion: 6 → 8 → 9 plots, neighbours respect missing plots', () => {

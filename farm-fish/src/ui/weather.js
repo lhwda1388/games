@@ -6,6 +6,7 @@
     var e = L.fishEnv(t, TZ, wxOverride);
     if (phaseOverride) e.phase = phaseOverride;
     if (seasonOverride) e.season = seasonOverride;
+    if (festOverride !== undefined) e.festival = festOverride;   // stage 5B: FF.festival
     return e;
   }
   // extra sky: 'petals' (spring, the block after rain) or 'leaves' (autumn, clear)

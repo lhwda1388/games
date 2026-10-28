@@ -29,7 +29,7 @@ body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
 #hud{position:absolute;left:0;top:0;right:0;height:36px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 8px;background:var(--g0);border-bottom:2px solid var(--g4)}
 .coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
-#coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em}
+#coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em;white-space:nowrap}
 .spacer{flex:1}
 .mono-emoji{filter:grayscale(1) contrast(1.2)}
 button{font:700 12px var(--font);color:var(--g4);background:var(--g0);border:2px solid var(--g4);border-radius:0;
@@ -231,6 +231,27 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 .cmp .cr span.win{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:2px}
 #sceneBtn.bite{background:var(--g4);color:var(--g0);animation:jit .12s steps(2) infinite}
 @media (prefers-reduced-motion: reduce){ #sceneBtn.bite{animation:none} }
+/* Hallmark · component: 반려동물 name sheet · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (reuses .field/.shareRow/.up; instant, no loading/error)
+ * stage 5A. Only tokens, no new colours.
+ */
+.shareRow canvas,.up canvas{image-rendering:pixelated;flex:none}
+/* Hallmark · component: 축제 chip · 도전 overlay (자물쇠 / 불 조절) · junk card · genre: playful
+ * theme: existing farm-fish grayscale (--g0..--g4) · states: default · hover · focus · active · disabled (local, instant: no loading/error)
+ * stage 5B. Reuses button/.overlay/.up/.letter/.note/.sellAll; only tokens, no new colours. Motion: none beyond the shared button press.
+ */
+#festChip{display:flex;align-items:center;gap:3px;padding:2px 5px;position:relative;font:700 11px var(--font)}
+#festChip canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
+#festChip .dot{position:absolute;right:-4px;top:-4px;width:7px;height:7px;background:var(--g4);border:1px solid var(--g0)}
+#festChip .dot[hidden]{display:none}
+#result .jk{cursor:pointer}
+#result:has(.jk){cursor:pointer}
+#mini{z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;cursor:pointer;touch-action:none}
+#mini h2{justify-content:center;margin:0}
+#mini canvas{width:270px;height:168px;image-rendering:pixelated;border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);flex:none}
+#mini .tip{margin:0;font:700 13px/1.4 var(--font);text-align:center;min-height:36px}
+#mini button{font-family:var(--font)}
+.festRow canvas{width:21px;height:21px}
 </style>
 </head>
 <body>
@@ -241,7 +262,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     <button id="bagBtn" type="button" aria-label="바구니와 주문"></button>
     <button id="shopBtn" type="button">상점</button>
     <button id="dexBtn" type="button">도감</button>
-    <button id="pipBtn" type="button" hidden><span class="mono-emoji">📌</span> 작게 띄우기</button>
+    <button id="pipBtn" type="button" title="작게 띄우기" hidden><span class="mono-emoji">📌</span> 작게</button>
   </header>
   <canvas id="cv" width="180" height="200" aria-label="농장과 연못"></canvas>
   <button id="clockBtn" type="button" aria-label="달력 열기"></button>
@@ -540,8 +561,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'crucian', name: '붕어',     rarity: '흔함',    w: 34, min: 14, max: 32,  power: 1.0,  price: 28 },
     { id: 'catfish', name: '메기',     rarity: '드묾',    w: 16, min: 30, max: 72,  power: 1.3,  price: 70 },
     { id: 'carp',    name: '비단잉어', rarity: '희귀',    w: 7,  min: 40, max: 90,  power: 1.6,  price: 160 },
-    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
-    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.2,  price: 1200, window: 'friday' },
+    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.4, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
+    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.2,  price: 1200, window: 'friday', share: 0.2 },
     { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 2.0,  price: 600, unlock: 'koi' },
     // 강 (river). phase = game-clock time of day, weather = weatherAt(), season = game season (stage 4 adds seasonal fish)
     { id: 'dace',      name: '갈겨니',   rarity: '흔함', w: 40, min: 8,  max: 18,  power: 0.9, price: 30,   spot: 'river', hint: '여울에 흔한 작은 물고기' },
@@ -590,9 +611,36 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       return inWindow(f, d) && (!f.unlock || !!(s && s.ms && s.ms[f.unlock])) && (f.spot || 'pond') === spot && fishEnvOk(f, env);
     });
   }
+  // 첫 만남 보정: a time/weather/season/festival fish not caught yet bites more often while its condition holds.
+  // Unlock-only fish (금빛 잉어) and the egg 시계 물고기 are left alone.
+  var FIRST_MUL = 2.5, FIRST_MUL_LEGEND = 3, POOL_SHARE_MAX = 0.55;
+  function firstMeet(s, f) {
+    return !!(s && s.dex && s.dex.fish && !s.dex.fish[f.id] && !f.unlock && !f.egg && (f.window || isConditional(f)));
+  }
+  // weights for a pool. A fish with `share` (점심 붕어, 퇴근 참치) takes that fraction of the pool while it is in,
+  // whatever else swims there; better bait raises the odds like any rare fish, capped at POOL_SHARE_MAX.
+  function fishWeights(pool, s) {
+    var rare = s ? UPG.bait.rare[tier(s, 'bait')] : 1, others = 0, shTot = 0;
+    var wt = pool.map(function (f) {
+      if (f.share) return 0;
+      var w = f.w * (f.rarity === '흔함' ? 1 : rare);
+      if (firstMeet(s, f)) w *= f.rarity === '전설' ? FIRST_MUL_LEGEND : FIRST_MUL;
+      others += w;
+      return w;
+    });
+    var sh = pool.map(function (f) {
+      if (!f.share) return 0;
+      var odds = f.share / (1 - f.share) * (f.rarity === '흔함' ? 1 : rare), x = Math.min(POOL_SHARE_MAX, odds / (1 + odds));
+      shTot += x;
+      return x;
+    });
+    if (shTot > POOL_SHARE_MAX) sh = sh.map(function (x) { return x * POOL_SHARE_MAX / shTot; }), shTot = POOL_SHARE_MAX;
+    pool.forEach(function (f, k) { if (f.share) wt[k] = others > 0 ? others * sh[k] / (1 - shTot) : 1; });
+    return wt;
+  }
   function rollFish(d, rng, s, env) {
-    var pool = availableFish(d, s, env), tot = 0, k, rare = s ? UPG.bait.rare[tier(s, 'bait')] : 1;
-    var wt = pool.map(function (f) { return f.w * (f.rarity === '흔함' ? 1 : rare); });
+    var pool = availableFish(d, s, env), tot = 0, k;
+    var wt = fishWeights(pool, s);
     for (k = 0; k < pool.length; k++) tot += wt[k];
     var r = rng() * tot, pick = pool[pool.length - 1];
     for (k = 0; k < pool.length; k++) { r -= wt[k]; if (r < 0) { pick = pool[k]; break; } }
@@ -696,7 +744,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   expose({
     FISH: FISH, BITE_MS: BITE_MS, REEL_MAX: REEL_MAX, NIBBLE_MS: NIBBLE_MS,
-    fishById: fishById, inWindow: inWindow, availableFish: availableFish, rollFish: rollFish, sizeFrac: sizeFrac,
+    fishById: fishById, inWindow: inWindow, availableFish: availableFish, fishWeights: fishWeights, firstMeet: firstMeet, rollFish: rollFish, sizeFrac: sizeFrac,
     waitMs: waitMs, cast: cast, reelIn: reelIn, updateFishing: updateFishing, hook: hook, strike: strike,
     newReel: newReel, reelStep: reelStep, landFish: landFish, loseFish: loseFish
   });
@@ -738,13 +786,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   function fishEnv(now, tzMin, weather) {
     var c = gameClock(now, tzMin);
-    return { phase: c.phase, season: c.season, weather: weather || weatherAt(now, tzMin) };
+    return { phase: c.phase, season: c.season, weather: weather || weatherAt(now, tzMin), festival: festivalId(now, tzMin) };
   }
   function fishEnvOk(f, env) {
-    return (!f.phase || f.phase.indexOf(env.phase) >= 0) && (!f.weather || f.weather === env.weather) && (!f.season || f.season === env.season);
+    return (!f.phase || f.phase.indexOf(env.phase) >= 0) && (!f.weather || f.weather === env.weather) && (!f.season || f.season === env.season) &&
+      (!f.fest || f.fest === env.festival);   // stage 5B: festival-only fish
   }
   // fish that only bite under some game-clock/weather/season condition (the "지금만" list in the calendar)
-  function isConditional(f) { return !!(f.phase || f.weather || f.season); }
+  function isConditional(f) { return !!(f.phase || f.weather || f.season || f.fest); }
 
   // real ms of rain between a and b (snow does not count)
   function rainMs(a, b, tzMin) {
@@ -800,8 +849,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // seasonal crops (and dishes that need one) stay off the order board: orders have no deadline, seasons do
   function seasonalItem(id) {
     if (CROPS[id]) return !!CROPS[id].season;
+    if (forageById(id)) return forageSeasonal(id);
     var r = recipeById(id);
-    return !!r && r.need.some(function (x) { return !!(CROPS[x] && CROPS[x].season); });
+    return !!r && r.need.some(function (x) { return !!(CROPS[x] && CROPS[x].season) || forageSeasonal(x); });
   }
 
   expose({ SEASON_CROPS: SEASON_CROPS, cropSeasonOk: cropSeasonOk, seasonCrops: seasonCrops, seasonalItem: seasonalItem });
@@ -833,6 +883,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var f = fishById(id); if (f) return { id: id, kind: 'fish', name: f.name, price: f.price };
     var r = recipeById(id); if (r) return { id: id, kind: 'dish', name: r.name, price: r.sell };
     if (PRODUCTS[id]) return { id: id, kind: 'product', name: PRODUCTS[id].name, price: PRODUCTS[id].price };
+    var g = forageById(id); if (g) return { id: id, kind: 'forage', name: g.name, price: g.price };   // stage 5A
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -841,6 +892,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var f = fishById(id); if (f) return fishOpen(s, f);
     if (PRODUCTS[id]) return !!(s.animals && s.animals[PRODUCTS[id].from] > 0);
     var r = recipeById(id); if (r) return recipeKnown(s, r) && r.need.every(function (x) { return obtainable(s, x); });
+    if (forageById(id)) return forestOk(s);
     return false;
   }
 
@@ -883,14 +935,16 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var out = [];
     if (special) {
       // harder: a rarer pond fish, or two of a dish already cooked
-      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
+      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && !f.fest && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
       RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
       return out;
     }
     SEEDS.forEach(function (id) { if (seedUnlocked(s, id) && !seasonalItem(id)) out.push({ id: id, w: 3 }); });
     // seasonal fish (and 장마 가물치) stay off like seasonal crops: an order outlives the season it was posted in
-    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
+    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
     RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
+    forageOrders(s, out);   // stage 5A: common 숲 finds
+    festPool(s, out);   // stage 5B: festival items while a festival is on
     return out;
   }
   function between(rng, a, b) { return a + Math.floor(rng() * (b - a + 1)); }
@@ -904,11 +958,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (special) n = it.kind === 'dish' ? 2 : between(rng, 1, 2);
     else if (it.kind === 'crop') { var g = CROPS[it.id].grow; n = g <= 300e3 ? between(rng, 3, 6) : g <= 1200e3 ? between(rng, 2, 4) : between(rng, 1, 2); }
     else if (it.kind === 'fish') n = it.price < 50 ? between(rng, 2, 4) : between(rng, 1, 2);
+    else if (it.kind === 'forage') n = between(rng, 2, 4);
     else n = 1;
     var mult = special ? 3 + rng() : 1.5 + rng();
     var o = { id: it.id, n: n, reward: Math.round(it.price * n * mult), rep: special ? 3 : it.kind === 'dish' ? 2 : 1 };
     if (special) o.special = true;
-    return o;
+    return festMark(s, o);   // stage 5B: festival orders pay more
   }
   // fills every empty slot whose wait is over; time-based so it catches up after being away
   function refreshOrders(s, now, rng) {
@@ -950,14 +1005,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return true;
   }
   function potReady(s, now) { return readyPot(s, now) >= 0; }
-  function takeDish(s, now) {
+  // mult (stage 5B 불 조절 도전): the dish is worth that much more; omitted = the plain dish
+  function takeDish(s, now, mult) {
     var k = readyPot(s, now);
     if (k < 0) return null;
     var r = recipeById(potGet(s, k).id), first = !s.dex.dish[r.id];
     s.dex.dish[r.id] = (s.dex.dish[r.id] || 0) + 1;
     dailyBump(s, 'cook');
     potSet(s, k, null);
-    return { id: r.id, first: first, sold: bagAdd(s, r.id, r.sell) };
+    return { id: r.id, first: first, sold: bagAdd(s, r.id, Math.round(r.sell * (mult || 1))) };
   }
 
   expose({
@@ -1739,7 +1795,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!s.res) s.res = { f: {}, lv: {}, rec: {}, unread: [] };
     return s.res;
   }
-  function recipeKnown(s, r) { return !r.gift || !!(s.res && s.res.rec[r.id]); }
+  function recipeKnown(s, r) { return (!r.gift || !!(s.res && s.res.rec[r.id])) && (!r.festival || festLearned(s, r.id)); }
   function friendLevel(s, id) { return (s.res && s.res.lv[id]) || 0; }
   function friendPoints(s, id) { return (s.res && s.res.f[id]) || 0; }
   // a gift that is already owned (or has no decoration slot free) turns into its price in coins; with no spot it fits, it waits in the 보관함
@@ -1992,6 +2048,659 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     YEAR_MS: YEAR_MS, NICK_MAX: NICK_MAX, ensureBorn: ensureBorn, farmYear: farmYear, cleanNick: cleanNick,
     shareStats: shareStats, encodeShare: encodeShare, decodeShare: decodeShare, decodeStage4: decodeStage4
   });
+  // ---------- 숲 채집: forage table, spots that regrow, forest recipes (s.forest, created when the 숲 opens) ----------
+  // A spot regrows by real time (offline too). What grows on a ready spot is rolled the first time the 숲 is looked at
+  // after it regrew, under the season / time of day / weather of that moment, and then stays put until it is picked.
+  // env = { season, phase, weather, wet } (wet = raining now or the block right after rain: mushrooms come out).
+  var FORAGE_CATS = { mush: '버섯', green: '산나물', nut: '열매', herb: '약초', flower: '꽃', misc: '잡화', rare: '희귀' };
+  var FORAGE_W = { '흔함': 30, '드묾': 12, '희귀': 3, '전설': 0.6 };
+  var FORAGE = [
+    { id: 'oyster',      name: '느타리',     cat: 'mush',   rarity: '흔함', price: 40,  season: ['spring', 'autumn'], hint: '봄가을 · 쓰러진 나무 둥치에' },
+    { id: 'shiitake',    name: '표고',       cat: 'mush',   rarity: '드묾', price: 120, season: ['spring', 'autumn'], hint: '참나무 그늘 · 비 온 뒤에 쑥쑥' },
+    { id: 'coralmush',   name: '싸리버섯',   cat: 'mush',   rarity: '흔함', price: 50,  season: ['autumn'], hint: '가을 숲 바닥에 산호처럼' },
+    { id: 'woodear',     name: '목이버섯',   cat: 'mush',   rarity: '흔함', price: 45,  season: ['summer'], wet: true, hint: '여름 · 비에 젖은 나무에만' },
+    { id: 'chanterelle', name: '꾀꼬리버섯', cat: 'mush',   rarity: '드묾', price: 140, season: ['summer'], hint: '여름 숲 · 살구 냄새가 난다' },
+    { id: 'reishi',      name: '영지',       cat: 'mush',   rarity: '희귀', price: 480, season: ['summer', 'autumn'], hint: '오래된 참나무 밑동 · 반들반들한 갓' },
+    { id: 'songi',       name: '송이',       cat: 'mush',   rarity: '희귀', price: 900, season: ['autumn'], hint: '가을 소나무 숲 · 비 온 뒤에 귀하게' },
+    { id: 'lionmane',    name: '노루궁뎅이', cat: 'mush',   rarity: '희귀', price: 520, season: ['autumn'], hint: '가을 · 나무 높은 곳의 하얀 털뭉치' },
+    { id: 'gosari',      name: '고사리',     cat: 'green',  rarity: '흔함', price: 35,  season: ['spring'], hint: '봄 양지 비탈 · 주먹 쥔 새순' },
+    { id: 'dureup',      name: '두릅',       cat: 'green',  rarity: '드묾', price: 130, season: ['spring'], hint: '봄 · 가시나무 끝의 새순' },
+    { id: 'naengi',      name: '냉이',       cat: 'green',  rarity: '흔함', price: 25,  season: ['spring'], hint: '이른 봄 들판의 첫 향' },
+    { id: 'dallae',      name: '달래',       cat: 'green',  rarity: '흔함', price: 30,  season: ['spring'], hint: '봄 둑길 · 작은 알뿌리' },
+    { id: 'chwi',        name: '취나물',     cat: 'green',  rarity: '흔함', price: 35,  season: ['spring', 'summer'], hint: '봄여름 산그늘의 넓은 잎' },
+    { id: 'wonchuri',    name: '원추리',     cat: 'green',  rarity: '드묾', price: 90,  season: ['summer'], hint: '여름 · 나리꽃 닮은 나물' },
+    { id: 'raspberry',   name: '산딸기',     cat: 'nut',    rarity: '흔함', price: 40,  season: ['summer'], hint: '여름 덤불 · 가시 조심' },
+    { id: 'mulberry',    name: '오디',       cat: 'nut',    rarity: '흔함', price: 35,  season: ['summer'], hint: '초여름 뽕나무 아래가 까매진다' },
+    { id: 'wildgrape',   name: '머루',       cat: 'nut',    rarity: '드묾', price: 110, season: ['autumn'], hint: '가을 덩굴 · 작은 포도송이' },
+    { id: 'kiwiberry',   name: '다래',       cat: 'nut',    rarity: '드묾', price: 120, season: ['autumn'], hint: '가을 덩굴의 작은 키위' },
+    { id: 'acorn',       name: '도토리',     cat: 'nut',    rarity: '흔함', price: 20,  season: ['autumn'], hint: '가을 참나무 아래 · 다람쥐와 나눠요' },
+    { id: 'chestnut',    name: '밤',         cat: 'nut',    rarity: '흔함', price: 45,  season: ['autumn'], hint: '가을 · 가시 송이가 벌어지면' },
+    { id: 'pinenut',     name: '잣',         cat: 'nut',    rarity: '드묾', price: 150, season: ['autumn', 'winter'], hint: '높은 잣나무 · 솔방울 속에' },
+    { id: 'walnut',      name: '호두',       cat: 'nut',    rarity: '드묾', price: 100, season: ['autumn'], hint: '가을 · 단단한 껍데기' },
+    { id: 'plantain',    name: '질경이',     cat: 'herb',   rarity: '흔함', price: 20,  season: ['spring', 'summer', 'autumn'], hint: '길가 어디에나 · 밟혀도 산다' },
+    { id: 'deodeok',     name: '더덕',       cat: 'herb',   rarity: '드묾', price: 160, season: ['spring', 'autumn'], hint: '산 향기가 진한 뿌리' },
+    { id: 'doraji',      name: '도라지',     cat: 'herb',   rarity: '드묾', price: 120, season: ['summer'], hint: '여름 · 별 모양 꽃 아래 뿌리' },
+    { id: 'kudzu',       name: '칡뿌리',     cat: 'herb',   rarity: '흔함', price: 40,  season: ['winter', 'spring'], hint: '겨울 · 땅속 깊이 뻗은 칡' },
+    { id: 'omija',       name: '오미자',     cat: 'herb',   rarity: '드묾', price: 140, season: ['autumn'], hint: '가을 · 다섯 가지 맛이 나는 열매' },
+    { id: 'azalea',      name: '진달래',     cat: 'flower', rarity: '흔함', price: 30,  season: ['spring'], hint: '봄 산등성이를 덮는 꽃' },
+    { id: 'hydrangea',   name: '산수국',     cat: 'flower', rarity: '드묾', price: 100, season: ['summer'], hint: '여름 계곡 그늘' },
+    { id: 'eveprimrose', name: '달맞이꽃',   cat: 'flower', rarity: '드묾', price: 90,  season: ['summer'], phase: ['evening', 'night'], hint: '여름 저녁 · 달을 보고 핀다' },
+    { id: 'aster',       name: '들국화',     cat: 'flower', rarity: '흔함', price: 30,  season: ['autumn'], hint: '가을 들길의 작은 국화' },
+    { id: 'camellia',    name: '동백꽃',     cat: 'flower', rarity: '드묾', price: 130, season: ['winter'], hint: '눈 속에 피는 꽃' },
+    { id: 'pinecone',    name: '솔방울',     cat: 'misc',   rarity: '흔함', price: 10,  peak: 'winter', hint: '소나무 아래 · 겨울에 더 많이' },
+    { id: 'pebble',      name: '조약돌',     cat: 'misc',   rarity: '흔함', price: 8,   hint: '개울가 동글동글 돌' },
+    { id: 'birdfeather', name: '산새 깃털',  cat: 'misc',   rarity: '흔함', price: 25,  phase: ['morning', 'day'], hint: '아침 숲 · 산새가 떨구고 간' },
+    { id: 'cicadashell', name: '매미 허물',  cat: 'misc',   rarity: '흔함', price: 15,  season: ['summer'], phase: ['morning', 'day'], hint: '여름 낮 · 나무껍질의 빈 껍질' },
+    { id: 'mapleleaf',   name: '단풍잎',     cat: 'misc',   rarity: '흔함', price: 12,  season: ['autumn'], hint: '가을 · 가장 고운 잎 하나' },
+    { id: 'mistletoe',   name: '겨우살이',   cat: 'misc',   rarity: '드묾', price: 110, season: ['winter'], hint: '겨울 · 높은 가지의 둥근 덩이' },
+    { id: 'icicle',      name: '고드름',     cat: 'misc',   rarity: '흔함', price: 10,  season: ['winter'], phase: ['morning'], hint: '겨울 아침 · 바위 끝에 매달린' },
+    { id: 'glowmoss',    name: '반딧불 이끼', cat: 'misc',  rarity: '드묾', price: 200, season: ['spring', 'summer', 'autumn'], phase: ['night'], hint: '밤에만 은은히 빛나는 이끼' },
+    { id: 'ginseng',     name: '산삼',       cat: 'rare',   rarity: '전설', price: 2500, season: ['spring', 'summer', 'autumn'], hint: '깊은 숲 어딘가 · 심봤다!' },
+    { id: 'clover4',     name: '네잎클로버', cat: 'rare',   rarity: '희귀', price: 400, season: ['spring', 'summer'], hint: '세잎 사이 어딘가에 하나' },
+    { id: 'amberstone',  name: '호박석',     cat: 'rare',   rarity: '희귀', price: 600, hint: '오래된 송진이 굳은 돌 · 아무 때나 아주 가끔' }
+  ];
+  var FORAGE_BY = {};
+  FORAGE.forEach(function (f) { FORAGE_BY[f.id] = f; });
+  // forest dishes: ordinary recipes (no gift needed); the 송이 one stays ??? until cooked
+  var FOREST_RECIPES = [
+    { id: 'mushhotpot', name: '버섯전골',     need: ['oyster', 'shiitake', 'radish'], time: 420e3, sell: 560 },
+    { id: 'bibimbap',   name: '산나물비빔밥', need: ['gosari', 'chwi', 'egg'],        time: 300e3, sell: 380 },
+    { id: 'dotorimuk',  name: '도토리묵',     need: ['acorn', 'acorn', 'acorn'],      time: 600e3, sell: 320 },
+    { id: 'bamjorim',   name: '밤조림',       need: ['chestnut', 'chestnut', 'berry'], time: 480e3, sell: 440 },
+    { id: 'songigui',   name: '송이구이',     need: ['songi', 'songi'],               time: 600e3, sell: 2800, hidden: true }
+  ];
+  FOREST_RECIPES.forEach(function (r) { RECIPES.push(r); });
+  // the grandma likes greens and herbs, the kid collects berries and pebbles: forage orders get a resident
+  RESIDENTS.forEach(function (r) { if (r.id === 'grandma' || r.id === 'kid') r.kinds.push('forage'); });
+
+  var FOREST_N = 7, FOREST_REP = 3, FOREST_COST = 500, REGROW_MIN = 300e3, REGROW_SPAN = 300e3;
+  var WET_MUL = 3;
+
+  function forageById(id) { return FORAGE_BY.hasOwnProperty(id) ? FORAGE_BY[id] : null; }
+  function forageSeasonal(id) { var f = forageById(id); return !!(f && f.season); }
+  // 0 = can't grow under env
+  // s is optional: with it, a conditional find not picked yet gets the 첫 만남 보정 (FIRST_MUL, as for fish)
+  function forageWeight(f, env, s) {
+    if (f.season && f.season.indexOf(env.season) < 0) return 0;
+    if (f.phase && f.phase.indexOf(env.phase) < 0) return 0;
+    if (f.wet && !env.wet) return 0;
+    var w = FORAGE_W[f.rarity];
+    if (f.cat === 'mush' && env.wet) w *= WET_MUL;
+    if (f.peak === env.season) w *= 2;
+    if (s && s.forest && forageConditional(f) && !s.forest.dex[f.id]) w *= FIRST_MUL;
+    return w;
+  }
+  function foragePool(env, s) {
+    var out = [];
+    FORAGE.forEach(function (f) { var w = forageWeight(f, env, s); if (w > 0) out.push({ id: f.id, w: w }); });
+    return out;
+  }
+  // conditional = only under some season/time/weather (the 달력 "지금만" list)
+  function forageConditional(f) { return !!(f.season || f.phase || f.wet); }
+  function rollForage(env, rng, s) { return pick(foragePool(env, s), rng).id; }
+
+  function forestOk(s) { return !!s.forest; }
+  function forestStatus(s) { return s.forest ? 'owned' : s.rep < FOREST_REP ? 'rep' : s.coins < FOREST_COST ? 'coins' : 'ok'; }
+  function newForest(now) {
+    var spots = [];
+    for (var k = 0; k < FOREST_N; k++) spots.push({ at: now, id: null });
+    return { spots: spots, dex: {}, n: 0 };
+  }
+  function unlockForest(s, now) {
+    var st = forestStatus(s);
+    if (st !== 'ok') return { ok: false, why: st === 'owned' ? 'owned' : st };
+    s.coins -= FOREST_COST; s.forest = newForest(now);
+    return { ok: true };
+  }
+  // regrown spots get their item; returns how many appeared
+  function tickForest(s, now, env, rng) {
+    if (!s.forest) return 0;
+    var n = 0;
+    s.forest.spots.forEach(function (p) { if (!p.id && now >= p.at) { p.id = rollForage(env, rng, s); n++; } });
+    return n;
+  }
+  function forageReady(s) { return s.forest ? s.forest.spots.filter(function (p) { return !!p.id; }).length : 0; }
+  // the next regrow time among empty spots (null if all are full)
+  function forestNextAt(s) {
+    var t = null;
+    if (s.forest) s.forest.spots.forEach(function (p) { if (!p.id && (t === null || p.at < t)) t = p.at; });
+    return t;
+  }
+  function forageNote(s, id, n) { var d = s.forest.dex; d[id] = Math.min(1e6, (d[id] || 0) + n); s.forest.n = Math.min(1e9, s.forest.n + n); }
+  // pick spot k. won = the optional 도전 succeeded: two of a common/uncommon find, or for rare ones a 50% chance of a second.
+  // A failed or skipped 도전 is the plain pick. Returns null if nothing is there (no double pick).
+  function pickForage(s, k, now, rng, won) {
+    var p = s.forest && s.forest.spots[k];
+    if (!p || !p.id) return null;
+    var f = forageById(p.id), n = 1;
+    if (won) n = f.rarity === '희귀' || f.rarity === '전설' ? (rng() < 0.5 ? 2 : 1) : 2;
+    var sold = 0;
+    for (var j = 0; j < n; j++) sold += bagAdd(s, f.id, f.price);
+    forageNote(s, f.id, n);
+    s.forest.spots[k] = { at: now + REGROW_MIN + rng() * REGROW_SPAN, id: null };
+    return { id: f.id, n: n, sold: sold, won: !!won };
+  }
+  function forageDexCount(s) { return s.forest ? Object.keys(s.forest.dex).length : 0; }
+  // common, any-season forage already found can be asked for on the order board
+  function forageOrders(s, out) {
+    if (!s.forest) return;
+    FORAGE.forEach(function (f) { if (f.rarity === '흔함' && !f.season && s.forest.dex[f.id]) out.push({ id: f.id, w: 1 }); });
+  }
+
+  // ---------- save: called by decode() at the end (absent in older saves) ----------
+  function decodeForest(o, s) {
+    var q = o.forest;
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var num = function (x) { return typeof x === 'number' && isFinite(x); };
+    var f = newForest(0);
+    if (Array.isArray(q.spots)) for (var k = 0; k < FOREST_N; k++) {
+      var p = q.spots[k];
+      if (p && typeof p === 'object') f.spots[k] = { at: num(p.at) ? p.at : 0, id: forageById(p.id) ? p.id : null };
+    }
+    if (q.dex && typeof q.dex === 'object') FORAGE.forEach(function (g) { if (num(q.dex[g.id]) && q.dex[g.id] > 0) f.dex[g.id] = Math.min(1e6, Math.floor(q.dex[g.id])); });
+    if (num(q.n) && q.n > 0) f.n = Math.min(1e9, Math.floor(q.n));
+    s.forest = f;
+  }
+
+  expose({
+    FORAGE: FORAGE, FORAGE_CATS: FORAGE_CATS, FOREST_RECIPES: FOREST_RECIPES, FOREST_N: FOREST_N, FOREST_REP: FOREST_REP, FOREST_COST: FOREST_COST,
+    REGROW_MIN: REGROW_MIN, REGROW_SPAN: REGROW_SPAN,
+    forageById: forageById, forageSeasonal: forageSeasonal, forageWeight: forageWeight, foragePool: foragePool, forageConditional: forageConditional,
+    rollForage: rollForage, forestOk: forestOk, forestStatus: forestStatus, unlockForest: unlockForest, tickForest: tickForest,
+    forageReady: forageReady, forestNextAt: forestNextAt, pickForage: pickForage, forageDexCount: forageDexCount, forageOrders: forageOrders,
+    decodeForest: decodeForest
+  });
+  // ---------- 도전: the optional hold-and-release gauge (채집, 수확). Never costs anything: a miss is the plain reward. ----------
+  // Press and hold: after CH_GRACE the gauge starts, swings 0 → 1 → 0 every `period` ms; release inside [lo, hi] to win.
+  // Times are the UI's real milliseconds (performance.now), so ?speed never changes the feel. A quick tap (released
+  // before the gauge starts) is the ordinary 1-tap action; holding past CH_LIMIT ends it as a plain pick.
+  var CH_GRACE = 250, CH_LIMIT = 8000, CH_MIN_LO = 0.3;
+  var CH_ZONE = { '흔함': 0.2, '드묾': 0.17, '희귀': 0.15, '전설': 0.1 };
+  var CH_PERIOD = { '흔함': 1700, '드묾': 1500, '희귀': 1300, '전설': 1100 };
+
+  // press = when the finger went down; the zone never starts below CH_MIN_LO, so an early let-go can't win by luck
+  function chNew(press, width, period, rng) {
+    width = Math.max(0.08, Math.min(0.4, width));
+    var lo = CH_MIN_LO + rng() * (0.97 - CH_MIN_LO - width);
+    return { t0: press + CH_GRACE, period: period, lo: lo, hi: lo + width, end: press + CH_GRACE + CH_LIMIT };
+  }
+  function chPos(g, t) {
+    if (t <= g.t0) return 0;
+    var u = ((t - g.t0) / g.period) % 1;
+    return u < 0.5 ? u * 2 : 2 - u * 2;
+  }
+  // 'tap' = let go before the gauge began (plain action), 'win', 'miss' (plain action too)
+  function chJudge(g, t) {
+    if (t < g.t0) return 'tap';
+    if (t > g.end) return 'miss';
+    var p = chPos(g, t);
+    return p >= g.lo && p <= g.hi ? 'win' : 'miss';
+  }
+  function chOver(g, t) { return t > g.end; }
+  function forageGame(id, press, rng) {
+    var f = forageById(id), r = f ? f.rarity : '흔함';
+    return chNew(press, CH_ZONE[r], CH_PERIOD[r], rng);
+  }
+  // bigger, slower crops: narrower zone (무 ~0.33 … 호박 0.1)
+  function harvestWidth(crop) {
+    var g = CROPS[crop] ? CROPS[crop].grow : 60e3;
+    return Math.max(0.1, Math.min(0.34, 0.34 - 0.04 * Math.log(Math.max(1, g / 60e3)) / Math.LN2));
+  }
+  function harvestGame(crop, press, rng) { return chNew(press, harvestWidth(crop), 1400, rng); }
+  // 특상품: the crop harvest() just put in the basket is worth double (same item, same 도감 count).
+  // If the basket was full and it was sold on the spot, the extra coins are paid instead.
+  function premiumHarvest(s, hv) {
+    if (!hv || !hv.coins) return 0;
+    if (hv.sold) { s.coins += hv.coins; return hv.coins; }
+    for (var k = s.bag.length - 1; k >= 0; k--) {
+      var e = s.bag[k];
+      if (e.id === hv.crop && e.v === hv.coins) { e.v = hv.coins * 2; return hv.coins; }
+    }
+    return 0;
+  }
+
+  expose({
+    CH_GRACE: CH_GRACE, CH_LIMIT: CH_LIMIT, CH_ZONE: CH_ZONE, chNew: chNew, chPos: chPos, chJudge: chJudge, chOver: chOver,
+    forageGame: forageGame, harvestGame: harvestGame, harvestWidth: harvestWidth, premiumHarvest: premiumHarvest
+  });
+  // ---------- 반려동물: one cat or dog that follows you around (s.pet, absent until adopted). It never takes anything. ----------
+  // 고양이: free once the 고양이 친구 secret is found or the visiting cat came PET_CAT_VISITS times. 강아지: bought in the 상점.
+  // Real-day counters (tzMin = minutes east of UTC): petting raises 친밀도 a few times a day, gifts come a few times a day
+  // with a gap between them, and in the 숲 it sniffs out a find now and then. Each counter resets at local midnight.
+  var PET_KINDS = {
+    cat: { id: 'cat', name: '고양이', def: '나비', cost: 0 },
+    dog: { id: 'dog', name: '강아지', def: '바둑이', cost: 3000 }
+  };
+  var PET_CAT_VISITS = 5;
+  var PET_LV = [5, 15, 35, 70];                       // 친밀도 for levels 1..4
+  var PET_ACTS = ['곁에 앉아 있기', '꼬리 흔들며 따라다니기', '선착장에서 찌 구경 · 숲에서 킁킁', '하루 선물 한 번 더', '발밑에서 낮잠'];
+  var PET_PETS_DAY = 5, PET_GIFT_GAP = 2 * 3600e3, PET_FIND_DAY = 3, PET_FIND_GAP = 15 * 60e3, PET_FIND_LV = 2;
+  var PET_GIFTS = { cat: ['minnow', 'crucian', 'minnow'], dog: ['pebble', 'pinecone', 'birdfeather'] };
+
+  function petDay(now, tzMin) { return Math.floor((now + (tzMin || 0) * 60e3) / 86400e3); }
+  function petLevel(s) {
+    var f = s.pet ? s.pet.f : 0, lv = 0;
+    while (lv < PET_LV.length && f >= PET_LV[lv]) lv++;
+    return lv;
+  }
+  function petGiftCap(s) { return petLevel(s) >= 3 ? 3 : 2; }
+  // 이름: same letters as the farm nickname (Hangul, latin, digits, space, a few marks), 6 characters
+  var PET_NAME_MAX = 6;
+  function cleanPetName(str) { return cleanNick(str).slice(0, PET_NAME_MAX).trim(); }
+  function catAdoptOk(s) { return !!(s.yard && (s.yard.eggs.catpet || (s.yard.met.cat || 0) >= PET_CAT_VISITS)); }
+  function adoptStatus(s, kind) {
+    var k = PET_KINDS[kind];
+    if (!k) return 'none';
+    if (s.pet) return 'have';
+    if (kind === 'cat' && !catAdoptOk(s)) return 'locked';
+    if (s.coins < k.cost) return 'coins';
+    return 'ok';
+  }
+  function adoptPet(s, kind, name, now) {
+    var st = adoptStatus(s, kind);
+    if (st !== 'ok') return { ok: false, why: st };
+    var k = PET_KINDS[kind];
+    s.coins -= k.cost;
+    s.pet = { kind: kind, name: cleanPetName(name) || k.def, at: now, f: 0, day: -1, pn: 0, gn: 0, fn: 0, gnext: now + PET_GIFT_GAP, fnext: now };
+    return { ok: true, name: s.pet.name };
+  }
+  function renamePet(s, name) {
+    var n = cleanPetName(name);
+    if (!s.pet || !n) return null;
+    s.pet.name = n; return n;
+  }
+  function petRollDay(p, now, tzMin) { var d = petDay(now, tzMin); if (p.day !== d) { p.day = d; p.pn = 0; p.gn = 0; p.fn = 0; } }
+  // 쓰다듬기: always a heart; 친밀도 only for the first PET_PETS_DAY a day. up = the level it just reached
+  function petPet(s, now, tzMin) {
+    var p = s.pet;
+    if (!p) return null;
+    petRollDay(p, now, tzMin);
+    var before = petLevel(s), gain = 0;
+    if (p.pn < PET_PETS_DAY) { p.pn++; p.f++; gain = 1; }
+    var lv = petLevel(s);
+    return { gain: gain, lv: lv, up: lv > before ? lv : 0 };
+  }
+  function petGiftReady(s, now, tzMin) {
+    var p = s.pet;
+    if (!p) return false;
+    petRollDay(p, now, tzMin);
+    return p.gn < petGiftCap(s) && now >= p.gnext;
+  }
+  // a small present into the basket: the cat brings a little fish, the dog a little forage (or what grows in the 숲 now)
+  function takePetGift(s, now, tzMin, env, rng) {
+    if (!petGiftReady(s, now, tzMin)) return null;
+    var p = s.pet, list = PET_GIFTS[p.kind], id = list[Math.floor(rng() * list.length) % list.length];
+    if (p.kind === 'dog' && s.forest && env && rng() < 0.5) id = rollForage(env, rng);
+    p.gn++; p.gnext = now + PET_GIFT_GAP; p.f++;
+    var it = itemInfo(id), sold = bagAdd(s, id, it.price);
+    if (forageById(id) && s.forest) forageNote(s, id, 1);
+    return { id: id, sold: sold };
+  }
+  // in the 숲 at 친밀도 PET_FIND_LV+: a few finds a day, PET_FIND_GAP apart
+  function petFind(s, now, tzMin, env, rng) {
+    var p = s.pet;
+    if (!p || !s.forest || petLevel(s) < PET_FIND_LV) return null;
+    petRollDay(p, now, tzMin);
+    if (p.fn >= PET_FIND_DAY || now < p.fnext) return null;
+    p.fn++; p.fnext = now + PET_FIND_GAP;
+    var id = rollForage(env, rng), sold = bagAdd(s, id, forageById(id).price);
+    forageNote(s, id, 1);
+    return { id: id, sold: sold };
+  }
+
+  // ---------- save: called by decode() at the end ----------
+  function decodePet(o, s) {
+    var q = o.pet;
+    if (!q || typeof q !== 'object' || !PET_KINDS[q.kind]) return;
+    var num = function (x) { return typeof x === 'number' && isFinite(x); };
+    var cnt = function (x, max) { return num(x) ? Math.max(0, Math.min(max, Math.floor(x))) : 0; };
+    s.pet = { kind: q.kind, name: (typeof q.name === 'string' && cleanPetName(q.name)) || PET_KINDS[q.kind].def,
+      at: num(q.at) ? q.at : 0, f: cnt(q.f, 1e6), day: num(q.day) ? Math.floor(q.day) : -1,
+      pn: cnt(q.pn, PET_PETS_DAY), gn: cnt(q.gn, 9), fn: cnt(q.fn, PET_FIND_DAY),
+      gnext: num(q.gnext) ? q.gnext : 0, fnext: num(q.fnext) ? q.fnext : 0 };
+  }
+  // stage 5A save block: 숲 and 반려동물 (both optional)
+  function decodeStage5A(o, s) { decodeForest(o, s); decodePet(o, s); }
+
+  expose({
+    PET_KINDS: PET_KINDS, PET_LV: PET_LV, PET_ACTS: PET_ACTS, PET_CAT_VISITS: PET_CAT_VISITS, PET_NAME_MAX: PET_NAME_MAX,
+    PET_PETS_DAY: PET_PETS_DAY, PET_GIFT_GAP: PET_GIFT_GAP, PET_FIND_DAY: PET_FIND_DAY, PET_FIND_GAP: PET_FIND_GAP, PET_FIND_LV: PET_FIND_LV,
+    petDay: petDay, petLevel: petLevel, petGiftCap: petGiftCap, cleanPetName: cleanPetName, catAdoptOk: catAdoptOk,
+    adoptStatus: adoptStatus, adoptPet: adoptPet, renamePet: renamePet, petPet: petPet, petGiftReady: petGiftReady,
+    takePetGift: takePetGift, petFind: petFind, decodePet: decodePet, decodeStage5A: decodeStage5A
+  });
+  // ---------- 낚시 잡동사니 · 보물 상자 · 병 편지 (stage 5B) ----------
+  // Sometimes a common fish's bite is something else. Junk never enters the 도감, the fish milestones or the basket:
+  // it lives in s.junk (made lazily, absent from older saves) and is sold as 고물 or traded for recycled decorations.
+  // Rare/legend/festival bites are never replaced, so junk can't cost a good fish.
+  var JUNK_CHANCE = 0.1;                // of hooked 흔함 bites
+  var JUNK = [
+    { id: 'boot',   name: '낡은 장화',  w: 22, scrap: 15, desc: '한 짝뿐인 고무장화' },
+    { id: 'can',    name: '빈 깡통',    w: 34, scrap: 10, desc: '찌그러진 통조림 깡통' },
+    { id: 'bottle', name: '유리병',     w: 16, scrap: 20, desc: '물때 낀 빈 유리병' },
+    { id: 'key',    name: '낡은 열쇠',  w: 10, scrap: 60, desc: '어딘가의 자물쇠에 맞을 것 같다' },
+    { id: 'letter', name: '병 편지',    w: 32, desc: '코르크로 막힌 병 속에 종이가 말려 있다' },
+    { id: 'chest',  name: '보물 상자',  w: 8,  desc: '이끼 낀 작은 나무 상자' }
+  ];
+  var SCRAP_IDS = ['boot', 'can', 'bottle', 'key'];
+  // recycled decorations (DECOS below, merchant:true keeps them out of the shop); 'chest' = two keys open a box
+  var RECYCLE = [
+    { id: 'canchime',   need: { can: 4 },              name: '깡통 풍경' },
+    { id: 'bootpot',    need: { boot: 3 },             name: '장화 화분' },
+    { id: 'bottlelamp', need: { bottle: 3, can: 1 },   name: '유리병 등불' },
+    { id: 'chest',      need: { key: 2 },              name: '보물 상자 열기' }
+  ];
+  var TREASURE_DECOS = ['anchor', 'shipwheel'];
+  [
+    { id: 'canchime',   name: '깡통 풍경',   cost: 0, merchant: true, from: 'junk', sz: [12, 22] },
+    { id: 'bootpot',    name: '장화 화분',   cost: 0, merchant: true, from: 'junk', sz: [12, 18] },
+    { id: 'bottlelamp', name: '유리병 등불', cost: 0, merchant: true, from: 'junk', sz: [8, 18] },
+    { id: 'anchor',     name: '닻',          cost: 0, merchant: true, from: 'treasure', sz: [16, 20] },
+    { id: 'shipwheel',  name: '배 키',       cost: 0, merchant: true, from: 'treasure', sz: [18, 20] }
+  ].forEach(function (d) { DECOS.push(d); });
+
+  // 병 편지: one short story in 12 letters, found in random order, never repeated until all 12 are in.
+  // Some carry an easter-egg hint (EGGS ids) in their last line.
+  var BOTTLE_LETTERS = [
+    '첫 번째 병이에요. 등대섬에 사는 해솔이라고 해요. 섬에는 저랑 할머니, 그리고 고양이 무명이뿐이라 병에 편지를 넣어 띄워 봐요. 누가 읽으면 좋겠다.',
+    '할머니는 등대지기예요. 밤마다 계단 백스물세 개를 올라가서 불을 닦아요. 저는 아직 육십 개쯤에서 숨이 차요.',
+    '오늘은 바다가 잔잔해서 할머니랑 낚시를 했어요. 할머니가 그러는데, 찌가 톡톡 거릴 땐 참고 쑥 잠길 때 채야 한대요. 저는 세 번이나 일찍 챘어요.',
+    '무명이가 또 어부 아저씨 배에 올라탔어요. 고양이는 물고기를 구경하는 게 제일 좋은가 봐요. 구경만 하고 아무것도 안 가져와요.',
+    '태풍이 지나갔어요. 등대 유리가 하나 깨져서 할머니가 밤새 판자를 댔어요. 저는 손전등을 들고 있었어요. 조금 무서웠는데 할머니가 노래를 불러 줬어요.',
+    '육지 학교에 가게 될지도 몰라요. 할머니는 가라고 하는데, 그럼 등대 불은 누가 같이 닦아요? 그 생각을 하면 자꾸 바다만 보게 돼요.',
+    '병 편지에 답장이 올 리 없다는 거 알아요. 그래도 어제 바닷가에서 모르는 사람 글씨로 "잘 읽고 있어요"라고 쓴 조약돌을 주웠어요. 혹시 당신이에요?',
+    '할머니가 어릴 적 이야기를 해 줬어요. 섬에 정각마다 째깍 소리를 내는 물고기가 살았대요. 00분에 낚싯대를 드리우면 만날 수 있다나요.',
+    '오늘은 별똥별을 세 번 봤어요. 한 밤에 소원을 세 번 빌면 하나는 꼭 이루어진대서, 세 번 다 같은 소원을 빌었어요. 비밀이에요.',
+    '결국 육지 학교에 가기로 했어요. 대신 방학마다 와서 계단을 끝까지 올라가기로 할머니랑 약속했어요. 요즘은 아흔 개까지 가요.',
+    '떠나기 전날, 할머니가 등대 열쇠 하나를 줬어요. 너무 낡아서 맞는 자물쇠가 없대요. 그래도 주머니에 넣으면 든든해요. 낡은 열쇠 두 개면 뭐든 열린다는 말도 있대요.',
+    '마지막 병이에요. 백스물세 개, 오늘 처음으로 끝까지 올라갔어요. 위에서 보니 바다가 다 보였어요. 어딘가에서 이 편지들을 모아 준 당신도요. 고마워요. — 해솔'
+  ];
+  var LETTER_DUP_COINS = 80;    // after all 12, a bottle still holds a few coins (and a reread)
+
+  function junkById(id) { for (var k = 0; k < JUNK.length; k++) if (JUNK[k].id === id) return JUNK[k]; return null; }
+  function junkOf(s) {
+    if (!s.junk) s.junk = { n: {}, letters: [], box: 0, seen: {}, total: 0 };
+    return s.junk;
+  }
+  function junkCount(s, id) { return (s.junk && s.junk.n[id]) || 0; }
+  function lettersFound(s) { return s.junk ? s.junk.letters.length : 0; }
+  // the letter a new bottle holds: a random unfound one (1-based number), or 0 once all are found
+  function nextBottle(s, rng) {
+    var have = s.junk ? s.junk.letters : [], left = [];
+    for (var k = 1; k <= BOTTLE_LETTERS.length; k++) if (have.indexOf(k) < 0) left.push(k);
+    return left.length ? left[Math.floor(rng() * left.length) % left.length] : 0;
+  }
+  // which junk (if any) a hooked roll turns into; null = keep the fish
+  function rollJunk(roll, rng) {
+    var f = roll && fishById(roll.id);
+    if (!f || f.rarity !== '흔함' || f.egg || f.fest) return null;
+    if (rng() >= JUNK_CHANCE) return null;
+    var tot = 0, k; for (k = 0; k < JUNK.length; k++) tot += JUNK[k].w;
+    var r = rng() * tot;
+    for (k = 0; k < JUNK.length; k++) { r -= JUNK[k].w; if (r < 0) return JUNK[k].id; }
+    return JUNK[JUNK.length - 1].id;
+  }
+  // brings junk id up instead of the fish: the line is idle again, nothing is lost
+  function landJunk(s, id, rng) {
+    var j = junkOf(s), out = { id: id, first: !j.seen[id] };
+    j.seen[id] = true; j.total++;
+    if (id === 'letter') {
+      var n = nextBottle(s, rng);
+      if (n) { j.letters.push(n); out.letter = n; out.complete = j.letters.length === BOTTLE_LETTERS.length; }
+      else { s.coins += LETTER_DUP_COINS; out.coins = LETTER_DUP_COINS; out.letter = 1 + Math.floor(rng() * BOTTLE_LETTERS.length) % BOTTLE_LETTERS.length; out.reread = true; }
+    } else if (id === 'chest') j.box++;
+    else j.n[id] = (j.n[id] || 0) + 1;
+    if (s.fish) s.fish = { phase: 'idle' };
+    return out;
+  }
+  function scrapValue(s) { var t = 0; SCRAP_IDS.forEach(function (id) { t += junkCount(s, id) * junkById(id).scrap; }); return t; }
+  // 고물 팔기: every scrap piece for coins (keys included; recipes need them, so the UI says so)
+  function sellScrap(s, id) {
+    var j = junkOf(s), t = 0;
+    (id ? [id] : SCRAP_IDS).forEach(function (k) { t += (j.n[k] || 0) * junkById(k).scrap; j.n[k] = 0; });
+    s.coins += t; return t;
+  }
+  function recycleById(id) { for (var k = 0; k < RECYCLE.length; k++) if (RECYCLE[k].id === id) return RECYCLE[k]; return null; }
+  // 'ok' | 'owned' | 'need'
+  function canRecycle(s, id) {
+    var r = recycleById(id);
+    if (!r) return 'none';
+    if (r.id !== 'chest' && s.yard && s.yard.deco[r.id]) return 'owned';
+    return Object.keys(r.need).every(function (k) { return junkCount(s, k) >= r.need[k]; }) ? 'ok' : 'need';
+  }
+  // owned (or placed) decoration without paying: stands on a free spot, else waits in the 보관함
+  function grantDeco(s, id) {
+    var y = yardOf(s);
+    if (y.deco[id]) return { ok: false, why: 'owned' };
+    y.deco[id] = true;
+    return { ok: true, stored: !placeItem(s, 'deco', id).ok };
+  }
+  function recycle(s, id) {
+    var why = canRecycle(s, id);
+    if (why !== 'ok') return { ok: false, why: why };
+    var r = recycleById(id), j = junkOf(s);
+    Object.keys(r.need).forEach(function (k) { j.n[k] -= r.need[k]; });
+    if (id === 'chest') { j.box++; return { ok: true, box: true }; }
+    var g = grantDeco(s, id);
+    return { ok: true, stored: g.stored };
+  }
+  // 보물 상자: tier 0 = opened plainly, 1 = 자물쇠 도전 success (better odds and twice the coins).
+  // A treasure decoration is never given twice: when every one is owned that share turns into coins.
+  function openChest(s, rng, tier) {
+    var j = junkOf(s);
+    if (j.box <= 0) return null;
+    j.box--;
+    tier = tier ? 1 : 0;
+    var r = rng(), mul = tier ? 2 : 1, out;
+    var decoP = tier ? 0.45 : 0.3, seedP = tier ? 0.3 : 0.25;
+    if (r < decoP) {
+      var free = TREASURE_DECOS.filter(function (id) { return !(s.yard && s.yard.deco[id]); });
+      if (free.length) {
+        var id = free[Math.floor(rng() * free.length) % free.length], g = grantDeco(s, id);
+        out = { kind: 'deco', id: id, stored: g.stored };
+        if (tier) { s.coins += 300; out.coins = 300; }
+        return out;
+      }
+    } else if (r < decoP + seedP) {
+      var n = tier ? 2 : 1;
+      s.seeds.gold += n; s.dex.goldSeed = true;
+      return { kind: 'seed', n: n };
+    }
+    var c = Math.round((300 + rng() * 400) * mul / 10) * 10;
+    s.coins += c;
+    return { kind: 'coins', coins: c };
+  }
+
+  // ---------- 자물쇠 도전 (optional lock-pick on a 보물 상자): one tap per pin ----------
+  // Three pins slide up and down; tap while the current pin is in the notch. Pure: times are seconds since start.
+  var PICK_PINS = 3, PICK_LIMIT = 10, PICK_NOTCH = [0.42, 0.58], PICK_MISSES = 1;
+  function newPick(rng) {
+    var ph = []; for (var k = 0; k < PICK_PINS; k++) ph.push(rng());
+    return { pin: 0, ph: ph, misses: 0, set: [], result: null };
+  }
+  // pin k height 0..1 at time t: a triangle wave, each pin a little faster than the last
+  function pinPos(p, k, t) {
+    var sp = 0.55 + k * 0.2, x = (t * sp + p.ph[k]) % 1;
+    return x < 0.5 ? x * 2 : 2 - x * 2;
+  }
+  function pickTap(p, t) {
+    if (p.result) return p.result;
+    if (t > PICK_LIMIT) { p.result = 'fail'; return p.result; }
+    var y = pinPos(p, p.pin, t);
+    if (y >= PICK_NOTCH[0] && y <= PICK_NOTCH[1]) {
+      p.set.push(p.pin); p.pin++;
+      if (p.pin >= PICK_PINS) p.result = 'ok';
+      return p.result || 'hit';
+    }
+    p.misses++;
+    if (p.misses > PICK_MISSES) p.result = 'fail';
+    return p.result || 'miss';
+  }
+  function pickTime(p, t) { if (!p.result && t > PICK_LIMIT) p.result = 'fail'; return p.result; }
+
+  // ---------- save: called by decode() just before it returns ----------
+  function decodeJunk(o, s) {
+    var q = o.junk;
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var num = function (x) { return typeof x === 'number' && isFinite(x); };
+    var cnt = function (x, max) { return num(x) ? Math.max(0, Math.min(max, Math.floor(x))) : 0; };
+    var j = junkOf(s);
+    if (q.n && typeof q.n === 'object') SCRAP_IDS.forEach(function (id) { var v = cnt(q.n[id], 9999); if (v) j.n[id] = v; });
+    if (Array.isArray(q.letters)) q.letters.forEach(function (k) {
+      if (num(k) && k >= 1 && k <= BOTTLE_LETTERS.length && k === Math.floor(k) && j.letters.indexOf(k) < 0) j.letters.push(k);
+    });
+    j.box = cnt(q.box, 999);
+    if (q.seen && typeof q.seen === 'object') JUNK.forEach(function (d) { if (q.seen[d.id] === true) j.seen[d.id] = true; });
+    j.total = cnt(q.total, 1e9);
+  }
+
+  expose({
+    JUNK: JUNK, JUNK_CHANCE: JUNK_CHANCE, SCRAP_IDS: SCRAP_IDS, RECYCLE: RECYCLE, TREASURE_DECOS: TREASURE_DECOS,
+    BOTTLE_LETTERS: BOTTLE_LETTERS, LETTER_DUP_COINS: LETTER_DUP_COINS,
+    junkById: junkById, junkOf: junkOf, junkCount: junkCount, lettersFound: lettersFound, nextBottle: nextBottle,
+    rollJunk: rollJunk, landJunk: landJunk, scrapValue: scrapValue, sellScrap: sellScrap,
+    recycleById: recycleById, canRecycle: canRecycle, recycle: recycle, grantDeco: grantDeco, openChest: openChest,
+    PICK_PINS: PICK_PINS, PICK_LIMIT: PICK_LIMIT, PICK_NOTCH: PICK_NOTCH, newPick: newPick, pinPos: pinPos, pickTap: pickTap, pickTime: pickTime,
+    decodeJunk: decodeJunk
+  });
+  // ---------- 계절 축제 (stage 5B) ----------
+  // One festival per game season. A season is one real week from local Monday 00:00 (clock.js), and the festival is
+  // that week's Wednesday 10:00–18:00 local: inside office hours, the same for everyone in a time zone, and back
+  // 4 weeks later if missed. Pure: now + tzMin (minutes east of UTC) in, nothing read from the machine.
+  var FEST_DAY = 2, FEST_FROM = 10, FEST_TO = 18;       // Wednesday (Monday = 0), local hours
+  var FEST_GIFT_COINS = 300;                             // a repeat visit's gift once the festival decoration is owned
+  var FESTIVALS = {
+    spring: { id: 'spring', name: '벚꽃 축제',     deco: 'sakura',     fish: 'blossomcarp', desc: '꽃잎이 흩날린다 · 벚꽃 붕어가 문다' },
+    summer: { id: 'summer', name: '밤 불꽃놀이',   deco: 'firelamp',   fish: 'sparkfish',   desc: '게임 밤마다 불꽃이 터진다 · 불꽃 송사리' },
+    autumn: { id: 'autumn', name: '보름달 달맞이', deco: 'moonrabbit', fish: 'moonfish',    desc: '밤하늘에 큰 보름달 · 송편을 배운다', recipe: 'songpyeon' },
+    winter: { id: 'winter', name: '눈사람 만들기', deco: 'snowman',    fish: 'snowsmelt',   desc: '마당에 눈사람을 만들고 꾸민다 · 눈꽃 빙어' }
+  };
+  // festival-only fish: 연못 (always open), `fest` = only while that festival is on (fishEnvOk), never on the order board
+  [
+    { id: 'blossomcarp', name: '벚꽃 붕어',   rarity: '축제', w: 26, min: 15, max: 32, power: 1.1, price: 260, fest: 'spring', hint: '벚꽃 축제 날에만 연못에서' },
+    { id: 'sparkfish',   name: '불꽃 송사리', rarity: '축제', w: 30, min: 4,  max: 9,  power: 0.9, price: 220, fest: 'summer', phase: ['evening', 'night'], hint: '불꽃놀이 날 · 저녁과 밤에 반짝인다' },
+    { id: 'moonfish',    name: '달빛 잉어',   rarity: '축제', w: 22, min: 35, max: 80, power: 1.5, price: 420, fest: 'autumn', phase: ['night'], hint: '보름달 축제의 밤에만 떠오른다' },
+    { id: 'snowsmelt',   name: '눈꽃 빙어',   rarity: '축제', w: 28, min: 8,  max: 16, power: 0.9, price: 240, fest: 'winter', hint: '눈사람 축제 날 얼음 밑에서' }
+  ].forEach(function (f) { FISH.push(f); });
+  [
+    { id: 'sakura',     name: '벚나무',      cost: 0, merchant: true, from: 'fest', sz: [26, 40] },
+    { id: 'firelamp',   name: '불꽃 등롱',   cost: 0, merchant: true, from: 'fest', sz: [10, 22] },
+    { id: 'moonrabbit', name: '달토끼 석상', cost: 0, merchant: true, from: 'fest', sz: [14, 18] },
+    { id: 'snowman',    name: '눈사람',      cost: 0, merchant: true, from: 'fest', sz: [16, 24] }
+  ].forEach(function (d) { DECOS.push(d); });
+  RECIPES.push({ id: 'songpyeon', name: '송편', need: ['potato', 'corn', 'berry'], time: 360e3, sell: 950, festival: 'autumn' });
+  // festival orders: themed things you can get any time, so an order left over after the day can still be filled
+  var FEST_ORDER = {
+    spring: ['jeon', 'saengchae', 'berry'],
+    summer: ['hwachae', 'melon', 'friedfish'],
+    autumn: ['songpyeon', 'hobakjuk', 'pumpkin'],
+    winter: ['maeuntang', 'corn', 'jjim']
+  };
+  var FEST_ORDER_W = 12, FEST_ORDER_MULT = 2;
+  var SNOW_STYLES = ['양동이 모자', '목도리', '나뭇가지 팔', '당근 코'];
+
+  // the festival window of the season-week that contains now: { id, start, end } in UTC ms
+  function festWeek(now, tzMin) {
+    var off = (tzMin || 0) * 60e3, t = now + off;
+    var week = Math.floor((t - MON0) / WEEK_MS);
+    var start = MON0 + week * WEEK_MS + FEST_DAY * 86400e3 + FEST_FROM * HOUR_MS - off;
+    return { id: SEASONS[((week % 4) + 4) % 4], start: start, end: start + (FEST_TO - FEST_FROM) * HOUR_MS };
+  }
+  function festivalAt(now, tzMin) { var w = festWeek(now, tzMin); return now >= w.start && now < w.end ? w : null; }
+  function festivalId(now, tzMin) { var w = festivalAt(now, tzMin); return w ? w.id : null; }
+  // the one on now, or the next to come (this week's if it hasn't started, else next week's)
+  function nextFestival(now, tzMin) {
+    var w = festWeek(now, tzMin);
+    if (now < w.end) return w;
+    return festWeek(w.start + WEEK_MS, tzMin);
+  }
+  // when festival id comes next (it may be on right now)
+  function festivalNextOf(id, now, tzMin) {
+    var w = nextFestival(now, tzMin);
+    for (var k = 0; k < 4 && w.id !== id; k++) w = festWeek(w.start + WEEK_MS, tzMin);
+    return w;
+  }
+
+  function festOf(s) { if (!s.fest) s.fest = { on: null, got: {}, rec: {}, snow: 0 }; return s.fest; }
+  // called by the UI tick: remembers which festival is on (orders read it); older saves get s.fest only once one starts
+  function festTick(s, now, tzMin, override) {
+    var id = override !== undefined ? override : festivalId(now, tzMin);
+    if (!s.fest && !id) return null;
+    festOf(s).on = id || null;
+    return s.fest.on;
+  }
+  function festLearned(s, id) { return !!(s.fest && s.fest.rec[id]); }
+  // 축제 선물: once per festival day. First time the festival's decoration (and 송편), later visits some coins.
+  // w = the current window (festivalAt or an FF override). Outside a festival nothing is given.
+  function festClaimable(s, w) { return !!w && !(s.fest && s.fest.got[w.id] === w.start); }
+  function festClaim(s, w) {
+    if (!festClaimable(s, w)) return null;
+    var f = FESTIVALS[w.id], st = festOf(s), out = { id: w.id, coins: 0 };
+    st.got[w.id] = w.start;
+    if (f.recipe && !st.rec[f.recipe]) { st.rec[f.recipe] = true; out.recipe = f.recipe; }
+    var g = grantDeco(s, f.deco);
+    if (g.ok) { out.deco = f.deco; out.stored = g.stored; }
+    else { s.coins += FEST_GIFT_COINS; out.coins = FEST_GIFT_COINS; }
+    return out;
+  }
+  // 눈사람 꾸미기: each tap puts on the next thing (s.fest.snow = how many of SNOW_STYLES it wears), then back to bare
+  function snowmanStyle(s) {
+    if (!(s.yard && s.yard.deco.snowman)) return -1;
+    var st = festOf(s); st.snow = (st.snow + 1) % (SNOW_STYLES.length + 1); return st.snow;
+  }
+  // order-board hooks (basket.js): festival items join the pool and pay more while a festival is on
+  function festPool(s, out) {
+    var on = s.fest && s.fest.on;
+    if (!on) return;
+    FEST_ORDER[on].forEach(function (id) {
+      var r = recipeById(id);
+      if ((r ? s.dex.dish[id] || r.festival : true) && obtainable(s, id) && !seasonalItem(id)) out.push({ id: id, w: FEST_ORDER_W });
+    });
+  }
+  function festMark(s, o) {
+    var on = s.fest && s.fest.on;
+    if (!on || o.special || FEST_ORDER[on].indexOf(o.id) < 0) return o;
+    o.fest = on; o.reward = Math.round(o.reward * FEST_ORDER_MULT); o.rep += 1;
+    return o;
+  }
+
+  // ---------- save: called by decode() just before it returns ----------
+  function decodeFest(o, s) {
+    var q = o.fest;
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var st = festOf(s);
+    if (q.got && typeof q.got === 'object') Object.keys(FESTIVALS).forEach(function (id) {
+      if (typeof q.got[id] === 'number' && isFinite(q.got[id])) st.got[id] = q.got[id];
+    });
+    if (q.rec && typeof q.rec === 'object') RECIPES.forEach(function (r) { if (r.festival && q.rec[r.id] === true) st.rec[r.id] = true; });
+    if (typeof q.snow === 'number' && isFinite(q.snow)) st.snow = Math.max(0, Math.floor(q.snow)) % (SNOW_STYLES.length + 1);
+  }
+
+  expose({
+    FESTIVALS: FESTIVALS, FEST_DAY: FEST_DAY, FEST_FROM: FEST_FROM, FEST_TO: FEST_TO, FEST_GIFT_COINS: FEST_GIFT_COINS,
+    FEST_ORDER: FEST_ORDER, FEST_ORDER_MULT: FEST_ORDER_MULT, SNOW_STYLES: SNOW_STYLES,
+    festWeek: festWeek, festivalAt: festivalAt, festivalId: festivalId, nextFestival: nextFestival, festivalNextOf: festivalNextOf,
+    festOf: festOf, festTick: festTick, festLearned: festLearned, festClaimable: festClaimable, festClaim: festClaim,
+    snowmanStyle: snowmanStyle, festPool: festPool, festMark: festMark, decodeFest: decodeFest
+  });
+  // ---------- 불 조절 도전 (optional cooking minigame, stage 5B) ----------
+  // Taking a dish out can be a little challenge: tap to stoke the fire and keep the heat inside the zone
+  // for HEAT_NEED seconds within HEAT_LIMIT. Success = the dish is worth ×HEAT_BONUS; failure = the normal dish. Pure: dt in seconds.
+  var HEAT_ZONE = [0.5, 0.75], HEAT_NEED = 3, HEAT_LIMIT = 8, HEAT_TAP = 0.15, HEAT_DECAY = 0.2, HEAT_BONUS = 1.15;
+  function newHeat(rng) { return { h: 0.25, t: 0, inZone: 0, ph: rng() * 6.28, result: null }; }
+  function heatTap(g) { if (!g.result) g.h = Math.min(1, g.h + HEAT_TAP); return g.h; }
+  // the fire dies down unevenly (a slow wobble), so the rhythm of taps has to change a little
+  function heatStep(g, dt) {
+    if (g.result) return g.result;
+    g.t += dt;
+    g.h = Math.max(0, g.h - HEAT_DECAY * (1 + 0.6 * Math.sin(g.t * 1.7 + g.ph)) * dt);
+    if (g.h >= HEAT_ZONE[0] && g.h <= HEAT_ZONE[1]) g.inZone += dt;
+    if (g.inZone >= HEAT_NEED) g.result = 'ok';
+    else if (g.t >= HEAT_LIMIT) g.result = 'fail';
+    return g.result;
+  }
+
+  expose({ HEAT_ZONE: HEAT_ZONE, HEAT_NEED: HEAT_NEED, HEAT_LIMIT: HEAT_LIMIT, HEAT_BONUS: HEAT_BONUS, newHeat: newHeat, heatTap: heatTap, heatStep: heatStep });
   // ---------- 도감 milestones ----------
   var MILESTONES = [
     { id: 'cat',     need: 5,     name: '고양이',   desc: '선착장에 고양이가 와서 같이 찌를 본다' },
@@ -2127,11 +2836,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         if (oo && itemInfo(oo.id) && num(oo.n) && oo.n > 0 && num(oo.reward) && num(oo.rep)) {
           s.orders[k] = { o: { id: oo.id, n: Math.floor(oo.n), reward: Math.round(oo.reward), rep: Math.floor(oo.rep) }, at: 0 };
           if (oo.special === true) s.orders[k].o.special = true;
+          if (typeof oo.fest === 'string' && FESTIVALS[oo.fest]) s.orders[k].o.fest = oo.fest;   // stage 5B
         } else if (num(q.at)) s.orders[k] = { o: null, at: q.at };
       }
       if (o.pot && recipeById(o.pot.id) && num(o.pot.until)) s.pot = { id: o.pot.id, until: o.pot.until };
       decodeYard(o, s);   // stage 3: s.yard, s.animals (optional; absent in older saves)
       decodeStage4(o, s); // stage 4: s.born, s.nick, s.res, s.tank, s.daily (optional; needs the house tier above)
+      decodeStage5A(o, s); // stage 5A: s.forest, s.pet (optional)
+      decodeJunk(o, s);   // stage 5B: s.junk (잡동사니, 병 편지, 보물 상자; optional)
+      decodeFest(o, s);   // stage 5B: s.fest (축제 선물, 송편, 눈사람; optional)
       return s;
     } catch (e) { return null; }
   }
@@ -2489,6 +3202,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (it && it.kind === 'fish') { var f = fishCanvas(id); f.className = 'wide'; return f; }
     if (it && it.kind === 'dish') return dishCanvas(id);
     if (it && it.kind === 'crop') return iconCanvas(id);
+    if (it && it.kind === 'forage') return forageIcon(id);   // stage 5A
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;
@@ -2536,7 +3250,10 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       }
       t.b.setAttribute('aria-pressed', String(S.sel === id));
     });
-    coinsEl.textContent = S.coins.toLocaleString('ko-KR');
+    // 6+ digits would push the header buttons off the edge: 123,456 → 12.3만, 1,234,567 → 123만
+    coinsEl.textContent = S.coins < 100000 ? S.coins.toLocaleString('ko-KR')
+      : S.coins < 1000000 ? (Math.floor(S.coins / 1000) / 10) + '만' : Math.floor(S.coins / 10000).toLocaleString('ko-KR') + '만';
+    coinsEl.title = S.coins.toLocaleString('ko-KR');
   }
 
   // ---------- pointer / keys ----------
@@ -2552,7 +3269,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var p = toLocal(e);
     tap(p.x, p.y);
   });
-  function release() { holdPointer = false; }
+  function release() { holdPointer = false; chRelease(); }   // stage 5A: lets go of a 도전 gauge
   cv.addEventListener('pointerup', release);
   cv.addEventListener('pointercancel', release);
   cv.addEventListener('lostpointercapture', release);
@@ -2563,7 +3280,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return s + '초';
   }
   function tap(x, y) {
-    if (reel) return;
+    if (reel || chal) return;
     if (!resultEl.hidden) hideResult();
     if (tapScene(x, y)) return;
     if (S.fish.phase === 'bite') { doStrike(); return; }
@@ -2588,6 +3305,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       e.preventDefault();
       if (e.repeat) return;
       holdSpace = true;
+      if (miniOn()) { miniTap(); return; }   // stage 5B: 도전 overlay takes the tap
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
@@ -2735,6 +3453,21 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
 
   // returns true when (x, y) hit a plot, bought or not
+  // harvest plot i (r = its rect); won = the 수확 도전 landed: 특상품, worth double
+  function doHarvest(i, r, won, missed) {
+    var hv = L.harvest(S, i, now(), Math.random);
+    if (!hv) return;
+    var extra = won ? L.premiumHarvest(S, hv) : 0;
+    burst(r.x + 22, r.y + 14, won ? 18 : 10, won ? 4 : 3, won ? 80 : 60);
+    floatText(hv.sold ? '+' + (hv.sold + extra) : (won ? '★' : '+') + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
+    if (hv.gold) toast('★ 딸기×수박 교배! 황금 수박 씨앗을 얻었다', 3500);
+    else if (won) toast('★ 특상품 ' + L.CROPS[hv.crop].name + ' · 값 두 배' + (hv.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + (hv.sold + extra) : ' · 바구니에'), 2600);
+    else if (hv.sold) toast('바구니가 꽉 차서 바로 팔았다 · +' + hv.sold);
+    else if (hv.lost) toast(L.CROPS[hv.crop].name + ' 수확 · 까마귀가 조금 먹었다');
+    else toast((missed ? '아깝다 · ' : '') + L.CROPS[hv.crop].name + ' 수확 · 바구니에 담았다');
+    milestones();
+    refresh();
+  }
   function tapPlot(x, y) {
     var t = now();
     for (var i = 0; i < L.N_MAX; i++) {
@@ -2754,17 +3487,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         L.pullWeed(S, i, t); burst(r.x + 22, r.y + 14, 8, 3, 50); toast('잡초 뽑기 완료 · 다시 자란다');
         refresh(); return true;
       }
-      if (L.isReady(p)) {
-        var hv = L.harvest(S, i, t, Math.random);
-        burst(r.x + 22, r.y + 14, 10, 3, 60);
-        floatText(hv.sold ? '+' + hv.sold : '+' + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
-        if (hv.gold) toast('★ 딸기×수박 교배! 황금 수박 씨앗을 얻었다', 3500);
-        else if (hv.sold) toast('바구니가 꽉 차서 바로 팔았다 · +' + hv.sold);
-        else if (hv.lost) toast(L.CROPS[hv.crop].name + ' 수확 · 까마귀가 조금 먹었다');
-        else toast(L.CROPS[hv.crop].name + ' 수확 · 바구니에 담았다');
-        milestones();
-        refresh(); return true;
-      }
+      if (L.isReady(p)) { holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
         if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
@@ -2821,6 +3544,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       refresh();
       return;
     }
+    if (catchJunk(res.roll, f)) return;   // stage 5B: sometimes a common bite is junk (no reel)
     reelRoll = res.roll;
     reel = L.newReel(res.roll, L.tier(S, 'rod'));
     reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false };
@@ -3248,6 +3972,61 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var c = fishCond(f);
     return where + (c ? ' · ' + c : '') + (f.hint ? ' · ' + f.hint : ' · ' + f.rarity);
   }
+
+  // ---------- 새 손님 알림: one calm toast when a short condition opens something not caught yet where the player is ----------
+  // Keyed by place + cause; a key is forgotten once its condition ends, so each window speaks at most once
+  // (in memory only: a reload may say it again). Season-only fish/finds stay quiet: a season lasts a week.
+  var noticeSeen = {}, noticeNext = 5000, noticeQuiet = 0;   // first look after the boot messages
+  var NOTICE_PHASE = { morning: '아침이에요', day: '한낮이에요', evening: '저녁이에요', night: '밤이 됐어요' };
+  var NOTICE_WX = { rain: '비가 와요', fog: '안개가 꼈어요', snow: '눈이 와요' };
+  // the short condition behind a fish/find right now: { k, say } or null
+  function noticeCause(f, e) {
+    if (f.window === 'lunch') return { k: 'lunch', say: '점심시간' };
+    if (f.window === 'friday') return { k: 'friday', say: '금요일 저녁' };
+    if (f.fest) return { k: 'fest', say: L.FESTIVALS[f.fest] ? L.FESTIVALS[f.fest].name : '축제날' };
+    if (f.weather) return { k: 'wx:' + f.weather, say: NOTICE_WX[f.weather] };
+    if (f.wet) return { k: 'wet', say: '비 온 숲이 촉촉해요' };
+    if (f.phase) return { k: 'ph:' + e.phase, say: NOTICE_PHASE[e.phase] };
+    return null;
+  }
+  function tickNotice(t) {
+    var p = performance.now();
+    if (p < noticeNext) return;
+    noticeNext = p + 2000;
+    if (reel || boss) return;
+    var d = new Date(t), e = curEnv(t), live = {}, say = null, sayKey = null;
+    var here = view === 'farm' ? L.curSpot(S) : view === 'forest' && L.forestOk(S) ? 'forest' : null;
+    L.FISH.forEach(function (f) {
+      if (f.unlock || f.egg || !L.fishOpen(S, f) || !L.inWindow(f, d) || !L.fishEnvOk(f, e)) return;
+      var c = noticeCause(f, e), sp = f.spot || 'pond';
+      if (!c) return;
+      var key = sp + '|' + c.k;
+      live[key] = true;
+      if (noticeSeen[key] || say) return;
+      if (f.id === 'lunch' && view === 'farm') { sayKey = key; say = '점심시간 · 연못에 점심 붕어가 나왔어요'; return; }
+      if (here !== sp || S.dex.fish[f.id]) return;
+      sayKey = key;
+      say = c.say + ' · ' + spotName(sp) + (f.window === 'friday' ? '에 커다란 그림자가…' : '에 낯선 물고기가…');
+    });
+    if (L.forestOk(S)) {
+      var fe = fEnv(t);
+      L.FORAGE.forEach(function (f) {
+        if (!L.forageConditional(f) || L.forageWeight(f, fe) <= 0) return;
+        var c = noticeCause(f, fe);
+        if (!c) return;
+        var key = 'forest|' + c.k;
+        live[key] = true;
+        if (noticeSeen[key] || say || here !== 'forest' || S.forest.dex[f.id]) return;
+        sayKey = key;
+        say = c.say + ' · 숲에 처음 보는 게…';
+      });
+    }
+    Object.keys(noticeSeen).forEach(function (k) { if (!live[k]) delete noticeSeen[k]; });
+    // never on top of another message: wait out a busy moment, at most one notice per 10 s
+    if (!say || toastEl.classList.contains('on') || p < noticeQuiet) return;   // busy: try again next check
+    noticeSeen[sayKey] = true; noticeQuiet = p + 10e3;
+    toast(say, 3500);
+  }
   // ---------- 계절 on screen: seasonal crop and fish art, ground touches, the frozen pond (얼음낚시) ----------
   // Season = the game clock's (curEnv, so FF.season overrides it). Five grey tokens only.
   function seasonNow() { return curEnv(now()).season; }
@@ -3448,6 +4227,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var e = L.fishEnv(t, TZ, wxOverride);
     if (phaseOverride) e.phase = phaseOverride;
     if (seasonOverride) e.season = seasonOverride;
+    if (festOverride !== undefined) e.festival = festOverride;   // stage 5B: FF.festival
     return e;
   }
   // extra sky: 'petals' (spring, the block after rain) or 'leaves' (autumn, clear)
@@ -3654,6 +4434,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     sm.textContent = L.SEASON_NAME[nextSeason] + '까지 ' + fmtReal(L.seasonLeftMs(t, TZ)) + ' · 계절은 현실 1주';
     big.appendChild(sm); top.appendChild(big); calEl.appendChild(top);
     renderDaily();     // stage 4: 오늘의 할 일 + 농장 N년차
+    renderFestCal();   // stage 5B: current / next 계절 축제
 
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';
@@ -3719,6 +4500,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       v.textContent = L.spotUnlocked(S, sp) ? (sp === L.curSpot(S) ? '여기' : L.SPOTS[sp].name) : '잠김';
       r.appendChild(ic); r.appendChild(n); r.appendChild(v); calEl.appendChild(r);
     });
+    renderForestNow(e);   // stage 5A: what grows in the 숲 only now
   }
   function note(text) { var p = document.createElement('p'); p.className = 'note'; p.textContent = text; calEl.appendChild(p); }
 
@@ -3772,7 +4554,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     close.addEventListener('click', function () { dexEl.hidden = true; });
     h.appendChild(close); dexEl.appendChild(h);
     var h3 = document.createElement('h3'); h3.textContent = '모은 만큼 생기는 것';
-    var cnt = document.createElement('b'); cnt.textContent = L.dexCount(S) + ' / ' + L.DEX_ALL + '종'; h3.appendChild(cnt);
+    var cnt = document.createElement('b'); cnt.textContent = (L.dexCount(S) + L.forageDexCount(S)) + ' / ' + (L.DEX_ALL + L.FORAGE.length) + '종'; h3.appendChild(cnt);
     dexEl.appendChild(h3);
     L.MILESTONES.forEach(function (m) {
       var done = !!S.ms[m.id];
@@ -3797,9 +4579,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     h3 = document.createElement('h3'); h3.textContent = '물고기'; dexEl.appendChild(h3);
     L.FISH.forEach(function (f) {
       var d = S.dex.fish[f.id];
-      var hint = f.window === 'lunch' ? '12시~13시에만' : f.window === 'friday' ? '금요일 17시 이후에만' : fishHint(f);
       row(fishCanvas(f.id, !d), d ? (f.window === 'friday' ? '★ ' : '') + f.name : '???',
-        d ? (f.spot ? L.SPOTS[f.spot].name + ' · ' : '') + f.rarity + ' · ' + d.n + '마리' : hint, d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);
+        d ? (f.spot ? L.SPOTS[f.spot].name + ' · ' : '') + f.rarity + ' · ' + d.n + '마리' : fishHint(f), d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);
     });
     h3 = document.createElement('h3'); h3.textContent = '요리';
     var dc = document.createElement('b'); dc.textContent = Object.keys(S.dex.dish).length + ' / ' + L.RECIPES.length; h3.appendChild(dc);
@@ -3808,6 +4589,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var n = S.dex.dish[r.id] || 0, ic = dishCanvas(r.id); ic.className = 'sq';
       row(ic, n ? r.name : '???', n ? r.sell + '코인 · ' + Math.round(r.time / 60e3) + '분' : r.hidden ? '귀한 재료가 모이면…' : r.gift && !L.recipeKnown(S, r) ? L.residentById(r.gift).name + '의 선물 레시피' : '아직 안 만듦', n ? n + '번' : '', !n);
     });
+    renderForageDex(row);   // stage 5A: 채집
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
       var n = document.createElement('div'); n.className = 'n'; n.textContent = name;
@@ -3886,6 +4668,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       });
     }
     renderYardShop();   // stage 3: 집 · 동물 · 마당 꾸미기 · 가구
+    renderPetShop();    // stage 5A: 반려동물
     function row(id, nameHtml, sub, cost) {
       var r = document.createElement('div'); r.className = 'up';
       var n = document.createElement('div'); n.className = 'n'; n.innerHTML = nameHtml;
@@ -4076,7 +4859,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         var bar = document.createElement('div'); bar.className = 'potbar';
         var fill = document.createElement('i'); fill.style.width = Math.round((1 - (S.pot.until - t) / r.time) * 100) + '%';
         bar.appendChild(fill); row.querySelector('.n').appendChild(bar);
-      } else row.appendChild(act('꺼내기', tapPot));
+      } else { row.appendChild(act('꺼내기', tapPot)); heatButton(row); }   // stage 5B: optional 불 조절 도전
     } else {
       var p = document.createElement('p'); p.className = 'note'; p.textContent = '비어 있어요 · 바구니 재료로 요리하면 더 비싸게 팔려요'; bagEl.appendChild(p);
     }
@@ -4089,6 +4872,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (r.gift && !L.recipeKnown(S, r)) {
         var ig = dishCanvas('?'); ig.style.opacity = '0.35';
         upRow(ig, '???', L.residentById(r.gift).name + '와 친해지면 알려 준대요', 'idle');
+        return;
+      }
+      if (r.festival && !L.recipeKnown(S, r)) {   // stage 5B: 송편 is learned at its festival
+        var iz = dishCanvas('?'); iz.style.opacity = '0.35';
+        upRow(iz, '???', L.FESTIVALS[r.festival].name + ' 날 배울 수 있대요', 'idle');
         return;
       }
       if (r.hidden && !known) {
@@ -4405,6 +5193,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
     drawAnimals(tt);
     drawVisitors(tt, dt, 'yard');
+    drawPet(tt, dt, 'yard');   // stage 5A
     drawYardWeather(tt, wx);
     if (night || ph === 'evening') { ctx.globalAlpha = night ? 0.32 : 0.12; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
     if (night) {
@@ -4510,6 +5299,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (d.id === 'windmill') { millSpin = 3; openPick('deco', d.id, '빙글빙글'); return; }
     if (d.id === 'chime') { chimeRing = 2; openPick('deco', d.id, '딸랑… · ' + likes); return; }
     if (d.id === 'bench') { openPick('deco', d.id, '고양이가 좋아하는 자리'); return; }
+    if (d.id === 'snowman') { openPick('deco', d.id, snowWear(), ['꾸미기', function () { L.snowmanStyle(S); refresh(); closePick(); }]); return; }   // stage 5B
     var r = decoRect(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
     openPick('deco', d.id, likes);
   }
@@ -4609,43 +5399,48 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : '집 안');
     renderSceneBtn();
   }
   var sceneKey = '';
   function renderSceneBtn() {
+    var nx = nextScene();   // stage 5A: 밭·연못 → 마당 → 숲 → 밭·연못
     var other = view === 'farm' ? yardAttention() > 0 || S.yard.vis.some(function (v) { return L.visitorById(v.id).slot !== 'pond'; })
-                                 : S.yard.vis.some(function (v) { return L.visitorById(v.id).slot === 'pond'; });
+                                 : nx === 'forest' ? forestAttention() : S.yard.vis.some(function (v) { return L.visitorById(v.id).slot === 'pond'; });
     var bite = view !== 'farm' && S.fish.phase === 'bite';
-    var key = view + other + !!reel + bite;
+    var key = view + nx + other + !!reel + bite;
     if (key === sceneKey) return;
     sceneKey = key;
     sceneBtn.innerHTML = '';
     sceneBtn.disabled = !!reel;
     sceneBtn.classList.toggle('bite', bite);
     if (bite) { sceneBtn.textContent = '찌!'; sceneBtn.setAttribute('aria-label', '입질! 연못으로 가서 챔질'); return; }
-    var label = view === 'farm' ? '마당' : view === 'yard' ? '밭' : '마당';
-    sceneBtn.setAttribute('aria-label', view === 'farm' ? '마당으로' : view === 'yard' ? '밭과 연못으로' : '마당으로 나가기');
+    var label = nx === 'yard' ? '마당' : nx === 'forest' ? '숲' : '밭';
+    sceneBtn.setAttribute('aria-label', nx === 'yard' ? (view === 'house' ? '마당으로 나가기' : '마당으로') : nx === 'forest' ? '숲으로' : '밭과 연못으로');
     sceneBtn.appendChild(document.createTextNode(label));
     if (other) { var d = document.createElement('i'); d.className = 'dot'; sceneBtn.appendChild(d); }
   }
   sceneBtn.addEventListener('click', function () {
     if (view !== 'farm' && S.fish.phase === 'bite') { goScene('farm'); doStrike(); renderSceneBtn(); return; }
-    goScene(view === 'yard' ? 'farm' : 'yard');
+    goScene(nextScene());
   });
+  function nextScene() { return view === 'farm' || view === 'house' ? 'yard' : view === 'yard' && forestShown() ? 'forest' : 'farm'; }
 
   // ---------- hooks used by loop.js / input.js ----------
   // draws 마당 or 집 안 instead of the farm; returns false on the farm so the normal frame runs
   function drawScene(tt, dt) {
     if (view === 'yard') { drawYard(tt, dt); return true; }
     if (view === 'house') { drawRoom(tt, dt); return true; }
+    if (view === 'forest') { drawForest(tt, dt); return true; }   // stage 5A
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
   function tapScene(x, y) {
-    if (view === 'yard') { tapYard(x, y); return true; }
+    if (view === 'yard') { if (!pick && tapPet(x, y)) return true; tapYard(x, y); return true; }
     if (view === 'house') { tapRoom(x, y); return true; }
+    if (view === 'forest') { tapForest(x, y); return true; }   // stage 5A
     if (S.fish.phase === 'bite') return false;
+    if (tapPet(x, y)) return true;
     if (tapVisitorAt(x, y, 'pond')) return true;
     var st = L.tier(S, 'scare');
     if (st && ((x >= 2 && x < 15 && y >= 36 && y < 54) || (st >= 3 && x >= 168 && y >= 36 && y < 54))) {
@@ -5359,6 +6154,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var hint = d.night ? '밤에 마당 하늘을 보면…' : d.rainbow ? '비가 그친 직후에…' : d.slot === 'pond' ? '연못가에 가끔' : need ? josa(need.name, '을', '를') + ' 놓으면…' : '마당에 가끔';
       recRow(visitorIcon(d.id), n ? d.name : '???', n ? (d.slot === 'pond' ? '연못' : '마당') + '에 왔던 손님' : hint, n ? n + '번' : '', !n);
     });
+    renderBottleLetters();   // stage 5B: 병 편지 + the 고물 상자
     h3 = document.createElement('h3'); h3.textContent = '편지';
     b = document.createElement('b'); b.textContent = y.mail.length + '통'; h3.appendChild(b); dexEl.appendChild(h3);
     var read = y.mail.filter(function (m) { return m.read; });
@@ -5638,6 +6434,1000 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       table.appendChild(line);
     });
   }
+  // ---------- 숲: forage spots, forage art, the 도전 gauge (채집 + 수확), 도감 채집, 달력 entries ----------
+  // spots: [centre x, ground y]; what grows is rolled when the 숲 is on screen (logic/forest.js)
+  var FSPOTS = [[26, 98], [68, 88], [112, 102], [152, 92], [36, 148], [90, 160], [142, 146]];
+  function forestShown() { return L.forestOk(S) || S.rep >= L.FOREST_REP; }
+  function forestAttention() { return L.forestOk(S) && (L.forageReady(S) > 0 || L.forestNextAt(S) <= now()); }
+  // the forage env: curEnv (FF overrides apply) + wet = raining or the block right after rain
+  function fEnv(t) { var e = curEnv(t); e.wet = e.weather === 'rain' || (!wxOverride && L.rainJustStopped(t, TZ)); return e; }
+
+  // ---------- pre-rendered forest floor and trees ----------
+  var bgForest = document.createElement('canvas'); bgForest.width = W; bgForest.height = H;
+  var PINES = [];   // tree tops, for snow caps
+  function pine(cx, by, h, c) {
+    PINES.push([cx, by - 4 - h]);
+    px(cx, by - 4, 2, 4, 4);
+    for (var j = 0; j < h; j++) {
+      var hw = Math.floor((j % Math.ceil(h / 3)) * 0.8 + Math.floor(j / Math.ceil(h / 3)) * 2) + 1;
+      px(cx + 1 - hw, by - 4 - h + j, hw * 2, 1, c);
+    }
+  }
+  (function paintForest() {
+    var saved = ctx; ctx = bgForest.getContext('2d');
+    for (var k = 0; k < 320; k++) {
+      var x = Math.floor(hash(k * 7 + 3) * W), y = 60 + Math.floor(hash(k * 11 + 9) * (H - 60));
+      px(x, y, 1, 1, k % 5 ? 1 : 2);
+    }
+    // a winding path from the bottom up into the trees
+    for (var y2 = 196; y2 > 60; y2--) {
+      var cx = 90 + Math.round(Math.sin(y2 / 22) * 18);
+      if (y2 % 3) { px(cx - 7, y2, 1, 1, 2); px(cx + 7, y2, 1, 1, 2); }
+      if (y2 % 7 === 0) px(cx - 2 + (y2 % 5), y2, 2, 1, 1);
+    }
+    // back row of pines, then a front row a little lower
+    for (var t = 0; t < 12; t++) pine(4 + t * 16 + Math.round(hash(t * 3) * 6), 52 + Math.round(hash(t * 5 + 1) * 6), 26 + Math.round(hash(t) * 10), 3);
+    for (t = 0; t < 7; t++) pine(10 + t * 27 + Math.round(hash(t * 9 + 4) * 8), 70 + Math.round(hash(t * 13 + 2) * 6), 30 + Math.round(hash(t * 7) * 10), 4);
+    // stones and a fallen log
+    [[8, 182], [168, 176], [120, 186]].forEach(function (r) { px(r[0], r[1], 7, 3, 2); px(r[0] + 1, r[1] - 1, 5, 1, 2); px(r[0], r[1] + 3, 7, 1, 3); });
+    px(150, 118, 26, 5, 3); px(150, 118, 26, 1, 4); px(150, 122, 26, 1, 4); px(174, 118, 2, 5, 4); px(175, 119, 1, 3, 2);
+    ctx = saved;
+  })();
+
+  // ---------- forage art: drawn at (x = centre, y = ground) ----------
+  var FG_ID = {
+    acorn: function (x, y) { px(x - 2, y - 6, 5, 2, 4); px(x, y - 7, 1, 1, 4); px(x - 2, y - 4, 5, 3, 3); px(x - 1, y - 1, 3, 1, 3); px(x - 1, y - 4, 1, 1, 1); },
+    chestnut: function (x, y) { px(x - 2, y - 6, 5, 1, 4); px(x - 3, y - 5, 7, 4, 4); px(x - 2, y - 1, 5, 1, 2); px(x - 1, y - 4, 1, 1, 1); },
+    pinecone: function (x, y) { for (var j = 0; j < 6; j++) { var w = j < 2 ? 3 + j * 2 : 7 - (j - 2); px(x - Math.floor(w / 2), y - 7 + j, w, 1, j % 2 ? 4 : 3); } px(x, y - 8, 1, 1, 4); },
+    pebble: function (x, y) { px(x - 2, y - 4, 4, 1, 2); px(x - 3, y - 3, 6, 3, 2); px(x - 3, y, 6, 1, 3); px(x - 1, y - 3, 1, 1, 1); },
+    birdfeather: function (x, y) { for (var k = 0; k < 7; k++) { px(x - 3 + k, y - 1 - k, 1, 1, 4); if (k > 0 && k < 6) px(x - 4 + k, y - 1 - k, 1, 1, 2), px(x - 3 + k, y - k, 1, 1, 2); } },
+    mapleleaf: function (x, y) { px(x, y - 8, 1, 7, 4); px(x - 3, y - 6, 7, 2, 3); px(x - 2, y - 7, 5, 4, 3); px(x - 4, y - 5, 1, 1, 3); px(x + 4, y - 5, 1, 1, 3); px(x, y - 9, 1, 1, 3); },
+    icicle: function (x, y) { for (var j = 0; j < 7; j++) { var w = Math.max(1, 5 - j); px(x - Math.floor(w / 2), y - 8 + j, w, 1, 1); px(x - Math.floor(w / 2), y - 8 + j, 1, 1, 3); } },
+    glowmoss: function (x, y, tt) { px(x - 4, y - 2, 9, 2, 3); px(x - 3, y - 3, 7, 1, 3); for (var k = 0; k < 3; k++) if ((Math.floor(tt * 2) + k) % 3) px(x - 3 + k * 3, y - 3 - (k % 2), 1, 1, 0); },
+    clover4: function (x, y) { px(x, y - 4, 1, 4, 3); [[-2, -7], [1, -7], [-2, -10], [1, -10]].forEach(function (o) { px(x + o[0], y + o[1], 2, 2, 3); px(x + o[0], y + o[1], 1, 1, 4); }); px(x - 3, y - 2, 2, 1, 2); px(x + 2, y - 2, 2, 1, 2); },
+    ginseng: function (x, y) { px(x, y - 11, 1, 5, 4); px(x - 3, y - 11, 2, 2, 3); px(x + 2, y - 11, 2, 2, 3); px(x - 1, y - 13, 3, 2, 4); px(x - 1, y - 6, 3, 3, 2); px(x - 2, y - 3, 1, 3, 2); px(x + 2, y - 3, 1, 3, 2); px(x - 1, y - 6, 1, 3, 4); },
+    songi: function (x, y) { px(x - 1, y - 8, 3, 8, 0); px(x - 2, y - 8, 1, 8, 4); px(x + 2, y - 8, 1, 8, 4); px(x - 2, y - 1, 5, 1, 4); px(x - 3, y - 10, 7, 2, 4); px(x - 2, y - 11, 5, 1, 4); px(x - 1, y - 9, 1, 1, 2); },
+    reishi: function (x, y) { px(x - 1, y - 3, 2, 3, 4); px(x - 5, y - 7, 9, 4, 4); px(x - 4, y - 8, 7, 1, 4); px(x - 4, y - 6, 7, 1, 3); px(x - 3, y - 5, 5, 1, 2); },
+    woodear: function (x, y) { px(x - 5, y - 1, 11, 1, 3); px(x - 4, y - 5, 4, 4, 4); px(x + 1, y - 6, 4, 5, 4); px(x - 3, y - 4, 2, 2, 3); px(x + 2, y - 5, 2, 3, 3); },
+    amberstone: function (x, y) { px(x - 2, y - 6, 5, 1, 4); px(x - 3, y - 5, 7, 4, 4); px(x - 2, y - 1, 5, 1, 4); px(x - 2, y - 5, 4, 3, 2); px(x - 1, y - 4, 1, 1, 0); }
+  };
+  var FG_CAT = {
+    mush: function (x, y, v) {
+      px(x - 2, y - 5, 1, 5, 4); px(x + 2, y - 5, 1, 5, 4); px(x - 1, y - 5, 3, 5, 0); px(x - 2, y - 1, 5, 1, 4);
+      var big = v % 3 === 0;
+      px(x - 4, y - 7, 9, 2, 4); px(x - 3, y - 9, 7, 2, 4); px(x - 2, y - 10, 5, 1, 4);
+      if (big) { px(x - 5, y - 6, 11, 1, 4); }
+      if (v % 2) { px(x - 2, y - 8, 1, 1, 1); px(x + 1, y - 9, 1, 1, 1); px(x + 2, y - 7, 1, 1, 1); }
+      else px(x - 3, y - 7, 7, 1, 3);
+    },
+    green: function (x, y, v) {
+      px(x, y - 9, 1, 9, 4); px(x - 1, y - 10, 2, 1, 4);
+      for (var k = 0; k < 4; k++) { var w = 4 - k, yy = y - 2 - k * 2; px(x - w, yy, w, 1, v % 2 ? 3 : 2); px(x + 1, yy - 1, w, 1, 3); }
+    },
+    nut: function (x, y, v) {
+      px(x, y - 9, 1, 2, 3);
+      [[-3, 0], [2, 0], [0, -3]].forEach(function (o) { var bx = x + o[0], by = y + o[1]; px(bx - 1, by - 3, 3, 3, 4); px(bx, by - 4, 1, 1, 4); px(bx - 1, by - 3, 1, 1, v % 2 ? 2 : 1); });
+    },
+    herb: function (x, y, v) {
+      px(x, y - 10, 1, 6, 4); px(x - 3, y - 9, 2, 3, 3); px(x + 2, y - 9, 2, 3, 3);
+      px(x - 1, y - 4, 3, 4, 2); px(x - 1, y - 4, 1, 4, 4); px(x - 2, y, 1, 1, 2); px(x + 2, y, 1, 1, v % 2 ? 2 : 3);
+    },
+    flower: function (x, y, v) {
+      px(x, y - 6, 1, 6, 3); px(x + 1, y - 3, 2, 1, 3);
+      var c = v % 2 ? 2 : 1;
+      px(x - 2, y - 9, 5, 1, c); px(x, y - 11, 1, 5, c); px(x - 1, y - 10, 3, 3, c); px(x, y - 9, 1, 1, 4);
+      px(x - 3, y - 9, 1, 1, 4); px(x + 3, y - 9, 1, 1, 4); px(x, y - 12, 1, 1, 4);
+    },
+    misc: function (x, y, v) { px(x - 3, y - 4, 6, 4, 3); px(x - 2, y - 5, 4, 1, 3); px(x - 1, y - 3, 1, 1, v % 2 ? 1 : 0); },
+    rare: function (x, y) { FG_ID.amberstone(x, y); }
+  };
+  function drawForage(id, x, y, tt) {
+    var f = L.forageById(id);
+    if (!f) return;
+    if (FG_ID[id]) FG_ID[id](x, y, tt || 0);
+    else { var h = 0; for (var k = 0; k < id.length; k++) h = (h * 31 + id.charCodeAt(k)) | 0; FG_CAT[f.cat](x, y, Math.floor(hash(h) * 6)); }
+  }
+  function forageIcon(id) {
+    var c = document.createElement('canvas'); c.width = 14; c.height = 14;
+    var saved = ctx; ctx = c.getContext('2d');
+    try { drawForage(id, 7, 13, 0); } finally { ctx = saved; }
+    return c;
+  }
+
+  // ---------- 숲 scene ----------
+  function drawForest(tt, dt) {
+    var t = now(), e = fEnv(t), night = e.phase === 'night';
+    ctx.drawImage(bgForest, 0, 0);
+    drawSky(tt, e.phase);
+    drawForestSeason(tt, e.season);
+    if (!L.forestOk(S)) { drawForestGate(tt); }
+    else FSPOTS.forEach(function (sp, k) {
+      var p = S.forest.spots[k];
+      px(sp[0] - 6, sp[1] + 1, 13, 1, 2);
+      if (p.id) {
+        var f = L.forageById(p.id), bob = chal && chal.kind === 'forage' && chal.k === k ? Math.round(Math.sin(tt * 30)) : 0;
+        drawForage(p.id, sp[0] + bob, sp[1], tt);
+        if (f.rarity === '희귀' || f.rarity === '전설') sparkle(sp[0] + 6, sp[1] - 10, tt + k * 0.4);
+      } else { px(sp[0] - 1, sp[1] - 1, 1, 1, 2); px(sp[0] + 1, sp[1] - 2, 1, 2, 2); }
+    });
+    drawPet(tt, dt, 'forest');
+    drawYardWeather(tt, e.weather);
+    if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
+    if (night) {
+      drawStars(tt);
+      if (S.forest) FSPOTS.forEach(function (sp, k) { if (S.forest.spots[k].id === 'glowmoss') FG_ID.glowmoss(sp[0], sp[1], tt); });
+      if (e.season === 'summer') for (var k = 0; k < 6; k++) if ((Math.floor(tt * 2) + k) % 4) px((hash(k * 5) * W + Math.sin(tt * 0.7 + k) * 8) % W, 70 + hash(k * 9) * 100 + Math.cos(tt + k) * 5, 1, 1, 0);
+    }
+  }
+  // blossoms in spring, leaves in autumn, snow caps in winter (fixed positions, no randomness per frame)
+  function drawForestSeason(tt, se) {
+    var k;
+    if (se === 'winter') { PINES.forEach(function (p) { px(p[0], p[1], 2, 1, 0); px(p[0] - 1, p[1] + 1, 4, 1, 0); px(p[0] - 3, p[1] + 9, 3, 1, 0); px(p[0] + 3, p[1] + 13, 3, 1, 0); }); for (k = 0; k < 60; k++) px(Math.floor(hash(k * 17 + 5) * W), 76 + Math.floor(hash(k * 23 + 1) * 120), 3, 1, 1); }
+    else if (se === 'autumn') for (k = 0; k < 40; k++) px(Math.floor(hash(k * 19 + 2) * W), 64 + Math.floor(hash(k * 29 + 3) * 132), 2, 1, k % 3 ? 3 : 2);
+    else if (se === 'spring') for (k = 0; k < 26; k++) { var bx = Math.floor(hash(k * 13 + 7) * W), by = 70 + Math.floor(hash(k * 31 + 1) * 126); px(bx, by, 1, 1, 0); px(bx - 1, by, 1, 1, 2); px(bx + 1, by, 1, 1, 2); }
+    else for (k = 0; k < 30; k++) { var gx = Math.floor(hash(k * 37 + 11) * W), gy = 74 + Math.floor(hash(k * 41 + 5) * 120); px(gx, gy - 2, 1, 3, 3); px(gx + 2, gy - 1, 1, 2, 3); }
+  }
+  var GATE = { x: 76, y: 112, w: 28, h: 26 };
+  function drawForestGate(tt) {
+    for (var x = 0; x < W; x += 6) { px(x, 128 + (x % 12 ? 1 : 0), 4, 1, 4); }
+    px(GATE.x + 13, GATE.y + 8, 2, 18, 4);
+    px(GATE.x, GATE.y, GATE.w, 10, 4); px(GATE.x + 1, GATE.y + 1, GATE.w - 2, 8, 0);
+    for (var k = 0; k < 4; k++) px(GATE.x + 4 + k * 5, GATE.y + 4, 3, 2, 3);
+    sparkle(GATE.x + GATE.w + 3, GATE.y - 1, tt);
+  }
+  function tapForest(x, y) {
+    if (!L.forestOk(S)) {
+      if (hit([GATE.x - 6, GATE.y - 6, GATE.w + 12, GATE.h + 12], x, y)) {
+        if (L.forestStatus(S) === 'coins') { toast('숲 길 열기 · ' + L.FOREST_COST + '코인 필요해요', 2400); return; }
+        confirmBuy('forest', '숲 길 열기', L.FOREST_COST, function () {
+          var r = L.unlockForest(S, now());
+          if (!r.ok) { toast(WHY[r.why] || '열 수 없어요'); return; }
+          burst(GATE.x + 14, GATE.y + 6, 16, 0, 70);
+          toast('★ 숲이 열렸다 · 철마다 다른 것이 돋는다 · 꾹 누르면 도전', 3600); refresh();
+        });
+      } else toast('숲으로 가는 길이 막혀 있다 · 표지판을 눌러 보자', 2200);
+      return;
+    }
+    // a ripe spot wins over the pet (it likes to sit on them); an empty spot lets the pet be petted
+    var empty = null;
+    for (var k = 0; k < FSPOTS.length; k++) {
+      var sp = FSPOTS[k];
+      if (!hit([sp[0] - 8, sp[1] - 13, 16, 16], x, y, 2)) continue;
+      var p = S.forest.spots[k];
+      if (!p.id) { empty = empty || p; continue; }
+      chal = { kind: 'forage', k: k, x: sp[0], y: sp[1] - 12, g: L.forageGame(p.id, performance.now(), Math.random), hinted: false };
+      return;
+    }
+    if (tapPet(x, y)) return;
+    if (empty) { toast('다시 돋는 중 · ' + fmtLeft(Math.max(0, empty.at - now())), 1600); return; }
+    var ready = L.forageReady(S);
+    toast(ready ? '반짝이는 걸 누르면 줍기 · 꾹 누르면 도전 (표시 칸에서 떼면 두 배)' : '다 주웠다 · ' + fmtLeft(Math.max(0, L.forestNextAt(S) - now())) + ' 뒤 다시 돋는다', 2600);
+  }
+
+  // ---------- 도전 gauge: press = start, release = judge (logic/challenge.js) ----------
+  var chal = null, chHintN = 0;
+  function holdHarvest(i, r) {
+    chal = { kind: 'harvest', i: i, r: r, x: r.x + 22, y: r.y + 2, g: L.harvestGame(S.plots[i].crop, performance.now(), Math.random), hinted: false };
+  }
+  function chRelease() {
+    if (!chal) return;
+    chFinish(L.chJudge(chal.g, performance.now()));
+  }
+  function chFinish(res) {
+    var c = chal; chal = null;
+    var won = res === 'win';
+    if (c.kind === 'harvest') { doHarvest(c.i, c.r, won, res === 'miss'); return; }
+    var r = L.pickForage(S, c.k, now(), Math.random, won);
+    if (!r) return;
+    var f = L.forageById(r.id);
+    burst(c.x, c.y + 6, won ? 16 : 8, won ? 4 : 2, won ? 70 : 40);
+    floatText((won ? '★' : '+') + f.name + (r.n > 1 ? '×' + r.n : ''), c.x, c.y - 6);
+    var tail = r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에';
+    if (won) toast('도전 성공! ' + f.name + (r.n > 1 ? ' 두 개' : ' 하나 · 이번엔 덤이 없었다') + tail, 2600);
+    else toast((res === 'miss' ? '아깝다 · ' : '') + f.name + (f.rarity !== '흔함' ? ' (' + f.rarity + ')' : '') + tail, 2200);
+    refresh();
+  }
+  function drawChallenge() {
+    if (!chal) return;
+    var t = performance.now(), g = chal.g;
+    if (t < g.t0) return;                         // a quick tap never shows the gauge
+    if (!chal.hinted) { chal.hinted = true; if (chHintN++ < 3) toast(chal.kind === 'harvest' ? '도전 · 표시 칸에서 떼면 특상품 (값 두 배)' : '도전 · 표시 칸에서 떼면 두 배', 1800); }
+    // above the thing being picked, or below it when that would run into the top corner buttons
+    var bw = 62, bh = 9, by = chal.y - 16 >= 20 ? Math.round(chal.y - 16) : Math.round(chal.y + 28);
+    var bx = Math.max(by < 36 ? 18 : 2, Math.min(W - bw - 2, Math.round(chal.x - bw / 2)));
+    px(bx - 1, by - 1, bw + 2, bh + 2, 0);
+    px(bx, by, bw, bh, 4); px(bx + 1, by + 1, bw - 2, bh - 2, 0);
+    var zl = bx + 1 + Math.round(g.lo * (bw - 3)), zr = bx + 1 + Math.round(g.hi * (bw - 3));
+    for (var x = zl; x <= zr; x++) px(x, by + 1, 1, bh - 2, (x - zl) % 2 ? 2 : 1);
+    px(zl, by + 1, 1, bh - 2, 4); px(zr, by + 1, 1, bh - 2, 4);
+    var p = L.chPos(g, t), nx = bx + 1 + Math.round(p * (bw - 3));
+    px(nx - 1, by - 3, 3, 2, 4); px(nx, by - 1, 1, bh + 2, 4);
+    // time left: a thin bar under the gauge
+    var left = Math.max(0, 1 - (t - g.t0) / (g.end - g.t0));
+    px(bx, by + bh + 1, Math.round(bw * left), 1, 3);
+  }
+
+  // ---------- tick: spots grow while the 숲 is on screen, pet finds, gauge timeout ----------
+  var petFindAt = 0;
+  function tickForestUI(t) {
+    if (chal && L.chOver(chal.g, performance.now())) chFinish('miss');
+    if (chal && chal.kind === 'forage' && view !== 'forest') chal = null;
+    if (view !== 'forest' || !L.forestOk(S)) return;
+    var e = fEnv(t);
+    if (L.tickForest(S, t, e, Math.random)) save();
+    if (S.pet && performance.now() > petFindAt) {
+      petFindAt = performance.now() + 20e3 + Math.random() * 20e3;
+      var f = L.petFind(S, t, TZ, e, Math.random);
+      if (f) {
+        var pp = petSeen();
+        if (pp) burst(pp.x, pp.y - 6, 8, 2, 40);
+        toast(josa(S.pet.name, '이', '가') + ' 킁킁… ' + josa(L.forageById(f.id).name, '을', '를') + ' 찾아 왔다' + (f.sold ? ' · 바로 팔았다 +' + f.sold : ''), 2600);
+        refresh();
+      }
+    }
+  }
+
+  // ---------- 도감 채집 section and 달력 "지금만" entries ----------
+  function forageCond(f) {
+    var out = [];
+    if (f.season) out.push(f.season.map(function (x) { return L.SEASON_NAME[x]; }).join('·'));
+    if (f.phase) out.push(f.phase.map(function (x) { return L.PHASE_NAME[x]; }).join('·') + '에만');
+    if (f.wet) out.push('비 올 때');
+    return out.length ? out.join(' · ') : '언제나';
+  }
+  function renderForageDex(row) {
+    var h3 = document.createElement('h3'); h3.textContent = '채집';
+    var b = document.createElement('b'); b.textContent = L.forageDexCount(S) + ' / ' + L.FORAGE.length; h3.appendChild(b);
+    dexEl.appendChild(h3);
+    if (!L.forestOk(S)) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '신뢰도 ★' + L.FOREST_REP + '이 되면 마당 너머 숲으로 가는 길이 보여요'; dexEl.appendChild(p); }
+    L.FORAGE.forEach(function (f) {
+      var n = S.forest ? S.forest.dex[f.id] || 0 : 0;
+      row(forageIcon(f.id), n ? (f.rarity === '전설' || f.rarity === '희귀' ? '★ ' : '') + f.name : '???',
+        n ? L.FORAGE_CATS[f.cat] + ' · ' + f.rarity + ' · ' + forageCond(f) + ' · ' + f.price + '코인' : f.hint, n ? n + '개' : '', !n);
+    });
+  }
+  function renderForestNow(e) {
+    e = fEnv(now());
+    var list = L.FORAGE.filter(function (f) { return L.forageWeight(f, e) > 0 && (f.phase || f.wet || (f.season && f.rarity !== '흔함')); });
+    if (!list.length) return;
+    var h3 = document.createElement('h3'); h3.textContent = '숲에서 지금';
+    var hb = document.createElement('b'); hb.textContent = L.forestOk(S) ? '돋아 있는 곳 ' + L.forageReady(S) : '숲 잠김'; h3.appendChild(hb);
+    calEl.appendChild(h3);
+    list.forEach(function (f) {
+      var got = S.forest && S.forest.dex[f.id];
+      var r = document.createElement('div'); r.className = 'dx' + (got ? '' : ' unk');
+      var ic = forageIcon(f.id); ic.className = 'sq'; if (!got) ic.style.opacity = '0.5';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = got ? f.name : '???';
+      var s3 = document.createElement('small'); s3.textContent = got ? f.rarity + ' · ' + forageCond(f) : f.hint; n.appendChild(s3);
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = f.rarity;
+      r.appendChild(ic); r.appendChild(n); r.appendChild(v); calEl.appendChild(r);
+    });
+    if (e.wet) note('비 온 뒤 · 숲에 버섯이 세 배');
+  }
+
+  // ---------- console hooks ----------
+  function addForestHooks(FF) {
+    FF.forest = function () { if (!S.forest) { S.rep = Math.max(S.rep, L.FOREST_REP); S.coins += L.FOREST_COST; L.unlockForest(S, now()); } goScene('forest'); refresh(); return S.forest; };
+    // FF.forage() regrows every spot now; FF.forage('all') also fills the 도감 with every type
+    FF.forage = function (all) {
+      if (!S.forest) FF.forest();
+      if (all === 'all') L.FORAGE.forEach(function (f) { S.forest.dex[f.id] = (S.forest.dex[f.id] || 0) + 1; });
+      else if (typeof all === 'string' && L.forageById(all)) { S.forest.spots.forEach(function (p) { p.id = all; }); refresh(); return S.forest.spots; }
+      S.forest.spots.forEach(function (p) { p.id = null; p.at = 0; });
+      L.tickForest(S, now(), fEnv(now()), Math.random); refresh();
+      return S.forest.spots.map(function (p) { return p.id; });
+    };
+  }
+  // ---------- 반려동물: art, where it is in each scene, petting, gifts, 상점 adoption + name sheet ----------
+  var PET_SP = {
+    dog: ['........44..', '3......4334.', '.3....333034', '..3333333333', '..333333333.', '..33333333..', '..4.4..4.4..', '..4.4..4.4..'],
+    dogStep: ['........44..', '3......4334.', '.3....333034', '..3333333333', '..333333333.', '..33333333..', '...4.4..4.4.', '...4.4..4.4.'],
+    dogAlert: ['.......4.4..', '3......4334.', '.3....333034', '..3333333333', '..333333333.', '..33333333..', '..4.4..4.4..', '..4.4..4.4..'],
+    dogSleep: ['........44..', '.....333334.', '.33333333304', '333333333333'],
+    catStep: ['......4.4', '......444', '4.....404', '4...44444', '.4.44444.', '..444444.', '..444444.', '...4.4.4.'],
+    catSleep: ['......4.4', '.4444444.', '444444444', '.4444444.'],
+    heart: ['.4.4.', '44444', '.444.', '..4..'],
+    gift: ['.4.4.', '44444', '40404', '44444']
+  };
+  var FARM_PET = { x: 30, y: 147 };
+  var petLast = null, petHearts = [];
+  function petSeen() { return petLast && performance.now() - petLast.at < 300 ? petLast : null; }
+  // where the pet is and what it is doing: { x, y (feet), flip, mode: sit | walk | alert | sleep | sniff }
+  function petPose(tt, where) {
+    var lv = L.petLevel(S);
+    if (where === 'farm') {
+      var fishing = S.fish.phase === 'wait' || S.fish.phase === 'bite';
+      if (lv >= 2 && fishing) return { x: FARM_PET.x, y: FARM_PET.y, flip: false, mode: S.fish.phase === 'bite' ? 'alert' : 'sit' };
+      if (lv >= 4 && tt % 40 < 16) return { x: FARM_PET.x, y: FARM_PET.y, flip: false, mode: 'sleep' };
+      return { x: FARM_PET.x, y: FARM_PET.y, flip: false, mode: 'sit' };
+    }
+    if (where === 'yard') {
+      if (lv < 1) return { x: 92, y: 110, flip: false, mode: 'sit' };
+      if (lv >= 4 && tt % 50 < 14) return { x: 120, y: 110, flip: true, mode: 'sleep' };
+      var u = (tt / 14) % 2, w = u < 1 ? u : 2 - u, pause = Math.abs(w - 0.5) > 0.46;
+      return { x: 64 + Math.round(w * 56), y: 110, flip: u >= 1, mode: pause ? 'sit' : 'walk' };
+    }
+    // 숲: trots from spot to spot (each leg 7 s), sniffing for the last 3 s once 친밀도 allows
+    var leg = Math.floor(tt / 7), f = (tt % 7) / 4, a = FSPOTS[leg % FSPOTS.length], b = FSPOTS[(leg + 1) % FSPOTS.length];
+    if (f >= 1) return { x: b[0] - 10, y: b[1] + 4, flip: false, mode: lv >= L.PET_FIND_LV ? 'sniff' : 'sit' };
+    return { x: Math.round(a[0] - 10 + (b[0] - a[0]) * f), y: Math.round(a[1] + 4 + (b[1] - a[1]) * f), flip: b[0] < a[0], mode: 'walk' };
+  }
+  function drawPetSprite(kind, x, y, flip, mode, tt) {
+    var cat = kind === 'cat', step = Math.floor(tt * 6) % 2, blink = Math.floor(tt * 10) % 41 === 0;
+    var rows = mode === 'sleep' ? PET_SP[cat ? 'catSleep' : 'dogSleep']
+      : mode === 'alert' ? (cat ? SP.catAlert : PET_SP.dogAlert)
+      : mode === 'walk' && step ? PET_SP[cat ? 'catStep' : 'dogStep']
+      : cat ? (blink ? SP.catBlink : SP.cat) : PET_SP.dog;
+    var w = rows[0].length, x0 = Math.round(x - w / 2), y0 = y - rows.length + (mode === 'sniff' && step ? 1 : 0);
+    spr(rows, x0, y0, flip);
+    if (mode !== 'sleep') {
+      // collar, so it reads as ours (not the visiting cat); a wagging tail for the dog
+      var cx = flip ? x0 + w - 1 - (cat ? 6 : 7) : x0 + (cat ? 6 : 7);
+      px(cx, y0 + 3, 1, 1, 1);
+      if (!cat && Math.floor(tt * 4) % 2) px(flip ? x0 + w - 1 : x0, y0, 1, 1, 3);
+    } else if (Math.floor(tt) % 3) px(x0 + w + 1 - (Math.floor(tt) % 3) * 2, y0 - 3 - (Math.floor(tt) % 3), 2, 1, 4);
+  }
+  function drawPet(tt, dt, where) {
+    if (!S.pet) return;
+    var p = petPose(tt, where);
+    px(p.x - 5, p.y, 10, 1, 2);
+    drawPetSprite(S.pet.kind, p.x, p.y, p.flip, p.mode, tt);
+    if (L.petGiftReady(S, now(), TZ) && Math.floor(tt * 2) % 2) spr(PET_SP.gift, p.x - 2, p.y - 15);
+    for (var k = petHearts.length - 1; k >= 0; k--) {
+      var h = petHearts[k];
+      h.t += dt;
+      if (h.t > 1.2) { petHearts.splice(k, 1); continue; }
+      spr(PET_SP.heart, h.x - 2 + Math.round(Math.sin(h.t * 6) * 2), h.y - 12 - Math.round(h.t * 14));
+    }
+    petLast = { x: p.x, y: p.y, at: performance.now() };
+  }
+  function tapPet(x, y) {
+    var p = petSeen();
+    if (!S.pet || !p || !hit([p.x - 7, p.y - 11, 14, 12], x, y, 3)) return false;
+    var t = now(), nm = S.pet.name;
+    var g = L.takePetGift(S, t, TZ, L.forestOk(S) ? fEnv(t) : null, Math.random);
+    if (g) {
+      petHearts.push({ x: p.x, y: p.y, t: 0 });
+      burst(p.x, p.y - 8, 8, 0, 40);
+      toast(josa(nm, '이', '가') + ' 선물을 물고 왔다 · ' + L.itemInfo(g.id).name + (g.sold ? ' · 바구니가 꽉 차 팔았다 +' + g.sold : ' · 바구니에'), 2800);
+      refresh(); return true;
+    }
+    var r = L.petPet(S, t, TZ);
+    petHearts.push({ x: p.x, y: p.y, t: 0 });
+    if (r.up) toast('♥ ' + nm + ' 친밀도 ' + r.up + ' · 새 행동: ' + L.PET_ACTS[r.up], 3600);
+    else toast(S.pet.kind === 'cat' ? '골골골… ' + nm + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다') : nm + ' · 꼬리를 흔든다' + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다'), 1500);
+    save(); return true;
+  }
+
+  // ---------- 상점: 반려동물 section + name sheet ----------
+  function petIcon(kind) {
+    var c = document.createElement('canvas'); c.width = 14; c.height = 10;
+    var saved = ctx; ctx = c.getContext('2d');
+    try { drawPetSprite(kind, 7, 9, false, 'sit', 0); } finally { ctx = saved; }
+    c.style.width = '28px'; c.style.height = '20px';
+    return c;
+  }
+  function renderPetShop() {
+    var h3 = document.createElement('h3'); h3.textContent = '반려동물';
+    var hb = document.createElement('b'); hb.textContent = S.pet ? S.pet.name : '한 마리'; h3.appendChild(hb); shopEl.appendChild(h3);
+    if (S.pet) {
+      var lv = L.petLevel(S), next = L.PET_LV[lv];
+      petRow(S.pet.kind, S.pet.name, L.PET_KINDS[S.pet.kind].name + ' · 친밀도 ' + lv + (next ? ' (' + S.pet.f + '/' + next + ')' : ' · 최고') + ' · ' + L.PET_ACTS[lv], '이름', false, function () { openPetSheet('rename'); });
+      return;
+    }
+    var cs = L.adoptStatus(S, 'cat'), ds = L.adoptStatus(S, 'dog');
+    petRow('cat', '고양이', cs === 'locked' ? '마당 고양이와 친구가 되면 (다섯 번 쓰다듬기 · 또는 ' + L.PET_CAT_VISITS + '번 만나기)' : '마당 고양이가 따라오고 싶어 한다 · 무료',
+      cs === 'locked' ? '잠김' : '데려오기', cs === 'locked', function () { openPetSheet('cat'); });
+    petRow('dog', '강아지', '숲에서 채집물을 잘 찾는다 · 쓰다듬고 선물 받기', L.PET_KINDS.dog.cost.toLocaleString('ko-KR'), false, function () {
+      if (L.adoptStatus(S, 'dog') === 'coins') { toast('코인이 부족해요'); return; }
+      openPetSheet('dog');
+    }, ds === 'coins');
+    var p = document.createElement('p'); p.className = 'note'; p.textContent = '한 마리만 함께 살아요 · 장면마다 따라다니고, 하루 몇 번 작은 선물을 가져와요';
+    shopEl.appendChild(p);
+  }
+  function petRow(kind, name, sub, label, disabled, onClick, poor) {
+    var r = document.createElement('div'); r.className = 'up';
+    var n = document.createElement('div'); n.className = 'n'; n.textContent = name;
+    var sm = document.createElement('small'); sm.textContent = sub; n.appendChild(sm);
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.disabled = disabled;
+    if (disabled) b.className = 'max';
+    if (poor) b.classList.add('poor');
+    b.setAttribute('aria-label', name + ' ' + label);
+    b.addEventListener('click', onClick);
+    r.appendChild(petIcon(kind)); r.appendChild(n); r.appendChild(b); shopEl.appendChild(r);
+  }
+  // mode: 'cat' | 'dog' (adopt) or 'rename'. The name is typed text: cleaned in logic, shown with textContent only.
+  function openPetSheet(mode) {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'pet'; sheetEl.hidden = false;
+    var kind = mode === 'rename' ? S.pet.kind : mode;
+    sheetHead(mode === 'rename' ? '이름 바꾸기' : L.PET_KINDS[kind].name + ' 데려오기');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = mode === 'rename' ? S.pet.name + '의 새 이름은?' : kind === 'cat' ? '마당 고양이가 발치에 앉는다. 이름을 지어 줄까?' : '꼬리를 흔드는 강아지. 이름을 지어 줄까?';
+    sheetEl.appendChild(say);
+    var row = document.createElement('div'); row.className = 'shareRow';
+    var ic = petIcon(kind); row.appendChild(ic);
+    var inp = document.createElement('input'); inp.type = 'text'; inp.className = 'field'; inp.maxLength = L.PET_NAME_MAX;
+    inp.placeholder = L.PET_KINDS[kind].def; inp.setAttribute('aria-label', '이름 (' + L.PET_NAME_MAX + '글자까지)'); inp.autocomplete = 'off';
+    if (mode === 'rename') inp.value = S.pet.name;
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = mode === 'rename' ? '바꾸기' : '데려오기';
+    row.appendChild(inp); row.appendChild(b); sheetEl.appendChild(row);
+    var hint = document.createElement('p'); hint.className = 'note';
+    hint.textContent = '한글·영문·숫자 ' + L.PET_NAME_MAX + '글자까지 · 비우면 「' + L.PET_KINDS[kind].def + '」' + (kind === 'dog' && mode !== 'rename' ? ' · ' + L.PET_KINDS.dog.cost.toLocaleString('ko-KR') + '코인' : '');
+    sheetEl.appendChild(hint);
+    function submit() {
+      if (mode === 'rename') {
+        var nn = L.renamePet(S, inp.value);
+        if (!nn) { toast('쓸 수 있는 글자로 지어 주세요'); return; }
+        toast('이제 「' + nn + '」', 2000);
+      } else {
+        var r = L.adoptPet(S, kind, inp.value, now());
+        if (!r.ok) { toast(r.why === 'coins' ? '코인이 부족해요' : r.why === 'have' ? '이미 한 마리가 있어요' : '아직 데려올 수 없어요'); return; }
+        toast('★ ' + josa(r.name, '이', '가') + ' 식구가 됐다 · 쓰다듬어 주세요', 3200);
+      }
+      closeSheet(); refresh();
+    }
+    b.addEventListener('click', submit);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    setTimeout(function () { try { inp.focus(); } catch (er) { /* focus may be refused */ } }, 0);
+  }
+
+  // ---------- console hooks ----------
+  function addPetHooks(FF) {
+    // FF.pet('cat'|'dog', name?) adopts for free; FF.pet() shows it; FF.pet('lv', n) sets 친밀도 level; FF.pet('gift') makes a gift due
+    FF.pet = function (kind, arg) {
+      if (kind === 'lv') { if (S.pet) S.pet.f = arg ? L.PET_LV[Math.min(L.PET_LV.length, arg) - 1] : 0; }
+      else if (kind === 'gift') { if (S.pet) { S.pet.gnext = 0; S.pet.gn = 0; } }
+      else if (kind === 'cat' || kind === 'dog') { delete S.pet; S.coins += L.PET_KINDS[kind].cost; L.yardOf(S).met.cat = Math.max(S.yard.met.cat || 0, L.PET_CAT_VISITS); L.adoptPet(S, kind, arg || '', now()); }
+      refresh(); return S.pet;
+    };
+  }
+  // ---------- 낚시 잡동사니 · 보물 상자 · 병 편지 (stage 5B): result card, 고물 sheet, 기록 letters ----------
+  // 16×8 art in the fish card's frame, so junk reads as "not a fish" at a glance
+  var JUNK_ART = {
+    boot:   ['....4444........', '....4334........', '....4334........', '....4334........', '....43344444....', '....4333333344..', '....4444444444..', '................'],
+    can:    ['................', '...44444444.....', '...42222224.....', '...40000004.....', '...43333334.....', '...40000004.....', '...44444444.....', '................'],
+    bottle: ['......44........', '......44........', '.....4004.......', '....400004......', '....402204......', '....400004......', '....444444......', '................'],
+    key:    ['................', '.444............', '4..4444444444...', '4..4....4.4.4...', '.444............', '................', '................', '................'],
+    letter: ['......22........', '......44........', '.....4004.......', '....411114......', '....410014......', '....411114......', '....444444......', '................'],
+    chest:  ['...4444444444...', '..433333333334..', '..444444444444..', '..433334433334..', '..433334433334..', '..433333333334..', '..444444444444..', '................']
+  };
+  function junkCanvas(id, unknown) {
+    var c = document.createElement('canvas'); c.width = 16; c.height = 8;
+    var rows = JUNK_ART[id];
+    if (unknown) rows = rows.map(function (r) { return r.replace(/[0134]/g, '2'); });
+    spr(rows, 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+
+  // ---------- the catch: called by doStrike right after a real hook ----------
+  // returns true when the bite was junk (no reel: the line just comes up with it)
+  function catchJunk(roll, f) {
+    var id = L.rollJunk(roll, Math.random);
+    if (!id) return false;
+    var out = L.landJunk(S, id, Math.random);
+    burst(f.x, f.y, 8, 0, 50);
+    floatText('+' + L.junkById(id).name, ROD_BASE.x, ROD_BASE.y - 16);
+    showJunk(out);
+    refresh();
+    return true;
+  }
+  var junkFocus = null;   // what the sheet opens on: 'letter' n, or 'chest'
+  function showJunk(out) {
+    var d = L.junkById(out.id);
+    resultEl.innerHTML = '';
+    var cv2 = junkCanvas(out.id); cv2.className = 'jk'; resultEl.appendChild(cv2);
+    var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = d.name;
+    var sz = document.createElement('div'); sz.className = 'sz';
+    if (out.id === 'letter') sz.textContent = out.reread ? '+' + out.coins + ' · 다시 읽기' : out.letter + '번째 편지 · 눌러서 읽기';
+    else if (out.id === 'chest') sz.textContent = '눌러서 열기';
+    else sz.textContent = '고물 · ' + d.scrap + '코인어치 · 눌러서 보기';
+    resultEl.appendChild(nm); resultEl.appendChild(sz);
+    if (out.first || out.complete) {
+      var tg = document.createElement('div'); tg.className = 'tag';
+      tg.textContent = out.complete ? '편지 12통 완성!' : '처음 건졌다';
+      resultEl.appendChild(tg);
+    }
+    junkFocus = out.id === 'letter' ? { letter: out.letter } : out.id === 'chest' ? { chest: true } : null;
+    resultEl.hidden = false;
+    clearTimeout(showResult.t);
+    showResult.t = setTimeout(hideResult, out.id === 'letter' || out.id === 'chest' ? 4500 : 2600);
+  }
+  // the junk card is the way in: tapping it opens the 고물 sheet (on the letter / chest it brought)
+  resultEl.addEventListener('click', function () {
+    if (!resultEl.querySelector('.jk')) return;
+    hideResult(); openJunk();
+  });
+
+  // ---------- 고물 sheet (reuses the 마당 sheet frame) ----------
+  function openJunk() {
+    if (reel) return;
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'junk'; sheetEl.hidden = false;
+    renderJunk();
+    sheetEl.scrollTop = 0;
+  }
+  function jBtn(row, text, fn, off, label) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = text;
+    if (off) b.disabled = true;
+    if (label) b.setAttribute('aria-label', label);
+    b.addEventListener('click', fn);
+    row.appendChild(b); return b;
+  }
+  function renderJunk() {
+    sheetHead('고물 상자');
+    var j = L.junkOf(S), f = junkFocus;
+    junkFocus = null;
+    if (f && f.letter) {
+      var box = document.createElement('div'); box.className = 'letter new';
+      var lt = document.createElement('div'); lt.className = 'lt'; lt.textContent = '병 편지 ' + f.letter + ' / ' + L.BOTTLE_LETTERS.length;
+      var tx = document.createElement('p'); tx.textContent = L.BOTTLE_LETTERS[f.letter - 1];
+      box.appendChild(lt); box.appendChild(tx); sheetEl.appendChild(box);
+    }
+    if (j.box > 0) {
+      var h = document.createElement('h3'); h.textContent = '보물 상자';
+      var hb = document.createElement('b'); hb.textContent = j.box + '개'; h.appendChild(hb); sheetEl.appendChild(h);
+      var r = sheetRow(junkCanvas('chest'), '보물 상자', '그냥 열거나 · 자물쇠 도전(10초, 성공하면 더 좋은 것)');
+      jBtn(r, '열기', function () { chestResult(L.openChest(S, Math.random, 0), false); });
+      jBtn(r, '도전', function () { startPick(); }, false, '자물쇠 도전');
+    }
+    var h2 = document.createElement('h3'); h2.textContent = '고물';
+    var b2 = document.createElement('b'); b2.textContent = L.scrapValue(S).toLocaleString('ko-KR') + '코인어치'; h2.appendChild(b2); sheetEl.appendChild(h2);
+    L.SCRAP_IDS.forEach(function (id) {
+      var d = L.junkById(id), n = L.junkCount(S, id), seen = !!j.seen[id];
+      var ic = junkCanvas(id, !seen); if (!n) ic.style.opacity = '0.35';
+      var row = sheetRow(ic, seen ? d.name + ' ×' + n : '???', seen ? d.desc + ' · 하나에 ' + d.scrap : '낚시하다 보면 건져요', n ? '' : 'idle');
+      if (n) jBtn(row, '팔기', function () { var v = L.sellScrap(S, id); toast(d.name + ' 팔았다 · +' + v); refresh(); renderJunk(); }, false, d.name + ' 팔기');
+    });
+    var all = document.createElement('button'); all.type = 'button'; all.className = 'sellAll';
+    all.textContent = '고물 다 팔기 · ' + L.scrapValue(S).toLocaleString('ko-KR'); all.disabled = !L.scrapValue(S);
+    all.addEventListener('click', function () { var v = L.sellScrap(S); toast('고물을 팔았다 · +' + v); refresh(); renderJunk(); });
+    sheetEl.appendChild(all);
+    var h3 = document.createElement('h3'); h3.textContent = '재활용'; sheetEl.appendChild(h3);
+    L.RECYCLE.forEach(function (rc) {
+      var st = L.canRecycle(S, rc.id), need = Object.keys(rc.need).map(function (k) { return L.junkById(k).name + ' ' + L.junkCount(S, k) + '/' + rc.need[k]; }).join(' · ');
+      var icon = rc.id === 'chest' ? junkCanvas('chest') : decoIcon(rc.id);
+      var row = sheetRow(icon, rc.name, rc.id === 'chest' ? need + ' · 열쇠 두 개면 상자가 열린다' : need + ' · 마당 장식', st === 'ok' ? '' : 'idle');
+      if (st === 'owned') { jBtn(row, '있음', function () {}, true); return; }
+      jBtn(row, rc.id === 'chest' ? '열쇠 쓰기' : '만들기', function () {
+        var res = L.recycle(S, rc.id);
+        if (!res.ok) { toast('재료가 모자라요'); return; }
+        if (res.box) toast('딸깍 · 보물 상자를 하나 찾았다', 2400);
+        else toast(res.stored ? rc.name + ' 완성 · 보관함에 넣어 뒀어요' : rc.name + ' 완성 · 마당에 놓았다', 2600);
+        refresh(); renderJunk();
+      }, st !== 'ok');
+    });
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '잡동사니는 도감에 안 들어가요 · 병 편지는 도감 › 기록에서 다시 읽을 수 있어요';
+    sheetEl.appendChild(p);
+  }
+  function chestResult(res, challenged) {
+    if (!res) return;
+    var msg = res.kind === 'deco' ? josa(L.decoById(res.id).name, '이', '가') + ' 들어 있었다 · ' + (res.stored ? '보관함에' : '마당에 놓았다') + (res.coins ? ' · +' + res.coins : '')
+      : res.kind === 'seed' ? '황금 수박 씨앗 ' + res.n + '개!' : '코인 +' + res.coins;
+    toast((challenged ? '자물쇠가 풀렸다 · ' : '') + msg, 3200);
+    refresh();
+    if (sheetKind === 'junk') renderJunk();
+  }
+
+  // ---------- 병 편지 in the 도감 기록 tab ----------
+  function renderBottleLetters() {
+    var found = S.junk ? S.junk.letters : [];
+    var h3 = document.createElement('h3'); h3.textContent = '병 편지';
+    var b = document.createElement('b'); b.textContent = found.length + ' / ' + L.BOTTLE_LETTERS.length; h3.appendChild(b); dexEl.appendChild(h3);
+    if (!found.length) {
+      var q = document.createElement('p'); q.className = 'note'; q.textContent = '낚시하다 가끔 병이 걸려요 · 열두 통을 모으면 이야기 하나'; dexEl.appendChild(q);
+    }
+    L.BOTTLE_LETTERS.forEach(function (text, k) {
+      if (found.indexOf(k + 1) < 0) return;
+      var box = document.createElement('div'); box.className = 'letter';
+      var lt = document.createElement('div'); lt.className = 'lt'; lt.textContent = (k + 1) + '번째 병';
+      var tx = document.createElement('p'); tx.textContent = text;
+      box.appendChild(lt); box.appendChild(tx); dexEl.appendChild(box);
+    });
+    var open = document.createElement('button'); open.type = 'button'; open.className = 'sellAll';
+    open.textContent = '고물 상자 열기' + (S.junk && S.junk.box ? ' · 보물 ' + S.junk.box : '');
+    open.addEventListener('click', openJunk);
+    dexEl.appendChild(open);
+  }
+
+  // ---------- minigame overlay: 자물쇠 도전 (보물 상자) and 불 조절 도전 (냄비); one tap type ----------
+  var miniEl = document.createElement('section');
+  miniEl.className = 'overlay'; miniEl.id = 'mini'; miniEl.hidden = true; miniEl.setAttribute('aria-label', '도전');
+  app.appendChild(miniEl);
+  var miniCv = document.createElement('canvas'); miniCv.width = 90; miniCv.height = 56;
+  var miniTitle = document.createElement('h2'), miniTip = document.createElement('p'), miniGive = document.createElement('button');
+  miniTip.className = 'tip'; miniGive.type = 'button'; miniGive.textContent = '그만하고 그냥 받기';
+  miniEl.appendChild(miniTitle); miniEl.appendChild(miniCv); miniEl.appendChild(miniTip); miniEl.appendChild(miniGive);
+  var mini = null;   // { kind: 'pick'|'heat', g, t, done }
+  function miniOn() { return !!mini; }
+  function openMini(kind, g, title, tip) {
+    mini = { kind: kind, g: g, t: 0, done: 0 };
+    miniTitle.textContent = title; miniTip.textContent = tip;
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true; sheetEl.hidden = true;
+    miniEl.hidden = false;
+    drawMini();
+  }
+  function miniTap() {
+    if (!mini || mini.done) return;
+    if (mini.kind === 'pick') {
+      var r = L.pickTap(mini.g, mini.t);
+      if (r === 'hit') burstMini();
+      if (r === 'miss') miniTip.textContent = '아깝다 · 한 번 더 놓치면 그냥 열려요';
+      if (r === 'ok' || r === 'fail') endMini(r);
+    } else L.heatTap(mini.g);
+    drawMini();
+  }
+  var miniFlash = 0;
+  function burstMini() { miniFlash = 0.25; }
+  miniEl.addEventListener('pointerdown', function (e) {
+    if (e.target === miniGive) return;
+    e.preventDefault(); miniTap();
+  });
+  miniGive.addEventListener('click', function () { if (mini && !mini.done) endMini('fail'); });
+  // driven by the frame loop (works in the PiP window too); paused behind the boss key
+  function tickMini(dt) {
+    if (!mini || boss) return;
+    if (mini.done) { mini.done -= dt; if (mini.done <= 0) closeMini(); return; }
+    mini.t += dt; miniFlash = Math.max(0, miniFlash - dt);
+    var r = mini.kind === 'pick' ? L.pickTime(mini.g, mini.t) : L.heatStep(mini.g, dt);
+    if (r) endMini(r);
+    drawMini();
+  }
+  function endMini(r) {
+    var m = mini;
+    m.done = 0.9;
+    miniTip.textContent = r === 'ok' ? '성공!' : '괜찮아요 · 평소대로 받아요';
+    if (m.kind === 'pick') {
+      var res = L.openChest(S, Math.random, r === 'ok' ? 1 : 0);
+      chestResult(res, r === 'ok');
+    } else finishHeat(r === 'ok');
+    drawMini();
+  }
+  function closeMini() {
+    var kind = mini && mini.kind;
+    mini = null; miniEl.hidden = true;
+    if (kind === 'pick') openJunk();
+    else if (kind === 'heat') openBag('cook');
+  }
+  function drawMini() {
+    var c2 = miniCv.getContext('2d'), saved = ctx; ctx = c2;
+    try {
+      px(0, 0, 90, 56, 0);
+      if (mini.kind === 'pick') drawLockPick(mini.g, mini.t); else drawHeat(mini.g);
+    } finally { ctx = saved; }
+  }
+  // three pins in a lock body; the notch band in the middle; set pins stay up
+  function drawLockPick(g, t) {
+    px(6, 4, 78, 48, 4); px(8, 6, 74, 44, 1);
+    var top = 10, h = 36, n0 = top + h * (1 - L.PICK_NOTCH[1]), n1 = top + h * (1 - L.PICK_NOTCH[0]);
+    px(8, n0, 74, n1 - n0, miniFlash > 0 ? 0 : 2);
+    for (var k = 0; k < L.PICK_PINS; k++) {
+      var x = 22 + k * 22, done = g.set.indexOf(k) >= 0, y = done ? (n0 + n1) / 2 : top + h * (1 - L.pinPos(g, k, t));
+      px(x, top, 6, h, 3);
+      px(x - 1, y - 3, 8, 6, k === g.pin && !g.result ? 4 : 3); px(x + 1, y - 1, 4, 2, done ? 0 : 2);
+      if (k === g.pin && !g.result) { px(x + 2, top + h + 2, 2, 2, 4); }
+    }
+    var left = Math.max(0, 1 - t / L.PICK_LIMIT);
+    px(8, 52, Math.round(74 * left), 2, 4);
+  }
+  // a pot over a fire: the heat gauge on the right with its sweet zone, the flame grows with the heat
+  function drawHeat(g) {
+    var gx = 70, gy = 6, gh = 44, z0 = gy + gh * (1 - L.HEAT_ZONE[1]), z1 = gy + gh * (1 - L.HEAT_ZONE[0]);
+    px(gx, gy, 12, gh, 4); px(gx + 2, gy + 2, 8, gh - 4, 0);
+    px(gx + 2, z0, 8, z1 - z0, 2);
+    var hy = gy + gh * (1 - g.h);
+    px(gx - 3, hy - 1, 18, 3, 4);
+    // pot
+    px(14, 10, 40, 4, 4); px(16, 14, 36, 16, 4); px(18, 16, 32, 12, 3);
+    for (var w = 0; w < 3; w++) { var ph = (g.t * 0.8 + w * 0.33) % 1; px(24 + w * 9, 8 - Math.round(ph * 7), 2, 2, 2); }
+    // flame under the pot: height follows heat, flickers
+    var fh = Math.round(3 + g.h * 15);
+    for (var k = 0; k < 6; k++) {
+      var fx = 18 + k * 6, hh = Math.max(2, fh - (k % 3) * 2 + Math.round(Math.sin(g.t * 9 + k) * 1.5));
+      px(fx, 50 - hh, 4, hh, 4); px(fx + 1, 51 - hh + 2, 2, Math.max(1, hh - 3), 2);
+    }
+    px(12, 50, 46, 3, 4);
+    var p = Math.min(1, g.inZone / L.HEAT_NEED);
+    px(4, 6, 4, gh, 4); px(5, 7, 2, gh - 2, 0); px(5, 7 + Math.round((gh - 2) * (1 - p)), 2, Math.round((gh - 2) * p), 3);
+  }
+  function startPick() {
+    if (!S.junk || S.junk.box <= 0) return;
+    openMini('pick', L.newPick(Math.random), '자물쇠 도전', '굵은 핀이 가운데 홈에 오면 탭 · 핀 세 개');
+  }
+
+  // console hooks for testing (attached by boot.js)
+  function addJunkHooks(FF) {
+    // FF.junk('chest') lands that junk now; FF.junk() opens the 고물 sheet
+    FF.junk = function (id) {
+      if (!id) { openJunk(); return S.junk; }
+      var out = L.landJunk(S, id, Math.random); showJunk(out); refresh(); return out;
+    };
+    // FF.letter(n): mark letter n found (FF.letter('all') for every one) and open it
+    FF.letter = function (n) {
+      var j = L.junkOf(S);
+      var list = n === 'all' ? L.BOTTLE_LETTERS.map(function (x, k) { return k + 1; }) : [n || 1];
+      list.forEach(function (k) { if (j.letters.indexOf(k) < 0) j.letters.push(k); });
+      junkFocus = { letter: list[list.length - 1] }; refresh(); openJunk(); return j.letters.slice();
+    };
+    FF.pick = function () { L.junkOf(S).box++; startPick(); return mini; };
+    FF.junkRate = function () { return L.JUNK_CHANCE; };
+  }
+  // ---------- 계절 축제 (stage 5B): small header chip, festival sheet, sky effects, festival/junk decoration art,
+  // the 달력 축제 rows, and the 불 조절 도전 entry for the pot ----------
+  var festOverride;   // FF.festival: undefined = follow the clock, null = none, 'spring'… = that festival now
+  function festNow(t) {
+    if (festOverride === undefined) return L.festivalAt(t, TZ);
+    if (!festOverride) return null;
+    var w = L.festWeek(t, TZ);
+    return { id: festOverride, start: w.start, end: t + 8 * 3600e3 };   // a test window around now
+  }
+  function festId(t) { var w = festNow(t); return w ? w.id : null; }
+
+  // header chip: [icon] 축제 · stays tiny and grey; a dot while the 축제 선물 waits
+  var festChip = document.createElement('button');
+  festChip.type = 'button'; festChip.id = 'festChip'; festChip.hidden = true;
+  var festIcon = document.createElement('canvas'); festIcon.width = 7; festIcon.height = 7;
+  var festLabel = document.createElement('span');
+  var festDot = document.createElement('i'); festDot.className = 'dot';
+  festChip.appendChild(festIcon); festChip.appendChild(festLabel); festChip.appendChild(festDot);
+  coinsEl.after(festChip);
+  festChip.addEventListener('click', function () { openFest(); });
+  var FEST_IC = {
+    spring: ['.44.44.', '4000004', '.40004.', '..404..', '.40004.', '4000004', '.44.44.'],
+    summer: ['4..4..4', '.4.4.4.', '..404..', '4440444', '..404..', '.4.4.4.', '4..4..4'],
+    autumn: ['..444..', '.40004.', '4000044', '4000444', '4000044', '.40004.', '..444..'],
+    winter: ['..444..', '..404..', '..444..', '.44444.', '4400044', '4000004', '.44444.']
+  };
+  var festKey = '';
+  function tickFest(t) {
+    var w = festNow(t), id = w ? w.id : null;
+    L.festTick(S, t, TZ, festOverride === undefined ? undefined : id);
+    var key = id ? id + (L.festClaimable(S, w) ? '!' : '') : '';
+    festChip.hidden = !id;
+    if (key !== festKey) {
+      if (id && booted && !festKey) toast(L.FESTIVALS[id].name + ' 날이에요 · 위의 축제 표시를 눌러 봐요', 3600);
+      festKey = key;
+      if (id) {
+        var c2 = festIcon.getContext('2d'); c2.clearRect(0, 0, 7, 7); spr(FEST_IC[id], 0, 0, false, c2);
+        festLabel.textContent = '';   // icon only: the header has no room for a word next to 6+ digit coins
+        festChip.title = L.FESTIVALS[id].name;
+        festChip.setAttribute('aria-label', L.FESTIVALS[id].name + ' 열기');
+      }
+      festDot.hidden = !(id && L.festClaimable(S, w));
+    }
+    festChip.disabled = !!reel;
+    if (sheetKind === 'fest' && !sheetEl.hidden && Math.floor(t / 1000 / SPEED) % 30 === 0) renderFest();
+  }
+
+  // ---------- festival sheet ----------
+  function openFest() {
+    if (reel) return;
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'fest'; sheetEl.hidden = false;
+    renderFest();
+  }
+  function fmtWhen(start) {
+    var d = new Date(start), days = ['일', '월', '화', '수', '목', '금', '토'];
+    return (d.getMonth() + 1) + '월 ' + d.getDate() + '일(' + days[d.getDay()] + ') ' + L.FEST_FROM + '–' + L.FEST_TO + '시';
+  }
+  function renderFest() {
+    var t = now(), w = festNow(t);
+    if (!w) { sheetHead('계절 축제'); festSchedule(t); return; }
+    var f = L.FESTIVALS[w.id];
+    sheetHead(f.name);
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = f.desc + ' · ' + fmtReal(w.end - t) + ' 남음';
+    sheetEl.appendChild(say);
+    var h = document.createElement('h3'); h.textContent = '축제 선물'; sheetEl.appendChild(h);
+    var owned = S.yard.deco[f.deco], can = L.festClaimable(S, w);
+    var row = sheetRow(decoIcon(f.deco), L.decoById(f.deco).name,
+      owned ? (can ? '이미 있어요 · 대신 ' + L.FEST_GIFT_COINS + '코인' : '오늘 선물은 받았어요') : '이 축제에서만 받는 장식' + (f.recipe ? ' · 송편 레시피도' : ''), can ? '' : 'idle');
+    var b = document.createElement('button'); b.type = 'button';
+    b.textContent = can ? (w.id === 'winter' && !owned ? '만들기' : '받기') : '받음'; b.disabled = !can;
+    b.addEventListener('click', function () {
+      var r = L.festClaim(S, festNow(now()));
+      if (!r) return;
+      var msg = r.deco ? josa(L.decoById(r.deco).name, '이', '가') + ' 생겼다 · ' + (r.stored ? '보관함에' : '마당에 놓았다') : '축제 선물 +' + r.coins;
+      toast(msg + (r.recipe ? ' · 송편 레시피를 배웠다' : ''), 3200);
+      refresh(); renderFest(); festKey = '';
+    });
+    row.appendChild(b);
+    if (w.id === 'winter' && owned) {
+      var r2 = sheetRow(decoIcon('snowman'), '눈사람 꾸미기', snowWear(), '');
+      var b2 = document.createElement('button'); b2.type = 'button'; b2.textContent = '꾸미기';
+      b2.addEventListener('click', function () { L.snowmanStyle(S); refresh(); renderFest(); });
+      r2.appendChild(b2);
+    }
+    var fish = L.fishById(f.fish), got = S.dex.fish[fish.id];
+    h = document.createElement('h3'); h.textContent = '축제 물고기'; sheetEl.appendChild(h);
+    var fc = fishCanvas(fish.id, !got); fc.style.width = '32px'; fc.style.height = '16px';
+    sheetRow(fc, got ? fish.name : '???', fish.hint + (got ? ' · 도감에 있어요' : ''), got ? '' : 'idle');
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '축제 날엔 주문 게시판에 축제 주문(코인 ×' + L.FEST_ORDER_MULT + ', ★+1)이 자주 올라와요';
+    sheetEl.appendChild(p);
+    festSchedule(t);
+  }
+  function snowWear() {
+    var n = (S.fest && S.fest.snow) || 0;
+    return n ? L.SNOW_STYLES.slice(0, n).join(' · ') : '아직 맨몸 · 눌러서 하나씩';
+  }
+  // the four festivals, soonest first, with when they come next
+  function festSchedule(t) {
+    var h = document.createElement('h3'); h.textContent = '축제 날짜';
+    var hb = document.createElement('b'); hb.textContent = '계절마다 수요일'; h.appendChild(hb); sheetEl.appendChild(h);
+    festRows(t, sheetRow);
+  }
+  function festRows(t, rowFn) {
+    var cur = festId(t);
+    L.SEASONS.map(function (id) { return { id: id, w: L.festivalNextOf(id, t, TZ) }; })
+      .sort(function (a, b) { return a.w.start - b.w.start; })
+      .forEach(function (e) {
+        var on = e.id === cur || (festOverride === undefined && t >= e.w.start && t < e.w.end), ic = document.createElement('canvas'); ic.width = 7; ic.height = 7;
+        spr(FEST_IC[e.id], 0, 0, false, ic.getContext('2d'));
+        rowFn(ic, L.FESTIVALS[e.id].name + (on ? ' · 지금!' : ''), on ? fmtReal(festNow(t).end - t) + ' 남음' : fmtWhen(e.w.start) + ' · ' + fmtReal(e.w.start - t) + ' 뒤', on ? '' : 'idle');
+      });
+  }
+  // 달력 (오늘 tab): current / next festival with its countdown
+  function renderFestCal() {
+    var t = now(), w = festNow(t), nx = w || L.nextFestival(t, TZ);
+    var h3 = document.createElement('h3'); h3.textContent = '계절 축제';
+    var b = document.createElement('b'); b.textContent = w ? '지금 축제 중' : '다음 축제'; h3.appendChild(b); calEl.appendChild(h3);
+    var r = document.createElement('div'); r.className = 'up festRow';
+    var ic = document.createElement('canvas'); ic.width = 7; ic.height = 7; spr(FEST_IC[nx.id], 0, 0, false, ic.getContext('2d'));
+    var n = document.createElement('div'); n.className = 'n'; n.textContent = L.FESTIVALS[nx.id].name;
+    var sm = document.createElement('small');
+    sm.textContent = w ? fmtReal(w.end - t) + ' 남음 · ' + L.FESTIVALS[nx.id].desc : fmtWhen(nx.start) + ' · ' + fmtReal(nx.start - t) + ' 뒤';
+    n.appendChild(sm); r.appendChild(ic); r.appendChild(n);
+    var go = document.createElement('button'); go.type = 'button'; go.textContent = w ? '가 보기' : '날짜';
+    go.addEventListener('click', function () { calEl.hidden = true; openFest(); });
+    r.appendChild(go);
+    calEl.appendChild(r);
+  }
+
+  // ---------- sky effects ----------
+  function festPetals(tt) {
+    for (var k = 0; k < 16; k++) {
+      var y = (hash(k * 5 + 11) * (H + 10) + tt * 12 * (0.7 + hash(k + 3) * 0.6)) % (H + 10) - 5;
+      var x = (hash(k * 13 + 2) * W + tt * 7 + Math.sin(tt * 1.3 + k) * 6) % W;
+      var flip = Math.floor(tt * 2.5 + k) % 2;
+      px(x, y, flip ? 2 : 1, flip ? 1 : 2, 0); px(x + 1, y + 1, 1, 1, 2);
+    }
+  }
+  // grayscale fireworks: a burst every ~1.4 s at a fixed-looking random spot, a ring of sparks that falls and fades
+  function festFireworks(tt, top, span) {
+    var period = 1.4;
+    for (var n = 0; n < 2; n++) {
+      var slot = Math.floor(tt / period) - n, age = tt - slot * period;
+      if (age > 1.6) continue;
+      var cx = 20 + hash(slot * 7 + 1) * (W - 40), cy = top + hash(slot * 3 + 5) * span, r = 3 + age * 13;
+      ctx.globalAlpha = Math.max(0, 1 - age / 1.6);
+      if (age < 0.25) px(cx, cy + (0.25 - age) * 60, 1, 3, 0);
+      for (var k = 0; k < 12; k++) {
+        var a = k / 12 * Math.PI * 2 + slot;
+        px(cx + Math.cos(a) * r, cy + Math.sin(a) * r + age * age * 6, 1, 1, k % 3 ? 0 : 1);
+        if (age > 0.3) px(cx + Math.cos(a) * r * 0.6, cy + Math.sin(a) * r * 0.6 + age * age * 4, 1, 1, 2);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  function disk(cx, cy, r, c) {
+    for (var dy = -r; dy <= r; dy++) { var hw = Math.round(Math.sqrt(r * r - dy * dy)); px(cx - hw, cy + dy, hw * 2 + 1, 1, c); }
+  }
+  function festMoon(x, y) { disk(x, y, 8, 1); disk(x, y, 7, 0); px(x - 3, y - 2, 2, 2, 1); px(x + 2, y + 2, 3, 2, 1); px(x - 1, y + 4, 2, 1, 1); }
+  function drawFestival(tt) {
+    var t = now(), id = festId(t);
+    if (!id) return;
+    var ph = curEnv(t).phase, dark = ph === 'night' || ph === 'evening';
+    if (id === 'spring') festPetals(tt);
+    else if (id === 'summer' && dark) festFireworks(tt, view === 'yard' ? 4 : 8, view === 'yard' ? 16 : 40);
+    else if (id === 'autumn' && ph === 'night') {
+      if (view === 'yard') festMoon(150, 12);
+      else if (view === 'farm' && scene === 'pond') {
+        // the full moon is behind you: its reflection wobbles on the pond
+        for (var k = 0; k < 5; k++) { var w = 10 - k * 2 + Math.round(Math.sin(tt * 2 + k)); px(POND.cx + 18 - w / 2, POND.cy - 18 + k * 2, w, 1, 0); }
+      }
+    } else if (id === 'winter' && view !== 'house') {
+      for (var j = 0; j < 10; j++) { var sx = (hash(j * 17) * W + Math.sin(tt * 0.7 + j) * 4 + W) % W, sy = (hash(j * 29 + 3) * H + tt * 9) % H; px(sx, sy, 1, 1, 0); }
+    }
+  }
+
+  // ---------- decoration art: recycled (잡동사니), treasure, festival ----------
+  DRAW_DECO.canchime = function (x, y, tt) {
+    px(x + 1, y, 1, 22, 4); px(x + 1, y, 11, 1, 4); px(x, y + 21, 4, 1, 4);
+    for (var k = 0; k < 3; k++) {
+      var sx = x + 5 + k * 3, len = 4 + k * 2, sw = Math.round(Math.sin(tt * 2 + k) * 0.6);
+      px(sx, y + 1, 1, len, 3); px(sx - 1 + sw, y + 1 + len, 3, 4, 4); px(sx + sw, y + 2 + len, 1, 2, 2);
+    }
+  };
+  DRAW_DECO.bootpot = function (x, y, tt) {
+    px(x + 2, y + 7, 6, 11, 4); px(x + 2, y + 14, 10, 4, 4); px(x + 3, y + 8, 4, 9, 3); px(x + 3, y + 15, 8, 2, 3);
+    var sw = Math.floor(tt * 1.2) % 4 === 0 ? 1 : 0;
+    px(x + 4, y + 2, 1, 6, 3); px(x + 6, y + 3, 1, 5, 3);
+    px(x + 3 + sw, y, 3, 3, 4); px(x + 4 + sw, y + 1, 1, 1, 0); px(x + 6, y + 2, 3, 2, 2);
+  };
+  DRAW_DECO.bottlelamp = function (x, y, tt, night) {
+    px(x + 3, y + 9, 2, 9, 4); px(x + 1, y + 17, 6, 1, 4);
+    px(x + 3, y, 2, 2, 4); px(x + 1, y + 2, 6, 7, 4);
+    var glow = night ? (Math.floor(tt * 3) % 4 ? 0 : 1) : 2;
+    px(x + 2, y + 3, 4, 5, glow); px(x + 3, y + 4, 1, 2, night ? 1 : 0);
+  };
+  DRAW_DECO.anchor = function (x, y) {
+    px(x + 6, y, 4, 1, 4); px(x + 5, y + 1, 1, 2, 4); px(x + 10, y + 1, 1, 2, 4); px(x + 6, y + 3, 4, 1, 4);
+    px(x + 7, y + 3, 2, 15, 4); px(x + 3, y + 6, 10, 2, 4);
+    px(x + 1, y + 13, 2, 4, 4); px(x + 13, y + 13, 2, 4, 4); px(x + 2, y + 17, 12, 2, 4);
+    px(x, y + 12, 3, 1, 4); px(x + 13, y + 12, 3, 1, 4); px(x + 8, y + 5, 1, 10, 2);
+  };
+  DRAW_DECO.shipwheel = function (x, y, tt) {
+    var cx = x + 9, cy = y + 8, a0 = tt * 0.3;
+    px(x + 8, y + 15, 2, 5, 4); px(x + 5, y + 19, 8, 1, 4);
+    for (var k = 0; k < 8; k++) {
+      var a = a0 + k * Math.PI / 4;
+      for (var r = 1; r < 9; r++) px(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 1, 1, r > 6 ? 4 : 3);
+    }
+    for (var j = 0; j < 28; j++) { var b = j / 28 * Math.PI * 2; px(cx + Math.cos(b) * 6, cy + Math.sin(b) * 6, 1, 1, 4); }
+    px(cx - 1, cy - 1, 3, 3, 4);
+  };
+  DRAW_DECO.sakura = function (x, y, tt) {
+    px(x + 11, y + 22, 4, 18, 4); px(x + 12, y + 23, 1, 17, 3); px(x + 8, y + 26, 4, 1, 4); px(x + 15, y + 24, 4, 1, 4);
+    for (var k = 0; k < 70; k++) {
+      var a = hash(k * 7 + 3) * Math.PI * 2, r = Math.sqrt(hash(k * 5 + 1)) * 12;
+      px(x + 13 + Math.cos(a) * r, y + 13 + Math.sin(a) * r * 0.85, 2, 2, k % 5 === 0 ? 3 : k % 3 ? 1 : 0);
+    }
+    for (k = 0; k < 3; k++) { var fy = (tt * 8 + k * 13) % 22, fx = x + 4 + k * 8 + Math.sin(tt * 2 + k) * 2; px(fx, y + 18 + fy, 1, 1, 1); }
+  };
+  DRAW_DECO.firelamp = function (x, y, tt, night) {
+    px(x + 4, y + 8, 2, 14, 4); px(x + 2, y + 21, 6, 1, 4);
+    px(x + 1, y + 1, 8, 8, 4); px(x + 3, y, 4, 1, 4);
+    var fl = Math.floor(tt * 6) % 3;
+    px(x + 2, y + 2, 6, 6, night ? 0 : 1); px(x + 4, y + 3 + (fl === 1 ? 1 : 0), 2, 3, night ? 1 : 2);
+    if (night && fl === 0) { px(x, y - 2, 1, 1, 0); px(x + 9, y - 1, 1, 1, 0); }
+  };
+  DRAW_DECO.moonrabbit = function (x, y) {
+    px(x, y + 14, 14, 4, 4); px(x + 1, y + 15, 12, 2, 2);
+    px(x + 3, y + 7, 8, 7, 4); px(x + 4, y + 8, 6, 5, 1);
+    px(x + 7, y + 4, 5, 5, 4); px(x + 8, y + 5, 3, 3, 1); px(x + 10, y + 6, 1, 1, 4);
+    px(x + 8, y, 1, 5, 4); px(x + 10, y + 1, 1, 4, 4);
+    px(x + 1, y + 11, 3, 3, 4); px(x + 2, y + 12, 1, 1, 0);
+  };
+  DRAW_DECO.snowman = function (x, y) {
+    var cx = x + 8, wear = (S.fest && S.fest.snow) || 0;
+    disk(cx, y + 17, 6, 4); disk(cx, y + 17, 5, 0);
+    disk(cx, y + 8, 4, 4); disk(cx, y + 8, 3, 0);
+    px(cx - 2, y + 7, 1, 1, 4); px(cx + 1, y + 7, 1, 1, 4); px(cx, y + 15, 1, 1, 4); px(cx, y + 18, 1, 1, 4);
+    if (wear >= 1) { px(cx - 3, y + 3, 7, 1, 4); px(cx - 2, y, 5, 3, 4); px(cx - 1, y + 1, 3, 1, 3); }
+    if (wear >= 2) { px(cx - 4, y + 11, 9, 2, 3); px(cx + 2, y + 13, 2, 3, 3); }
+    if (wear >= 3) { px(cx - 11, y + 13, 5, 1, 4); px(cx - 12, y + 11, 1, 2, 4); px(cx + 6, y + 13, 5, 1, 4); px(cx + 11, y + 11, 1, 2, 4); }
+    if (wear >= 4) px(cx + 1, y + 9, 3, 1, 2);
+  };
+
+  // ---------- 불 조절 도전: the cook tab's extra button when a dish is ready ----------
+  function heatButton(row) {
+    row.appendChild(act('도전', function () { startHeat(); }, { label: '불 조절 도전 · 성공하면 값 ×' + L.HEAT_BONUS }));
+  }
+  function startHeat() {
+    if (!L.potReady(S, now())) return;
+    openMini('heat', L.newHeat(Math.random), '불 조절 도전', '탭해서 불 지피기 · 눈금 칸에 3초 머물면 성공');
+  }
+  function finishHeat(ok) {
+    var d = L.takeDish(S, now(), ok ? L.HEAT_BONUS : 1);
+    if (!d) return;
+    var nm = L.itemInfo(d.id).name;
+    toast((ok ? '불 조절 성공 · ' + nm + ' 값 ×' + L.HEAT_BONUS : nm + ' 완성 · 바구니에 담았다') + (d.first ? ' · 도감에 기록' : ''), 3000);
+    refresh();
+  }
+
+  // console hooks for testing (attached by boot.js)
+  function addFestHooks(FF) {
+    // FF.festival('autumn') = pretend that festival is on now; FF.festival(null) = none; FF.festival() = follow the clock
+    FF.festival = function (id) {
+      festOverride = arguments.length ? (id || null) : undefined;
+      festKey = ''; tickFest(now()); if (!calEl.hidden) renderCal();
+      return festNow(now());
+    };
+    FF.fest = openFest;
+    FF.heat = function () { if (!L.potReady(S, now())) { S.pot = { id: 'jam', until: now() }; } startHeat(); return mini; };
+  }
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -5659,6 +7449,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     tickBasket(t);
     tickFishing(t);
     tickYard(t);
+    tickForestUI(t);   // stage 5A: 숲 spots, pet finds, 도전 timeout
+    tickFest(t);       // stage 5B: festival on/off, header chip
+    tickNotice(t);     // a short condition opened an uncaught fish/find here
     renderTray();
     updateTitle();
   }
@@ -5669,6 +7462,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- render ----------
   function frame(dt) {
     var tt = performance.now() / 1000;
+    tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);
@@ -5677,7 +7471,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     shake = Math.max(0, shake - dt * 8);
     scareWob = Math.max(0, scareWob - dt);
     ctx.translate(sx, sy);
-    if (drawScene(tt, dt)) { drawParticles(dt); ctx.restore(); return; }   // stage 3: 마당 / 집 안
+    if (drawScene(tt, dt)) { drawFestival(tt); drawParticles(dt); drawChallenge(); ctx.restore(); return; }   // stage 3: 마당 / 집 안 (+ 5A 숲, 5B festival sky)
     ctx.drawImage(bg, 0, 0);
 
     drawWater(tt, dt);
@@ -5689,9 +7483,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drawBasketCorner(tt);
     var tip = drawFishing(tt, dt);
     drawFarmer(tt);
+    drawPet(tt, dt, 'farm');   // stage 5A
     drawRod(tip);
     drawParticles(dt);
     drawWeather(tt, dt);
+    drawChallenge();          // stage 5A: 수확 도전 gauge
+    drawFestival(tt);            // stage 5B: petals, fireworks, moon on the water
     ctx.restore();
   }
 
@@ -5741,14 +7538,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var holder = pw.document.createElement('div'); holder.id = 'stage';
       pw.document.body.appendChild(holder);
       holder.appendChild(app);
-      pipBtn.textContent = '돌아가기';
+      pipBtn.textContent = '돌아가기'; pipBtn.title = '원래 창으로 돌아가기';
       curWin = pw; bindDoc(pw.document, pw); fit(); startLoop();
       pw.addEventListener('pagehide', function () {
         stageEl.appendChild(app);
         pipWin = null; curWin = window; pipClosed = true;
-        pipBtn.innerHTML = PIP_LABEL + '다시 띄우기';
+        pipBtn.innerHTML = PIP_LABEL + '다시'; pipBtn.title = '다시 작게 띄우기';
         fit(); startLoop();
-        toast('작게 띄운 창을 닫았어요 · 위의 다시 띄우기', 3200);
+        toast('작게 띄운 창을 닫았어요 · 위의 📌 다시', 3200);
       });
     }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
   }
@@ -5816,6 +7613,10 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   };
   addSkyHooks(globalThis.FF);
   addYardHooks(globalThis.FF);
+  addForestHooks(globalThis.FF);   // stage 5A: FF.forest(), FF.forage(all)
+  addPetHooks(globalThis.FF);      // stage 5A: FF.pet(kind)
+  addJunkHooks(globalThis.FF);   // stage 5B: FF.junk, FF.letter, FF.pick
+  addFestHooks(globalThis.FF);   // stage 5B: FF.festival, FF.fest, FF.heat
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

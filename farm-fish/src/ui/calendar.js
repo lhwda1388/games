@@ -55,6 +55,7 @@
     sm.textContent = L.SEASON_NAME[nextSeason] + '까지 ' + fmtReal(L.seasonLeftMs(t, TZ)) + ' · 계절은 현실 1주';
     big.appendChild(sm); top.appendChild(big); calEl.appendChild(top);
     renderDaily();     // stage 4: 오늘의 할 일 + 농장 N년차
+    renderFestCal();   // stage 5B: current / next 계절 축제
 
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';
@@ -120,6 +121,7 @@
       v.textContent = L.spotUnlocked(S, sp) ? (sp === L.curSpot(S) ? '여기' : L.SPOTS[sp].name) : '잠김';
       r.appendChild(ic); r.appendChild(n); r.appendChild(v); calEl.appendChild(r);
     });
+    renderForestNow(e);   // stage 5A: what grows in the 숲 only now
   }
   function note(text) { var p = document.createElement('p'); p.className = 'note'; p.textContent = text; calEl.appendChild(p); }
 

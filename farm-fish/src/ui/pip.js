@@ -21,14 +21,14 @@
       var holder = pw.document.createElement('div'); holder.id = 'stage';
       pw.document.body.appendChild(holder);
       holder.appendChild(app);
-      pipBtn.textContent = '돌아가기';
+      pipBtn.textContent = '돌아가기'; pipBtn.title = '원래 창으로 돌아가기';
       curWin = pw; bindDoc(pw.document, pw); fit(); startLoop();
       pw.addEventListener('pagehide', function () {
         stageEl.appendChild(app);
         pipWin = null; curWin = window; pipClosed = true;
-        pipBtn.innerHTML = PIP_LABEL + '다시 띄우기';
+        pipBtn.innerHTML = PIP_LABEL + '다시'; pipBtn.title = '다시 작게 띄우기';
         fit(); startLoop();
-        toast('작게 띄운 창을 닫았어요 · 위의 다시 띄우기', 3200);
+        toast('작게 띄운 창을 닫았어요 · 위의 📌 다시', 3200);
       });
     }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
   }

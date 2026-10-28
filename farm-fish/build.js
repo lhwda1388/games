@@ -1,5 +1,5 @@
-// build.js — joins src/ into the single self-contained index.html.
-// Usage: node build.js   (no dependencies; same sources always give the same bytes)
+// farm-fish/build.js — joins src/ into the single self-contained index.html.
+// Usage: node farm-fish/build.js   (no dependencies; same sources always give the same bytes)
 // Files are pasted in the order listed. logic/ and ui/ files are fragments of one shared closure each
 // (see src/page.html), so a file can use any name defined in an earlier one. New file = one new line.
 'use strict';
@@ -12,7 +12,11 @@ const STYLE = [
   'style.css',
   'calendar.css',       // stage 2: clock indicator and 달력 panel
   'yard.css',           // stage 3: scene button, merchant/letter sheet
-  'stage4.css'          // stage 4: 주민 hearts, 할 일, 친구 code fields and comparison, 찌! button
+  'stage4.css',         // stage 4: 주민 hearts, 할 일, 친구 code fields and comparison, 찌! button
+  // stage 5A
+  'forest.css',         // 숲·반려동물: name sheet input
+  // stage 5B
+  'festival.css'        // 축제 chip, 도전 overlay (자물쇠 / 불 조절)
 ];
 
 const BODY = [
@@ -38,6 +42,14 @@ const LOGIC = [
   'logic/aquarium.js',  // 수족관 in the house (s.tank)
   'logic/daily.js',     // 오늘의 할 일 (s.daily)
   'logic/share.js',     // 농장 N년차, 친구 기록 비교 code, stage-4 save block
+  // stage 5A
+  'logic/forest.js',    // 숲 채집: forage table, regrowing spots, forest recipes (s.forest)
+  'logic/challenge.js', // 도전 gauge for 채집/수확 (pure judging), 특상품
+  'logic/pets.js',      // 반려동물 (s.pet), stage-5A save block
+  // stage 5B
+  'logic/junk.js',      // 낚시 잡동사니, 보물 상자 (+ 자물쇠 도전), 병 편지 (s.junk)
+  'logic/festivals.js', // 계절 축제 windows, festival fish/deco/송편/orders (s.fest)
+  'logic/heat.js',      // 불 조절 도전 (optional cooking minigame)
   'logic/dex.js',       // 도감 counts and milestones (reads CROPS and FISH at load: keep after them)
   'logic/save.js'       // newState, resume, encode/decode: all save compatibility
 ];
@@ -69,6 +81,12 @@ const UI = [
   'ui/aquarium.js',     // 수족관 in the house + its sheet
   'ui/daily.js',        // 오늘의 할 일 + 농장 N년차 in the 달력, daily tick
   'ui/share.js',        // 도감 친구 tab: my record code, friend comparison
+  // stage 5A
+  'ui/forest.js',       // 숲 scene, forage art, 도전 gauge overlay (채집·수확), 도감 채집 section, 달력 entries
+  'ui/pets.js',         // 반려동물: art, follow/idle per scene, petting, gifts, adoption + name sheet
+  // stage 5B
+  'ui/junk.js',         // 잡동사니 catch card, 고물 상자 sheet, 병 편지 in 기록, 도전 overlay (자물쇠 / 불 조절)
+  'ui/festivals.js',    // 축제 chip + sheet, festival sky, new decoration art, 달력 축제 rows, pot 도전 button
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/boot.js'          // boot sequence and console hooks (keep last)

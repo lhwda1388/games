@@ -77,7 +77,7 @@
     if (!s.res) s.res = { f: {}, lv: {}, rec: {}, unread: [] };
     return s.res;
   }
-  function recipeKnown(s, r) { return !r.gift || !!(s.res && s.res.rec[r.id]); }
+  function recipeKnown(s, r) { return (!r.gift || !!(s.res && s.res.rec[r.id])) && (!r.festival || festLearned(s, r.id)); }
   function friendLevel(s, id) { return (s.res && s.res.lv[id]) || 0; }
   function friendPoints(s, id) { return (s.res && s.res.f[id]) || 0; }
   // a gift that is already owned (or has no decoration slot free) turns into its price in coins; with no spot it fits, it waits in the 보관함

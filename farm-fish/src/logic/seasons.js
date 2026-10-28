@@ -32,8 +32,9 @@
   // seasonal crops (and dishes that need one) stay off the order board: orders have no deadline, seasons do
   function seasonalItem(id) {
     if (CROPS[id]) return !!CROPS[id].season;
+    if (forageById(id)) return forageSeasonal(id);
     var r = recipeById(id);
-    return !!r && r.need.some(function (x) { return !!(CROPS[x] && CROPS[x].season); });
+    return !!r && r.need.some(function (x) { return !!(CROPS[x] && CROPS[x].season) || forageSeasonal(x); });
   }
 
   expose({ SEASON_CROPS: SEASON_CROPS, cropSeasonOk: cropSeasonOk, seasonCrops: seasonCrops, seasonalItem: seasonalItem });

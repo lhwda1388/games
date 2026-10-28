@@ -1,0 +1,5 @@
+/* Hallmark · component: 반려동물 name sheet · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (reuses .field/.shareRow/.up; instant, no loading/error)
+ * stage 5A. Only tokens, no new colours.
+ */
+.shareRow canvas,.up canvas{image-rendering:pixelated;flex:none}

@@ -36,6 +36,10 @@
   };
   addSkyHooks(globalThis.FF);
   addYardHooks(globalThis.FF);
+  addForestHooks(globalThis.FF);   // stage 5A: FF.forest(), FF.forage(all)
+  addPetHooks(globalThis.FF);      // stage 5A: FF.pet(kind)
+  addJunkHooks(globalThis.FF);   // stage 5B: FF.junk, FF.letter, FF.pick
+  addFestHooks(globalThis.FF);   // stage 5B: FF.festival, FF.fest, FF.heat
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

@@ -19,6 +19,9 @@
     tickBasket(t);
     tickFishing(t);
     tickYard(t);
+    tickForestUI(t);   // stage 5A: 숲 spots, pet finds, 도전 timeout
+    tickFest(t);       // stage 5B: festival on/off, header chip
+    tickNotice(t);     // a short condition opened an uncaught fish/find here
     renderTray();
     updateTitle();
   }
@@ -29,6 +32,7 @@
   // ---------- render ----------
   function frame(dt) {
     var tt = performance.now() / 1000;
+    tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);
@@ -37,7 +41,7 @@
     shake = Math.max(0, shake - dt * 8);
     scareWob = Math.max(0, scareWob - dt);
     ctx.translate(sx, sy);
-    if (drawScene(tt, dt)) { drawParticles(dt); ctx.restore(); return; }   // stage 3: 마당 / 집 안
+    if (drawScene(tt, dt)) { drawFestival(tt); drawParticles(dt); drawChallenge(); ctx.restore(); return; }   // stage 3: 마당 / 집 안 (+ 5A 숲, 5B festival sky)
     ctx.drawImage(bg, 0, 0);
 
     drawWater(tt, dt);
@@ -49,9 +53,12 @@
     drawBasketCorner(tt);
     var tip = drawFishing(tt, dt);
     drawFarmer(tt);
+    drawPet(tt, dt, 'farm');   // stage 5A
     drawRod(tip);
     drawParticles(dt);
     drawWeather(tt, dt);
+    drawChallenge();          // stage 5A: 수확 도전 gauge
+    drawFestival(tt);            // stage 5B: petals, fireworks, moon on the water
     ctx.restore();
   }
 

@@ -12,6 +12,7 @@
       refresh();
       return;
     }
+    if (catchJunk(res.roll, f)) return;   // stage 5B: sometimes a common bite is junk (no reel)
     reelRoll = res.roll;
     reel = L.newReel(res.roll, L.tier(S, 'rod'));
     reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false };

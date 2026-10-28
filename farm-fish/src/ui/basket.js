@@ -153,7 +153,7 @@
         var bar = document.createElement('div'); bar.className = 'potbar';
         var fill = document.createElement('i'); fill.style.width = Math.round((1 - (S.pot.until - t) / r.time) * 100) + '%';
         bar.appendChild(fill); row.querySelector('.n').appendChild(bar);
-      } else row.appendChild(act('꺼내기', tapPot));
+      } else { row.appendChild(act('꺼내기', tapPot)); heatButton(row); }   // stage 5B: optional 불 조절 도전
     } else {
       var p = document.createElement('p'); p.className = 'note'; p.textContent = '비어 있어요 · 바구니 재료로 요리하면 더 비싸게 팔려요'; bagEl.appendChild(p);
     }
@@ -166,6 +166,11 @@
       if (r.gift && !L.recipeKnown(S, r)) {
         var ig = dishCanvas('?'); ig.style.opacity = '0.35';
         upRow(ig, '???', L.residentById(r.gift).name + '와 친해지면 알려 준대요', 'idle');
+        return;
+      }
+      if (r.festival && !L.recipeKnown(S, r)) {   // stage 5B: 송편 is learned at its festival
+        var iz = dishCanvas('?'); iz.style.opacity = '0.35';
+        upRow(iz, '???', L.FESTIVALS[r.festival].name + ' 날 배울 수 있대요', 'idle');
         return;
       }
       if (r.hidden && !known) {

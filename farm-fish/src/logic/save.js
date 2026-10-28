@@ -91,11 +91,15 @@
         if (oo && itemInfo(oo.id) && num(oo.n) && oo.n > 0 && num(oo.reward) && num(oo.rep)) {
           s.orders[k] = { o: { id: oo.id, n: Math.floor(oo.n), reward: Math.round(oo.reward), rep: Math.floor(oo.rep) }, at: 0 };
           if (oo.special === true) s.orders[k].o.special = true;
+          if (typeof oo.fest === 'string' && FESTIVALS[oo.fest]) s.orders[k].o.fest = oo.fest;   // stage 5B
         } else if (num(q.at)) s.orders[k] = { o: null, at: q.at };
       }
       if (o.pot && recipeById(o.pot.id) && num(o.pot.until)) s.pot = { id: o.pot.id, until: o.pot.until };
       decodeYard(o, s);   // stage 3: s.yard, s.animals (optional; absent in older saves)
       decodeStage4(o, s); // stage 4: s.born, s.nick, s.res, s.tank, s.daily (optional; needs the house tier above)
+      decodeStage5A(o, s); // stage 5A: s.forest, s.pet (optional)
+      decodeJunk(o, s);   // stage 5B: s.junk (잡동사니, 병 편지, 보물 상자; optional)
+      decodeFest(o, s);   // stage 5B: s.fest (축제 선물, 송편, 눈사람; optional)
       return s;
     } catch (e) { return null; }
   }

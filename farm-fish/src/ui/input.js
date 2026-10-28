@@ -11,7 +11,7 @@
     var p = toLocal(e);
     tap(p.x, p.y);
   });
-  function release() { holdPointer = false; }
+  function release() { holdPointer = false; chRelease(); }   // stage 5A: lets go of a 도전 gauge
   cv.addEventListener('pointerup', release);
   cv.addEventListener('pointercancel', release);
   cv.addEventListener('lostpointercapture', release);
@@ -22,7 +22,7 @@
     return s + '초';
   }
   function tap(x, y) {
-    if (reel) return;
+    if (reel || chal) return;
     if (!resultEl.hidden) hideResult();
     if (tapScene(x, y)) return;
     if (S.fish.phase === 'bite') { doStrike(); return; }
@@ -47,6 +47,7 @@
       e.preventDefault();
       if (e.repeat) return;
       holdSpace = true;
+      if (miniOn()) { miniTap(); return; }   // stage 5B: 도전 overlay takes the tap
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();

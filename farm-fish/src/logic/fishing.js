@@ -4,8 +4,8 @@
     { id: 'crucian', name: '붕어',     rarity: '흔함',    w: 34, min: 14, max: 32,  power: 1.0,  price: 28 },
     { id: 'catfish', name: '메기',     rarity: '드묾',    w: 16, min: 30, max: 72,  power: 1.3,  price: 70 },
     { id: 'carp',    name: '비단잉어', rarity: '희귀',    w: 7,  min: 40, max: 90,  power: 1.6,  price: 160 },
-    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
-    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.2,  price: 1200, window: 'friday' },
+    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.4, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
+    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.2,  price: 1200, window: 'friday', share: 0.2 },
     { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 2.0,  price: 600, unlock: 'koi' },
     // 강 (river). phase = game-clock time of day, weather = weatherAt(), season = game season (stage 4 adds seasonal fish)
     { id: 'dace',      name: '갈겨니',   rarity: '흔함', w: 40, min: 8,  max: 18,  power: 0.9, price: 30,   spot: 'river', hint: '여울에 흔한 작은 물고기' },
@@ -54,9 +54,36 @@
       return inWindow(f, d) && (!f.unlock || !!(s && s.ms && s.ms[f.unlock])) && (f.spot || 'pond') === spot && fishEnvOk(f, env);
     });
   }
+  // 첫 만남 보정: a time/weather/season/festival fish not caught yet bites more often while its condition holds.
+  // Unlock-only fish (금빛 잉어) and the egg 시계 물고기 are left alone.
+  var FIRST_MUL = 2.5, FIRST_MUL_LEGEND = 3, POOL_SHARE_MAX = 0.55;
+  function firstMeet(s, f) {
+    return !!(s && s.dex && s.dex.fish && !s.dex.fish[f.id] && !f.unlock && !f.egg && (f.window || isConditional(f)));
+  }
+  // weights for a pool. A fish with `share` (점심 붕어, 퇴근 참치) takes that fraction of the pool while it is in,
+  // whatever else swims there; better bait raises the odds like any rare fish, capped at POOL_SHARE_MAX.
+  function fishWeights(pool, s) {
+    var rare = s ? UPG.bait.rare[tier(s, 'bait')] : 1, others = 0, shTot = 0;
+    var wt = pool.map(function (f) {
+      if (f.share) return 0;
+      var w = f.w * (f.rarity === '흔함' ? 1 : rare);
+      if (firstMeet(s, f)) w *= f.rarity === '전설' ? FIRST_MUL_LEGEND : FIRST_MUL;
+      others += w;
+      return w;
+    });
+    var sh = pool.map(function (f) {
+      if (!f.share) return 0;
+      var odds = f.share / (1 - f.share) * (f.rarity === '흔함' ? 1 : rare), x = Math.min(POOL_SHARE_MAX, odds / (1 + odds));
+      shTot += x;
+      return x;
+    });
+    if (shTot > POOL_SHARE_MAX) sh = sh.map(function (x) { return x * POOL_SHARE_MAX / shTot; }), shTot = POOL_SHARE_MAX;
+    pool.forEach(function (f, k) { if (f.share) wt[k] = others > 0 ? others * sh[k] / (1 - shTot) : 1; });
+    return wt;
+  }
   function rollFish(d, rng, s, env) {
-    var pool = availableFish(d, s, env), tot = 0, k, rare = s ? UPG.bait.rare[tier(s, 'bait')] : 1;
-    var wt = pool.map(function (f) { return f.w * (f.rarity === '흔함' ? 1 : rare); });
+    var pool = availableFish(d, s, env), tot = 0, k;
+    var wt = fishWeights(pool, s);
     for (k = 0; k < pool.length; k++) tot += wt[k];
     var r = rng() * tot, pick = pool[pool.length - 1];
     for (k = 0; k < pool.length; k++) { r -= wt[k]; if (r < 0) { pick = pool[k]; break; } }
@@ -160,7 +187,7 @@
 
   expose({
     FISH: FISH, BITE_MS: BITE_MS, REEL_MAX: REEL_MAX, NIBBLE_MS: NIBBLE_MS,
-    fishById: fishById, inWindow: inWindow, availableFish: availableFish, rollFish: rollFish, sizeFrac: sizeFrac,
+    fishById: fishById, inWindow: inWindow, availableFish: availableFish, fishWeights: fishWeights, firstMeet: firstMeet, rollFish: rollFish, sizeFrac: sizeFrac,
     waitMs: waitMs, cast: cast, reelIn: reelIn, updateFishing: updateFishing, hook: hook, strike: strike,
     newReel: newReel, reelStep: reelStep, landFish: landFish, loseFish: loseFish
   });

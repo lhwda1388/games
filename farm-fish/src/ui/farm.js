@@ -110,6 +110,21 @@
   }
 
   // returns true when (x, y) hit a plot, bought or not
+  // harvest plot i (r = its rect); won = the 수확 도전 landed: 특상품, worth double
+  function doHarvest(i, r, won, missed) {
+    var hv = L.harvest(S, i, now(), Math.random);
+    if (!hv) return;
+    var extra = won ? L.premiumHarvest(S, hv) : 0;
+    burst(r.x + 22, r.y + 14, won ? 18 : 10, won ? 4 : 3, won ? 80 : 60);
+    floatText(hv.sold ? '+' + (hv.sold + extra) : (won ? '★' : '+') + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
+    if (hv.gold) toast('★ 딸기×수박 교배! 황금 수박 씨앗을 얻었다', 3500);
+    else if (won) toast('★ 특상품 ' + L.CROPS[hv.crop].name + ' · 값 두 배' + (hv.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + (hv.sold + extra) : ' · 바구니에'), 2600);
+    else if (hv.sold) toast('바구니가 꽉 차서 바로 팔았다 · +' + hv.sold);
+    else if (hv.lost) toast(L.CROPS[hv.crop].name + ' 수확 · 까마귀가 조금 먹었다');
+    else toast((missed ? '아깝다 · ' : '') + L.CROPS[hv.crop].name + ' 수확 · 바구니에 담았다');
+    milestones();
+    refresh();
+  }
   function tapPlot(x, y) {
     var t = now();
     for (var i = 0; i < L.N_MAX; i++) {
@@ -129,17 +144,7 @@
         L.pullWeed(S, i, t); burst(r.x + 22, r.y + 14, 8, 3, 50); toast('잡초 뽑기 완료 · 다시 자란다');
         refresh(); return true;
       }
-      if (L.isReady(p)) {
-        var hv = L.harvest(S, i, t, Math.random);
-        burst(r.x + 22, r.y + 14, 10, 3, 60);
-        floatText(hv.sold ? '+' + hv.sold : '+' + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
-        if (hv.gold) toast('★ 딸기×수박 교배! 황금 수박 씨앗을 얻었다', 3500);
-        else if (hv.sold) toast('바구니가 꽉 차서 바로 팔았다 · +' + hv.sold);
-        else if (hv.lost) toast(L.CROPS[hv.crop].name + ' 수확 · 까마귀가 조금 먹었다');
-        else toast(L.CROPS[hv.crop].name + ' 수확 · 바구니에 담았다');
-        milestones();
-        refresh(); return true;
-      }
+      if (L.isReady(p)) { holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
         if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }

@@ -113,3 +113,58 @@
     var c = fishCond(f);
     return where + (c ? ' · ' + c : '') + (f.hint ? ' · ' + f.hint : ' · ' + f.rarity);
   }
+
+  // ---------- 새 손님 알림: one calm toast when a short condition opens something not caught yet where the player is ----------
+  // Keyed by place + cause; a key is forgotten once its condition ends, so each window speaks at most once
+  // (in memory only: a reload may say it again). Season-only fish/finds stay quiet: a season lasts a week.
+  var noticeSeen = {}, noticeNext = 5000, noticeQuiet = 0;   // first look after the boot messages
+  var NOTICE_PHASE = { morning: '아침이에요', day: '한낮이에요', evening: '저녁이에요', night: '밤이 됐어요' };
+  var NOTICE_WX = { rain: '비가 와요', fog: '안개가 꼈어요', snow: '눈이 와요' };
+  // the short condition behind a fish/find right now: { k, say } or null
+  function noticeCause(f, e) {
+    if (f.window === 'lunch') return { k: 'lunch', say: '점심시간' };
+    if (f.window === 'friday') return { k: 'friday', say: '금요일 저녁' };
+    if (f.fest) return { k: 'fest', say: L.FESTIVALS[f.fest] ? L.FESTIVALS[f.fest].name : '축제날' };
+    if (f.weather) return { k: 'wx:' + f.weather, say: NOTICE_WX[f.weather] };
+    if (f.wet) return { k: 'wet', say: '비 온 숲이 촉촉해요' };
+    if (f.phase) return { k: 'ph:' + e.phase, say: NOTICE_PHASE[e.phase] };
+    return null;
+  }
+  function tickNotice(t) {
+    var p = performance.now();
+    if (p < noticeNext) return;
+    noticeNext = p + 2000;
+    if (reel || boss) return;
+    var d = new Date(t), e = curEnv(t), live = {}, say = null, sayKey = null;
+    var here = view === 'farm' ? L.curSpot(S) : view === 'forest' && L.forestOk(S) ? 'forest' : null;
+    L.FISH.forEach(function (f) {
+      if (f.unlock || f.egg || !L.fishOpen(S, f) || !L.inWindow(f, d) || !L.fishEnvOk(f, e)) return;
+      var c = noticeCause(f, e), sp = f.spot || 'pond';
+      if (!c) return;
+      var key = sp + '|' + c.k;
+      live[key] = true;
+      if (noticeSeen[key] || say) return;
+      if (f.id === 'lunch' && view === 'farm') { sayKey = key; say = '점심시간 · 연못에 점심 붕어가 나왔어요'; return; }
+      if (here !== sp || S.dex.fish[f.id]) return;
+      sayKey = key;
+      say = c.say + ' · ' + spotName(sp) + (f.window === 'friday' ? '에 커다란 그림자가…' : '에 낯선 물고기가…');
+    });
+    if (L.forestOk(S)) {
+      var fe = fEnv(t);
+      L.FORAGE.forEach(function (f) {
+        if (!L.forageConditional(f) || L.forageWeight(f, fe) <= 0) return;
+        var c = noticeCause(f, fe);
+        if (!c) return;
+        var key = 'forest|' + c.k;
+        live[key] = true;
+        if (noticeSeen[key] || say || here !== 'forest' || S.forest.dex[f.id]) return;
+        sayKey = key;
+        say = c.say + ' · 숲에 처음 보는 게…';
+      });
+    }
+    Object.keys(noticeSeen).forEach(function (k) { if (!live[k]) delete noticeSeen[k]; });
+    // never on top of another message: wait out a busy moment, at most one notice per 10 s
+    if (!say || toastEl.classList.contains('on') || p < noticeQuiet) return;   // busy: try again next check
+    noticeSeen[sayKey] = true; noticeQuiet = p + 10e3;
+    toast(say, 3500);
+  }

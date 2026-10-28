@@ -6,7 +6,7 @@
     close.addEventListener('click', function () { dexEl.hidden = true; });
     h.appendChild(close); dexEl.appendChild(h);
     var h3 = document.createElement('h3'); h3.textContent = '모은 만큼 생기는 것';
-    var cnt = document.createElement('b'); cnt.textContent = L.dexCount(S) + ' / ' + L.DEX_ALL + '종'; h3.appendChild(cnt);
+    var cnt = document.createElement('b'); cnt.textContent = (L.dexCount(S) + L.forageDexCount(S)) + ' / ' + (L.DEX_ALL + L.FORAGE.length) + '종'; h3.appendChild(cnt);
     dexEl.appendChild(h3);
     L.MILESTONES.forEach(function (m) {
       var done = !!S.ms[m.id];
@@ -31,9 +31,8 @@
     h3 = document.createElement('h3'); h3.textContent = '물고기'; dexEl.appendChild(h3);
     L.FISH.forEach(function (f) {
       var d = S.dex.fish[f.id];
-      var hint = f.window === 'lunch' ? '12시~13시에만' : f.window === 'friday' ? '금요일 17시 이후에만' : fishHint(f);
       row(fishCanvas(f.id, !d), d ? (f.window === 'friday' ? '★ ' : '') + f.name : '???',
-        d ? (f.spot ? L.SPOTS[f.spot].name + ' · ' : '') + f.rarity + ' · ' + d.n + '마리' : hint, d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);
+        d ? (f.spot ? L.SPOTS[f.spot].name + ' · ' : '') + f.rarity + ' · ' + d.n + '마리' : fishHint(f), d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);
     });
     h3 = document.createElement('h3'); h3.textContent = '요리';
     var dc = document.createElement('b'); dc.textContent = Object.keys(S.dex.dish).length + ' / ' + L.RECIPES.length; h3.appendChild(dc);
@@ -42,6 +41,7 @@
       var n = S.dex.dish[r.id] || 0, ic = dishCanvas(r.id); ic.className = 'sq';
       row(ic, n ? r.name : '???', n ? r.sell + '코인 · ' + Math.round(r.time / 60e3) + '분' : r.hidden ? '귀한 재료가 모이면…' : r.gift && !L.recipeKnown(S, r) ? L.residentById(r.gift).name + '의 선물 레시피' : '아직 안 만듦', n ? n + '번' : '', !n);
     });
+    renderForageDex(row);   // stage 5A: 채집
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
       var n = document.createElement('div'); n.className = 'n'; n.textContent = name;

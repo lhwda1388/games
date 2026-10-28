@@ -1,0 +1,16 @@
+/* Hallmark · component: 축제 chip · 도전 overlay (자물쇠 / 불 조절) · junk card · genre: playful
+ * theme: existing farm-fish grayscale (--g0..--g4) · states: default · hover · focus · active · disabled (local, instant: no loading/error)
+ * stage 5B. Reuses button/.overlay/.up/.letter/.note/.sellAll; only tokens, no new colours. Motion: none beyond the shared button press.
+ */
+#festChip{display:flex;align-items:center;gap:3px;padding:2px 5px;position:relative;font:700 11px var(--font)}
+#festChip canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
+#festChip .dot{position:absolute;right:-4px;top:-4px;width:7px;height:7px;background:var(--g4);border:1px solid var(--g0)}
+#festChip .dot[hidden]{display:none}
+#result .jk{cursor:pointer}
+#result:has(.jk){cursor:pointer}
+#mini{z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;cursor:pointer;touch-action:none}
+#mini h2{justify-content:center;margin:0}
+#mini canvas{width:270px;height:168px;image-rendering:pixelated;border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);flex:none}
+#mini .tip{margin:0;font:700 13px/1.4 var(--font);text-align:center;min-height:36px}
+#mini button{font-family:var(--font)}
+.festRow canvas{width:21px;height:21px}

@@ -24,6 +24,7 @@
     if (it && it.kind === 'fish') { var f = fishCanvas(id); f.className = 'wide'; return f; }
     if (it && it.kind === 'dish') return dishCanvas(id);
     if (it && it.kind === 'crop') return iconCanvas(id);
+    if (it && it.kind === 'forage') return forageIcon(id);   // stage 5A
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;
@@ -71,6 +72,9 @@
       }
       t.b.setAttribute('aria-pressed', String(S.sel === id));
     });
-    coinsEl.textContent = S.coins.toLocaleString('ko-KR');
+    // 6+ digits would push the header buttons off the edge: 123,456 → 12.3만, 1,234,567 → 123만
+    coinsEl.textContent = S.coins < 100000 ? S.coins.toLocaleString('ko-KR')
+      : S.coins < 1000000 ? (Math.floor(S.coins / 1000) / 10) + '만' : Math.floor(S.coins / 10000).toLocaleString('ko-KR') + '만';
+    coinsEl.title = S.coins.toLocaleString('ko-KR');
   }
 
