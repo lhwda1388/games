@@ -1,0 +1,163 @@
+  // ---------- items, basket, order board, cooking ----------
+  // Animal products (stage 3 adds the animals; s.animals[from] > 0 makes a product obtainable).
+  var PRODUCTS = {
+    milk: { id: 'milk', name: '우유', price: 80, from: 'cow' },
+    egg:  { id: 'egg',  name: '달걀', price: 50, from: 'hen' }
+  };
+  // Cooking: one pot, 2–3 ingredients (repeats allowed), time in ms. hidden recipes show as ??? until cooked.
+  var RECIPES = [
+    { id: 'saengchae', name: '무생채',     need: ['radish', 'radish', 'pepper'],   time: 180e3,  sell: 260 },
+    { id: 'friedfish', name: '피라미튀김', need: ['minnow', 'minnow', 'potato'],   time: 240e3, sell: 150 },
+    { id: 'maeuntang', name: '매운탕',     need: ['crucian', 'pepper', 'radish'],  time: 360e3, sell: 300 },
+    { id: 'jam',       name: '딸기잼',     need: ['berry', 'berry'],               time: 300e3, sell: 480 },
+    { id: 'jjim',      name: '메기찜',     need: ['catfish', 'tomato', 'pepper'],  time: 480e3, sell: 600 },
+    { id: 'hobakjuk',  name: '호박죽',     need: ['pumpkin', 'corn'],              time: 900e3, sell: 1900 },
+    { id: 'cornsoup',  name: '옥수수 수프', need: ['corn', 'potato', 'milk'],      time: 480e3, sell: 650 },
+    { id: 'hwachae',   name: '수박화채',   need: ['melon', 'milk'],                time: 600e3, sell: 880 },
+    { id: 'jeon',      name: '감자전',     need: ['potato', 'potato', 'egg'],      time: 300e3, sell: 280 },
+    { id: 'goldbing',  name: '황금 빙수',  need: ['gold', 'berry', 'berry'],       time: 900e3, sell: 4200, hidden: true }
+  ];
+  var ORDER_SLOTS = 3, REFILL_MIN = 1200e3, REFILL_SPAN = 1200e3, SKIP_MIN = 60e3, SKIP_SPAN = 60e3;
+  var SPECIAL_CHANCE = 0.12;
+
+  function recipeById(id) { for (var k = 0; k < RECIPES.length; k++) if (RECIPES[k].id === id) return RECIPES[k]; return null; }
+  function itemInfo(id) {
+    if (CROPS[id]) return { id: id, kind: 'crop', name: CROPS[id].name, price: CROPS[id].sell };
+    var f = fishById(id); if (f) return { id: id, kind: 'fish', name: f.name, price: f.price };
+    var r = recipeById(id); if (r) return { id: id, kind: 'dish', name: r.name, price: r.sell };
+    if (PRODUCTS[id]) return { id: id, kind: 'product', name: PRODUCTS[id].name, price: PRODUCTS[id].price };
+    return null;
+  }
+  // can the player get this item at all right now (some time of day counts)?
+  function obtainable(s, id) {
+    if (CROPS[id]) return id !== 'gold' ? seedUnlocked(s, id) : s.seeds.gold > 0 || !!s.dex.crops.gold;
+    var f = fishById(id); if (f) return fishOpen(s, f);
+    if (PRODUCTS[id]) return !!(s.animals && s.animals[PRODUCTS[id].from] > 0);
+    var r = recipeById(id); if (r) return recipeKnown(s, r) && r.need.every(function (x) { return obtainable(s, x); });
+    return false;
+  }
+
+  // ---------- basket ----------
+  function bagCap(s) { return UPG.basket.cap[tier(s, 'basket')] + houseBag(s); }
+  // into the basket if there's room, otherwise sold on the spot; returns coins earned by overflow
+  function bagAdd(s, id, value) {
+    if (s.bag.length < bagCap(s)) { s.bag.push({ id: id, v: value }); return 0; }
+    s.coins += value; return value;
+  }
+  function bagCount(s, id) { var n = 0; s.bag.forEach(function (e) { if (e.id === id) n++; }); return n; }
+  // removes n of id, cheapest first (big fish stay for selling)
+  function bagTake(s, id, n) {
+    var idx = [];
+    s.bag.forEach(function (e, k) { if (e.id === id) idx.push(k); });
+    if (idx.length < n) return false;
+    idx.sort(function (a, b) { return s.bag[a].v - s.bag[b].v; });
+    var drop = idx.slice(0, n).sort(function (a, b) { return b - a; });
+    drop.forEach(function (k) { s.bag.splice(k, 1); });
+    return true;
+  }
+  function sellAll(s) {
+    var t = 0; s.bag.forEach(function (e) { t += e.v; });
+    s.bag = []; s.coins += t; return t;
+  }
+  function sellId(s, id) {
+    var t = 0;
+    s.bag = s.bag.filter(function (e) { if (e.id !== id) return true; t += e.v; return false; });
+    s.coins += t; return t;
+  }
+
+  // ---------- order board ----------
+  function pick(list, rng) {
+    var tot = 0, k; for (k = 0; k < list.length; k++) tot += list[k].w;
+    var r = rng() * tot;
+    for (k = 0; k < list.length; k++) { r -= list[k].w; if (r < 0) return list[k]; }
+    return list[list.length - 1];
+  }
+  function orderPool(s, special) {
+    var out = [];
+    if (special) {
+      // harder: a rarer pond fish, or two of a dish already cooked
+      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
+      RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
+      return out;
+    }
+    SEEDS.forEach(function (id) { if (seedUnlocked(s, id) && !seasonalItem(id)) out.push({ id: id, w: 3 }); });
+    // seasonal fish (and 장마 가물치) stay off like seasonal crops: an order outlives the season it was posted in
+    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
+    RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
+    return out;
+  }
+  function between(rng, a, b) { return a + Math.floor(rng() * (b - a + 1)); }
+  function genOrder(s, rng) {
+    var special = rng() < SPECIAL_CHANCE;
+    var pool = orderPool(s, special);
+    if (special && !pool.length) { special = false; pool = orderPool(s, false); }
+    var taken = s.orders.map(function (q) { return q.o && q.o.id; });
+    var fresh = pool.filter(function (e) { return taken.indexOf(e.id) < 0; });
+    var it = itemInfo(pick(fresh.length ? fresh : pool, rng).id), n;
+    if (special) n = it.kind === 'dish' ? 2 : between(rng, 1, 2);
+    else if (it.kind === 'crop') { var g = CROPS[it.id].grow; n = g <= 300e3 ? between(rng, 3, 6) : g <= 1200e3 ? between(rng, 2, 4) : between(rng, 1, 2); }
+    else if (it.kind === 'fish') n = it.price < 50 ? between(rng, 2, 4) : between(rng, 1, 2);
+    else n = 1;
+    var mult = special ? 3 + rng() : 1.5 + rng();
+    var o = { id: it.id, n: n, reward: Math.round(it.price * n * mult), rep: special ? 3 : it.kind === 'dish' ? 2 : 1 };
+    if (special) o.special = true;
+    return o;
+  }
+  // fills every empty slot whose wait is over; time-based so it catches up after being away
+  function refreshOrders(s, now, rng) {
+    var n = 0;
+    s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng); n++; } });
+    return n;
+  }
+  function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && bagCount(s, q.o.id) >= q.o.n); }
+  function deliver(s, k, now, rng) {
+    if (!canDeliver(s, k)) return null;
+    var o = s.orders[k].o;
+    bagTake(s, o.id, o.n);
+    s.coins += o.reward; s.rep += o.rep;
+    s.orders[k] = { o: null, at: now + REFILL_MIN + rng() * REFILL_SPAN };
+    dailyBump(s, 'order');
+    return { coins: o.reward, rep: o.rep, special: !!o.special, unlocked: checkUnlocks(s), friend: befriend(s, o) };
+  }
+  // no penalty: drop any order any time, a new one comes in 1–2 min
+  function discard(s, k, now, rng) {
+    var q = s.orders[k];
+    if (!q || !q.o) return false;
+    s.orders[k] = { o: null, at: now + SKIP_MIN + rng() * SKIP_SPAN };
+    return true;
+  }
+
+  // ---------- cooking ----------
+  function canCook(s, id) {
+    var r = recipeById(id);
+    if (!r || freePot(s) < 0 || !recipeKnown(s, r)) return false;
+    var need = {};
+    r.need.forEach(function (x) { need[x] = (need[x] || 0) + 1; });
+    return Object.keys(need).every(function (x) { return bagCount(s, x) >= need[x]; });
+  }
+  function cook(s, id, now) {
+    if (!canCook(s, id)) return false;
+    var r = recipeById(id);
+    r.need.forEach(function (x) { bagTake(s, x, 1); });
+    potSet(s, freePot(s), { id: id, until: now + r.time });
+    return true;
+  }
+  function potReady(s, now) { return readyPot(s, now) >= 0; }
+  function takeDish(s, now) {
+    var k = readyPot(s, now);
+    if (k < 0) return null;
+    var r = recipeById(potGet(s, k).id), first = !s.dex.dish[r.id];
+    s.dex.dish[r.id] = (s.dex.dish[r.id] || 0) + 1;
+    dailyBump(s, 'cook');
+    potSet(s, k, null);
+    return { id: r.id, first: first, sold: bagAdd(s, r.id, r.sell) };
+  }
+
+  expose({
+    PRODUCTS: PRODUCTS, RECIPES: RECIPES, ORDER_SLOTS: ORDER_SLOTS, REFILL_MIN: REFILL_MIN, REFILL_SPAN: REFILL_SPAN,
+    SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
+    recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
+    bagCap: bagCap, bagAdd: bagAdd, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
+    orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
+    discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
+  });

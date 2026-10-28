@@ -1,0 +1,57 @@
+<div id="stage"><div id="app">
+  <header id="hud">
+    <span class="coin" aria-hidden="true"></span><b id="coins" aria-label="코인">0</b>
+    <span class="spacer"></span>
+    <button id="bagBtn" type="button" aria-label="바구니와 주문"></button>
+    <button id="shopBtn" type="button">상점</button>
+    <button id="dexBtn" type="button">도감</button>
+    <button id="pipBtn" type="button" hidden><span class="mono-emoji">📌</span> 작게 띄우기</button>
+  </header>
+  <canvas id="cv" width="180" height="200" aria-label="농장과 연못"></canvas>
+  <button id="clockBtn" type="button" aria-label="달력 열기"></button>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="reelHud" hidden>
+    <span>장력</span><div class="bar" id="tWrap"><i id="tBar"></i></div>
+    <span>낚기</span><div class="bar catch"><i id="cBar"></i></div>
+  </div>
+  <div id="reelCue" hidden></div>
+  <div id="result" hidden></div>
+  <nav id="tray" aria-label="씨앗"></nav>
+  <div id="floats"></div>
+  <section id="dex" class="overlay" hidden aria-label="도감"></section>
+  <section id="shop" class="overlay" hidden aria-label="상점"></section>
+  <section id="bag" class="overlay" hidden aria-label="바구니와 주문"></section>
+  <section id="cal" class="overlay" hidden aria-label="달력과 낚시터"></section>
+  <section id="boss" class="overlay" hidden aria-hidden="true">
+    <div class="bh">4분기_업무정리_v3 (최종).xlsx</div>
+    <div class="fx">fx&nbsp;&nbsp;=SUM(D2:D14)</div>
+    <table>
+      <colgroup><col style="width:24px"><col><col style="width:42px"><col style="width:44px"><col style="width:72px"></colgroup>
+      <tr><th></th><th>A 항목</th><th>B 담당</th><th>C 진도</th><th>D 비용</th></tr>
+      <tr><th>1</th><td>주간 회의록 정리</td><td>운영팀</td><td class="num">80%</td><td class="num">0</td></tr>
+      <tr><th>2</th><td>거래처 견적 비교</td><td>구매</td><td class="num">45%</td><td class="num">1,240,000</td></tr>
+      <tr><th>3</th><td>분기 예산 재배분</td><td>재무</td><td class="num">60%</td><td class="num">3,800,000</td></tr>
+      <tr><th>4</th><td>사내 교육 일정 확정</td><td>인사</td><td class="num">100%</td><td class="num">420,000</td></tr>
+      <tr><th>5</th><td>고객 문의 분류 기준</td><td>CS</td><td class="num">30%</td><td class="num">0</td></tr>
+      <tr><th>6</th><td>서버 비용 점검</td><td>개발</td><td class="num">75%</td><td class="num">2,115,000</td></tr>
+      <tr><th>7</th><td>신규 입사자 장비</td><td>총무</td><td class="num">90%</td><td class="num">1,560,000</td></tr>
+      <tr><th>8</th><td>연말 행사 장소 후보</td><td>총무</td><td class="num">20%</td><td class="num">0</td></tr>
+      <tr><th>9</th><td>계약서 갱신 목록</td><td>법무</td><td class="num">55%</td><td class="num">0</td></tr>
+      <tr><th>10</th><td>KPI 중간 점검</td><td>기획</td><td class="num">65%</td><td class="num">0</td></tr>
+      <tr><th>11</th><td>복리후생 설문 집계</td><td>인사</td><td class="num">40%</td><td class="num">180,000</td></tr>
+      <tr><th>12</th><td>사무용품 재고 확인</td><td>총무</td><td class="num">100%</td><td class="num">96,000</td></tr>
+      <tr><th>13</th><td>보안 점검 체크리스트</td><td>개발</td><td class="num">35%</td><td class="num">0</td></tr>
+      <tr><th>14</th><td></td><td></td><td></td><td class="num">9,411,000</td></tr>
+      <tr><th>15</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>16</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>17</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>18</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>19</th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>20</th><td></td><td></td><td></td><td></td></tr>
+    </table>
+  </section>
+</div></div>
+<div id="pipHint" hidden role="status">
+  <p>아무 곳이나 클릭하면 작게 떠요</p>
+  <label><input type="checkbox" id="pipAuto" checked> 열면 바로 작게 띄우기</label>
+</div>

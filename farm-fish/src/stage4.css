@@ -1,0 +1,27 @@
+/* Hallmark · component: 주민 hearts · 할 일 list · 친구 code fields + comparison · 찌! button · genre: playful
+ * theme: existing farm-fish grayscale (--g0..--g4) · states: default · hover · focus · active · disabled (local, instant: no loading/error)
+ * stage 4. Reuses .overlay/.tabs/.up/.ms/.letter/.note; only tokens, no new colours.
+ */
+.hearts{display:inline-flex;gap:2px;margin-left:5px;vertical-align:0}
+.hearts i{width:8px;height:7px;background:var(--g2);clip-path:polygon(50% 100%,0 45%,0 10%,25% 0,50% 25%,75% 0,100% 10%,100% 45%)}
+.hearts i.on{background:var(--g4)}
+.up button.new{background:var(--g4);color:var(--g0)}
+.up canvas.wide{width:32px;height:16px}
+.todo{margin:2px 0 0}
+.todo .ms .n{font-weight:700}
+.shareRow{display:flex;gap:6px;align-items:center;margin:6px 0 0}
+.field{flex:1;min-width:0;box-sizing:border-box;height:26px;padding:3px 6px;font:700 12px var(--font);color:var(--g4);background:var(--g0);
+  border:2px solid var(--g4);border-radius:0;outline:none;user-select:text;-webkit-user-select:text}
+.field.code{font:700 11px var(--mono);background:var(--g1);letter-spacing:.02em}
+.field::placeholder{color:var(--g2)}
+.field:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
+.cmp{margin:6px 0 0;border:2px solid var(--g4)}
+.cmp .cr{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);border-top:1px dashed var(--g2)}
+.cmp .cr:first-child{border-top:0}
+.cmp .cr span{padding:4px 5px;font:700 11px var(--font);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp .cr span:first-child{color:var(--g3);font-weight:400}
+.cmp .cr.head{background:var(--g4)}
+.cmp .cr.head span{color:var(--g0);font-weight:700}
+.cmp .cr span.win{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:2px}
+#sceneBtn.bite{background:var(--g4);color:var(--g0);animation:jit .12s steps(2) infinite}
+@media (prefers-reduced-motion: reduce){ #sceneBtn.bite{animation:none} }

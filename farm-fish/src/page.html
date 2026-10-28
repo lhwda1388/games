@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>메모</title>
+<link rel="icon" href="data:,">
+<style>
+/*@style*/
+</style>
+</head>
+<body>
+<!--@body-->
+
+<script id="logic">
+(function () {
+  'use strict';
+  // Pure game rules. No DOM, no Date.now(), no Math.random(): time and rng are passed in.
+  // Every src/logic/*.js file is a fragment of this one closure; each lists its public names with expose().
+  var Logic = globalThis.Logic = {};
+  function expose(o) { for (var k in o) Logic[k] = o[k]; }
+
+/*@logic*/
+})();
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+/*@ui*/
+})();
+</script>
+</body>
+</html>

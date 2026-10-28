@@ -1,0 +1,35 @@
+/* Hallmark · component: clock indicator + 달력 panel · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (no loading/error/success: instant local actions)
+ * stage 2. Reuses .overlay/.tabs/.up/.dx/.note from style.css; only tokens, no new colours.
+ */
+/* three stacked 7×7 icons in the top-left corner of the field; 2× pixels so it reads in the 180×200 PiP canvas */
+#clockBtn{position:absolute;left:3px;top:39px;z-index:2;padding:3px;line-height:0;box-shadow:0 2px 0 var(--g4)}
+#clockBtn canvas{width:14px;height:50px;image-rendering:pixelated;display:block}
+#clockBtn:disabled{opacity:.45}
+#cal{padding:10px 12px 14px}
+#cal canvas{image-rendering:pixelated}
+.calTop{display:flex;align-items:center;gap:10px;margin:8px 0 2px}
+.calTop canvas{flex:none}
+.calTop .big{font:700 16px var(--font)}
+.calTop .big small{display:block;font:400 11px var(--font);color:var(--g3);margin-top:2px}
+.daybar{position:relative;display:flex;height:34px;border:2px solid var(--g4);margin:6px 0 2px}
+.daybar .seg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;
+  font:700 10px var(--font);border-right:1px solid var(--g4);overflow:hidden}
+.daybar .seg:last-of-type{border-right:0}
+.daybar .seg.morning{background:var(--g0)}
+.daybar .seg.day{background:var(--g0)}
+.daybar .seg.evening{background:var(--g1)}
+.daybar .seg.night{background:var(--g3);color:var(--g0)}
+.daybar .seg.night canvas{filter:invert(1)}
+.daybar .seg.on span{text-decoration:underline;text-underline-offset:2px}
+.daybar .mark{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:var(--g4);box-shadow:0 0 0 1px var(--g0)}
+.daybar .mark::before{content:"";position:absolute;left:-3px;top:0;border:4px solid transparent;border-top:5px solid var(--g4);border-bottom:0}
+.wxrow{display:flex;align-items:center;gap:8px;margin:6px 0 2px}
+.wxrow .wx{display:flex;align-items:center;gap:6px;flex:1;min-width:0;padding:4px 6px;border:1px dashed var(--g2);font:700 12px var(--font)}
+.wxrow .wx.now{border:2px solid var(--g4)}
+.wxrow .wx small{display:block;font:400 10px var(--font);color:var(--g3)}
+.wxrow .arrow{font:700 12px var(--mono);color:var(--g3)}
+#cal .up canvas{width:24px;height:24px}
+#cal .up button.poor{color:var(--g3)}
+#cal .up button.shake{animation:shake .3s}
+@media (prefers-reduced-motion: reduce){ #cal .up button.shake{animation:none} }
