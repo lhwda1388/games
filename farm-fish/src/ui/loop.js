@@ -20,6 +20,8 @@
     tickFishing(t);
     tickYard(t);
     tickForestUI(t);   // stage 5A: 숲 spots, pet finds, 도전 timeout
+    tickOrchardUI(t); tickBugsUI();   // stage 6A: fruit, honey, insects
+    tickVillageUI(t);  // stage 6B: 지금 할 일 bar, visit sheet refresh
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
     renderTray();
@@ -41,7 +43,7 @@
     shake = Math.max(0, shake - dt * 8);
     scareWob = Math.max(0, scareWob - dt);
     ctx.translate(sx, sy);
-    if (drawScene(tt, dt)) { drawFestival(tt); drawParticles(dt); drawChallenge(); ctx.restore(); return; }   // stage 3: 마당 / 집 안 (+ 5A 숲, 5B festival sky)
+    if (drawScene(tt, dt)) { drawFestival(tt); drawBugs(tt); drawParticles(dt); drawChallenge(); ctx.restore(); return; }   // stage 3: 마당 / 집 안 (+ 5A 숲, 5B festival sky)
     ctx.drawImage(bg, 0, 0);
 
     drawWater(tt, dt);
@@ -55,6 +57,7 @@
     drawFarmer(tt);
     drawPet(tt, dt, 'farm');   // stage 5A
     drawRod(tip);
+    drawBugs(tt);      // stage 6A
     drawParticles(dt);
     drawWeather(tt, dt);
     drawChallenge();          // stage 5A: 수확 도전 gauge

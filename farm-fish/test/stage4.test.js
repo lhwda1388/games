@@ -148,12 +148,12 @@ test('residents: every order has one; 친밀도 thresholds send letters and gift
   for (let n = 1; n < 40 && !o; n++) { const c = { id: 'radish', n: n, reward: 30 * n * 2, rep: 1 }; if (L.residentFor(c) === 'grandma') o = c; }
   assert.ok(o);
   const coins0 = s.coins, levels = [];
-  for (let k = 1; k <= 25; k++) {
+  for (let k = 1; k <= L.FRIEND_LV[3] + 5; k++) {
     const r = L.befriend(s, o);
     assert.equal(r.who, 'grandma');
     r.ups.forEach((u) => levels.push([k, u.lv]));
   }
-  assert.deepEqual(levels, [[3, 1], [7, 2], [12, 3], [20, 4]]);
+  assert.deepEqual(levels, L.FRIEND_LV.map((n, i) => [n, i + 1]));
   assert.equal(L.friendLevel(s, 'grandma'), 4);
   assert.deepEqual(s.res.unread, ['grandma:1', 'grandma:2', 'grandma:3', 'grandma:4']);
   assert.equal(s.res.rec.ssukjeon, true);                         // level 3: a recipe
@@ -167,11 +167,12 @@ test('residents: every order has one; 친밀도 thresholds send letters and gift
   let fo = null;
   for (let n = 1; n < 60 && !fo; n++) { const c = { id: 'crucian', n: n, reward: 28 * n * 2, rep: 1 }; if (L.residentFor(c) === 'fisher') fo = c; }
   const c0 = t.coins;
-  for (let k = 0; k < 12; k++) L.befriend(t, fo);
+  for (let k = 0; k < L.FRIEND_LV[2]; k++) L.befriend(t, fo);
   assert.equal(t.coins, c0 + L.furnById('radio').cost);
   // special orders count triple
-  const u = L.newState(0, seq(0.5));
-  assert.equal(L.befriend(u, { id: 'carp', n: 1, reward: 900, rep: 3, special: true }).ups.length, 1);
+  const u = L.newState(0, seq(0.5)), sp = { id: 'carp', n: 1, reward: 900, rep: 3, special: true };
+  assert.equal(L.befriend(u, sp).pts, 3);
+  assert.equal(L.befriend(u, sp).ups.length, 1);
 });
 
 test('gift recipes cook only after the resident teaches them; deliver() returns the friendship', () => {

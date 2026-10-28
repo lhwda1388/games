@@ -139,3 +139,11 @@ input[type=checkbox]{accent-color:var(--g4);width:14px;height:14px;margin:0}
 input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){ .float,.bar.hot,#tray button.shake,#reelCue.loud{animation:none} #toast{transition:none} }
+/* folding section headings in 도감/상점 (ui/fold.js) */
+.overlay h3[data-fold]{cursor:pointer;justify-content:flex-start;gap:4px;user-select:none}
+.overlay h3[data-fold] b{margin-left:auto}
+.overlay h3[data-fold]:hover{background:var(--g1)}
+.overlay h3[data-fold]:active{background:var(--g2)}
+.overlay h3[data-fold]:focus-visible{outline:2px solid var(--g4);outline-offset:1px}
+.fold-mark{font-style:normal;font:700 10px var(--mono);width:10px;flex:none}
+.overlay .fold-out{display:none}

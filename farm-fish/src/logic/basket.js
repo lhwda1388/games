@@ -27,6 +27,8 @@
     var r = recipeById(id); if (r) return { id: id, kind: 'dish', name: r.name, price: r.sell };
     if (PRODUCTS[id]) return { id: id, kind: 'product', name: PRODUCTS[id].name, price: PRODUCTS[id].price };
     var g = forageById(id); if (g) return { id: id, kind: 'forage', name: g.name, price: g.price };   // stage 5A
+    var tr = treeById(id); if (tr) return { id: id, kind: 'fruit', name: tr.name, price: tr.price };   // stage 6A
+    var hn = honeyById(id); if (hn) return { id: id, kind: 'honey', name: hn.name, price: hn.price };   // stage 6A
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -36,6 +38,8 @@
     if (PRODUCTS[id]) return !!(s.animals && s.animals[PRODUCTS[id].from] > 0);
     var r = recipeById(id); if (r) return recipeKnown(s, r) && r.need.every(function (x) { return obtainable(s, x); });
     if (forageById(id)) return forestOk(s);
+    if (treeById(id)) return !!(s.orchard && s.orchard.trees.some(function (p) { return p && p.id === id; }));   // stage 6A
+    if (honeyById(id)) return !!(s.bees && s.bees.hives.length && (id === 'wildhoney' || s.bees.dex[id]));   // stage 6A
     return false;
   }
 
@@ -87,6 +91,7 @@
     FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
     RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
     forageOrders(s, out);   // stage 5A: common 숲 finds
+    orchardOrders(s, out);  // stage 6A: 잡화꿀
     festPool(s, out);   // stage 5B: festival items while a festival is on
     return out;
   }

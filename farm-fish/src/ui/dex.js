@@ -42,6 +42,7 @@
       row(ic, n ? r.name : '???', n ? r.sell + '코인 · ' + Math.round(r.time / 60e3) + '분' : r.hidden ? '귀한 재료가 모이면…' : r.gift && !L.recipeKnown(S, r) ? L.residentById(r.gift).name + '의 선물 레시피' : '아직 안 만듦', n ? n + '번' : '', !n);
     });
     renderForageDex(row);   // stage 5A: 채집
+    renderStage6Dex(row);   // stage 6A: 과일 · 꿀 · 곤충
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
       var n = document.createElement('div'); n.className = 'n'; n.textContent = name;

@@ -33,8 +33,9 @@
   function seasonalItem(id) {
     if (CROPS[id]) return !!CROPS[id].season;
     if (forageById(id)) return forageSeasonal(id);
+    if (treeById(id)) return true;   // stage 6A: fruit only comes in its season
     var r = recipeById(id);
-    return !!r && r.need.some(function (x) { return !!(CROPS[x] && CROPS[x].season) || forageSeasonal(x); });
+    return !!r && r.need.some(function (x) { return !!(CROPS[x] && CROPS[x].season) || forageSeasonal(x) || !!treeById(x); });
   }
 
   expose({ SEASON_CROPS: SEASON_CROPS, cropSeasonOk: cropSeasonOk, seasonCrops: seasonCrops, seasonalItem: seasonalItem });

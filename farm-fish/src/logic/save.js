@@ -100,6 +100,8 @@
       decodeStage5A(o, s); // stage 5A: s.forest, s.pet (optional)
       decodeJunk(o, s);   // stage 5B: s.junk (잡동사니, 병 편지, 보물 상자; optional)
       decodeFest(o, s);   // stage 5B: s.fest (축제 선물, 송편, 눈사람; optional)
+      decodeStage6A(o, s); // stage 6A: s.orchard, s.bees, s.bugs (optional)
+      decodeVillage(o, s); // stage 6B: s.vil (마을 대화·선물·심부름·이야기; optional)
       return s;
     } catch (e) { return null; }
   }

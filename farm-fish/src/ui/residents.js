@@ -23,6 +23,7 @@
   function renderResidents() {
     var h3 = document.createElement('h3'); h3.textContent = '단골 주민';
     var b = document.createElement('b'); b.textContent = '납품할수록 친해져요'; h3.appendChild(b); bagEl.appendChild(h3);
+    renderStoryLine(bagEl);   // stage 6B: 지금 할 일 (이어지는 심부름 이야기)
     L.RESIDENTS.forEach(function (d) {
       var lv = L.friendLevel(S, d.id), pts = L.friendPoints(S, d.id), next = L.FRIEND_LV[lv];
       var unread = S.res ? S.res.unread.filter(function (k) { return k.split(':')[0] === d.id; }).length : 0;

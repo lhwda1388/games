@@ -1,0 +1,6 @@
+/* Hallmark · component: 곤충 catch card actions · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules; instant, no loading/error)
+ * stage 6A. Only tokens, no new colours, no motion beyond the shared button press.
+ */
+#result .bugAct{display:flex;gap:6px;justify-content:center;margin-top:7px}
+#result .bugAct button{flex:1;min-width:0;padding:5px 4px;white-space:nowrap}

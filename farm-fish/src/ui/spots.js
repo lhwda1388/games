@@ -162,6 +162,17 @@
         say = c.say + ' · 숲에 처음 보는 게…';
       });
     }
+    // stage 6A: an uncaught insect that only comes at this time / in this weather, where you are (net needed)
+    if (L.netOk(S) && bugPlaceOk(view)) L.BUGS.forEach(function (b) {
+      if (L.bugWeight(b, view, e) <= 0) return;
+      var c = noticeCause({ phase: b.phase, weather: b.wx === 'rain' || b.wx === 'fog' || b.wx === 'snow' ? b.wx : null }, e);
+      if (!c) return;
+      var key = 'bug:' + view + '|' + c.k;
+      live[key] = true;
+      if (noticeSeen[key] || say || S.bugs.dex[b.id]) return;
+      sayKey = key;
+      say = c.say + ' · 처음 보는 곤충이 날아올지도';
+    });
     Object.keys(noticeSeen).forEach(function (k) { if (!live[k]) delete noticeSeen[k]; });
     // never on top of another message: wait out a busy moment, at most one notice per 10 s
     if (!say || toastEl.classList.contains('on') || p < noticeQuiet) return;   // busy: try again next check

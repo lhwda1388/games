@@ -2,7 +2,8 @@
 // Usage: node tools/balance-sim.js [seeds=5] [days=14] [--nomini]
 // --nomini: nobody tries the optional 도전 minigames (to measure what they add)
 // Loads the pure logic block exactly like test/logic.test.js and plays three player archetypes over
-// 14 real days with the real game clock, weather, seasons, crows/weeds, orders, cooking, animals and reel minigame.
+// 14 real days with the real game clock, weather, seasons, crows/weeds, orders, cooking, animals and reel minigame,
+// plus stage 6: orchard, hives, insects (fixed catch rate per hand) and the 마을 (talk, gifts, errands, stories).
 'use strict';
 process.env.TZ = 'Asia/Seoul';
 const vm = require('node:vm');
@@ -30,8 +31,8 @@ const dateKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + S
 // mini = optional 도전 minigames: try = how often the player bothers; zone(w) = success rate for a gauge zone width
 // (average: 70% at 0.30 → 35% at 0.10), heat = 불 조절, pick = 자물쇠
 const SKILL = {
-  average: { delay: [0.2, 0.7], hi: 0.8, lo: 0.45, hook: 0.85, mini: { try: 0.5, z30: 0.7, z10: 0.35, heat: 0.6, pick: 0.5 } },
-  skilled: { delay: [0.1, 0.35], hi: 0.85, lo: 0.35, hook: 0.95, mini: { try: 1, z30: 0.85, z10: 0.5, heat: 0.8, pick: 0.75 } }
+  average: { delay: [0.2, 0.7], hi: 0.8, lo: 0.45, hook: 0.85, bug: 0.6, mini: { try: 0.5, z30: 0.7, z10: 0.35, heat: 0.6, pick: 0.5 } },
+  skilled: { delay: [0.1, 0.35], hi: 0.85, lo: 0.35, hook: 0.95, bug: 0.8, mini: { try: 1, z30: 0.85, z10: 0.5, heat: 0.8, pick: 0.75 } }
 };
 const zoneWin = (m, w) => m.z10 + (m.z30 - m.z10) * Math.max(0, Math.min(1.2, (w - 0.1) / 0.2));
 function reelFish(roll, rodTier, skill, rng) {
@@ -65,12 +66,12 @@ const ARCH = {
 
 // purchase priority: the first ungated item not owned is saved for; gated ones (★/house) are skipped for now
 const PLAN = [
-  ['up', 'rod'], ['seed', 'potato'], ['up', 'scare'], ['animal', 'hen'], ['up', 'field'], ['spot', 'river'], ['forest'],
-  ['up', 'bait'], ['seed', 'pepper'], ['house'], ['up', 'basket'], ['deco', 'flowers'], ['pet', 'dog'], ['deco', 'mailbox'], ['animal', 'hen'],
+  ['up', 'rod'], ['seed', 'potato'], ['up', 'scare'], ['animal', 'hen'], ['up', 'field'], ['spot', 'river'], ['forest'], ['net'],
+  ['up', 'bait'], ['seed', 'pepper'], ['house'], ['up', 'basket'], ['deco', 'flowers'], ['pet', 'dog'], ['orchard'], ['tree'], ['tree'], ['hive'], ['deco', 'mailbox'], ['animal', 'hen'],
   ['up', 'rod'], ['up', 'scare'], ['animal', 'cow'], ['seed', 'tomato'], ['animal', 'duck'], ['furn', 'bed'], ['up', 'field'],
-  ['up', 'bait'], ['seed', 'corn'], ['house'], ['deco', 'bench'], ['deco', 'tree'], ['spot', 'sea'], ['up', 'rod'],
+  ['tree'], ['tree'], ['hive'], ['up', 'bait'], ['seed', 'corn'], ['house'], ['tree'], ['tree'], ['deco', 'bench'], ['deco', 'tree'], ['spot', 'sea'], ['up', 'rod'],
   ['up', 'basket'], ['up', 'scare'], ['up', 'bait'], ['animal', 'hen'], ['animal', 'cow'], ['animal', 'duck'],
-  ['seed', 'pumpkin'], ['house'],
+  ['seed', 'pumpkin'], ['tree'], ['tree'], ['hive'], ['tree'], ['tree'], ['house'],
   ...L.DECOS.filter((d) => !d.merchant).map((d) => ['deco', d.id]), ...L.FURN.map((f) => ['furn', f.id])
 ];
 function owned(s, p) {
@@ -82,6 +83,8 @@ function owned(s, p) {
     case 'furn': return !!(s.yard && s.yard.furn[p[1]]);
     case 'forest': return L.forestOk(s);
     case 'pet': return !!s.pet;
+    case 'net': return L.netOk(s);
+    case 'orchard': return L.orchardOk(s);
   }
   return false;
 }
@@ -90,7 +93,15 @@ function buyNext(s, now, log) {
   for (const p of PLAN) {
     const key = p.join(':'); seen[key] = (seen[key] || 0) + 1;
     let cost, gated = false, done = false, label = key + (seen[key] > 1 ? '#' + seen[key] : '');
-    if (p[0] === 'up') { if (L.tier(s, p[1]) >= seen[key]) continue; cost = L.upgradeCost(s, p[1]); if (cost === null) continue; }
+    let tree = null;
+    if (p[0] === 'tree') {
+      if (!s.orchard) continue;
+      const planted = s.orchard.trees.filter((x) => x).map((x) => x.id);
+      if (planted.length >= seen[key]) continue;
+      tree = L.TREES.filter((d) => !planted.includes(d.id)).sort((a, b) => a.cost - b.cost)[0];
+      if (!tree) continue; cost = tree.cost;
+    } else if (p[0] === 'hive') { if (!s.orchard || L.hiveCount(s) >= seen[key]) continue; cost = L.hiveCost(s); if (cost === null) continue; }
+    else if (p[0] === 'up') { if (L.tier(s, p[1]) >= seen[key]) continue; cost = L.upgradeCost(s, p[1]); if (cost === null) continue; }
     else if (p[0] === 'animal') { if ((s.animals[p[1]] || 0) >= seen[key]) continue; cost = L.animalCost(s, p[1]); if (cost === null) continue; gated = L.houseTier(s) < L.ANIMALS[p[1]].house; }
     else if (p[0] === 'house') { if (L.houseTier(s) >= seen[key]) continue; const n = L.houseNext(s); if (!n) continue; cost = n.cost; gated = s.rep < n.rep; label = 'house:' + n.id; }
     else if (owned(s, p)) continue;
@@ -100,6 +111,8 @@ function buyNext(s, now, log) {
     else if (p[0] === 'furn') { cost = L.furnById(p[1]).cost; gated = L.houseTier(s) < L.furnById(p[1]).house; }
     else if (p[0] === 'forest') { cost = L.FOREST_COST; gated = s.rep < L.FOREST_REP; }
     else if (p[0] === 'pet') cost = L.PET_KINDS[p[1]].cost;
+    else if (p[0] === 'net') cost = L.NET_COST;
+    else if (p[0] === 'orchard') { cost = L.ORCHARD_COST; gated = s.rep < L.ORCHARD_REP; }
     if (gated) continue;
     if (s.coins - cost < 80) return;                 // save up for it, keep a little seed money
     if (p[0] === 'up') done = L.buy(s, p[1]);
@@ -111,6 +124,10 @@ function buyNext(s, now, log) {
     else if (p[0] === 'furn') done = L.buyFurn(s, p[1]).ok;
     else if (p[0] === 'forest') done = L.unlockForest(s, now).ok;
     else if (p[0] === 'pet') done = L.adoptPet(s, p[1], '', now).ok;
+    else if (p[0] === 'net') done = L.buyNet(s).ok;
+    else if (p[0] === 'orchard') done = L.unlockOrchard(s).ok;
+    else if (p[0] === 'hive') { done = L.buyHive(s, now).ok; label = 'hive' + seen[key]; }
+    else if (p[0] === 'tree') { done = L.plantTree(s, s.orchard.trees.indexOf(null), tree.id, now).ok; label = 'tree' + seen[key]; }
     if (!done) return;
     log(label);
     return buyNext(s, now, log);
@@ -123,7 +140,8 @@ function run(archId, seed) {
   const tryMini = () => !NOMINI && rng() < M.try;
   const s = L.newState(START, rng);
   L.yardOf(s); s.born = START;
-  const out = { events: {}, daily: [], spent: 0, fishTry: {}, fishOk: {}, earn: { raw: 0, order: 0, dish: 0, other: 0, forage: 0, pet: 0, junk: 0, fest: 0, mini: 0 },
+  const out = { events: {}, daily: [], spent: 0, fishTry: {}, fishOk: {}, earn: { raw: 0, order: 0, dish: 0, other: 0, forage: 0, pet: 0, junk: 0, fest: 0, mini: 0, orchard: 0, honey: 0, bug: 0, village: 0 },
+    bugTry: 0, bugOk: 0, vilPts: 0,
     orders: 0, dishes: 0, dailyPaid: 0, casts: 0, junk: {}, picks: 0, petGifts: 0, chests: 0,
     miniBy: { harvest: 0, forage: 0, heat: 0, pick: 0 }, castsEarly: 0, junkEarly: 0 };
   // new basket entries since n0 get a source tag (sold later under that source); overflow coins go to it now
@@ -135,11 +153,19 @@ function run(archId, seed) {
 
   function env(t) { return L.fishEnv(t, TZ); }
   function season(t) { return L.gameClock(t, TZ).season; }
+  // what the 마을 asks for now: the story step's item and open errands → [[id, n]]
+  function vilWants() {
+    const w = [], st = L.storyNow(s);
+    if (st && st.step.need) w.push(st.step.need);
+    if (s.vil) Object.values(s.vil.err).forEach((e) => w.push([e.id, e.n]));
+    return w;
+  }
   function keepSet() {
     const keep = {};
     s.orders.forEach((q) => { if (q.o) keep[q.o.id] = Math.max(keep[q.o.id] || 0, q.o.n); });
     const r = targetDish();
     if (r) r.need.forEach((x) => { keep[x] = (keep[x] || 0) + 1; });
+    vilWants().forEach(([id, n]) => { keep[id] = (keep[id] || 0) + n; });
     return keep;
   }
   function sellExtra() {
@@ -148,7 +174,7 @@ function run(archId, seed) {
       have[e.id] = (have[e.id] || 0) + 1;
       if (have[e.id] <= (keep[e.id] || 0)) return true;
       const kind = L.itemInfo(e.id).kind, extra = e.mini || 0;
-      s.coins += e.v; out.earn[e.src || (kind === 'dish' ? 'dish' : kind === 'forage' ? 'forage' : 'raw')] += e.v - extra; out.earn.mini += extra;
+      s.coins += e.v; out.earn[e.src || (kind === 'dish' ? 'dish' : kind === 'forage' ? 'forage' : kind === 'fruit' ? 'orchard' : kind === 'honey' ? 'honey' : 'raw')] += e.v - extra; out.earn.mini += extra;
       if (extra) out.miniBy[kind === 'dish' ? 'heat' : kind === 'forage' ? 'forage' : 'harvest'] += extra; return false;
     });
   }
@@ -162,6 +188,7 @@ function run(archId, seed) {
     s.bag.forEach((e) => { have[e.id] = (have[e.id] || 0) + 1; });
     s.plots.forEach((p) => { if (p.crop) have[p.crop] = (have[p.crop] || 0) + 1; });
     s.orders.forEach((q) => { if (q.o && L.CROPS[q.o.id]) need[q.o.id] = (need[q.o.id] || 0) + q.o.n; });
+    vilWants().forEach(([id, n]) => { if (L.CROPS[id]) need[id] = (need[id] || 0) + n; });
     // the best known dish's crops (one batch)
     const best = targetDish();
     if (best) best.need.forEach((x) => { if (L.CROPS[x]) need[x] = (need[x] || 0) + 1; });
@@ -186,6 +213,7 @@ function run(archId, seed) {
   function fishSpot(t) {
     const d = new Date(t), e = env(t), spots = L.SPOT_IDS.filter((id) => L.spotUnlocked(s, id));
     const want = {}; s.orders.forEach((q) => { if (q.o && L.fishById(q.o.id)) want[q.o.id] = 1; });
+    vilWants().forEach(([id, n]) => { if (L.fishById(id) && L.bagCount(s, id) < n) want[id] = 1; });
     let best = null, bestV = -1;
     spots.forEach((sp) => {
       s.spot = sp;
@@ -246,6 +274,8 @@ function run(archId, seed) {
     }
     forestVisit(t);
     petChores(t);
+    orchardChores(t);
+    bugChores(t);
     // visitors: tap whoever is around, read mail
     L.tickVisitors(s, t, rng, TZ, 1).forEach(() => {});
     s.yard.vis.slice().forEach((v) => { if (v.id !== 'merchant') { const c0 = s.coins; L.tapVisitor(s, v.id, t, rng, TZ); out.earn.other += s.coins - c0; } });
@@ -254,6 +284,7 @@ function run(archId, seed) {
     junkChores();
     // cook the best dish we can (keeping order items), before delivering so dish orders can use it later
     deliverAll(t);
+    villageChores(t);
     for (let k = 0; k < 3; k++) {
       const r = L.RECIPES.filter((x) => L.canCook(s, x.id) && !s.orders.some((q) => q.o && x.need.includes(q.o.id) && L.bagCount(s, q.o.id) <= q.o.n)).sort((a, b) => b.sell - a.sell)[0];
       if (!r || !L.cook(s, r.id, t)) break;
@@ -274,6 +305,58 @@ function run(archId, seed) {
     out.spent += c0 - s.coins;
     L.checkMilestones(s);
     [5, 12, 20, 25].forEach((r) => { if (s.rep >= r) log('rep' + r, t); });
+    let all = [9, 9, 9, 9, 9];
+    L.RESIDENTS.forEach((x) => { const lv = L.friendLevel(s, x.id); for (let k = 1; k <= lv; k++) log('lv' + k + 'any', t); all = all.map((a, k) => Math.min(a, lv >= k ? 1 : 0)); });
+    for (let k = 1; k <= 4; k++) if (all[k]) log('lv' + k + 'all', t);
+    if (L.fruitDexCount(s) >= L.TREES.length) log('fruitAll', t);
+    if (L.honeyDexCount(s) >= L.HONEYS.length / 2) log('honeyHalf', t);
+    if (L.bugDexCount(s) >= L.BUGS.length / 2) log('bugHalf', t);
+    if (L.STORIES.every((x) => L.storyDone(s, x.id))) log('storiesAll', t);
+  }
+  function orchardChores(t) {
+    if (!s.orchard) return;
+    L.orchardTick(s, t, TZ); L.hiveTick(s, t, TZ, rng);
+    s.orchard.trees.forEach((p, k) => { if (p && p.n) { const n0 = s.bag.length, c0 = s.coins; L.pickFruit(s, k, t, TZ); tagNew(n0, c0, 'orchard'); } });
+    if (s.bees) s.bees.hives.forEach((h, k) => { if (h.jar.length) { const n0 = s.bag.length, c0 = s.coins; L.collectHoney(s, k, t, TZ, rng); tagNew(n0, c0, 'honey'); } });
+  }
+  // one insect shows up per look; the player tries for it (skill.bug = how often the tap lands while it sits)
+  function bugChores(t) {
+    if (!L.netOk(s)) return;
+    const places = ['farm', 'yard'].concat(L.forestOk(s) ? ['forest'] : [], L.orchardOk(s) ? ['orchard'] : []);
+    const id = L.rollBug(places[Math.floor(rng() * places.length)], env(t), rng, s);
+    if (!id) return;
+    out.bugTry++;
+    if (rng() > skill.bug) return;
+    out.bugOk++;
+    const c = L.catchBug(s, id);
+    if (c.first && !c.boxed) L.keepBug(s, id); else out.earn.bug += L.releaseBug(s, id);
+  }
+  // 마을: talk to everyone home, give each a liked item (else the cheapest spare one), do errands and story steps
+  function villageChores(t) {
+    if (!L.villageOk(s)) return;
+    const addUps = (ups) => (ups || []).forEach((u) => { out.earn.village += u.coins + (u.gift ? u.gift.coins : 0); });
+    for (const id of L.VIL_IDS) {
+      if (L.residentAway(id, t, TZ)) continue;
+      const f0 = L.friendPoints(s, id);
+      for (let k = 0; k < 6; k++) {
+        const cur = L.storyNow(s);
+        if (!cur || cur.step.at !== id || (cur.step.need && L.bagCount(s, cur.step.need[0]) < cur.step.need[1])) break;
+        const c0 = s.coins, r = L.storyStep(s, id, t, TZ); if (!r.ok) break;
+        out.earn.village += s.coins - c0 - (r.ups || []).reduce((a, u) => a + u.coins + (u.gift ? u.gift.coins : 0), 0); addUps(r.ups);
+        if (r.done) log('story:' + r.story, t);
+      }
+      if (L.canTalk(s, id, t, TZ)) addUps(L.vilTalk(s, id, t, TZ).ups);
+      const e = L.errandFor(s, id, t, TZ);
+      if (e && L.bagCount(s, e.id) >= e.n) { const r = L.errandDone(s, id, t, TZ); if (r.ok) { out.earn.village += r.coins; addUps(r.ups); } }
+      if (L.canGift(s, id, t, TZ) && s.bag.length) {
+        const keep = keepSet(), spare = s.bag.filter((x) => L.bagCount(s, x.id) > (keep[x.id] || 0));
+        const like = spare.find((x) => L.giftKind(id, x.id) === 'like');
+        const cheap = spare.filter((x) => L.giftKind(id, x.id) === 'ok').sort((a, b) => a.v - b.v)[0];
+        const g = like || (cheap && cheap.v <= 150 ? cheap : null);
+        if (g) addUps(L.vilGift(s, id, g.id, t, TZ).ups);
+      }
+      out.vilPts += L.friendPoints(s, id) - f0;
+    }
   }
   function forestVisit(t) {
     if (!L.forestOk(s)) return;
@@ -375,8 +458,8 @@ const median = (xs) => { const v = xs.filter((x) => x !== undefined).sort((a, b)
 const fmtDay = (x) => x === undefined ? '—' : (x < 1 ? '1일차 ' + Math.round(x * 24) + '시' : (Math.floor(x) + 1) + '일차');
 const KEYS = ['up:rod', 'up:scare', 'animal:hen', 'up:field', 'rep5', 'spot:river', 'up:bait', 'house:hut', 'up:basket',
   'up:rod#2', 'animal:cow', 'house:giwa', 'rep20', 'spot:sea', 'up:rod#3', 'seed:pumpkin', 'house:two', 'deco:windmill', 'furn:piano', 'goldSeed', 'legend:sturgeon', 'legend:tuna',
-  'forest', 'pet:dog', 'pet:cat', 'fest:spring', 'fest:summer', 'fest:autumn', 'fest:winter', 'forageHalf', 'ginseng', 'letters3', 'letters6', 'letters12', 'recycle:canchime', 'treasure:anchor'];
-const SRC = [['raw', '그냥 팔기'], ['order', '주문'], ['dish', '요리'], ['other', '기타'], ['forage', '숲'], ['pet', '반려'], ['junk', '잡동사니'], ['fest', '축제'], ['mini', '도전 덤']];
+  'forest', 'pet:dog', 'net', 'orchard', 'tree10', 'hive3', 'fruitAll', 'honeyHalf', 'bugHalf', 'lv1any', 'lv2any', 'lv4any', 'lv2all', 'lv4all', 'story:scarf', 'storiesAll', 'pet:cat', 'fest:spring', 'fest:summer', 'fest:autumn', 'fest:winter', 'forageHalf', 'ginseng', 'letters3', 'letters6', 'letters12', 'recycle:canchime', 'treasure:anchor'];
+const SRC = [['raw', '그냥 팔기'], ['order', '주문'], ['dish', '요리'], ['other', '기타'], ['forage', '숲'], ['pet', '반려'], ['junk', '잡동사니'], ['fest', '축제'], ['mini', '도전 덤'], ['orchard', '과일'], ['honey', '꿀'], ['bug', '곤충'], ['village', '마을']];
 
 function reelTable() {
   const rng = mulberry(42), rows = [];
@@ -415,6 +498,7 @@ if (require.main === module) {
     const fd = runs.map((r) => r.festDays.map((d) => (r.daily[d].fest - (d ? r.daily[d - 1].fest : 0)) / (dayE(r, d) || 1)));
     console.log('  축제 날 그날 수입 중 축제 몫: ' + fd.map((x) => x.map((v) => Math.round(v * 100) + '%').join('/')).join(' · '));
     console.log('  주문 ' + r0.orders + '건 · 요리 ' + r0.dishes + '번 · 할 일 보상 ' + r0.dailyPaid + '/' + DAYS + ' (1판)');
+    console.log('  곤충 잡기 ' + runs.reduce((a, r) => a + r.bugOk, 0) + '/' + runs.reduce((a, r) => a + r.bugTry, 0) + ' · 마을 친밀도 하루 주민당 ' + (runs.reduce((a, r) => a + r.vilPts, 0) / seeds / DAYS / 6).toFixed(2) + '점 · 과일 도감 ' + L.fruitDexCount(s) + '/' + L.TREES.length + ' · 꿀 ' + L.honeyDexCount(s) + '/' + L.HONEYS.length + ' · 곤충 ' + L.bugDexCount(s) + '/' + L.BUGS.length + ' (1판)');
     console.log('  주민 친밀도(1판): ' + L.RESIDENTS.map((x) => x.id + ' ' + L.friendLevel(s, x.id)).join(' · '));
     console.log('  도감(1판): 작물 ' + Object.keys(s.dex.crops).length + '/' + Object.keys(L.CROPS).length + ' · 물고기 ' + DEX_FISH.filter((f) => s.dex.fish[f.id]).length + '/' + DEX_FISH.length + ' · 요리 ' + Object.keys(s.dex.dish).length + '/' + L.RECIPES.length + ' · 채집 ' + L.forageDexCount(s) + '/' + L.FORAGE.length + ' · 편지 ' + L.lettersFound(s) + '/12 · 업그레이드 ' + JSON.stringify(s.up));
     console.log('  낚시 성공(1판): ' + Object.keys(r0.fishTry).map((k) => k + ' ' + (r0.fishOk[k] || 0) + '/' + r0.fishTry[k]).join(' · '));

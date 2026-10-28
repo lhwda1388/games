@@ -461,22 +461,26 @@
   var sceneMenu = document.createElement('div');
   sceneMenu.id = 'sceneMenu'; sceneMenu.hidden = true; sceneMenu.setAttribute('role', 'menu');
   app.appendChild(sceneMenu);
-  var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'] };
+  var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'], orchard: ['과수원', '과수원으로'], village: ['마을', '마을로'] };
   function goScene(sc) {
     if (reel) return;
     closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : '집 안');
+    sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     renderSceneBtn();
   }
   function sceneDests() {
     if (view === 'house') return ['yard'];
-    return ['farm', 'yard', 'forest'].filter(function (sc) { return sc !== view && (sc !== 'forest' || forestShown()); });
+    if (view === 'home') return ['village'];   // stage 6B: out of a resident's house
+    return ['farm', 'yard', 'forest', 'orchard', 'village'].filter(function (sc) { return sc !== view && (sc !== 'forest' || forestShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)); });
   }
   function placeAttention(sc) {
     if (sc === 'forest') return !!forestAttention();
+    if (sc === 'orchard') return !!orchardAttention();   // stage 6A
+    if (sc === 'village') return villageAttention();   // stage 6B
     var pond = sc === 'farm';
     return (!pond && yardAttention() > 0) || S.yard.vis.some(function (v) { return (L.visitorById(v.id).slot === 'pond') === pond; });
   }
@@ -545,13 +549,20 @@
     if (view === 'yard') { drawYard(tt, dt); return true; }
     if (view === 'house') { drawRoom(tt, dt); return true; }
     if (view === 'forest') { drawForest(tt, dt); return true; }   // stage 5A
+    if (view === 'orchard') { drawOrchard(tt, dt); return true; }   // stage 6A
+    if (view === 'village') { drawVillage(tt, dt); return true; }   // stage 6B
+    if (view === 'home') { drawHome(tt, dt); return true; }         // stage 6B
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
   function tapScene(x, y) {
+    if (tapBug(x, y)) return true;   // stage 6A: an insect on screen
     if (view === 'yard') { if (!pick && tapPet(x, y)) return true; tapYard(x, y); return true; }
     if (view === 'house') { tapRoom(x, y); return true; }
     if (view === 'forest') { tapForest(x, y); return true; }   // stage 5A
+    if (view === 'orchard') { tapOrchard(x, y); return true; }   // stage 6A
+    if (view === 'village') { tapVillage(x, y); return true; }   // stage 6B
+    if (view === 'home') { tapHome(x, y); return true; }         // stage 6B
     if (S.fish.phase === 'bite') return false;
     if (tapPet(x, y)) return true;
     if (tapVisitorAt(x, y, 'pond')) return true;

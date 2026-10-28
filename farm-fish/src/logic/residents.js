@@ -10,7 +10,7 @@
     { id: 'painter', name: '오 화백',     who: '떠돌이 화가 · 귀한 것만 보면 눈이 반짝', kinds: ['dish'], special: true }
   ];
   // points needed for 친밀도 levels 1..4; a delivery gives 1 (특별 주문 3)
-  var FRIEND_LV = [3, 7, 12, 20];
+  var FRIEND_LV = [5, 15, 35, 70];
   // gift recipes: cookable only once a resident has taught them
   var GIFT_RECIPES = [
     { id: 'ssukjeon', name: '쑥전',     need: ['ssuk', 'ssuk', 'potato'],          time: 300e3, sell: 420,  gift: 'grandma' },
@@ -97,7 +97,12 @@
   }
   // called by deliver(): adds 친밀도 and hands out every level reached → { who, pts, ups: [{ lv, gift, coins }] }
   function befriend(s, o) {
-    var who = residentFor(o), r = resOf(s), pts = o.special ? 3 : 1, ups = [];
+    var who = residentFor(o), pts = o.special ? 3 : 1;
+    return { who: who, pts: pts, ups: befriendPts(s, who, pts) };
+  }
+  // adds pts of 친밀도 to resident who and hands out every level reached (also used by the 마을) → [{ lv, gift, coins }]
+  function befriendPts(s, who, pts) {
+    var r = resOf(s), ups = [];
     r.f[who] = (r.f[who] || 0) + pts;
     while ((r.lv[who] || 0) < FRIEND_LV.length && r.f[who] >= FRIEND_LV[r.lv[who] || 0]) {
       var lv = r.lv[who] = (r.lv[who] || 0) + 1, g = RES_STORY[who].gifts[lv - 1], up = { lv: lv, gift: null, coins: LV_GIFT_COINS[lv - 1] };
@@ -106,7 +111,7 @@
       r.unread.push(who + ':' + lv);
       ups.push(up);
     }
-    return { who: who, pts: pts, ups: ups };
+    return ups;
   }
   function resLetter(id, lv) { var st = RES_STORY[id]; return st ? st.letters[lv - 1] || null : null; }
   function readResLetters(s, id) {
@@ -118,5 +123,5 @@
   expose({
     RESIDENTS: RESIDENTS, FRIEND_LV: FRIEND_LV, RES_STORY: RES_STORY, GIFT_RECIPES: GIFT_RECIPES,
     residentById: residentById, residentFor: residentFor, recipeKnown: recipeKnown, friendLevel: friendLevel, friendPoints: friendPoints,
-    befriend: befriend, resLetter: resLetter, readResLetters: readResLetters, strHash: strHash
+    befriend: befriend, befriendPts: befriendPts, resLetter: resLetter, readResLetters: readResLetters, strHash: strHash
   });

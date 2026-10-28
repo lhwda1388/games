@@ -40,6 +40,8 @@
   addPetHooks(globalThis.FF);      // stage 5A: FF.pet(kind)
   addJunkHooks(globalThis.FF);   // stage 5B: FF.junk, FF.letter, FF.pick
   addFestHooks(globalThis.FF);   // stage 5B: FF.festival, FF.fest, FF.heat
+  addStage6Hooks(globalThis.FF); // stage 6A: FF.orchard, FF.bees, FF.bug
+  addVillageHooks(globalThis.FF); // stage 6B: FF.village(), FF.visit(id), FF.vilReset()
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

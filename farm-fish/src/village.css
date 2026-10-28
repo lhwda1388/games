@@ -1,0 +1,12 @@
+/* stage 6B · 마을: "지금 할 일" bar where the seed tray sits (the tray is hidden off the farm), visit sheet bits. Same five --g* tokens. */
+#vilBar{position:absolute;left:0;right:0;bottom:0;height:44px;box-sizing:border-box;z-index:2;display:flex;flex-direction:column;justify-content:center;
+  align-items:flex-start;gap:1px;padding:2px 8px;text-align:left;background:var(--g0);border:0;border-top:2px solid var(--g4);box-shadow:none}
+#vilBar[hidden]{display:none}
+#vilBar b{font:700 10px var(--font);color:var(--g3)}
+#vilBar span{font:700 12px/1.25 var(--font);color:var(--g4);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vilBar:hover span,#vilBar:focus-visible span{text-decoration:underline}
+#vilBar:active{background:var(--g1)}
+#ysheet .up.gift{padding:3px 0 3px 12px}
+#ysheet .up canvas{image-rendering:pixelated;width:24px;height:24px;flex:none}
+#ysheet .up canvas.wide{width:32px;height:16px}
+.note.todo{color:var(--g4);font-weight:700;border-left:3px solid var(--g4);padding-left:6px}

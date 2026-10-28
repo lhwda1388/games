@@ -25,6 +25,8 @@
     if (it && it.kind === 'dish') return dishCanvas(id);
     if (it && it.kind === 'crop') return iconCanvas(id);
     if (it && it.kind === 'forage') return forageIcon(id);   // stage 5A
+    if (it && it.kind === 'fruit') return fruitIcon(id);     // stage 6A
+    if (it && it.kind === 'honey') return honeyIcon(id);     // stage 6A
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;

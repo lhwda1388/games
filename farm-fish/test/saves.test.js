@@ -17,7 +17,8 @@ const KEEP = [
   'up.rod', 'up.bait', 'up.field', 'up.scare', 'up.basket',
   'rep', 'bag', 'spotOk', 'spot', 'animals',
   'yard.house', 'yard.deco', 'yard.furn', 'yard.place', 'born', 'nick', 'tank',
-  'pet.kind', 'pet.name', 'pet.f', 'forest.dex', 'junk.n', 'junk.letters', 'junk.box', 'fest.got', 'fest.rec'
+  'pet.kind', 'pet.name', 'pet.f', 'forest.dex', 'junk.n', 'junk.letters', 'junk.box', 'fest.got', 'fest.rec',
+  'orchard.trees', 'orchard.dex', 'bees.hives', 'bees.dex', 'bugs', 'vil', 'res'
 ];
 const get = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 

@@ -48,6 +48,7 @@
     }
     renderYardShop();   // stage 3: 집 · 동물 · 마당 꾸미기 · 가구
     renderPetShop();    // stage 5A: 반려동물
+    renderStage6Shop(); // stage 6A: 잠자리채
     function row(id, nameHtml, sub, cost) {
       var r = document.createElement('div'); r.className = 'up';
       var n = document.createElement('div'); n.className = 'n'; n.innerHTML = nameHtml;

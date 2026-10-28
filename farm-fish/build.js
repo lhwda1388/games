@@ -16,7 +16,11 @@ const STYLE = [
   // stage 5A
   'forest.css',         // 숲·반려동물: name sheet input
   // stage 5B
-  'festival.css'        // 축제 chip, 도전 overlay (자물쇠 / 불 조절)
+  'festival.css',       // 축제 chip, 도전 overlay (자물쇠 / 불 조절)
+  // stage 6A
+  'stage6.css',         // 곤충 catch card buttons
+  // stage 6B
+  'village.css'         // 마을: 지금 할 일 bar, visit sheet gift rows
 ];
 
 const BODY = [
@@ -50,6 +54,11 @@ const LOGIC = [
   'logic/junk.js',      // 낚시 잡동사니, 보물 상자 (+ 자물쇠 도전), 병 편지 (s.junk)
   'logic/festivals.js', // 계절 축제 windows, festival fish/deco/송편/orders (s.fest)
   'logic/heat.js',      // 불 조절 도전 (optional cooking minigame)
+  // stage 6A
+  'logic/orchard.js',   // 과수원 trees and fruit (s.orchard), 양봉 hives and honey (s.bees), fruit/honey recipes
+  'logic/bugs.js',      // 곤충 채집: insect table, flight + catch judging, net, 표본 상자 (s.bugs), stage-6A save block
+  // stage 6B
+  'logic/village.js',   // 마을: 주민 집 방문 (대화·선물·심부름), 이어지는 심부름 이야기 (s.vil)
   'logic/dex.js',       // 도감 counts and milestones (reads CROPS and FISH at load: keep after them)
   'logic/save.js'       // newState, resume, encode/decode: all save compatibility
 ];
@@ -87,8 +96,14 @@ const UI = [
   // stage 5B
   'ui/junk.js',         // 잡동사니 catch card, 고물 상자 sheet, 병 편지 in 기록, 도전 overlay (자물쇠 / 불 조절)
   'ui/festivals.js',    // 축제 chip + sheet, festival sky, new decoration art, 달력 축제 rows, pot 도전 button
+  // stage 6A
+  'ui/orchard.js',      // 과수원 scene: trees, fruit, beehives, sapling sheet, fruit/honey icons
+  'ui/bugs.js',         // 곤충: flying insect + catch, catch card, 표본 상자 art, 도감/달력/상점 rows, FF.orchard/bees/bug
+  // stage 6B
+  'ui/village.js',     // 마을 street + resident rooms, visit sheet (대화·선물·심부름·이야기), 지금 할 일 bar
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
+  'ui/fold.js',         // 도감/상점 section headings fold and unfold
   'ui/boot.js'          // boot sequence and console hooks (keep last)
 ];
 

@@ -122,6 +122,7 @@
       r.appendChild(ic); r.appendChild(n); r.appendChild(v); calEl.appendChild(r);
     });
     renderForestNow(e);   // stage 5A: what grows in the 숲 only now
+    renderStage6Now();    // stage 6A: insects only now, fruit this season
   }
   function note(text) { var p = document.createElement('p'); p.className = 'note'; p.textContent = text; calEl.appendChild(p); }
 
