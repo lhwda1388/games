@@ -53,6 +53,7 @@
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
       else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden) {
+        if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
         L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k));
         castAnim = { t: 0 }; refresh();

@@ -332,7 +332,7 @@
     if (Array.isArray(o.bag)) {
       s.bag = [];
       o.bag.forEach(function (e) {
-        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s)) s.bag.push({ id: e.id, v: Math.round(e.v) });
+        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s) + BAG_OVER) s.bag.push({ id: e.id, v: Math.round(e.v) });
       });
     }
   }

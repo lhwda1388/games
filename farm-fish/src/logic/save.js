@@ -82,8 +82,10 @@
       if (num(o.rep) && o.rep >= 0) s.rep = Math.floor(o.rep);
       if (o.seedOk && typeof o.seedOk === 'object') Object.keys(SEED_UNLOCK).forEach(function (k) { if (o.seedOk[k] === true) s.seedOk[k] = true; });
       if (Array.isArray(o.bag)) o.bag.forEach(function (e) {
-        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s)) s.bag.push({ id: e.id, v: Math.round(e.v) });
+        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s) + BAG_OVER) s.bag.push({ id: e.id, v: Math.round(e.v) });
       });
+      if (o.noSell === true) s.noSell = true;
+      if (o.keep && typeof o.keep === 'object') Object.keys(o.keep).forEach(function (k) { if (o.keep[k] === true && itemInfo(k)) { s.keep = s.keep || {}; s.keep[k] = true; } });
       if (Array.isArray(o.orders)) for (var k = 0; k < ORDER_SLOTS; k++) {
         var q = o.orders[k];
         if (!q || typeof q !== 'object') continue;

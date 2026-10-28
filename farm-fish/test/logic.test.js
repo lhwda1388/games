@@ -1,9 +1,9 @@
-// test/logic.test.js
+// farm-fish/test/logic.test.js
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 
-// built in memory from src/, so tests never need `node build.js` first
+// built in memory from src/, so tests never need `node farm-fish/build.js` first
 function loadLogic() {
   const html = require('../build.js').build();
   const m = html.match(/<script id="logic">([\s\S]*?)<\/script>/);
@@ -588,4 +588,26 @@ test('game clock: 1 day = 1 real hour, 1 season = 1 real week, weather per 40-mi
     seen[w] = (seen[w] || 0) + 1;
   }
 assert.ok(seen.clear > 800 && seen.rain > 300 && seen.fog > 150 && seen.snow > 80, JSON.stringify(seen));
+});
+
+test('basket: 지키기 pushes out the cheapest unkept item, 자동 판매 끔 never sells, sellOne sells one', () => {
+  const s = L.newState(0, () => 0);
+  while (s.bag.length < L.bagCap(s)) L.bagAdd(s, 'radish', 30);
+  s.bag[0].v = 10;
+  const c0 = s.coins;
+  assert.equal(L.bagAdd(s, 'egg', 50), 50);                       // unkept incoming: sold as before
+  s.keep = { egg: true };
+  assert.equal(L.bagAdd(s, 'egg', 50), 10);                       // kept: cheapest radish goes instead
+  assert.equal(L.bagCount(s, 'egg'), 1);
+  assert.equal(s.coins, c0 + 60);
+  s.noSell = true;
+  assert.ok(L.bagBlocked(s));
+  assert.equal(L.bagAdd(s, 'potato', 60), 0);                     // squeezes in, nothing sold
+  assert.equal(s.bag.length, L.bagCap(s) + 1);
+  const back = L.decode(L.encode(s));                             // over-cap bag, keep and noSell survive a reload
+  assert.equal(back.bag.length, s.bag.length);
+  assert.ok(back.noSell && back.keep.egg);
+  const n = L.bagCount(s, 'radish');
+  assert.equal(L.sellOne(s, 'radish'), 30);
+  assert.equal(L.bagCount(s, 'radish'), n - 1);
 });

@@ -86,6 +86,7 @@
     }
     if (inPond(x, y, 1.0)) {
       if (S.fish.phase === 'idle') {
+        if (bagStop()) return true;
         var bx = x, by = y;
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
         L.cast(S, now(), Math.random, Math.round(bx), Math.round(by));
@@ -118,6 +119,8 @@
     var blink = Math.floor(tt * 10) % 37 === 0;
     var breathe = reel ? 0 : Math.floor(tt) % 2;
     spr(blink ? SP.farmerBlink : SP.farmer, 46, 121 + breathe);
+    var wx = curEnv(now()).weather;
+    if (wx === 'rain' || wx === 'snow') spr(SP.umbrella, 45, 114 + breathe);   // nobody fishes bareheaded in the rain
   }
   // Rod keeps its butt angle and bends along a curve toward the (pulled) tip.
   function drawRod(tip) {

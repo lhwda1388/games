@@ -120,10 +120,25 @@
     var groups = {}, order = [], total = 0;
     S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; total += e.v; });
     order.forEach(function (id) {
-      var g = groups[id], r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n, '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
-      r.appendChild(act('팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); refresh(); renderBag(); }));
+      var g = groups[id], kept = !!(S.keep && S.keep[id]);
+      var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
+      var a = document.createElement('div'); a.className = 'acts';
+      a.appendChild(act(kept ? '풀기' : '지키기', function () {
+        S.keep = S.keep || {};
+        if (kept) delete S.keep[id]; else S.keep[id] = true;
+        toast(kept ? L.itemInfo(id).name + ' 지키기 풀었다' : L.itemInfo(id).name + ' 지키기 · 꽉 차도 안 팔려요'); save(); renderBag();
+      }, { cls: 'max b' + (kept ? ' on' : '') }));
+      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
+      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
+      r.appendChild(a);
     });
-    if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요 · 꽉 차면 저절로 팔려요'; bagEl.appendChild(p); }
+    if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요'; bagEl.appendChild(p); }
+    var auto = act('꽉 차면 자동 판매 · ' + (S.noSell ? '끔' : '켬'), function () {
+      S.noSell = !S.noSell;
+      toast(S.noSell ? '자동 판매 끔 · 꽉 차면 직접 비워야 해요' : '자동 판매 켬 · 꽉 차면 지키지 않은 것부터 팔려요', 3000); save(); renderBag();
+    }, { cls: 'sellAll' });
+    auto.setAttribute('aria-pressed', String(!S.noSell));
+    bagEl.appendChild(auto);
     var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'sellAll', off: !S.bag.length });
     bagEl.appendChild(all);
   }
@@ -134,7 +149,13 @@
     if (x < 22 && y >= 142 && y < 166) { tapPot(); return true; }
     return false;
   }
+  // 자동 판매 끔 and full: new catches/harvests wait (they stay in the pond/field/tree)
+  function bagStop() {
+    if (!L.bagBlocked(S)) return false;
+    toast('바구니가 꽉 찼어요 · 바구니에서 팔 것을 골라요', 2600); return true;
+  }
   function tapPot() {
+    if (L.potReady(S, now()) && bagStop()) return;
     var d = L.takeDish(S, now());
     if (!d) { openBag('cook'); return; }
     var nm = L.itemInfo(d.id).name;
@@ -196,7 +217,7 @@
         }
         toast(r.name + ' 끓이는 중 · ' + fmtGame(r.time));
         refresh(); renderBag();
-      }, { cls: L.canCook(S, r.id) ? '' : 'poor' }));
+      }, { cls: L.canCook(S, r.id) ? 'go' : 'poor' }));
     });
   }
 

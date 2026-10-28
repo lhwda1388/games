@@ -49,6 +49,8 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 #tray .cost{font:700 11px var(--mono)}
 #tray button.shake,.up button.shake{animation:shake .3s}
 .up button.poor{color:var(--g3)}
+.up button.go,.up button.on{background:var(--g4);color:var(--g0)}
+.up button.poor{border-style:dashed}
 @keyframes shake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 #toast{position:absolute;left:50%;top:216px;transform:translateX(-50%);max-width:320px;box-sizing:border-box;padding:4px 9px;
   background:var(--g0);border:2px solid var(--g4);font:700 12px var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -114,6 +116,7 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 .pips i.on{background:var(--g4)}
 .up button{min-width:58px;font-family:var(--mono)}
 .up button.max{font-family:var(--font)}
+.up button.b{min-width:0;padding-left:6px;padding-right:6px}
 .ms{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--g2);font:700 12px var(--font)}
 .ms .box{width:10px;height:10px;border:2px solid var(--g4);flex:none;box-sizing:border-box}
 .ms.done .box{background:var(--g4);box-shadow:inset 0 0 0 2px var(--g0)}
@@ -906,6 +909,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   ];
   var ORDER_SLOTS = 3, REFILL_MIN = 1200e3, REFILL_SPAN = 1200e3, SKIP_MIN = 60e3, SKIP_SPAN = 60e3;
   var SPECIAL_CHANCE = 0.12;
+  var BAG_OVER = 40;   // how far over the cap a save may hold (자동 판매 끔 lets the pen/hive squeeze in)
 
   function recipeById(id) { for (var k = 0; k < RECIPES.length; k++) if (RECIPES[k].id === id) return RECIPES[k]; return null; }
   function itemInfo(id) {
@@ -932,11 +936,19 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   // ---------- basket ----------
   function bagCap(s) { return UPG.basket.cap[tier(s, 'basket')] + houseBag(s); }
-  // into the basket if there's room, otherwise sold on the spot; returns coins earned by overflow
+  // into the basket if there's room, otherwise sold on the spot; returns coins earned by overflow.
+  // s.keep[id] (지키기): a kept item pushes out the cheapest unkept one instead (or squeezes in if all are kept).
+  // s.noSell (자동 판매 끔): nothing is sold; the UI stops new catches/harvests while full (bagBlocked),
+  // and what still comes in (pen, hive, pet gifts) squeezes in over the cap.
   function bagAdd(s, id, value) {
-    if (s.bag.length < bagCap(s)) { s.bag.push({ id: id, v: value }); return 0; }
-    s.coins += value; return value;
+    if (s.bag.length < bagCap(s) || s.noSell) { s.bag.push({ id: id, v: value }); return 0; }
+    if (!(s.keep && s.keep[id])) { s.coins += value; return value; }
+    var k = -1;
+    s.bag.forEach(function (e, j) { if (!s.keep[e.id] && (k < 0 || e.v < s.bag[k].v)) k = j; });
+    var v = k < 0 ? 0 : s.bag.splice(k, 1)[0].v;
+    s.bag.push({ id: id, v: value }); s.coins += v; return v;
   }
+  function bagBlocked(s) { return !!s.noSell && s.bag.length >= bagCap(s); }
   function bagCount(s, id) { var n = 0; s.bag.forEach(function (e) { if (e.id === id) n++; }); return n; }
   // removes n of id, cheapest first (big fish stay for selling)
   function bagTake(s, id, n) {
@@ -951,6 +963,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function sellAll(s) {
     var t = 0; s.bag.forEach(function (e) { t += e.v; });
     s.bag = []; s.coins += t; return t;
+  }
+  // one of id, the cheapest (as bagTake)
+  function sellOne(s, id) {
+    var k = -1;
+    s.bag.forEach(function (e, j) { if (e.id === id && (k < 0 || e.v < s.bag[k].v)) k = j; });
+    if (k < 0) return 0;
+    var v = s.bag.splice(k, 1)[0].v; s.coins += v; return v;
   }
   function sellId(s, id) {
     var t = 0;
@@ -1055,7 +1074,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     PRODUCTS: PRODUCTS, RECIPES: RECIPES, ORDER_SLOTS: ORDER_SLOTS, REFILL_MIN: REFILL_MIN, REFILL_SPAN: REFILL_SPAN,
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
-    bagCap: bagCap, bagAdd: bagAdd, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
+    bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
     orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });
@@ -1393,7 +1412,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (Array.isArray(o.bag)) {
       s.bag = [];
       o.bag.forEach(function (e) {
-        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s)) s.bag.push({ id: e.id, v: Math.round(e.v) });
+        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s) + BAG_OVER) s.bag.push({ id: e.id, v: Math.round(e.v) });
       });
     }
   }
@@ -3504,8 +3523,10 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (num(o.rep) && o.rep >= 0) s.rep = Math.floor(o.rep);
       if (o.seedOk && typeof o.seedOk === 'object') Object.keys(SEED_UNLOCK).forEach(function (k) { if (o.seedOk[k] === true) s.seedOk[k] = true; });
       if (Array.isArray(o.bag)) o.bag.forEach(function (e) {
-        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s)) s.bag.push({ id: e.id, v: Math.round(e.v) });
+        if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s) + BAG_OVER) s.bag.push({ id: e.id, v: Math.round(e.v) });
       });
+      if (o.noSell === true) s.noSell = true;
+      if (o.keep && typeof o.keep === 'object') Object.keys(o.keep).forEach(function (k) { if (o.keep[k] === true && itemInfo(k)) { s.keep = s.keep || {}; s.keep[k] = true; } });
       if (Array.isArray(o.orders)) for (var k = 0; k < ORDER_SLOTS; k++) {
         var q = o.orders[k];
         if (!q || typeof q !== 'object') continue;
@@ -3631,6 +3652,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     crowPeck: ['..............', '..............', '..............', '.....444......', '....44444.....', '..44440444....', '.444444444433.', '444443333344..', '44444433344...', '.444444444....', '....4..4......', '...44.44......'],
     weed: ['.4.....4.', '434.4.434', '.3434343.', '343434343', '.4343434.'],
     farmer: ['...4444....', '..422224...', '.44444444..', '44444444444', '..400004...', '..400404...', '..410014...', '...4444....', '..4333334..', '.43333300..', '.4333334...', '..4444444..', '..44...44..'],
+    umbrella: ['....44444....', '..444444444..', '.44444444444.', '4444444444444', '4..4..4..4..4', '......4......', '......4......'],
     farmerBlink: ['...4444....', '..422224...', '.44444444..', '44444444444', '..400004...', '..400004...', '..410014...', '...4444....', '..4333334..', '.43333300..', '.4333334...', '..4444444..', '..44...44..'],
     // head left with eye, round body, forked tail on the right
     fish: ['...4444....4', '..400004..44', '.40400004444', '40000000044.', '.40000004444', '..400004..44', '...4444....4'],
@@ -3992,6 +4014,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
       else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden) {
+        if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
         L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k));
         castAnim = { t: 0 }; refresh();
@@ -4176,7 +4199,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         L.pullWeed(S, i, t); burst(r.x + 22, r.y + 14, 8, 3, 50); toast('잡초 뽑기 완료 · 다시 자란다');
         refresh(); return true;
       }
-      if (L.isReady(p)) { holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
+      if (L.isReady(p)) { if (!bagStop()) holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
         if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
@@ -4307,6 +4330,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
     if (inPond(x, y, 1.0)) {
       if (S.fish.phase === 'idle') {
+        if (bagStop()) return true;
         var bx = x, by = y;
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
         L.cast(S, now(), Math.random, Math.round(bx), Math.round(by));
@@ -4339,6 +4363,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var blink = Math.floor(tt * 10) % 37 === 0;
     var breathe = reel ? 0 : Math.floor(tt) % 2;
     spr(blink ? SP.farmerBlink : SP.farmer, 46, 121 + breathe);
+    var wx = curEnv(now()).weather;
+    if (wx === 'rain' || wx === 'snow') spr(SP.umbrella, 45, 114 + breathe);   // nobody fishes bareheaded in the rain
   }
   // Rod keeps its butt angle and bends along a curve toward the (pulled) tip.
   function drawRod(tip) {
@@ -5529,10 +5555,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var groups = {}, order = [], total = 0;
     S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; total += e.v; });
     order.forEach(function (id) {
-      var g = groups[id], r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n, '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
-      r.appendChild(act('팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); refresh(); renderBag(); }));
+      var g = groups[id], kept = !!(S.keep && S.keep[id]);
+      var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
+      var a = document.createElement('div'); a.className = 'acts';
+      a.appendChild(act(kept ? '풀기' : '지키기', function () {
+        S.keep = S.keep || {};
+        if (kept) delete S.keep[id]; else S.keep[id] = true;
+        toast(kept ? L.itemInfo(id).name + ' 지키기 풀었다' : L.itemInfo(id).name + ' 지키기 · 꽉 차도 안 팔려요'); save(); renderBag();
+      }, { cls: 'max b' + (kept ? ' on' : '') }));
+      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
+      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
+      r.appendChild(a);
     });
-    if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요 · 꽉 차면 저절로 팔려요'; bagEl.appendChild(p); }
+    if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요'; bagEl.appendChild(p); }
+    var auto = act('꽉 차면 자동 판매 · ' + (S.noSell ? '끔' : '켬'), function () {
+      S.noSell = !S.noSell;
+      toast(S.noSell ? '자동 판매 끔 · 꽉 차면 직접 비워야 해요' : '자동 판매 켬 · 꽉 차면 지키지 않은 것부터 팔려요', 3000); save(); renderBag();
+    }, { cls: 'sellAll' });
+    auto.setAttribute('aria-pressed', String(!S.noSell));
+    bagEl.appendChild(auto);
     var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'sellAll', off: !S.bag.length });
     bagEl.appendChild(all);
   }
@@ -5543,7 +5584,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (x < 22 && y >= 142 && y < 166) { tapPot(); return true; }
     return false;
   }
+  // 자동 판매 끔 and full: new catches/harvests wait (they stay in the pond/field/tree)
+  function bagStop() {
+    if (!L.bagBlocked(S)) return false;
+    toast('바구니가 꽉 찼어요 · 바구니에서 팔 것을 골라요', 2600); return true;
+  }
   function tapPot() {
+    if (L.potReady(S, now()) && bagStop()) return;
     var d = L.takeDish(S, now());
     if (!d) { openBag('cook'); return; }
     var nm = L.itemInfo(d.id).name;
@@ -5605,7 +5652,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         }
         toast(r.name + ' 끓이는 중 · ' + fmtGame(r.time));
         refresh(); renderBag();
-      }, { cls: L.canCook(S, r.id) ? '' : 'poor' }));
+      }, { cls: L.canCook(S, r.id) ? 'go' : 'poor' }));
     });
   }
 
@@ -5989,6 +6036,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       L.ANIMAL_IDS.forEach(function (id) { if (S.animals[id]) { var left = S.yard.prod[id].t + L.ANIMALS[id].every - t; if (soon === null || left < soon) soon = left; } });
       toast('아직 줍을 게 없어요 · ' + fmtLeft(Math.max(0, soon)) + ' 뒤', 2400); return;
     }
+    if (bagStop()) return;
     var r = L.collectAnimals(S, t, Math.random), n = {};
     r.items.forEach(function (id) { n[id] = (n[id] || 0) + 1; });
     burst(PEN.x + PEN.w / 2, PEN.y + PEN.h / 2, 12, 0, 60);
@@ -7362,6 +7410,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (!hit([sp[0] - 8, sp[1] - 13, 16, 16], x, y, 2)) continue;
       var p = S.forest.spots[k];
       if (!p.id) { empty = empty || p; continue; }
+      if (bagStop()) return;
       chal = { kind: 'forage', k: k, x: sp[0], y: sp[1] - 12, g: L.forageGame(p.id, performance.now(), Math.random), hinted: false };
       return;
     }
@@ -8329,6 +8378,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (!hit([sp[0] - 13, sp[1] - 36, 26, 39], x, y)) continue;
       var p = S.orchard.trees[k];
       if (!p) { openSaplings(k); return; }
+      if (p.n && bagStop()) return;
       var d = L.treeById(p.id), r2 = L.pickFruit(S, k, t, TZ);
       if (r2) {
         burst(sp[0], sp[1] - 18, 10, 0, 50);
@@ -8353,6 +8403,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       });
       return;
     }
+    if (S.bees.hives[k] && S.bees.hives[k].jar.length && bagStop()) return;
     var got = L.collectHoney(S, k, now(), TZ, Math.random);
     if (!got) {
       var se = curEnv(now()).season, fl = L.honeySources(S, se, now()).filter(function (x) { return x.id !== 'wildhoney'; });

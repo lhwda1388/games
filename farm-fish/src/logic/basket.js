@@ -19,6 +19,7 @@
   ];
   var ORDER_SLOTS = 3, REFILL_MIN = 1200e3, REFILL_SPAN = 1200e3, SKIP_MIN = 60e3, SKIP_SPAN = 60e3;
   var SPECIAL_CHANCE = 0.12;
+  var BAG_OVER = 40;   // how far over the cap a save may hold (자동 판매 끔 lets the pen/hive squeeze in)
 
   function recipeById(id) { for (var k = 0; k < RECIPES.length; k++) if (RECIPES[k].id === id) return RECIPES[k]; return null; }
   function itemInfo(id) {
@@ -45,11 +46,19 @@
 
   // ---------- basket ----------
   function bagCap(s) { return UPG.basket.cap[tier(s, 'basket')] + houseBag(s); }
-  // into the basket if there's room, otherwise sold on the spot; returns coins earned by overflow
+  // into the basket if there's room, otherwise sold on the spot; returns coins earned by overflow.
+  // s.keep[id] (지키기): a kept item pushes out the cheapest unkept one instead (or squeezes in if all are kept).
+  // s.noSell (자동 판매 끔): nothing is sold; the UI stops new catches/harvests while full (bagBlocked),
+  // and what still comes in (pen, hive, pet gifts) squeezes in over the cap.
   function bagAdd(s, id, value) {
-    if (s.bag.length < bagCap(s)) { s.bag.push({ id: id, v: value }); return 0; }
-    s.coins += value; return value;
+    if (s.bag.length < bagCap(s) || s.noSell) { s.bag.push({ id: id, v: value }); return 0; }
+    if (!(s.keep && s.keep[id])) { s.coins += value; return value; }
+    var k = -1;
+    s.bag.forEach(function (e, j) { if (!s.keep[e.id] && (k < 0 || e.v < s.bag[k].v)) k = j; });
+    var v = k < 0 ? 0 : s.bag.splice(k, 1)[0].v;
+    s.bag.push({ id: id, v: value }); s.coins += v; return v;
   }
+  function bagBlocked(s) { return !!s.noSell && s.bag.length >= bagCap(s); }
   function bagCount(s, id) { var n = 0; s.bag.forEach(function (e) { if (e.id === id) n++; }); return n; }
   // removes n of id, cheapest first (big fish stay for selling)
   function bagTake(s, id, n) {
@@ -64,6 +73,13 @@
   function sellAll(s) {
     var t = 0; s.bag.forEach(function (e) { t += e.v; });
     s.bag = []; s.coins += t; return t;
+  }
+  // one of id, the cheapest (as bagTake)
+  function sellOne(s, id) {
+    var k = -1;
+    s.bag.forEach(function (e, j) { if (e.id === id && (k < 0 || e.v < s.bag[k].v)) k = j; });
+    if (k < 0) return 0;
+    var v = s.bag.splice(k, 1)[0].v; s.coins += v; return v;
   }
   function sellId(s, id) {
     var t = 0;
@@ -168,7 +184,7 @@
     PRODUCTS: PRODUCTS, RECIPES: RECIPES, ORDER_SLOTS: ORDER_SLOTS, REFILL_MIN: REFILL_MIN, REFILL_SPAN: REFILL_SPAN,
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
-    bagCap: bagCap, bagAdd: bagAdd, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
+    bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
     orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });

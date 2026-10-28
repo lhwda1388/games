@@ -144,7 +144,7 @@
         L.pullWeed(S, i, t); burst(r.x + 22, r.y + 14, 8, 3, 50); toast('잡초 뽑기 완료 · 다시 자란다');
         refresh(); return true;
       }
-      if (L.isReady(p)) { holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
+      if (L.isReady(p)) { if (!bagStop()) holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
         if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }

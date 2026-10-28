@@ -1,5 +1,5 @@
-// build.js — joins src/ into the single self-contained index.html.
-// Usage: node build.js   (no dependencies; same sources always give the same bytes)
+// farm-fish/build.js — joins src/ into the single self-contained index.html.
+// Usage: node farm-fish/build.js   (no dependencies; same sources always give the same bytes)
 // Files are pasted in the order listed. logic/ and ui/ files are fragments of one shared closure each
 // (see src/page.html), so a file can use any name defined in an earlier one. New file = one new line.
 'use strict';

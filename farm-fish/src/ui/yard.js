@@ -348,6 +348,7 @@
       L.ANIMAL_IDS.forEach(function (id) { if (S.animals[id]) { var left = S.yard.prod[id].t + L.ANIMALS[id].every - t; if (soon === null || left < soon) soon = left; } });
       toast('아직 줍을 게 없어요 · ' + fmtLeft(Math.max(0, soon)) + ' 뒤', 2400); return;
     }
+    if (bagStop()) return;
     var r = L.collectAnimals(S, t, Math.random), n = {};
     r.items.forEach(function (id) { n[id] = (n[id] || 0) + 1; });
     burst(PEN.x + PEN.w / 2, PEN.y + PEN.h / 2, 12, 0, 60);

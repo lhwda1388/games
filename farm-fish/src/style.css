@@ -41,6 +41,8 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 #tray .cost{font:700 11px var(--mono)}
 #tray button.shake,.up button.shake{animation:shake .3s}
 .up button.poor{color:var(--g3)}
+.up button.go,.up button.on{background:var(--g4);color:var(--g0)}
+.up button.poor{border-style:dashed}
 @keyframes shake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 #toast{position:absolute;left:50%;top:216px;transform:translateX(-50%);max-width:320px;box-sizing:border-box;padding:4px 9px;
   background:var(--g0);border:2px solid var(--g4);font:700 12px var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -106,6 +108,7 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 .pips i.on{background:var(--g4)}
 .up button{min-width:58px;font-family:var(--mono)}
 .up button.max{font-family:var(--font)}
+.up button.b{min-width:0;padding-left:6px;padding-right:6px}
 .ms{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--g2);font:700 12px var(--font)}
 .ms .box{width:10px;height:10px;border:2px solid var(--g4);flex:none;box-sizing:border-box}
 .ms.done .box{background:var(--g4);box-shadow:inset 0 0 0 2px var(--g0)}

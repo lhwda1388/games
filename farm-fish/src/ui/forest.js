@@ -159,6 +159,7 @@
       if (!hit([sp[0] - 8, sp[1] - 13, 16, 16], x, y, 2)) continue;
       var p = S.forest.spots[k];
       if (!p.id) { empty = empty || p; continue; }
+      if (bagStop()) return;
       chal = { kind: 'forage', k: k, x: sp[0], y: sp[1] - 12, g: L.forageGame(p.id, performance.now(), Math.random), hinted: false };
       return;
     }

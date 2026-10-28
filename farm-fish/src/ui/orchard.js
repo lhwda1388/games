@@ -132,6 +132,7 @@
       if (!hit([sp[0] - 13, sp[1] - 36, 26, 39], x, y)) continue;
       var p = S.orchard.trees[k];
       if (!p) { openSaplings(k); return; }
+      if (p.n && bagStop()) return;
       var d = L.treeById(p.id), r2 = L.pickFruit(S, k, t, TZ);
       if (r2) {
         burst(sp[0], sp[1] - 18, 10, 0, 50);
@@ -156,6 +157,7 @@
       });
       return;
     }
+    if (S.bees.hives[k] && S.bees.hives[k].jar.length && bagStop()) return;
     var got = L.collectHoney(S, k, now(), TZ, Math.random);
     if (!got) {
       var se = curEnv(now()).season, fl = L.honeySources(S, se, now()).filter(function (x) { return x.id !== 'wildhoney'; });

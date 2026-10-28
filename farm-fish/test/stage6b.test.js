@@ -1,4 +1,4 @@
-// test/stage6b.test.js — stage 6B: 마을 (주민 집 방문: 대화·선물·심부름), 이어지는 심부름 이야기
+// farm-fish/test/stage6b.test.js — stage 6B: 마을 (주민 집 방문: 대화·선물·심부름), 이어지는 심부름 이야기
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
