@@ -80,17 +80,17 @@
   function recipeKnown(s, r) { return !r.gift || !!(s.res && s.res.rec[r.id]); }
   function friendLevel(s, id) { return (s.res && s.res.lv[id]) || 0; }
   function friendPoints(s, id) { return (s.res && s.res.f[id]) || 0; }
-  // a gift that is already owned (or has no decoration spot free) turns into its price in coins
+  // a gift that is already owned (or has no decoration slot free) turns into its price in coins; with no spot it fits, it waits in the 보관함
   function giveGift(s, g) {
     var y = yardOf(s), out = { type: g.type, id: g.id, coins: 0 };
     if (g.type === 'recipe') resOf(s).rec[g.id] = true;
     else if (g.type === 'furn') {
       if (y.furn[g.id]) out.coins = FURN.filter(function (f) { return f.id === g.id; })[0].cost;
-      else y.furn[g.id] = true;
+      else { y.furn[g.id] = true; placeItem(s, 'furn', g.id); }
     } else {
       var d = DECOS.filter(function (x) { return x.id === g.id; })[0];
       if (y.deco[g.id] || decoCount(s) >= decoSlots(s)) out.coins = d.cost;
-      else y.deco[g.id] = true;
+      else { y.deco[g.id] = true; placeItem(s, 'deco', g.id); }
     }
     s.coins += out.coins;
     return out;

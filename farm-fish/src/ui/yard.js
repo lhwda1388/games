@@ -8,18 +8,14 @@
   function yPhase() { return curEnv(now()).phase; }
   function yWeather() { return curEnv(now()).weather; }
 
-  // layout: every decoration has one fixed spot [x, y, w, h]
-  var DSPOT = {
-    windmill: [16, 12, 24, 50], tree: [150, 14, 28, 56], birdhouse: [42, 38, 10, 26], mailbox: [44, 76, 11, 18],
-    flowers: [4, 88, 32, 16], lanterns: [68, 90, 44, 14], bench: [126, 98, 24, 12], jars: [152, 94, 24, 18],
-    laundry: [106, 118, 46, 24], stones: [158, 146, 18, 30], fence: [104, 184, 74, 12], chime: [0, 0, 7, 12]
-  };
+  // layout: decorations stand on L.YSPOTS (logic/yard.js), the 풍경 hangs under the eave
   var PEN = { x: 4, y: 116, w: 98, h: 80 };
   var HOUSE_BOX = [[66, 46, 48, 40], [62, 38, 56, 48], [56, 36, 68, 50], [60, 20, 60, 66]];
   var GIFT_AT = { x: 98, y: 88 };
   function houseBox() { var b = HOUSE_BOX[L.houseTier(S)]; return { x: b[0], y: b[1], w: b[2], h: b[3] }; }
   function chimeSpot() { var b = houseBox(); return [b.x + b.w - 3, L.houseTier(S) === 3 ? b.y + 14 : b.y + 12, 7, 12]; }
-  function spot(id) { return id === 'chime' ? chimeSpot() : DSPOT[id]; }
+  // where a decoration is drawn now (null = in the 보관함)
+  function decoRect(id) { var k = L.spotOf(S, 'deco', id); return k < 0 ? null : L.YSPOTS[k].r ? L.itemRect('deco', id, k) : chimeSpot(); }
   function potRect(k) { return { x: 128 + k * 14, y: 72, w: 13, h: 12 }; }
   function hit(r, x, y, pad) { pad = pad || 0; return x >= r[0] - pad && x < r[0] + r[2] + pad && y >= r[1] - pad && y < r[1] + r[3] + pad; }
 
@@ -248,14 +244,11 @@
     ctx.drawImage(bgYard, 0, 0);
     drawSky(tt, ph);
     drawSeasonGround('yard');
-    L.DECOS.forEach(function (d) {
-      var r = spot(d.id);
-      if (S.yard.deco[d.id]) DRAW_DECO[d.id](r[0], r[1], tt, night);
-      else if (!d.merchant && L.decoCount(S) < L.decoSlots(S) && d.id !== 'chime') drawSlot(r);
-    });
+    L.YSPOTS.forEach(function (p, k) { if (L.spotBuyable(S, 'deco', k)) drawSlot(p.r); });
+    standing('deco').forEach(function (e) { if (e.id !== 'chime') DRAW_DECO[e.id](e.r[0], e.r[1], tt, night); });
     drawHouse(tt, night, wx === 'snow' || seasonNow() === 'winter');
     drawTrophyDecor(tt);
-    if (S.yard.deco.chime) { var cs = chimeSpot(); DRAW_DECO.chime(cs[0], cs[1], tt); }
+    var cs = decoRect('chime'); if (cs) DRAW_DECO.chime(cs[0], cs[1], tt);
     drawYardPots(tt);
     if (S.yard.gifts.length) {
       var g = GIFT_AT; px(g.x, g.y, 8, 6, 4); px(g.x + 1, g.y + 1, 6, 4, 0); px(g.x + 3, g.y, 2, 6, 3); px(g.x + 1, g.y - 2, 2, 2, 4); px(g.x + 5, g.y - 2, 2, 2, 4);
@@ -268,10 +261,20 @@
     if (night) {
       windowsOf(L.houseTier(S)).forEach(function (r) { drawWindow(r, true); });
       if (L.houseTier(S) === 0) { var b = houseBox(); for (var k = 26; k < 40; k++) { var hw = Math.round((k - 14) * 0.35) - 1; if (hw > 0) px(b.x + 24 - hw, b.y + k, hw * 2 + 1, 1, k % 3 ? 1 : 0); } }
-      if (S.yard.deco.lanterns) { var lr = DSPOT.lanterns; DRAW_DECO.lanterns(lr[0], lr[1], tt, true); }
+      var lr = decoRect('lanterns'); if (lr) DRAW_DECO.lanterns(lr[0], lr[1], tt, true);
       drawStars(tt);
     }
     drawVisitors(tt, dt, 'sky');
+    drawPick(tt);
+  }
+  // what stands in the 마당 / 집 안, back to front: [{ id, r }]
+  function standing(kind) {
+    var out = [];
+    (kind === 'deco' ? L.DECOS : L.FURN).forEach(function (it) {
+      var r = kind === 'deco' ? decoRect(it.id) : furnRect(it.id);
+      if (r) out.push({ id: it.id, r: r, flat: it.id === 'rug' });
+    });
+    return out.sort(function (a, b) { return (b.flat - a.flat) || (a.r[1] + a.r[3]) - (b.r[1] + b.r[3]); });
   }
   function drawSky(tt, ph) {
     if (ph === 'night') { px(0, 0, W, 20, 3); for (var y = 20; y < 26; y++) for (var x = (y % 2); x < W; x += 2) px(x, y, 1, 1, 3); }
@@ -301,10 +304,12 @@
     pendingBuy = { key: key, until: t + 3000 };
     toast(label + ' · ' + price.toLocaleString('ko-KR') + '코인 · 한 번 더 누르면 산다', 3000);
   }
-  var WHY = { coins: '코인이 부족해요', rep: '신뢰도 ★이 부족해요', slots: '장식 자리가 꽉 찼어요 · 집을 키우면 늘어요', house: '집을 더 키워야 해요',
-    max: '이미 최고 단계', owned: '이미 있어요', merchant: '떠돌이 상인이 가끔 가져와요', gone: '이미 팔렸어요' };
+  var WHY = { coins: '코인이 부족해요', rep: '신뢰도 ★이 부족해요', slots: '장식 자리가 꽉 찼어요 · 하나 넣어 두거나 집을 키우면 늘어요', house: '집을 더 키워야 해요',
+    max: '이미 최고 단계', owned: '이미 있어요', merchant: '떠돌이 상인이 가끔 가져와요', gone: '이미 팔렸어요',
+    room: '놓을 빈 자리가 없어요 · 다른 걸 옮기거나 넣어 두세요', blocked: '거기엔 안 들어가요' };
   function tapYard(x, y) {
     var t = now(), k;
+    if (tapPick(x, y)) return;
     if (tapVisitorAt(x, y, 'sky') || tapVisitorAt(x, y, 'yard')) return;
     if (S.yard.gifts.length && Math.abs(x - GIFT_AT.x - 4) < 8 && Math.abs(y - GIFT_AT.y - 2) < 8) {
       var g = L.collectGifts(S); floatText('+' + g.c, GIFT_AT.x, GIFT_AT.y - 6); burst(GIFT_AT.x + 4, GIFT_AT.y, 8, 0, 40);
@@ -314,24 +319,25 @@
       var pr = potRect(k);
       if (hit([pr.x, pr.y, pr.w, pr.h], x, y, 2)) { tapPot(); return; }
     }
+    var cr = decoRect('chime');
+    if (cr && hit(cr, x, y, 2)) { tapDeco(L.decoById('chime')); return; }
     var b = houseBox();
     if (hit([b.x, b.y, b.w, b.h], x, y)) { goScene('house'); return; }
     if (hit([PEN.x, PEN.y, PEN.w, PEN.h], x, y)) { tapPen(); return; }
-    for (k = 0; k < L.DECOS.length; k++) {
-      var d = L.DECOS[k], r = spot(d.id);
-      if (!hit(r, x, y, 2)) continue;
-      if (S.yard.deco[d.id]) { tapDeco(d); return; }
-      if (d.merchant || d.id === 'chime') continue;
-      if (L.decoCount(S) >= L.decoSlots(S)) continue;
+    var on = standing('deco').filter(function (e) { return hit(e.r, x, y, 2); }).pop();
+    if (on) { tapDeco(L.decoById(on.id)); return; }
+    for (k = 0; k < L.YSPOTS.length; k++) {
+      if (!L.spotBuyable(S, 'deco', k) || !hit(L.YSPOTS[k].r, x, y, 2)) continue;
+      var d = L.decoById(L.YSPOTS[k].def), r = L.YSPOTS[k].r;
       confirmBuy('d:' + d.id, d.name, d.cost, function () {
         var res = L.buyDeco(S, d.id);
         if (!res.ok) { toast(WHY[res.why] || '살 수 없어요'); return; }
         burst(r[0] + r[2] / 2, r[1] + r[3] / 2, 10, 0, 50);
-        josa(toast(d.name, '을', '를') + ' 놓았다' + (d.brings ? ' · ' + josa(L.visitorById(d.brings).name, '이', '가') + ' 찾아올지도' : ''), 3000); refresh();
+        toast(res.stored ? josa(d.name, '은', '는') + ' 보관함에 · 상점에서 놓기' : josa(d.name, '을', '를') + ' 놓았다' + (d.brings ? ' · ' + josa(L.visitorById(d.brings).name, '이', '가') + ' 찾아올지도' : ''), 3000); refresh();
       });
       return;
     }
-    toast('마당 · 집을 누르면 안으로 · 빈 자리(+)를 누르면 꾸미기', 2400);
+    toast('마당 · 집을 누르면 안으로 · 빈 자리(+)를 누르면 꾸미기 · 장식을 누르면 옮기기', 2400);
   }
   function tapPen() {
     var t = now();
@@ -348,13 +354,101 @@
     toast(Object.keys(n).map(function (id) { return L.itemInfo(id).name + '×' + n[id]; }).join(' · ') + (r.sold ? ' · 넘친 건 팔았다 +' + r.sold : ' · 바구니에'), 3000);
     refresh();
   }
+  // the old one-tap reactions stay; their line now sits in the 옮기기 bar
   function tapDeco(d) {
-    if (d.id === 'mailbox') { openSheet('mail'); return; }
-    if (d.id === 'windmill') { millSpin = 3; toast('풍차가 빙글빙글'); return; }
-    if (d.id === 'chime') { chimeRing = 2; toast('딸랑…'); return; }
-    if (d.id === 'bench') { toast('벤치 · 고양이가 좋아하는 자리'); return; }
-    var r = spot(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
-    toast(d.name + (d.brings ? ' · ' + josa(L.visitorById(d.brings).name, '이', '가') + ' 좋아한대요' : ''));
+    var likes = d.brings ? josa(L.visitorById(d.brings).name, '이', '가') + ' 좋아한대요' : '보기 좋다';
+    if (d.id === 'mailbox') { openPick('deco', d.id, '편지가 오는 곳', ['편지', function () { openSheet('mail'); }]); return; }
+    if (d.id === 'windmill') { millSpin = 3; openPick('deco', d.id, '빙글빙글'); return; }
+    if (d.id === 'chime') { chimeRing = 2; openPick('deco', d.id, '딸랑… · ' + likes); return; }
+    if (d.id === 'bench') { openPick('deco', d.id, '고양이가 좋아하는 자리'); return; }
+    var r = decoRect(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
+    openPick('deco', d.id, likes);
+  }
+
+  // ---------- 옮기기 · 넣어 두기: tap a placed thing → a bar where the seed tray sits ----------
+  // 옮기기 lights every spot it may go (an occupied one = swap); tap one to move, anywhere else (or Esc) to cancel
+  var pick = null;   // { kind, id, info, extra, moving, targets }
+  var itemBar = document.createElement('div');
+  itemBar.id = 'itemBar'; itemBar.hidden = true; itemBar.setAttribute('role', 'group');
+  app.appendChild(itemBar);
+  function itemDef(kind, id) { return kind === 'deco' ? L.decoById(id) : L.furnById(id); }
+  function pickRect(kind, id) { return kind === 'deco' ? decoRect(id) : furnRect(id); }
+  // the rect id would take on spot k (the eave for the 풍경)
+  function targetRect(kind, id, k) { return kind === 'deco' && !L.YSPOTS[k].r ? chimeSpot() : L.itemRect(kind, id, k); }
+  function barBtn(label, fn, aria) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    if (aria) b.setAttribute('aria-label', aria);
+    b.addEventListener('click', fn); itemBar.appendChild(b); return b;
+  }
+  function openPick(kind, id, info, extra) {
+    pick = { kind: kind, id: id, info: info, extra: extra || null, moving: false, targets: [] };
+    renderPick();
+  }
+  function closePick() { pick = null; itemBar.hidden = true; itemBar.innerHTML = ''; }
+  function renderPick() {
+    itemBar.innerHTML = '';
+    if (!pick) { itemBar.hidden = true; return; }
+    var def = itemDef(pick.kind, pick.id), t = document.createElement('div'); t.className = 'it';
+    var nm = document.createElement('b'); nm.textContent = def.name;
+    var sm = document.createElement('small'); sm.textContent = pick.moving ? '빛나는 자리를 누르세요' : pick.info;
+    t.appendChild(nm); t.appendChild(sm);
+    itemBar.appendChild(pick.kind === 'deco' ? decoIcon(pick.id) : furnIcon(pick.id)); itemBar.appendChild(t);
+    if (pick.moving) barBtn('취소', closePick);
+    else {
+      if (pick.extra) barBtn(pick.extra[0], function () { var f = pick.extra[1]; closePick(); f(); });
+      barBtn('옮기기', startMove, def.name + ' 옮기기');
+      barBtn('넣어 두기', storePick, def.name + ' 보관함에 넣어 두기');
+      barBtn('✕', closePick, '닫기').className = 'x';
+    }
+    itemBar.hidden = false;
+  }
+  function startMove() {
+    if (!pick) return;
+    pick.targets = L.moveTargets(S, pick.kind, pick.id);
+    if (!pick.targets.length) { toast('옮길 수 있는 자리가 없어요 · 다른 걸 넣어 두면 생겨요', 2600); return; }
+    pick.moving = true; renderPick();
+  }
+  function storePick() {
+    var def = itemDef(pick.kind, pick.id);
+    if (!L.storeItem(S, pick.kind, pick.id).ok) { closePick(); return; }
+    toast(josa(def.name, '을', '를') + ' 보관함에 넣었다 · 상점에서 다시 놓기', 2800);
+    closePick(); refresh();
+  }
+  // returns true when the tap belonged to the move mode; a tap outside the bar's item just closes the bar
+  function tapPick(x, y) {
+    if (!pick) return false;
+    if (!pick.moving) { closePick(); return false; }
+    var best = null, bd = 1e9;
+    pick.targets.forEach(function (k) {
+      var r = targetRect(pick.kind, pick.id, k);
+      if (!hit(r, x, y, 4)) return;
+      var dd = Math.hypot(x - r[0] - r[2] / 2, y - r[1] - r[3] / 2);
+      if (dd < bd) { bd = dd; best = k; }
+    });
+    if (best === null) { closePick(); return true; }
+    var def = itemDef(pick.kind, pick.id), res = L.moveItem(S, pick.kind, pick.id, best);
+    if (!res.ok) toast(WHY[res.why] || '옮길 수 없어요');
+    else {
+      var r = targetRect(pick.kind, pick.id, best);
+      burst(r[0] + r[2] / 2, r[1] + r[3] - 2, 8, 0, 40);
+      toast(res.swapped ? def.name + ' ⇄ ' + itemDef(pick.kind, res.swapped).name + ' 자리 바꿈' : josa(def.name, '을', '를') + ' 옮겼다', 2000);
+    }
+    closePick(); refresh();
+    return true;
+  }
+  // move mode: wash the scene, then a blinking dashed frame on every spot it may go and a solid one on the item
+  function drawPick(tt) {
+    if (!pick || !pick.moving) return;
+    ctx.globalAlpha = 0.55; px(0, 0, W, H, 0); ctx.globalAlpha = 1;
+    var on = Math.floor(tt * 3) % 2, me = pickRect(pick.kind, pick.id);
+    pick.targets.forEach(function (k) {
+      var r = targetRect(pick.kind, pick.id, k), occ = L.occupant(S, pick.kind, k);
+      var box = [r[0] - 2, r[1] - 2, r[2] + 4, r[3] + 4];
+      dashRect(box, on ? 4 : 3); dashRect([box[0] + 1, box[1] + 1, box[2] - 2, box[3] - 2], on ? 0 : 4);
+      if (occ) { px(box[0] + box[2] - 5, box[1] - 1, 6, 5, 4); px(box[0] + box[2] - 4, box[1] + 1, 4, 1, 0); px(box[0] + box[2] - 3, box[1], 1, 1, 0); px(box[0] + box[2] - 2, box[1] + 2, 1, 1, 0); }
+      else { var cx = Math.round(r[0] + r[2] / 2), cy = Math.round(r[1] + r[3] / 2); px(cx - 2, cy, 5, 1, 4); px(cx, cy - 2, 1, 5, 4); }
+    });
+    if (me) { var m = [me[0] - 2, me[1] - 2, me[2] + 4, me[3] + 4]; px(m[0], m[1], m[2], 1, 4); px(m[0], m[1] + m[3] - 1, m[2], 1, 4); px(m[0], m[1], 1, m[3], 4); px(m[0] + m[2] - 1, m[1], 1, m[3], 4); }
   }
 
   // ---------- scene switch ----------
@@ -363,7 +457,7 @@
   app.appendChild(sceneBtn);
   function goScene(sc) {
     if (reel) return;
-    view = sc; pendingBuy = null;
+    view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
     cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : '집 안');
@@ -484,8 +578,8 @@
       refresh(); return S.animals;
     };
     FF.produce = function () { L.ANIMAL_IDS.forEach(function (id) { S.yard.prod[id].n = S.animals[id] * L.ANIMAL_CAP; }); };
-    FF.decos = function (all) { L.DECOS.forEach(function (d, k) { if (all || k < L.decoSlots(S)) S.yard.deco[d.id] = true; }); refresh(); };
-    FF.furn = function () { L.FURN.forEach(function (f) { S.yard.furn[f.id] = true; }); refresh(); };
+    FF.decos = function (all) { L.DECOS.forEach(function (d, k) { if (all || k < L.decoSlots(S)) { S.yard.deco[d.id] = true; L.placeItem(S, 'deco', d.id); } }); refresh(); return S.yard.place.deco; };
+    FF.furn = function () { L.FURN.forEach(function (f) { S.yard.furn[f.id] = true; L.placeItem(S, 'furn', f.id); }); refresh(); return S.yard.place.furn; };
     FF.egg = function (id) { var e = L.findEgg(S, id, now()); if (e) eggFound(e); return e; };
     FF.eggsReset = function () { S.yard.eggs = {}; save(); };
     FF.clockBite = function () { if (S.fish.phase === 'wait') { clockForce = true; S.fish.biteAt = now(); } };

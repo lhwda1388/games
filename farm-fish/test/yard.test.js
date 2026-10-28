@@ -302,3 +302,146 @@ test('easter eggs trigger once each: scarecrow, clock fish, 999 radish, midnight
   assert.equal(L.eggCount(s), L.EGGS.length);
   assert.ok(L.EGGS.length >= 6 && L.EGGS.every((e) => e.hint && e.letter && e.cat && e.merch));
 });
+
+// ---------- 옮기기 · 넣어 두기 (s.yard.place) ----------
+const oldYardSave = (house, decos, furn) => {
+  const s = rich(); s.yard.house = house;
+  const j = JSON.parse(L.encode(s));
+  delete j.yard.place;                                               // saves from before 옮기기 had no place
+  j.yard.deco = {}; decos.forEach((id) => { j.yard.deco[id] = true; });
+  j.yard.furn = {}; furn.forEach((id) => { j.yard.furn[id] = true; });
+  return JSON.stringify(j);
+};
+const defSpot = (list, id) => list.findIndex((p) => p.def === id);
+
+test('a save from before 옮기기 loads with every item on its old fixed spot, and round-trips', () => {
+  const decos = ['flowers', 'mailbox', 'bench', 'tree', 'jars', 'chime'], furn = ['bed', 'rug', 'lamp', 'table', 'piano'];
+  const s = L.decode(oldYardSave(3, decos, furn));
+  decos.forEach((id) => { assert.equal(s.yard.deco[id], true); assert.equal(L.spotOf(s, 'deco', id), defSpot(L.YSPOTS, id), id); });
+  furn.forEach((id) => { assert.equal(s.yard.furn[id], true); assert.equal(L.spotOf(s, 'furn', id), defSpot(L.RSPOTS, id), id); });
+  // same pixels as the old fixed layout: standing on its own spot an item covers exactly that spot
+  decos.filter((id) => id !== 'chime').forEach((id) => assert.deepEqual(L.itemRect('deco', id, L.spotOf(s, 'deco', id)), L.YSPOTS[defSpot(L.YSPOTS, id)].r));
+  furn.forEach((id) => assert.deepEqual(L.itemRect('furn', id, L.spotOf(s, 'furn', id)), L.RSPOTS[defSpot(L.RSPOTS, id)].r));
+  assert.deepEqual(L.decode(L.encode(s)), s);
+  // furniture an old save owned before its tier (console) still stands where it stood
+  const t = L.decode(oldYardSave(0, [], ['piano']));
+  assert.equal(L.spotOf(t, 'furn', 'piano'), defSpot(L.RSPOTS, 'piano'));
+});
+
+test('owning more decorations than slots keeps them all: the extras wait in the 보관함', () => {
+  const ids = ['flowers', 'mailbox', 'bench', 'birdhouse', 'tree', 'fence', 'jars'];
+  const s = L.decode(oldYardSave(0, ids, []));                      // 천막: 4 slots
+  ids.forEach((id) => assert.equal(s.yard.deco[id], true, id));
+  assert.equal(L.decoCount(s), 4);
+  assert.deepEqual(L.storedList(s, 'deco'), ['tree', 'fence', 'jars']);
+  const back = L.decode(L.encode(s));
+  assert.deepEqual(back, s);
+  // a bigger house: the stored ones can go out again
+  back.yard.house = 1;
+  assert.equal(L.placeItem(back, 'deco', 'tree').ok, true);
+  assert.equal(L.placeItem(back, 'deco', 'fence').ok, true);
+  assert.deepEqual(L.placeItem(back, 'deco', 'jars'), { ok: false, why: 'slots' });
+  assert.deepEqual(L.storedList(back, 'deco'), ['jars']);
+});
+
+test('bad or doubled spots in a save go to the 보관함, never away', () => {
+  const s = rich(); L.buyDeco(s, 'bench'); L.buyDeco(s, 'jars'); L.buyFurn(s, 'bed');
+  const j = JSON.parse(L.encode(s));
+  j.yard.place.deco.bench = 99; j.yard.place.deco.jars = 'x'; j.yard.place.furn.bed = 1; j.yard.place.furn.rug = 0;
+  j.yard.place.deco.unicorn = 3;
+  const b = L.decode(JSON.stringify(j));
+  assert.equal(b.yard.deco.bench, true); assert.equal(b.yard.deco.jars, true);
+  assert.deepEqual(L.storedList(b, 'deco'), ['bench', 'jars']);
+  assert.equal(L.spotOf(b, 'furn', 'bed'), 1);                      // any open spot is fine
+  assert.equal(b.yard.place.furn.rug, undefined);                    // not owned
+  assert.equal(b.yard.place.deco.unicorn, undefined);
+  j.yard.place.deco = { bench: 4, jars: 4 };                         // two on one spot: the second waits
+  const c = L.decode(JSON.stringify(j));
+  assert.equal(L.spotOf(c, 'deco', 'bench'), 4); assert.deepEqual(L.storedList(c, 'deco'), ['jars']);
+  j.yard.place.deco = { bench: defSpot(L.YSPOTS, 'chime') };         // only the 풍경 hangs under the eave
+  assert.deepEqual(L.storedList(L.decode(JSON.stringify(j)), 'deco'), ['bench', 'jars']);
+});
+
+test('move, swap, store and place are pure and keep the yard tidy', () => {
+  const s = rich();
+  L.buyDeco(s, 'bench'); L.buyDeco(s, 'jars');
+  const bench = defSpot(L.YSPOTS, 'bench'), jars = defSpot(L.YSPOTS, 'jars'), far = L.YSPOTS.length - 2;
+  assert.equal(L.spotOf(s, 'deco', 'bench'), bench);
+  const targets = L.moveTargets(s, 'deco', 'bench');
+  assert.ok(targets.includes(far) && targets.includes(jars) && !targets.includes(bench));
+  L.YSPOTS.forEach((p, k) => { if (!p.r) assert.ok(!targets.includes(k)); });   // the eave is the 풍경's
+  assert.deepEqual(L.moveItem(s, 'deco', 'bench', far), { ok: true, swapped: null });
+  assert.equal(L.spotOf(s, 'deco', 'bench'), far);
+  assert.deepEqual(L.moveItem(s, 'deco', 'jars', far), { ok: true, swapped: 'bench' });
+  assert.equal(L.spotOf(s, 'deco', 'jars'), far); assert.equal(L.spotOf(s, 'deco', 'bench'), jars);
+  assert.deepEqual(L.moveItem(s, 'deco', 'jars', defSpot(L.YSPOTS, 'chime')), { ok: false, why: 'blocked' });
+  // store frees the slot (a 5th deco fits in the 천막's 4), place brings it back to its own spot when that is free
+  ['flowers', 'mailbox'].forEach((id) => L.buyDeco(s, id));
+  assert.deepEqual(L.buyDeco(s, 'tree'), { ok: false, why: 'slots' });
+  assert.deepEqual(L.storeItem(s, 'deco', 'bench'), { ok: true });
+  assert.deepEqual(L.storeItem(s, 'deco', 'bench'), { ok: false, why: 'stored' });
+  assert.deepEqual(L.moveItem(s, 'deco', 'bench', 0), { ok: false, why: 'stored' });
+  assert.equal(s.yard.deco.bench, true);
+  assert.equal(L.buyDeco(s, 'tree').ok, true);
+  assert.deepEqual(L.placeItem(s, 'deco', 'bench'), { ok: false, why: 'slots' });
+  L.storeItem(s, 'deco', 'jars');
+  assert.deepEqual(L.placeItem(s, 'deco', 'bench'), { ok: true, spot: bench });
+  assert.equal(L.canPlace(s, 'deco', 'jars', L.spotOf(s, 'deco', 'tree')), false);   // stored → empty spots only
+  // the 풍경 only ever hangs under the eave
+  const m = rich(); m.yard.house = 3; L.buyDeco(m, 'chime', true, 1);
+  assert.equal(L.spotOf(m, 'deco', 'chime'), defSpot(L.YSPOTS, 'chime'));
+  assert.deepEqual(L.moveTargets(m, 'deco', 'chime'), []);
+  // furniture: spots open with the house; no count limit but each needs a free spot
+  const f = rich(); L.buyFurn(f, 'bed'); L.buyFurn(f, 'lamp');
+  assert.ok(L.moveTargets(f, 'furn', 'lamp').every((k) => L.RSPOTS[k].house === 0));
+  f.yard.house = 3;
+  assert.ok(L.moveTargets(f, 'furn', 'lamp').some((k) => L.RSPOTS[k].house === 3));
+  assert.deepEqual(L.moveTargets(f, 'furn', 'bed').includes(defSpot(L.RSPOTS, 'clock')), false);
+  // deterministic: the same moves give the same state
+  const a = rich(), b = rich();
+  [a, b].forEach((x) => { L.buyDeco(x, 'bench'); L.moveItem(x, 'deco', 'bench', far); L.storeItem(x, 'deco', 'bench'); L.placeItem(x, 'deco', 'bench'); });
+  assert.deepEqual(a, b);
+  assert.deepEqual(L.decode(L.encode(s)), s);
+});
+
+test('stored decorations attract nobody; placed again, their visitor comes back', () => {
+  const run = (store) => {
+    const s = rich(); L.buyDeco(s, 'tree'); L.buyDeco(s, 'flowers');
+    if (store) { L.storeItem(s, 'deco', 'tree'); L.storeItem(s, 'deco', 'flowers'); }
+    const rng = mulberry(5), ids = new Set();
+    for (let t = 0; t < 12 * 3600e3; t += 20e3) L.tickVisitors(s, t, rng, 0, 1).forEach((e) => ids.add(e.id));
+    return ids;
+  };
+  const out = run(false), stored = run(true);
+  assert.ok(out.has('squirrel') && out.has('butterfly'));
+  assert.ok(!stored.has('squirrel') && !stored.has('butterfly'));
+});
+
+test('no move ever puts two things on top of each other or off the canvas', () => {
+  const overlap = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+  [['deco', L.DECOS, L.YSPOTS], ['furn', L.FURN, L.RSPOTS]].forEach(([kind, items]) => {
+    const s = rich(); s.yard.house = 3;
+    items.forEach((it) => { s.yard[kind][it.id] = true; L.placeItem(s, kind, it.id); });
+    const check = () => {
+      const rs = Object.keys(s.yard.place[kind]).map((id) => L.itemRect(kind, id, s.yard.place[kind][id])).filter(Boolean);
+      rs.forEach((a, i) => { assert.ok(a[0] >= 0 && a[1] >= 0 && a[0] + a[2] <= 180 && a[1] + a[3] <= 200); rs.slice(i + 1).forEach((b) => assert.ok(!overlap(a, b))); });
+    };
+    check();
+    let moves = 0;
+    for (let round = 0; round < 3; round++) items.forEach((it) => {
+      const t = L.moveTargets(s, kind, it.id);
+      if (t.length) { assert.equal(L.moveItem(s, kind, it.id, t[(round + moves) % t.length]).ok, true); moves++; check(); }
+    });
+    assert.ok(moves > 5, kind + ' moves ' + moves);
+  });
+});
+
+test('furniture with no free spot waits in the 보관함 instead of vanishing', () => {
+  const s = rich();
+  ['bed', 'rug', 'lamp'].forEach((id) => L.buyFurn(s, id));
+  s.yard.furn.plant = true;                                          // owned, nowhere to stand yet
+  assert.equal(L.placeItem(s, 'furn', 'plant').ok, true);            // the 4th tent spot
+  s.yard.furn.table = true;
+  assert.deepEqual(L.placeItem(s, 'furn', 'table'), { ok: false, why: 'room' });
+  assert.deepEqual(L.storedList(s, 'furn'), ['table']);
+});

@@ -18,7 +18,7 @@ node --test test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index
 | `logic/fishing.js` | 물고기 표, 입질, 릴 미니게임 |
 | `logic/spots.js` | 낚시터(강·바다) 해금, 시간대·날씨·계절 조건, 비 성장 보너스 |
 | `logic/basket.js` | 아이템, 바구니, 주문 게시판, 요리 |
-| `logic/yard.js`, `logic/visitors.js`, `logic/eggs.js` | 집 단계·동물·장식·가구·추가 냄비(`s.yard`, `s.animals`), 방문객·편지·떠돌이 상인, 이스터에그·시계 물고기 |
+| `logic/yard.js`, `logic/visitors.js`, `logic/eggs.js` | 집 단계·동물·장식·가구(놓인 자리 `s.yard.place`, 없으면 보관함)·추가 냄비(`s.yard`, `s.animals`), 방문객·편지·떠돌이 상인, 이스터에그·시계 물고기 |
 | `logic/dex.js` | 도감 수, 마일스톤 |
 | `logic/save.js` | 새 상태, encode/decode, 옛 세이브 호환 (세이브 관련은 여기만) |
 | `ui/core.js` | 속도·시계, 저장/불러오기, DOM 참조 |

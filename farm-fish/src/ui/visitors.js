@@ -1,16 +1,19 @@
   // ---------- visitors: where they stand, how they look, what a tap does; merchant & letter sheet ----------
   function visitById(id) { var out = null; S.yard.vis.forEach(function (v) { if (v.id === id) out = v; }); return out; }
   function visitProgress(v) { return Math.max(0, Math.min(1, (now() - v.at) / Math.max(1, v.until - v.at))); }
-  // position (and tap radius) of a visitor in its scene
+  // position (and tap radius) of a visitor in its scene; the ones a decoration brings stay by it wherever it stands
+  function near(id, dx, dy, r) {
+    var b = decoRect(id);
+    return b ? { x: Math.max(8, Math.min(W - 8, b[0] + dx)), y: Math.max(30, Math.min(H - 4, b[1] + dy)), r: r } : null;
+  }
   function visitorPos(v, tt) {
-    var d = S.yard.deco;
     switch (v.id) {
-      case 'cat': return d.bench ? { x: 131, y: 89, r: 10 } : { x: 74, y: 80, r: 10 };
-      case 'raccoon': return d.jars ? { x: 140, y: 106, r: 10 } : { x: 122, y: 164, r: 10 };
-      case 'squirrel': return { x: 160, y: 52 + (Math.floor(tt * 2) % 6 === 0 ? -2 : 0), r: 9 };
+      case 'cat': return near('bench', 5, -9, 10) || { x: 74, y: 80, r: 10 };
+      case 'raccoon': return near('jars', 12, 27, 12) || { x: 122, y: 164, r: 12 };
+      case 'squirrel': var q = near('tree', 10, 38, 9) || { x: 160, y: 52, r: 9 }; q.y += Math.floor(tt * 2) % 6 === 0 ? -2 : 0; return q;
       case 'sparrows': return { x: 60, y: 102, r: 14 };
-      case 'butterfly': return { x: 20 + Math.sin(tt * 0.9) * 11, y: 82 + Math.cos(tt * 1.3) * 5, r: 10 };
-      case 'mailman': return { x: 58, y: 76, r: 10 };
+      case 'butterfly': var f = near('flowers', 16, -6, 10) || { x: 20, y: 82, r: 10 }; f.x += Math.sin(tt * 0.9) * 11; f.y += Math.cos(tt * 1.3) * 5; return f;
+      case 'mailman': var mb = decoRect('mailbox'); return mb && mb[0] > W - 30 ? near('mailbox', -6, 0, 10) : near('mailbox', 14, 0, 10) || { x: 58, y: 76, r: 10 };
       case 'merchant': return { x: 116, y: 148, r: 18 };
       case 'fireflies': return { x: 60 + 50 * (0.5 + 0.5 * Math.sin(tt * 0.13 + v.x * 6)), y: 64 + 24 * Math.sin(tt * 0.17 + v.x * 3), r: 22 };
       case 'shootingstar': var sx = ((tt * 0.35 + v.x) % 1) * 230 - 25; return { x: sx, y: 3 + v.x * 8 + sx * 0.07, r: 14, sky: true };
@@ -46,7 +49,18 @@
   }
 
   // ---------- sprites ----------
-  var RACCOON = ['.4......4.', '.44....44.', '..444444..', '.44000044.', '4400440044', '.40044004.', '..400004..', '.4444444..', '443333344.', '.4333334.4', '.4333334.4', '.44...44.4'];
+  // 너구리 on all fours: ringed tail (dark/light bands), grey body, dark eye mask between a pale brow and muzzle
+  var RACCOON = [
+    '.................44.44..',
+    '................4334334.',
+    '..........4444444111114.',
+    '.43344334433333344440444',
+    '441144114333333341111114',
+    '44114411433333333444444.',
+    '.43344334333333334......',
+    '........4334444334......',
+    '........44.4..4.44......'];
+  var RACCOON_STEP = RACCOON.slice(0, -1).concat(['........4.44..44.4......']);
   var SQUIRREL = ['...44', '..433', '.4334', '4333.', '4334.', '.444.'];
   var SQ_HEAD = ['.44.', '4304', '4334', '.44.'];
   function halo(rows, x, y, flip) {
@@ -73,9 +87,9 @@
   var DRAW_VIS = {
     cat: drawCatVisit,
     raccoon: function (v, p, tt) {
-      var hop = Math.floor(tt * 3) % 4 === 0 ? 1 : 0;
-      halo(RACCOON, p.x - 5, p.y - 8 - hop, Math.sin(tt * 0.7) < 0);
-      for (var k = 0; k < 4; k++) px(p.x + 6 + k, p.y + 1 - (k % 2), 1, 1, k % 2 ? 4 : 2);
+      // sniffs about: steps now and then, turns around every so often
+      var step = Math.floor(tt * 3) % 4 === 0;
+      halo(step ? RACCOON_STEP : RACCOON, p.x - 12, p.y - 8, Math.sin(tt * 0.7) < 0);
     },
     squirrel: function (v, p, tt) { spr(SQUIRREL, p.x - 1, p.y - 4); spr(SQ_HEAD, p.x - 4, p.y - 6); px(p.x - 3, p.y - 5, 1, 1, 0); },
     sparrows: function (v, p, tt) {

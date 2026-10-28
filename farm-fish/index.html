@@ -194,6 +194,16 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 .letter p{margin:0;font:400 12px/1.5 var(--font);color:var(--g4)}
 .letter button{width:100%;padding:5px;font-family:var(--mono)}
 .dx canvas.sq{image-rendering:pixelated}
+/* 옮기기 · 넣어 두기 bar: sits where the seed tray is (the tray is hidden in the 마당/집 안) */
+#itemBar{position:absolute;left:0;right:0;bottom:0;height:44px;box-sizing:border-box;z-index:3;display:flex;gap:4px;align-items:center;
+  padding:0 6px;background:var(--g0);border-top:2px solid var(--g4)}
+#itemBar[hidden]{display:none}
+#itemBar canvas{image-rendering:pixelated;flex:none;max-width:28px;max-height:28px}
+#itemBar .it{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+#itemBar .it b{font:700 12px var(--font)}
+#itemBar .it small{font:400 10px var(--font);color:var(--g3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#itemBar button{flex:none;min-height:30px;padding:3px 8px}
+#itemBar button.x{padding:3px 7px}
 /* Hallmark · component: 주민 hearts · 할 일 list · 친구 code fields + comparison · 찌! button · genre: playful
  * theme: existing farm-fish grayscale (--g0..--g4) · states: default · hover · focus · active · disabled (local, instant: no loading/error)
  * stage 4. Reuses .overlay/.tabs/.up/.ms/.letter/.note; only tokens, no new colours.
@@ -979,40 +989,40 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   };
   var ANIMAL_IDS = ['hen', 'duck', 'cow'];
   var ANIMAL_CAP = 4, FEATHER_CHANCE = 0.3;
-  // decorations sit on fixed spots in the yard; `brings` = the visitor it attracts; merchant-only ones come from 떠돌이 상인
+  // decorations stand on yard spots (YSPOTS, sz = w×h in px); `brings` = the visitor it attracts; merchant-only ones come from 떠돌이 상인
   var DECOS = [
-    { id: 'flowers',   name: '꽃밭',   cost: 400,  brings: 'butterfly' },
-    { id: 'mailbox',   name: '우체통', cost: 1200, brings: 'mailman' },
-    { id: 'bench',     name: '벤치',   cost: 1000, brings: 'cat' },
-    { id: 'birdhouse', name: '새집',   cost: 1500, brings: 'sparrows' },
-    { id: 'tree',      name: '나무',   cost: 2000, brings: 'squirrel' },
-    { id: 'fence',     name: '울타리', cost: 800 },
-    { id: 'laundry',   name: '빨랫줄', cost: 1000 },
-    { id: 'jars',      name: '장독대', cost: 3000, brings: 'raccoon' },
-    { id: 'stones',    name: '돌탑',   cost: 4000 },
-    { id: 'windmill',  name: '풍차',   cost: 12000 },
-    { id: 'lanterns',  name: '연등',   cost: 5000, merchant: true },
-    { id: 'chime',     name: '풍경',   cost: 6000, merchant: true, brings: 'fireflies' }
+    { id: 'flowers',   name: '꽃밭',   cost: 400,  brings: 'butterfly', sz: [32, 16] },
+    { id: 'mailbox',   name: '우체통', cost: 1200, brings: 'mailman', sz: [11, 18] },
+    { id: 'bench',     name: '벤치',   cost: 1000, brings: 'cat', sz: [24, 12] },
+    { id: 'birdhouse', name: '새집',   cost: 1500, brings: 'sparrows', sz: [10, 26] },
+    { id: 'tree',      name: '나무',   cost: 2000, brings: 'squirrel', sz: [28, 56] },
+    { id: 'fence',     name: '울타리', cost: 800, sz: [74, 12] },
+    { id: 'laundry',   name: '빨랫줄', cost: 1000, sz: [46, 24] },
+    { id: 'jars',      name: '장독대', cost: 3000, brings: 'raccoon', sz: [24, 18] },
+    { id: 'stones',    name: '돌탑',   cost: 4000, sz: [18, 30] },
+    { id: 'windmill',  name: '풍차',   cost: 12000, sz: [24, 50] },
+    { id: 'lanterns',  name: '연등',   cost: 5000, merchant: true, sz: [44, 14] },
+    { id: 'chime',     name: '풍경',   cost: 6000, merchant: true, brings: 'fireflies', sz: [7, 12], hang: true }
   ];
-  // furniture: fixed slots in the room; bigger houses open more of them
+  // furniture stands on room spots (RSPOTS); bigger houses open more of them; hang = only its own wall spot
   var FURN = [
-    { id: 'bed',      name: '침대',   cost: 600,  house: 0 },
-    { id: 'rug',      name: '러그',   cost: 400,  house: 0 },
-    { id: 'lamp',     name: '램프',   cost: 500,  house: 0 },
-    { id: 'table',    name: '탁자',   cost: 1500,  house: 1 },
-    { id: 'chair',    name: '의자',   cost: 1000,  house: 1 },
-    { id: 'plant',    name: '화분',   cost: 900,  house: 1 },
-    { id: 'shelf',    name: '책장',   cost: 3000,  house: 2 },
-    { id: 'stove',    name: '난로',   cost: 4000,  house: 2 },
-    { id: 'clock',    name: '벽시계', cost: 2500,  house: 2 },
-    { id: 'wardrobe', name: '옷장',   cost: 6000, house: 3 },
-    { id: 'radio',    name: '라디오', cost: 4500,  house: 3 },
-    { id: 'piano',    name: '피아노', cost: 15000, house: 3 }
+    { id: 'bed',      name: '침대',   cost: 600,  house: 0, sz: [46, 30] },
+    { id: 'rug',      name: '러그',   cost: 400,  house: 0, sz: [60, 26] },
+    { id: 'lamp',     name: '램프',   cost: 500,  house: 0, sz: [9, 30] },
+    { id: 'table',    name: '탁자',   cost: 1500,  house: 1, sz: [32, 16] },
+    { id: 'chair',    name: '의자',   cost: 1000,  house: 1, sz: [12, 20] },
+    { id: 'plant',    name: '화분',   cost: 900,  house: 1, sz: [12, 22] },
+    { id: 'shelf',    name: '책장',   cost: 3000,  house: 2, sz: [20, 40] },
+    { id: 'stove',    name: '난로',   cost: 4000,  house: 2, sz: [24, 40] },
+    { id: 'clock',    name: '벽시계', cost: 2500,  house: 2, sz: [13, 13], hang: true },
+    { id: 'wardrobe', name: '옷장',   cost: 6000, house: 3, sz: [22, 42] },
+    { id: 'radio',    name: '라디오', cost: 4500,  house: 3, sz: [14, 11] },
+    { id: 'piano',    name: '피아노', cost: 15000, house: 3, sz: [54, 30] }
   ];
   function byId(list, id) { for (var k = 0; k < list.length; k++) if (list[k].id === id) return list[k]; return null; }
 
   function newYard() {
-    return { house: 0, deco: {}, furn: {}, pots: [],
+    return { house: 0, deco: {}, furn: {}, place: { deco: {}, furn: {} }, pots: [],
       prod: { hen: { n: 0, t: 0 }, duck: { n: 0, t: 0 }, cow: { n: 0, t: 0 } },
       vis: [], nextVisitAt: 0, met: {}, gifts: [], mail: [], letterNext: 0, eggs: {},
       eg: { scare: 0, scareAt: 0, wishDay: -1, wishes: 0 } };
@@ -1026,7 +1036,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function houseInfo(s) { return HOUSE[houseTier(s)]; }
   function houseBag(s) { return HOUSE[houseTier(s)].bag; }
   function decoSlots(s) { return HOUSE[houseTier(s)].deco; }
-  function decoCount(s) { return s.yard ? Object.keys(s.yard.deco).length : 0; }
+  // decoration slots count what stands in the yard; stored ones (보관함) don't use a slot
+  function decoCount(s) { return s.yard ? Object.keys(s.yard.place.deco).length : 0; }
   // next tier's price, or null at the top
   function houseNext(s) { return HOUSE[houseTier(s) + 1] || null; }
   function upgradeHouse(s) {
@@ -1114,7 +1125,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (why !== 'ok') return { ok: false, why: why };
     s.coins -= price !== undefined ? price : d.cost;
     s.yard.deco[id] = true;
-    return { ok: true };
+    return { ok: true, stored: !placeItem(s, 'deco', id).ok };
   }
   function buyFurn(s, id) {
     var f = byId(FURN, id), y = yardOf(s);
@@ -1123,8 +1134,116 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (houseTier(s) < f.house) return { ok: false, why: 'house' };
     if (s.coins < f.cost) return { ok: false, why: 'coins' };
     s.coins -= f.cost; y.furn[id] = true;
+    return { ok: true, stored: !placeItem(s, 'furn', id).ok };
+  }
+
+  // ---------- placement: owned things stand on a spot (s.yard.place[kind][id] = spot index) or wait in the 보관함 ----------
+  // A spot is [x, y, w, h]; an item stands bottom-centred on it. def = the item whose fixed place it was before things
+  // could move, so old saves keep every item exactly where it was. house = the room tier that opens the spot.
+  var PW = 180, PH = 200;   // the canvas (ui/core.js W, H)
+  var YSPOTS = [
+    { r: [16, 12, 24, 50], def: 'windmill' }, { r: [150, 14, 28, 56], def: 'tree' }, { r: [42, 38, 10, 26], def: 'birdhouse' },
+    { r: [44, 76, 11, 18], def: 'mailbox' }, { r: [4, 88, 32, 16], def: 'flowers' }, { r: [68, 90, 44, 14], def: 'lanterns' },
+    { r: [126, 98, 24, 12], def: 'bench' }, { r: [152, 94, 24, 18], def: 'jars' }, { r: [106, 118, 46, 24], def: 'laundry' },
+    { r: [158, 146, 18, 30], def: 'stones' }, { r: [104, 184, 74, 12], def: 'fence' },
+    { r: null, def: 'chime' },                                   // under the eave: ui/yard.js works it out from the house
+    { r: [2, 60, 14, 26] }, { r: [154, 116, 24, 28] }, { r: [104, 168, 46, 14] }
+  ];
+  var RSPOTS = [
+    { r: [6, 92, 46, 30], def: 'bed', house: 0 }, { r: [56, 124, 60, 26], def: 'rug', house: 0 }, { r: [54, 54, 9, 30], def: 'lamp', house: 0 },
+    { r: [64, 58, 18, 26], house: 0 },
+    { r: [66, 102, 32, 16], def: 'table', house: 1 }, { r: [100, 100, 12, 20], def: 'chair', house: 1 }, { r: [104, 62, 12, 22], def: 'plant', house: 1 },
+    { r: [6, 150, 46, 30], house: 1 },
+    { r: [6, 44, 20, 40], def: 'shelf', house: 2 }, { r: [150, 44, 24, 40], def: 'stove', house: 2 }, { r: [80, 8, 13, 13], def: 'clock', house: 2 },
+    { r: [56, 154, 56, 28], house: 2 },
+    { r: [28, 42, 22, 42], def: 'wardrobe', house: 3 }, { r: [8, 128, 14, 11], def: 'radio', house: 3 }, { r: [118, 156, 54, 30], def: 'piano', house: 3 }
+  ];
+  // what a moved item may never cover: house (every tier), pots, gift, pen, the corner buttons, trophies, the merchant's cart
+  var YARD_BLOCK = [[52, 14, 76, 73], [126, 70, 46, 18], [96, 82, 14, 10], [3, 113, 100, 84], [0, 0, 16, 34], [156, 0, 24, 18],
+    [132, 28, 14, 38], [147, 148, 12, 30], [100, 136, 52, 30]];
+  var ROOM_BLOCK = [[118, 90, 58, 58], [76, 184, 28, 16], [24, 6, 50, 26], [84, 18, 36, 42], [116, 4, 38, 22], [0, 0, 16, 34], [156, 0, 24, 18]];
+  function spotsOf(kind) { return kind === 'deco' ? YSPOTS : RSPOTS; }
+  function itemsOf(kind) { return kind === 'deco' ? DECOS : FURN; }
+  function spotOpen(s, kind, k) { var p = spotsOf(kind)[k]; return !!p && (kind === 'deco' || houseTier(s) >= p.house); }
+  function defSpot(kind, id) { var l = spotsOf(kind); for (var k = 0; k < l.length; k++) if (l[k].def === id) return k; return -1; }
+  // where the item is drawn when it stands on spot k (null for the eave)
+  function itemRect(kind, id, k) {
+    var p = spotsOf(kind)[k], it = byId(itemsOf(kind), id);
+    if (!p || !p.r || !it) return null;
+    return [p.r[0] + Math.round((p.r[2] - it.sz[0]) / 2), p.r[1] + p.r[3] - it.sz[1], it.sz[0], it.sz[1]];
+  }
+  function overlaps(a, b) { return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]; }
+  function placeOf(s, kind) { return yardOf(s).place[kind]; }
+  function spotOf(s, kind, id) { var k = s.yard && s.yard.place[kind][id]; return k === undefined ? -1 : k; }
+  function isPlaced(s, kind, id) { return spotOf(s, kind, id) >= 0; }
+  function occupant(s, kind, k) { var pl = placeOf(s, kind); for (var id in pl) if (pl[id] === k) return id; return null; }
+  // id may stand on k next to `others` ({ id: spot }): hanging things only on their own spot, the rest clear of
+  // the blocked areas (their own old spot is always fine) and of each other
+  function fitsAt(kind, id, k, others) {
+    var p = spotsOf(kind)[k], it = byId(itemsOf(kind), id);
+    if (!p || !it || (it.hang || !p.r) && p.def !== id) return false;
+    var r = itemRect(kind, id, k);
+    if (!r) return true;
+    if (p.def !== id) {
+      if (r[0] < 0 || r[1] < 0 || r[0] + r[2] > PW || r[1] + r[3] > PH) return false;
+      if ((kind === 'deco' ? YARD_BLOCK : ROOM_BLOCK).some(function (b) { return overlaps(r, b); })) return false;
+    }
+    for (var o in others) { var q = itemRect(kind, o, others[o]); if (q && overlaps(r, q)) return false; }
+    return true;
+  }
+  // can id go to spot k? a stored item needs an empty spot (and a free slot for decorations); a placed one swaps with whoever is there
+  function canPlace(s, kind, id, k) {
+    var pl = placeOf(s, kind), from = spotOf(s, kind, id), occ = occupant(s, kind, k);
+    if (!yardOf(s)[kind][id] || !spotOpen(s, kind, k) || from === k) return false;
+    if (from < 0 && (occ || (kind === 'deco' && decoCount(s) >= decoSlots(s)))) return false;
+    var others = {};
+    for (var o in pl) if (o !== id && o !== occ) others[o] = pl[o];
+    if (!fitsAt(kind, id, k, others)) return false;
+    if (!occ) return true;
+    others[id] = k;
+    return fitsAt(kind, occ, from, others);
+  }
+  function moveTargets(s, kind, id) {
+    var out = [];
+    for (var k = 0; k < spotsOf(kind).length; k++) if (canPlace(s, kind, id, k)) out.push(k);
+    return out;
+  }
+  // 옮기기: a placed item to spot k; whatever stood there takes its old spot
+  function moveItem(s, kind, id, k) {
+    if (!isPlaced(s, kind, id)) return { ok: false, why: 'stored' };
+    if (!canPlace(s, kind, id, k)) return { ok: false, why: 'blocked' };
+    var pl = placeOf(s, kind), from = pl[id], occ = occupant(s, kind, k);
+    pl[id] = k;
+    if (occ) pl[occ] = from;
+    return { ok: true, swapped: occ };
+  }
+  // 넣어 두기: into the 보관함 (frees its spot and, for decorations, its slot)
+  function storeItem(s, kind, id) {
+    if (!isPlaced(s, kind, id)) return { ok: false, why: 'stored' };
+    delete placeOf(s, kind)[id];
     return { ok: true };
   }
+  // 놓기: a stored item onto spot k, or (no k) its old spot if it fits, else the first spot that does
+  function placeItem(s, kind, id, k) {
+    if (!yardOf(s)[kind][id]) return { ok: false, why: 'none' };
+    if (isPlaced(s, kind, id)) return { ok: false, why: 'placed' };
+    if (kind === 'deco' && decoCount(s) >= decoSlots(s)) return { ok: false, why: 'slots' };
+    var order = k !== undefined ? [k] : [defSpot(kind, id)].concat(spotsOf(kind).map(function (p, j) { return j; }));
+    for (var j = 0; j < order.length; j++) if (order[j] >= 0 && canPlace(s, kind, id, order[j])) { placeOf(s, kind)[id] = order[j]; return { ok: true, spot: order[j] }; }
+    return { ok: false, why: 'room' };
+  }
+  function storedList(s, kind) {
+    return itemsOf(kind).filter(function (it) { return s.yard && s.yard[kind][it.id] && !isPlaced(s, kind, it.id); }).map(function (it) { return it.id; });
+  }
+  // an empty spot that still sells its own old item: the '+' you can tap twice to buy it there
+  function spotBuyable(s, kind, k) {
+    var p = spotsOf(kind)[k], it = p && p.def && byId(itemsOf(kind), p.def);
+    if (!it || yardOf(s)[kind][it.id] || it.merchant || !spotOpen(s, kind, k) || occupant(s, kind, k)) return false;
+    if (kind === 'deco' && decoCount(s) >= decoSlots(s)) return false;
+    return fitsAt(kind, it.id, k, placeOf(s, kind));
+  }
+  function decoPlaced(s, id) { return isPlaced(s, 'deco', id); }
+  function furnPlaced(s, id) { return isPlaced(s, 'furn', id); }
 
   // ---------- save: called by decode() just before it returns ----------
   function decodeYard(o, s) {
@@ -1139,8 +1258,20 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var q = o.yard, y = s.yard = newYard();
     if (!s.animals) s.animals = { hen: 0, duck: 0, cow: 0 };
     y.house = cnt(q.house, HOUSE.length - 1);
-    if (obj(q.deco)) DECOS.forEach(function (d) { if (q.deco[d.id] === true && decoCount(s) < decoSlots(s)) y.deco[d.id] = true; });
-    if (obj(q.furn)) FURN.forEach(function (f) { if (q.furn[f.id] === true) y.furn[f.id] = true; });
+    // owned things are never dropped. Saves from before 옮기기 have no place: everything stands on its old fixed spot
+    // (decorations past the slot count go to the 보관함). Otherwise a bad or doubled spot also means 보관함.
+    var oldSave = !obj(q.place);
+    ['deco', 'furn'].forEach(function (kind) {
+      var qp = !oldSave && obj(q.place[kind]) ? q.place[kind] : {};
+      if (obj(q[kind])) itemsOf(kind).forEach(function (it) {
+        if (q[kind][it.id] !== true) return;
+        y[kind][it.id] = true;
+        var k = oldSave ? defSpot(kind, it.id) : qp[it.id], p = spotsOf(kind)[k];
+        if (!num(k) || !p || occupant(s, kind, k) || (it.hang || !p.r) && p.def !== it.id) return;
+        if (kind === 'deco' && decoCount(s) >= decoSlots(s)) return;
+        y.place[kind][it.id] = k;
+      });
+    });
     if (obj(q.prod)) ANIMAL_IDS.forEach(function (id) {
       var p = q.prod[id];
       if (obj(p) && num(p.t)) y.prod[id] = { n: cnt(p.n, s.animals[id] * ANIMAL_CAP), t: p.t };
@@ -1181,6 +1312,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     yardOf: yardOf, houseTier: houseTier, houseInfo: houseInfo, houseBag: houseBag, houseNext: houseNext, upgradeHouse: upgradeHouse,
     decoSlots: decoSlots, decoCount: decoCount, decoBuyable: decoBuyable, buyDeco: buyDeco, buyFurn: buyFurn,
     decoById: function (id) { return byId(DECOS, id); }, furnById: function (id) { return byId(FURN, id); },
+    YSPOTS: YSPOTS, RSPOTS: RSPOTS, spotOpen: spotOpen, itemRect: itemRect, spotOf: spotOf, isPlaced: isPlaced, occupant: occupant,
+    canPlace: canPlace, spotBuyable: spotBuyable, moveTargets: moveTargets, moveItem: moveItem, storeItem: storeItem, placeItem: placeItem, storedList: storedList,
+    decoPlaced: decoPlaced, furnPlaced: furnPlaced,
     potCount: potCount, potGet: potGet, freePot: freePot, readyPot: readyPot,
     animalCost: animalCost, buyAnimal: buyAnimal, animalTick: animalTick, productsWaiting: productsWaiting, collectAnimals: collectAnimals,
     decodeYard: decodeYard
@@ -1242,18 +1376,17 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   // ---------- who can come right now ----------
   function visitWeight(s, d, cx) {
-    var y = s.yard;
-    if (d.need && !y.deco[d.need]) return 0;
+    if (d.need && !decoPlaced(s, d.need)) return 0;     // stored decorations attract nobody
     if (d.slot === 'pond' && curSpot(s) !== 'pond') return 0;     // pond visitors only at the 연못
     if (d.night && cx.phase !== 'night') return 0;
     if (d.notNight && cx.phase === 'night') return 0;
     if (d.day && (cx.phase === 'night' || cx.weather !== 'clear')) return 0;
     if (d.rainbow && !cx.rainbow) return 0;
     var w = d.w;
-    if (d.id === 'cat') { if (y.deco.bench) w *= 2; if (s.bag.some(function (e) { return itemInfo(e.id).kind === 'fish'; })) w *= 1.5; }
-    if (d.id === 'raccoon') { if (y.deco.jars) w *= 2; if (cx.phase === 'evening' || cx.phase === 'night') w *= 2; }
+    if (d.id === 'cat') { if (decoPlaced(s, 'bench')) w *= 2; if (s.bag.some(function (e) { return itemInfo(e.id).kind === 'fish'; })) w *= 1.5; }
+    if (d.id === 'raccoon') { if (decoPlaced(s, 'jars')) w *= 2; if (cx.phase === 'evening' || cx.phase === 'night') w *= 2; }
     if (d.id === 'frog' && cx.weather === 'rain') w *= 4;
-    if (d.id === 'fireflies' && y.deco.chime) w *= 3;
+    if (d.id === 'fireflies' && decoPlaced(s, 'chime')) w *= 3;
     if (d.id === 'turtle' && cx.weather !== 'clear') w = 0;
     return w;
   }
@@ -1609,17 +1742,17 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function recipeKnown(s, r) { return !r.gift || !!(s.res && s.res.rec[r.id]); }
   function friendLevel(s, id) { return (s.res && s.res.lv[id]) || 0; }
   function friendPoints(s, id) { return (s.res && s.res.f[id]) || 0; }
-  // a gift that is already owned (or has no decoration spot free) turns into its price in coins
+  // a gift that is already owned (or has no decoration slot free) turns into its price in coins; with no spot it fits, it waits in the 보관함
   function giveGift(s, g) {
     var y = yardOf(s), out = { type: g.type, id: g.id, coins: 0 };
     if (g.type === 'recipe') resOf(s).rec[g.id] = true;
     else if (g.type === 'furn') {
       if (y.furn[g.id]) out.coins = FURN.filter(function (f) { return f.id === g.id; })[0].cost;
-      else y.furn[g.id] = true;
+      else { y.furn[g.id] = true; placeItem(s, 'furn', g.id); }
     } else {
       var d = DECOS.filter(function (x) { return x.id === g.id; })[0];
       if (y.deco[g.id] || decoCount(s) >= decoSlots(s)) out.coins = d.cost;
-      else y.deco[g.id] = true;
+      else { y.deco[g.id] = true; placeItem(s, 'deco', g.id); }
     }
     s.coins += out.coins;
     return out;
@@ -2441,7 +2574,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function refresh() { renderTray(); save(); updateTitle(); }
 
   function onKeyDown(e) {
-    if (e.key === 'Escape') { e.preventDefault(); toggleBoss(); return; }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      var moving = pick && pick.moving; closePick();     // Esc first cancels 옮기기; otherwise it is the boss key
+      if (!moving) toggleBoss();
+      return;
+    }
     if (isPipKey(e)) { e.preventDefault(); if (pipOK && !e.repeat) togglePip(); return; }
     if (boss) return;
     var tg = e.target && e.target.tagName;
@@ -4019,18 +4157,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function yPhase() { return curEnv(now()).phase; }
   function yWeather() { return curEnv(now()).weather; }
 
-  // layout: every decoration has one fixed spot [x, y, w, h]
-  var DSPOT = {
-    windmill: [16, 12, 24, 50], tree: [150, 14, 28, 56], birdhouse: [42, 38, 10, 26], mailbox: [44, 76, 11, 18],
-    flowers: [4, 88, 32, 16], lanterns: [68, 90, 44, 14], bench: [126, 98, 24, 12], jars: [152, 94, 24, 18],
-    laundry: [106, 118, 46, 24], stones: [158, 146, 18, 30], fence: [104, 184, 74, 12], chime: [0, 0, 7, 12]
-  };
+  // layout: decorations stand on L.YSPOTS (logic/yard.js), the 풍경 hangs under the eave
   var PEN = { x: 4, y: 116, w: 98, h: 80 };
   var HOUSE_BOX = [[66, 46, 48, 40], [62, 38, 56, 48], [56, 36, 68, 50], [60, 20, 60, 66]];
   var GIFT_AT = { x: 98, y: 88 };
   function houseBox() { var b = HOUSE_BOX[L.houseTier(S)]; return { x: b[0], y: b[1], w: b[2], h: b[3] }; }
   function chimeSpot() { var b = houseBox(); return [b.x + b.w - 3, L.houseTier(S) === 3 ? b.y + 14 : b.y + 12, 7, 12]; }
-  function spot(id) { return id === 'chime' ? chimeSpot() : DSPOT[id]; }
+  // where a decoration is drawn now (null = in the 보관함)
+  function decoRect(id) { var k = L.spotOf(S, 'deco', id); return k < 0 ? null : L.YSPOTS[k].r ? L.itemRect('deco', id, k) : chimeSpot(); }
   function potRect(k) { return { x: 128 + k * 14, y: 72, w: 13, h: 12 }; }
   function hit(r, x, y, pad) { pad = pad || 0; return x >= r[0] - pad && x < r[0] + r[2] + pad && y >= r[1] - pad && y < r[1] + r[3] + pad; }
 
@@ -4259,14 +4393,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     ctx.drawImage(bgYard, 0, 0);
     drawSky(tt, ph);
     drawSeasonGround('yard');
-    L.DECOS.forEach(function (d) {
-      var r = spot(d.id);
-      if (S.yard.deco[d.id]) DRAW_DECO[d.id](r[0], r[1], tt, night);
-      else if (!d.merchant && L.decoCount(S) < L.decoSlots(S) && d.id !== 'chime') drawSlot(r);
-    });
+    L.YSPOTS.forEach(function (p, k) { if (L.spotBuyable(S, 'deco', k)) drawSlot(p.r); });
+    standing('deco').forEach(function (e) { if (e.id !== 'chime') DRAW_DECO[e.id](e.r[0], e.r[1], tt, night); });
     drawHouse(tt, night, wx === 'snow' || seasonNow() === 'winter');
     drawTrophyDecor(tt);
-    if (S.yard.deco.chime) { var cs = chimeSpot(); DRAW_DECO.chime(cs[0], cs[1], tt); }
+    var cs = decoRect('chime'); if (cs) DRAW_DECO.chime(cs[0], cs[1], tt);
     drawYardPots(tt);
     if (S.yard.gifts.length) {
       var g = GIFT_AT; px(g.x, g.y, 8, 6, 4); px(g.x + 1, g.y + 1, 6, 4, 0); px(g.x + 3, g.y, 2, 6, 3); px(g.x + 1, g.y - 2, 2, 2, 4); px(g.x + 5, g.y - 2, 2, 2, 4);
@@ -4279,10 +4410,20 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (night) {
       windowsOf(L.houseTier(S)).forEach(function (r) { drawWindow(r, true); });
       if (L.houseTier(S) === 0) { var b = houseBox(); for (var k = 26; k < 40; k++) { var hw = Math.round((k - 14) * 0.35) - 1; if (hw > 0) px(b.x + 24 - hw, b.y + k, hw * 2 + 1, 1, k % 3 ? 1 : 0); } }
-      if (S.yard.deco.lanterns) { var lr = DSPOT.lanterns; DRAW_DECO.lanterns(lr[0], lr[1], tt, true); }
+      var lr = decoRect('lanterns'); if (lr) DRAW_DECO.lanterns(lr[0], lr[1], tt, true);
       drawStars(tt);
     }
     drawVisitors(tt, dt, 'sky');
+    drawPick(tt);
+  }
+  // what stands in the 마당 / 집 안, back to front: [{ id, r }]
+  function standing(kind) {
+    var out = [];
+    (kind === 'deco' ? L.DECOS : L.FURN).forEach(function (it) {
+      var r = kind === 'deco' ? decoRect(it.id) : furnRect(it.id);
+      if (r) out.push({ id: it.id, r: r, flat: it.id === 'rug' });
+    });
+    return out.sort(function (a, b) { return (b.flat - a.flat) || (a.r[1] + a.r[3]) - (b.r[1] + b.r[3]); });
   }
   function drawSky(tt, ph) {
     if (ph === 'night') { px(0, 0, W, 20, 3); for (var y = 20; y < 26; y++) for (var x = (y % 2); x < W; x += 2) px(x, y, 1, 1, 3); }
@@ -4312,10 +4453,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     pendingBuy = { key: key, until: t + 3000 };
     toast(label + ' · ' + price.toLocaleString('ko-KR') + '코인 · 한 번 더 누르면 산다', 3000);
   }
-  var WHY = { coins: '코인이 부족해요', rep: '신뢰도 ★이 부족해요', slots: '장식 자리가 꽉 찼어요 · 집을 키우면 늘어요', house: '집을 더 키워야 해요',
-    max: '이미 최고 단계', owned: '이미 있어요', merchant: '떠돌이 상인이 가끔 가져와요', gone: '이미 팔렸어요' };
+  var WHY = { coins: '코인이 부족해요', rep: '신뢰도 ★이 부족해요', slots: '장식 자리가 꽉 찼어요 · 하나 넣어 두거나 집을 키우면 늘어요', house: '집을 더 키워야 해요',
+    max: '이미 최고 단계', owned: '이미 있어요', merchant: '떠돌이 상인이 가끔 가져와요', gone: '이미 팔렸어요',
+    room: '놓을 빈 자리가 없어요 · 다른 걸 옮기거나 넣어 두세요', blocked: '거기엔 안 들어가요' };
   function tapYard(x, y) {
     var t = now(), k;
+    if (tapPick(x, y)) return;
     if (tapVisitorAt(x, y, 'sky') || tapVisitorAt(x, y, 'yard')) return;
     if (S.yard.gifts.length && Math.abs(x - GIFT_AT.x - 4) < 8 && Math.abs(y - GIFT_AT.y - 2) < 8) {
       var g = L.collectGifts(S); floatText('+' + g.c, GIFT_AT.x, GIFT_AT.y - 6); burst(GIFT_AT.x + 4, GIFT_AT.y, 8, 0, 40);
@@ -4325,24 +4468,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var pr = potRect(k);
       if (hit([pr.x, pr.y, pr.w, pr.h], x, y, 2)) { tapPot(); return; }
     }
+    var cr = decoRect('chime');
+    if (cr && hit(cr, x, y, 2)) { tapDeco(L.decoById('chime')); return; }
     var b = houseBox();
     if (hit([b.x, b.y, b.w, b.h], x, y)) { goScene('house'); return; }
     if (hit([PEN.x, PEN.y, PEN.w, PEN.h], x, y)) { tapPen(); return; }
-    for (k = 0; k < L.DECOS.length; k++) {
-      var d = L.DECOS[k], r = spot(d.id);
-      if (!hit(r, x, y, 2)) continue;
-      if (S.yard.deco[d.id]) { tapDeco(d); return; }
-      if (d.merchant || d.id === 'chime') continue;
-      if (L.decoCount(S) >= L.decoSlots(S)) continue;
+    var on = standing('deco').filter(function (e) { return hit(e.r, x, y, 2); }).pop();
+    if (on) { tapDeco(L.decoById(on.id)); return; }
+    for (k = 0; k < L.YSPOTS.length; k++) {
+      if (!L.spotBuyable(S, 'deco', k) || !hit(L.YSPOTS[k].r, x, y, 2)) continue;
+      var d = L.decoById(L.YSPOTS[k].def), r = L.YSPOTS[k].r;
       confirmBuy('d:' + d.id, d.name, d.cost, function () {
         var res = L.buyDeco(S, d.id);
         if (!res.ok) { toast(WHY[res.why] || '살 수 없어요'); return; }
         burst(r[0] + r[2] / 2, r[1] + r[3] / 2, 10, 0, 50);
-        josa(toast(d.name, '을', '를') + ' 놓았다' + (d.brings ? ' · ' + josa(L.visitorById(d.brings).name, '이', '가') + ' 찾아올지도' : ''), 3000); refresh();
+        toast(res.stored ? josa(d.name, '은', '는') + ' 보관함에 · 상점에서 놓기' : josa(d.name, '을', '를') + ' 놓았다' + (d.brings ? ' · ' + josa(L.visitorById(d.brings).name, '이', '가') + ' 찾아올지도' : ''), 3000); refresh();
       });
       return;
     }
-    toast('마당 · 집을 누르면 안으로 · 빈 자리(+)를 누르면 꾸미기', 2400);
+    toast('마당 · 집을 누르면 안으로 · 빈 자리(+)를 누르면 꾸미기 · 장식을 누르면 옮기기', 2400);
   }
   function tapPen() {
     var t = now();
@@ -4359,13 +4503,101 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     toast(Object.keys(n).map(function (id) { return L.itemInfo(id).name + '×' + n[id]; }).join(' · ') + (r.sold ? ' · 넘친 건 팔았다 +' + r.sold : ' · 바구니에'), 3000);
     refresh();
   }
+  // the old one-tap reactions stay; their line now sits in the 옮기기 bar
   function tapDeco(d) {
-    if (d.id === 'mailbox') { openSheet('mail'); return; }
-    if (d.id === 'windmill') { millSpin = 3; toast('풍차가 빙글빙글'); return; }
-    if (d.id === 'chime') { chimeRing = 2; toast('딸랑…'); return; }
-    if (d.id === 'bench') { toast('벤치 · 고양이가 좋아하는 자리'); return; }
-    var r = spot(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
-    toast(d.name + (d.brings ? ' · ' + josa(L.visitorById(d.brings).name, '이', '가') + ' 좋아한대요' : ''));
+    var likes = d.brings ? josa(L.visitorById(d.brings).name, '이', '가') + ' 좋아한대요' : '보기 좋다';
+    if (d.id === 'mailbox') { openPick('deco', d.id, '편지가 오는 곳', ['편지', function () { openSheet('mail'); }]); return; }
+    if (d.id === 'windmill') { millSpin = 3; openPick('deco', d.id, '빙글빙글'); return; }
+    if (d.id === 'chime') { chimeRing = 2; openPick('deco', d.id, '딸랑… · ' + likes); return; }
+    if (d.id === 'bench') { openPick('deco', d.id, '고양이가 좋아하는 자리'); return; }
+    var r = decoRect(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
+    openPick('deco', d.id, likes);
+  }
+
+  // ---------- 옮기기 · 넣어 두기: tap a placed thing → a bar where the seed tray sits ----------
+  // 옮기기 lights every spot it may go (an occupied one = swap); tap one to move, anywhere else (or Esc) to cancel
+  var pick = null;   // { kind, id, info, extra, moving, targets }
+  var itemBar = document.createElement('div');
+  itemBar.id = 'itemBar'; itemBar.hidden = true; itemBar.setAttribute('role', 'group');
+  app.appendChild(itemBar);
+  function itemDef(kind, id) { return kind === 'deco' ? L.decoById(id) : L.furnById(id); }
+  function pickRect(kind, id) { return kind === 'deco' ? decoRect(id) : furnRect(id); }
+  // the rect id would take on spot k (the eave for the 풍경)
+  function targetRect(kind, id, k) { return kind === 'deco' && !L.YSPOTS[k].r ? chimeSpot() : L.itemRect(kind, id, k); }
+  function barBtn(label, fn, aria) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    if (aria) b.setAttribute('aria-label', aria);
+    b.addEventListener('click', fn); itemBar.appendChild(b); return b;
+  }
+  function openPick(kind, id, info, extra) {
+    pick = { kind: kind, id: id, info: info, extra: extra || null, moving: false, targets: [] };
+    renderPick();
+  }
+  function closePick() { pick = null; itemBar.hidden = true; itemBar.innerHTML = ''; }
+  function renderPick() {
+    itemBar.innerHTML = '';
+    if (!pick) { itemBar.hidden = true; return; }
+    var def = itemDef(pick.kind, pick.id), t = document.createElement('div'); t.className = 'it';
+    var nm = document.createElement('b'); nm.textContent = def.name;
+    var sm = document.createElement('small'); sm.textContent = pick.moving ? '빛나는 자리를 누르세요' : pick.info;
+    t.appendChild(nm); t.appendChild(sm);
+    itemBar.appendChild(pick.kind === 'deco' ? decoIcon(pick.id) : furnIcon(pick.id)); itemBar.appendChild(t);
+    if (pick.moving) barBtn('취소', closePick);
+    else {
+      if (pick.extra) barBtn(pick.extra[0], function () { var f = pick.extra[1]; closePick(); f(); });
+      barBtn('옮기기', startMove, def.name + ' 옮기기');
+      barBtn('넣어 두기', storePick, def.name + ' 보관함에 넣어 두기');
+      barBtn('✕', closePick, '닫기').className = 'x';
+    }
+    itemBar.hidden = false;
+  }
+  function startMove() {
+    if (!pick) return;
+    pick.targets = L.moveTargets(S, pick.kind, pick.id);
+    if (!pick.targets.length) { toast('옮길 수 있는 자리가 없어요 · 다른 걸 넣어 두면 생겨요', 2600); return; }
+    pick.moving = true; renderPick();
+  }
+  function storePick() {
+    var def = itemDef(pick.kind, pick.id);
+    if (!L.storeItem(S, pick.kind, pick.id).ok) { closePick(); return; }
+    toast(josa(def.name, '을', '를') + ' 보관함에 넣었다 · 상점에서 다시 놓기', 2800);
+    closePick(); refresh();
+  }
+  // returns true when the tap belonged to the move mode; a tap outside the bar's item just closes the bar
+  function tapPick(x, y) {
+    if (!pick) return false;
+    if (!pick.moving) { closePick(); return false; }
+    var best = null, bd = 1e9;
+    pick.targets.forEach(function (k) {
+      var r = targetRect(pick.kind, pick.id, k);
+      if (!hit(r, x, y, 4)) return;
+      var dd = Math.hypot(x - r[0] - r[2] / 2, y - r[1] - r[3] / 2);
+      if (dd < bd) { bd = dd; best = k; }
+    });
+    if (best === null) { closePick(); return true; }
+    var def = itemDef(pick.kind, pick.id), res = L.moveItem(S, pick.kind, pick.id, best);
+    if (!res.ok) toast(WHY[res.why] || '옮길 수 없어요');
+    else {
+      var r = targetRect(pick.kind, pick.id, best);
+      burst(r[0] + r[2] / 2, r[1] + r[3] - 2, 8, 0, 40);
+      toast(res.swapped ? def.name + ' ⇄ ' + itemDef(pick.kind, res.swapped).name + ' 자리 바꿈' : josa(def.name, '을', '를') + ' 옮겼다', 2000);
+    }
+    closePick(); refresh();
+    return true;
+  }
+  // move mode: wash the scene, then a blinking dashed frame on every spot it may go and a solid one on the item
+  function drawPick(tt) {
+    if (!pick || !pick.moving) return;
+    ctx.globalAlpha = 0.55; px(0, 0, W, H, 0); ctx.globalAlpha = 1;
+    var on = Math.floor(tt * 3) % 2, me = pickRect(pick.kind, pick.id);
+    pick.targets.forEach(function (k) {
+      var r = targetRect(pick.kind, pick.id, k), occ = L.occupant(S, pick.kind, k);
+      var box = [r[0] - 2, r[1] - 2, r[2] + 4, r[3] + 4];
+      dashRect(box, on ? 4 : 3); dashRect([box[0] + 1, box[1] + 1, box[2] - 2, box[3] - 2], on ? 0 : 4);
+      if (occ) { px(box[0] + box[2] - 5, box[1] - 1, 6, 5, 4); px(box[0] + box[2] - 4, box[1] + 1, 4, 1, 0); px(box[0] + box[2] - 3, box[1], 1, 1, 0); px(box[0] + box[2] - 2, box[1] + 2, 1, 1, 0); }
+      else { var cx = Math.round(r[0] + r[2] / 2), cy = Math.round(r[1] + r[3] / 2); px(cx - 2, cy, 5, 1, 4); px(cx, cy - 2, 1, 5, 4); }
+    });
+    if (me) { var m = [me[0] - 2, me[1] - 2, me[2] + 4, me[3] + 4]; px(m[0], m[1], m[2], 1, 4); px(m[0], m[1] + m[3] - 1, m[2], 1, 4); px(m[0], m[1], 1, m[3], 4); px(m[0] + m[2] - 1, m[1], 1, m[3], 4); }
   }
 
   // ---------- scene switch ----------
@@ -4374,7 +4606,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   app.appendChild(sceneBtn);
   function goScene(sc) {
     if (reel) return;
-    view = sc; pendingBuy = null;
+    view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
     cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : '집 안');
@@ -4495,8 +4727,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       refresh(); return S.animals;
     };
     FF.produce = function () { L.ANIMAL_IDS.forEach(function (id) { S.yard.prod[id].n = S.animals[id] * L.ANIMAL_CAP; }); };
-    FF.decos = function (all) { L.DECOS.forEach(function (d, k) { if (all || k < L.decoSlots(S)) S.yard.deco[d.id] = true; }); refresh(); };
-    FF.furn = function () { L.FURN.forEach(function (f) { S.yard.furn[f.id] = true; }); refresh(); };
+    FF.decos = function (all) { L.DECOS.forEach(function (d, k) { if (all || k < L.decoSlots(S)) { S.yard.deco[d.id] = true; L.placeItem(S, 'deco', d.id); } }); refresh(); return S.yard.place.deco; };
+    FF.furn = function () { L.FURN.forEach(function (f) { S.yard.furn[f.id] = true; L.placeItem(S, 'furn', f.id); }); refresh(); return S.yard.place.furn; };
     FF.egg = function (id) { var e = L.findEgg(S, id, now()); if (e) eggFound(e); return e; };
     FF.eggsReset = function () { S.yard.eggs = {}; save(); };
     FF.clockBite = function () { if (S.fish.phase === 'wait') { clockForce = true; S.fish.biteAt = now(); } };
@@ -4505,16 +4737,19 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- visitors: where they stand, how they look, what a tap does; merchant & letter sheet ----------
   function visitById(id) { var out = null; S.yard.vis.forEach(function (v) { if (v.id === id) out = v; }); return out; }
   function visitProgress(v) { return Math.max(0, Math.min(1, (now() - v.at) / Math.max(1, v.until - v.at))); }
-  // position (and tap radius) of a visitor in its scene
+  // position (and tap radius) of a visitor in its scene; the ones a decoration brings stay by it wherever it stands
+  function near(id, dx, dy, r) {
+    var b = decoRect(id);
+    return b ? { x: Math.max(8, Math.min(W - 8, b[0] + dx)), y: Math.max(30, Math.min(H - 4, b[1] + dy)), r: r } : null;
+  }
   function visitorPos(v, tt) {
-    var d = S.yard.deco;
     switch (v.id) {
-      case 'cat': return d.bench ? { x: 131, y: 89, r: 10 } : { x: 74, y: 80, r: 10 };
-      case 'raccoon': return d.jars ? { x: 140, y: 106, r: 10 } : { x: 122, y: 164, r: 10 };
-      case 'squirrel': return { x: 160, y: 52 + (Math.floor(tt * 2) % 6 === 0 ? -2 : 0), r: 9 };
+      case 'cat': return near('bench', 5, -9, 10) || { x: 74, y: 80, r: 10 };
+      case 'raccoon': return near('jars', 12, 27, 12) || { x: 122, y: 164, r: 12 };
+      case 'squirrel': var q = near('tree', 10, 38, 9) || { x: 160, y: 52, r: 9 }; q.y += Math.floor(tt * 2) % 6 === 0 ? -2 : 0; return q;
       case 'sparrows': return { x: 60, y: 102, r: 14 };
-      case 'butterfly': return { x: 20 + Math.sin(tt * 0.9) * 11, y: 82 + Math.cos(tt * 1.3) * 5, r: 10 };
-      case 'mailman': return { x: 58, y: 76, r: 10 };
+      case 'butterfly': var f = near('flowers', 16, -6, 10) || { x: 20, y: 82, r: 10 }; f.x += Math.sin(tt * 0.9) * 11; f.y += Math.cos(tt * 1.3) * 5; return f;
+      case 'mailman': var mb = decoRect('mailbox'); return mb && mb[0] > W - 30 ? near('mailbox', -6, 0, 10) : near('mailbox', 14, 0, 10) || { x: 58, y: 76, r: 10 };
       case 'merchant': return { x: 116, y: 148, r: 18 };
       case 'fireflies': return { x: 60 + 50 * (0.5 + 0.5 * Math.sin(tt * 0.13 + v.x * 6)), y: 64 + 24 * Math.sin(tt * 0.17 + v.x * 3), r: 22 };
       case 'shootingstar': var sx = ((tt * 0.35 + v.x) % 1) * 230 - 25; return { x: sx, y: 3 + v.x * 8 + sx * 0.07, r: 14, sky: true };
@@ -4550,7 +4785,18 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
 
   // ---------- sprites ----------
-  var RACCOON = ['.4......4.', '.44....44.', '..444444..', '.44000044.', '4400440044', '.40044004.', '..400004..', '.4444444..', '443333344.', '.4333334.4', '.4333334.4', '.44...44.4'];
+  // 너구리 on all fours: ringed tail (dark/light bands), grey body, dark eye mask between a pale brow and muzzle
+  var RACCOON = [
+    '.................44.44..',
+    '................4334334.',
+    '..........4444444111114.',
+    '.43344334433333344440444',
+    '441144114333333341111114',
+    '44114411433333333444444.',
+    '.43344334333333334......',
+    '........4334444334......',
+    '........44.4..4.44......'];
+  var RACCOON_STEP = RACCOON.slice(0, -1).concat(['........4.44..44.4......']);
   var SQUIRREL = ['...44', '..433', '.4334', '4333.', '4334.', '.444.'];
   var SQ_HEAD = ['.44.', '4304', '4334', '.44.'];
   function halo(rows, x, y, flip) {
@@ -4577,9 +4823,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var DRAW_VIS = {
     cat: drawCatVisit,
     raccoon: function (v, p, tt) {
-      var hop = Math.floor(tt * 3) % 4 === 0 ? 1 : 0;
-      halo(RACCOON, p.x - 5, p.y - 8 - hop, Math.sin(tt * 0.7) < 0);
-      for (var k = 0; k < 4; k++) px(p.x + 6 + k, p.y + 1 - (k % 2), 1, 1, k % 2 ? 4 : 2);
+      // sniffs about: steps now and then, turns around every so often
+      var step = Math.floor(tt * 3) % 4 === 0;
+      halo(step ? RACCOON_STEP : RACCOON, p.x - 12, p.y - 8, Math.sin(tt * 0.7) < 0);
     },
     squirrel: function (v, p, tt) { spr(SQUIRREL, p.x - 1, p.y - 4); spr(SQ_HEAD, p.x - 4, p.y - 6); px(p.x - 3, p.y - 5, 1, 1, 0); },
     sparrows: function (v, p, tt) {
@@ -4741,12 +4987,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       sheetEl.appendChild(box);
     })(i);
   }
-  // ---------- 집 안: furniture slots, 어탁, trophies, the aquarium spot (ui/aquarium.js); yard shop rows ----------
-  var FSPOT = {
-    shelf: [6, 44, 20, 40], wardrobe: [28, 42, 22, 42], lamp: [54, 54, 9, 30], plant: [104, 62, 12, 22], stove: [150, 44, 24, 40],
-    clock: [80, 8, 13, 13], bed: [6, 92, 46, 30], rug: [56, 124, 60, 26], table: [66, 102, 32, 16], chair: [100, 100, 12, 20],
-    radio: [8, 128, 14, 11], piano: [118, 156, 54, 30]
-  };
+  // ---------- 집 안: furniture on L.RSPOTS, 어탁, trophies, the aquarium spot (ui/aquarium.js); yard shop rows ----------
+  function furnRect(id) { var k = L.spotOf(S, 'furn', id); return k < 0 ? null : L.itemRect('furn', id, k); }
   var AQUA = [118, 90, 58, 58], ETAKU = [24, 6, 50, 26], SHELF = [84, 30, 34, 3], WIN = [118, 6, 34, 18], DOOR = [78, 186, 24, 14];
   var DEX_CUPS = [5, 10, 20, 30];
   function dashRect(r, c) {
@@ -4868,23 +5110,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       else dashRect([mx, my + 3, 5, 5], 2);
     });
     drawTank(tt);   // stage 4: 수족관
-    // furniture: owned, open slot, or nothing (opens with a bigger house)
-    L.FURN.forEach(function (f) {
-      var r = FSPOT[f.id];
-      if (S.yard.furn[f.id]) DRAW_FURN[f.id](r[0], r[1], tt, night);
-      else if (t >= f.house) { dashRect(r, 2); px(r[0] + r[2] / 2 - 1, r[1] + r[3] / 2, 3, 1, 2); px(r[0] + r[2] / 2, r[1] + r[3] / 2 - 1, 1, 3, 2); }
+    // furniture: what stands here, and a dashed + where an unbought piece would go
+    L.RSPOTS.forEach(function (p, k) {
+      if (!L.spotBuyable(S, 'furn', k)) return;
+      var r = p.r; dashRect(r, 2); px(r[0] + r[2] / 2 - 1, r[1] + r[3] / 2, 3, 1, 2); px(r[0] + r[2] / 2, r[1] + r[3] / 2 - 1, 1, 3, 2);
     });
+    standing('furn').forEach(function (e) { DRAW_FURN[e.id](e.r[0], e.r[1], tt, night); });
     // door mat back out
     px(DOOR[0], DOOR[1], DOOR[2], DOOR[3], 4); px(DOOR[0] + 1, DOOR[1] + 1, DOOR[2] - 2, DOOR[3] - 1, 2);
     px(DOOR[0] + 8, DOOR[1] + 4, 8, 1, 0); px(DOOR[0] + 9, DOOR[1] + 3, 1, 3, 0);
     if (night || ph === 'evening') {
-      var lit = !!S.yard.furn.lamp || !!S.yard.furn.stove;
+      var lr = furnRect('lamp'), lit = !!lr || L.furnPlaced(S, 'stove');
       ctx.globalAlpha = night ? (lit ? 0.14 : 0.3) : 0.08; px(0, 0, W, H, 4); ctx.globalAlpha = 1;
-      if (night && S.yard.furn.lamp) { var lr = FSPOT.lamp; DRAW_FURN.lamp(lr[0], lr[1], tt, true); }
+      if (night && lr) DRAW_FURN.lamp(lr[0], lr[1], tt, true);
     }
+    drawPick(tt);
   }
   function tapRoom(x, y) {
     var t = L.houseTier(S), k;
+    if (tapPick(x, y)) return;
     if (hit(DOOR, x, y, 3)) { goScene('yard'); return; }
     if (hit(ETAKU, x, y)) {
       var b = biggestFish();
@@ -4894,28 +5138,29 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       toast('트로피 · 도감 ' + L.dexCount(S) + '종 (5·10·20·30) · 비밀 ' + L.eggCount(S) + '/' + L.EGGS.length + ' · 도감 기록 탭', 3200); return;
     }
     if (hit(WIN, x, y)) { toast(L.PHASE_NAME[yPhase()] + ' · ' + L.WEATHER_NAME[yWeather()], 1800); return; }
-    for (k = 0; k < L.FURN.length; k++) {
-      var f = L.FURN[k], r = FSPOT[f.id];
-      if (!hit(r, x, y, 1)) continue;
-      if (S.yard.furn[f.id]) { tapFurn(f, r); return; }
-      if (t < f.house) continue;
+    var on = standing('furn').filter(function (e) { return hit(e.r, x, y, 1); }).pop();
+    if (on) { tapFurn(L.furnById(on.id), on.r); return; }
+    for (k = 0; k < L.RSPOTS.length; k++) {
+      if (!L.spotBuyable(S, 'furn', k) || !hit(L.RSPOTS[k].r, x, y, 1)) continue;
+      var f = L.furnById(L.RSPOTS[k].def), r = L.RSPOTS[k].r;
       confirmBuy('f:' + f.id, f.name, f.cost, function () {
         var res = L.buyFurn(S, f.id);
         if (!res.ok) { toast(WHY[res.why] || '살 수 없어요'); return; }
-        burst(r[0] + r[2] / 2, r[1] + r[3] / 2, 10, 0, 50); josa(toast(f.name, '을', '를') + ' 들여놓았다'); refresh();
+        burst(r[0] + r[2] / 2, r[1] + r[3] / 2, 10, 0, 50); toast(res.stored ? josa(f.name, '은', '는') + ' 보관함에 · 상점에서 놓기' : josa(f.name, '을', '를') + ' 들여놓았다'); refresh();
       });
       return;
     }
     if (hit(AQUA, x, y)) { openSheet('tank'); return; }
     var locked = L.FURN.filter(function (f) { return t < f.house; });
-    toast(locked.length ? '집을 키우면 ' + locked.slice(0, 3).map(function (f) { return f.name; }).join('·') + ' 자리가 생겨요' : '점선 자리를 누르면 가구를 들여요', 2600);
+    toast(locked.length ? '집을 키우면 ' + locked.slice(0, 3).map(function (f) { return f.name; }).join('·') + ' 자리가 생겨요' : '점선 자리를 누르면 가구를 들여요 · 가구를 누르면 옮기기', 2600);
   }
+  // the old one-tap reactions stay; the bed's line is long, so it keeps its toast and the bar says 잠자리
   function tapFurn(f, r) {
-    if (f.id === 'bed') { var b = L.tapBed(S, now(), YTZ); toast(b.text, 2800); if (b.egg) eggFound(b.egg); refresh(); return; }
-    if (f.id === 'clock') { var d = new Date(); toast('지금 ' + d.getHours() + '시 ' + String(d.getMinutes()).padStart(2, '0') + '분 · 진짜 시계', 2400); return; }
-    if (f.id === 'radio') { toast('♪ 라디오: "정각을 알려 드립니다… 연못 근처 계신 분들은 낚싯대를…"', 3200); return; }
-    if (f.id === 'piano') { toast('도레미파솔~', 1600); burst(r[0] + 27, r[1] + 8, 6, 0, 40); return; }
-    toast(f.name, 1200);
+    if (f.id === 'bed') { var b = L.tapBed(S, now(), YTZ); toast(b.text, 2800); if (b.egg) eggFound(b.egg); refresh(); openPick('furn', f.id, '포근한 잠자리'); return; }
+    if (f.id === 'clock') { var d = new Date(); openPick('furn', f.id, '지금 ' + d.getHours() + '시 ' + String(d.getMinutes()).padStart(2, '0') + '분 · 진짜 시계'); return; }
+    if (f.id === 'radio') { toast('♪ 라디오: "정각을 알려 드립니다… 연못 근처 계신 분들은 낚싯대를…"', 3200); openPick('furn', f.id, '♪ 정각 안내 방송'); return; }
+    if (f.id === 'piano') { burst(r[0] + 27, r[1] + 8, 6, 0, 40); openPick('furn', f.id, '도레미파솔~'); return; }
+    openPick('furn', f.id, '집 안 가구');
   }
 
   // ---------- icons for shop rows ----------
@@ -4927,8 +5172,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     c.style.width = Math.round(w * s) + 'px'; c.style.height = Math.round(h * s) + 'px';
     return c;
   }
-  function decoIcon(id) { var r = spot(id); return drawIcon(r[2], r[3], function () { DRAW_DECO[id](0, 0, 0, false); }); }
-  function furnIcon(id) { var r = FSPOT[id]; return drawIcon(r[2] + 2, r[3] + 4, function () { DRAW_FURN[id](0, id === 'table' ? 4 : 2, 0, false); }); }
+  function decoIcon(id) { var z = L.decoById(id).sz; return drawIcon(z[0], z[1], function () { DRAW_DECO[id](0, 0, 0, false); }); }
+  function furnIcon(id) { var z = L.furnById(id).sz; return drawIcon(z[0] + 2, z[1] + 4, function () { DRAW_FURN[id](0, id === 'table' ? 4 : 2, 0, false); }); }
   function animalIcon(id) {
     return drawIcon(id === 'cow' ? 20 : 10, 14, function () { if (id === 'hen') hen(1, 4); else if (id === 'duck') duck(1, 5); else cow(1, 3, 0); });
   }
@@ -4985,29 +5230,45 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         });
     });
     h3 = document.createElement('h3'); h3.textContent = '마당 꾸미기';
-    var db = document.createElement('b'); db.textContent = L.decoCount(S) + ' / ' + L.decoSlots(S) + '자리'; h3.appendChild(db); shopEl.appendChild(h3);
+    var stored = L.storedList(S, 'deco').length;
+    var db = document.createElement('b'); db.textContent = L.decoCount(S) + ' / ' + L.decoSlots(S) + '자리' + (stored ? ' · 보관 ' + stored : ''); h3.appendChild(db); shopEl.appendChild(h3);
+    storedRows('deco');
     L.DECOS.forEach(function (d) {
       var own = !!S.yard.deco[d.id];
-      if (d.merchant && !own) return;
+      if ((d.merchant && !own) || (own && !L.decoPlaced(S, d.id))) return;
       yRow(decoIcon(d.id), d.name, d.brings ? josa(L.visitorById(d.brings).name, '이', '가') + ' 찾아온다' : '보기 좋다', own ? null : d.cost, false, function () {
         var r = L.buyDeco(S, d.id);
         if (!r.ok) return r.why;
-        josa(toast(d.name, '을', '를') + ' 마당에 놓았다', 2400);
-      }, own ? '있음' : null);
+        toast(r.stored ? josa(d.name, '은', '는') + ' 보관함에 · 놓을 자리가 없어요' : josa(d.name, '을', '를') + ' 마당에 놓았다', 2400);
+      }, own ? '마당에' : null);
     });
-    var note = document.createElement('p'); note.className = 'note'; note.textContent = '연등·풍경은 떠돌이 상인만 가져와요 · 마당의 빈 자리(+)를 두 번 눌러도 살 수 있어요'; shopEl.appendChild(note);
+    var note = document.createElement('p'); note.className = 'note'; note.textContent = '마당·집 안에서 장식이나 가구를 누르면 옮기거나 넣어 둘 수 있어요 · 연등·풍경은 떠돌이 상인만 가져와요'; shopEl.appendChild(note);
     h3 = document.createElement('h3'); h3.textContent = '가구'; shopEl.appendChild(h3);
+    storedRows('furn');
     L.FURN.forEach(function (f) {
       var own = !!S.yard.furn[f.id], locked = L.houseTier(S) < f.house;
-      yRow(furnIcon(f.id), f.name, locked ? L.HOUSE[f.house].name + '이 되면 자리가 생긴다' : '집 안 정해진 자리에 놓인다',
+      if (own && !L.furnPlaced(S, f.id)) return;
+      yRow(furnIcon(f.id), f.name, locked ? L.HOUSE[f.house].name + '이 되면 들일 수 있다' : '집 안 빈 자리에 놓인다',
         own ? null : locked ? L.HOUSE[f.house].name : f.cost, locked, function () {
           var r = L.buyFurn(S, f.id);
           if (!r.ok) return r.why;
-          josa(toast(f.name, '을', '를') + ' 들여놓았다 · 집을 눌러 구경', 2600);
-        }, own ? '있음' : null);
+          toast(r.stored ? josa(f.name, '은', '는') + ' 보관함에 · 놓을 자리가 없어요' : josa(f.name, '을', '를') + ' 들여놓았다 · 집을 눌러 구경', 2600);
+        }, own ? '집 안에' : null);
     });
   }
-  // cost: number = price button, string = disabled reason label, null = done (doneLabel or '최대')
+  // 보관함: owned things that aren't out, first in their section, each with [놓기]
+  function storedRows(kind) {
+    L.storedList(S, kind).forEach(function (id) {
+      var def = kind === 'deco' ? L.decoById(id) : L.furnById(id);
+      yRow(kind === 'deco' ? decoIcon(id) : furnIcon(id), def.name + ' <span class="pips">보관함</span>',
+        kind === 'deco' ? '놓으면 빈 자리에 · 마당에서 눌러 옮기기' : '놓으면 빈 자리에 · 집 안에서 눌러 옮기기', { label: '놓기', aria: def.name + ' 놓기' }, false, function () {
+          var r = L.placeItem(S, kind, id);
+          if (!r.ok) return r.why;
+          toast(josa(def.name, '을', '를') + (kind === 'deco' ? ' 마당에 놓았다' : ' 집 안에 놓았다') + ' · 눌러서 옮기기', 2400);
+        });
+    });
+  }
+  // cost: number = price button, string = disabled reason label, { label, aria } = action button, null = done (doneLabel or '최대')
   function yRow(icon, nameHtml, sub, cost, off, onBuy, doneLabel) {
     var r = document.createElement('div'); r.className = 'up';
     var n = document.createElement('div'); n.className = 'n'; n.innerHTML = nameHtml;
@@ -5015,7 +5276,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var b = document.createElement('button'); b.type = 'button';
     if (cost === null) { b.textContent = doneLabel || '최대'; b.disabled = true; b.className = 'max'; }
     else if (off) { b.textContent = cost; b.disabled = true; b.className = 'max'; }
-    else {
+    else if (typeof cost === 'object') {
+      b.textContent = cost.label; b.setAttribute('aria-label', cost.aria);
+      b.addEventListener('click', function () {
+        var why = onBuy();
+        if (why) { toast(WHY[why] || '놓을 수 없어요'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
+        refresh(); renderShop();
+      });
+    } else {
       b.textContent = cost.toLocaleString('ko-KR');
       b.setAttribute('aria-label', '사기 ' + cost + '코인');
       if (S.coins < cost) b.classList.add('poor');

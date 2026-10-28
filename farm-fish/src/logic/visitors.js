@@ -55,18 +55,17 @@
 
   // ---------- who can come right now ----------
   function visitWeight(s, d, cx) {
-    var y = s.yard;
-    if (d.need && !y.deco[d.need]) return 0;
+    if (d.need && !decoPlaced(s, d.need)) return 0;     // stored decorations attract nobody
     if (d.slot === 'pond' && curSpot(s) !== 'pond') return 0;     // pond visitors only at the 연못
     if (d.night && cx.phase !== 'night') return 0;
     if (d.notNight && cx.phase === 'night') return 0;
     if (d.day && (cx.phase === 'night' || cx.weather !== 'clear')) return 0;
     if (d.rainbow && !cx.rainbow) return 0;
     var w = d.w;
-    if (d.id === 'cat') { if (y.deco.bench) w *= 2; if (s.bag.some(function (e) { return itemInfo(e.id).kind === 'fish'; })) w *= 1.5; }
-    if (d.id === 'raccoon') { if (y.deco.jars) w *= 2; if (cx.phase === 'evening' || cx.phase === 'night') w *= 2; }
+    if (d.id === 'cat') { if (decoPlaced(s, 'bench')) w *= 2; if (s.bag.some(function (e) { return itemInfo(e.id).kind === 'fish'; })) w *= 1.5; }
+    if (d.id === 'raccoon') { if (decoPlaced(s, 'jars')) w *= 2; if (cx.phase === 'evening' || cx.phase === 'night') w *= 2; }
     if (d.id === 'frog' && cx.weather === 'rain') w *= 4;
-    if (d.id === 'fireflies' && y.deco.chime) w *= 3;
+    if (d.id === 'fireflies' && decoPlaced(s, 'chime')) w *= 3;
     if (d.id === 'turtle' && cx.weather !== 'clear') w = 0;
     return w;
   }

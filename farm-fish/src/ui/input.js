@@ -33,7 +33,12 @@
   function refresh() { renderTray(); save(); updateTitle(); }
 
   function onKeyDown(e) {
-    if (e.key === 'Escape') { e.preventDefault(); toggleBoss(); return; }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      var moving = pick && pick.moving; closePick();     // Esc first cancels 옮기기; otherwise it is the boss key
+      if (!moving) toggleBoss();
+      return;
+    }
     if (isPipKey(e)) { e.preventDefault(); if (pipOK && !e.repeat) togglePip(); return; }
     if (boss) return;
     var tg = e.target && e.target.tagName;

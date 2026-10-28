@@ -1,9 +1,5 @@
-  // ---------- 집 안: furniture slots, 어탁, trophies, the aquarium spot (ui/aquarium.js); yard shop rows ----------
-  var FSPOT = {
-    shelf: [6, 44, 20, 40], wardrobe: [28, 42, 22, 42], lamp: [54, 54, 9, 30], plant: [104, 62, 12, 22], stove: [150, 44, 24, 40],
-    clock: [80, 8, 13, 13], bed: [6, 92, 46, 30], rug: [56, 124, 60, 26], table: [66, 102, 32, 16], chair: [100, 100, 12, 20],
-    radio: [8, 128, 14, 11], piano: [118, 156, 54, 30]
-  };
+  // ---------- 집 안: furniture on L.RSPOTS, 어탁, trophies, the aquarium spot (ui/aquarium.js); yard shop rows ----------
+  function furnRect(id) { var k = L.spotOf(S, 'furn', id); return k < 0 ? null : L.itemRect('furn', id, k); }
   var AQUA = [118, 90, 58, 58], ETAKU = [24, 6, 50, 26], SHELF = [84, 30, 34, 3], WIN = [118, 6, 34, 18], DOOR = [78, 186, 24, 14];
   var DEX_CUPS = [5, 10, 20, 30];
   function dashRect(r, c) {
@@ -125,23 +121,25 @@
       else dashRect([mx, my + 3, 5, 5], 2);
     });
     drawTank(tt);   // stage 4: 수족관
-    // furniture: owned, open slot, or nothing (opens with a bigger house)
-    L.FURN.forEach(function (f) {
-      var r = FSPOT[f.id];
-      if (S.yard.furn[f.id]) DRAW_FURN[f.id](r[0], r[1], tt, night);
-      else if (t >= f.house) { dashRect(r, 2); px(r[0] + r[2] / 2 - 1, r[1] + r[3] / 2, 3, 1, 2); px(r[0] + r[2] / 2, r[1] + r[3] / 2 - 1, 1, 3, 2); }
+    // furniture: what stands here, and a dashed + where an unbought piece would go
+    L.RSPOTS.forEach(function (p, k) {
+      if (!L.spotBuyable(S, 'furn', k)) return;
+      var r = p.r; dashRect(r, 2); px(r[0] + r[2] / 2 - 1, r[1] + r[3] / 2, 3, 1, 2); px(r[0] + r[2] / 2, r[1] + r[3] / 2 - 1, 1, 3, 2);
     });
+    standing('furn').forEach(function (e) { DRAW_FURN[e.id](e.r[0], e.r[1], tt, night); });
     // door mat back out
     px(DOOR[0], DOOR[1], DOOR[2], DOOR[3], 4); px(DOOR[0] + 1, DOOR[1] + 1, DOOR[2] - 2, DOOR[3] - 1, 2);
     px(DOOR[0] + 8, DOOR[1] + 4, 8, 1, 0); px(DOOR[0] + 9, DOOR[1] + 3, 1, 3, 0);
     if (night || ph === 'evening') {
-      var lit = !!S.yard.furn.lamp || !!S.yard.furn.stove;
+      var lr = furnRect('lamp'), lit = !!lr || L.furnPlaced(S, 'stove');
       ctx.globalAlpha = night ? (lit ? 0.14 : 0.3) : 0.08; px(0, 0, W, H, 4); ctx.globalAlpha = 1;
-      if (night && S.yard.furn.lamp) { var lr = FSPOT.lamp; DRAW_FURN.lamp(lr[0], lr[1], tt, true); }
+      if (night && lr) DRAW_FURN.lamp(lr[0], lr[1], tt, true);
     }
+    drawPick(tt);
   }
   function tapRoom(x, y) {
     var t = L.houseTier(S), k;
+    if (tapPick(x, y)) return;
     if (hit(DOOR, x, y, 3)) { goScene('yard'); return; }
     if (hit(ETAKU, x, y)) {
       var b = biggestFish();
@@ -151,28 +149,29 @@
       toast('트로피 · 도감 ' + L.dexCount(S) + '종 (5·10·20·30) · 비밀 ' + L.eggCount(S) + '/' + L.EGGS.length + ' · 도감 기록 탭', 3200); return;
     }
     if (hit(WIN, x, y)) { toast(L.PHASE_NAME[yPhase()] + ' · ' + L.WEATHER_NAME[yWeather()], 1800); return; }
-    for (k = 0; k < L.FURN.length; k++) {
-      var f = L.FURN[k], r = FSPOT[f.id];
-      if (!hit(r, x, y, 1)) continue;
-      if (S.yard.furn[f.id]) { tapFurn(f, r); return; }
-      if (t < f.house) continue;
+    var on = standing('furn').filter(function (e) { return hit(e.r, x, y, 1); }).pop();
+    if (on) { tapFurn(L.furnById(on.id), on.r); return; }
+    for (k = 0; k < L.RSPOTS.length; k++) {
+      if (!L.spotBuyable(S, 'furn', k) || !hit(L.RSPOTS[k].r, x, y, 1)) continue;
+      var f = L.furnById(L.RSPOTS[k].def), r = L.RSPOTS[k].r;
       confirmBuy('f:' + f.id, f.name, f.cost, function () {
         var res = L.buyFurn(S, f.id);
         if (!res.ok) { toast(WHY[res.why] || '살 수 없어요'); return; }
-        burst(r[0] + r[2] / 2, r[1] + r[3] / 2, 10, 0, 50); josa(toast(f.name, '을', '를') + ' 들여놓았다'); refresh();
+        burst(r[0] + r[2] / 2, r[1] + r[3] / 2, 10, 0, 50); toast(res.stored ? josa(f.name, '은', '는') + ' 보관함에 · 상점에서 놓기' : josa(f.name, '을', '를') + ' 들여놓았다'); refresh();
       });
       return;
     }
     if (hit(AQUA, x, y)) { openSheet('tank'); return; }
     var locked = L.FURN.filter(function (f) { return t < f.house; });
-    toast(locked.length ? '집을 키우면 ' + locked.slice(0, 3).map(function (f) { return f.name; }).join('·') + ' 자리가 생겨요' : '점선 자리를 누르면 가구를 들여요', 2600);
+    toast(locked.length ? '집을 키우면 ' + locked.slice(0, 3).map(function (f) { return f.name; }).join('·') + ' 자리가 생겨요' : '점선 자리를 누르면 가구를 들여요 · 가구를 누르면 옮기기', 2600);
   }
+  // the old one-tap reactions stay; the bed's line is long, so it keeps its toast and the bar says 잠자리
   function tapFurn(f, r) {
-    if (f.id === 'bed') { var b = L.tapBed(S, now(), YTZ); toast(b.text, 2800); if (b.egg) eggFound(b.egg); refresh(); return; }
-    if (f.id === 'clock') { var d = new Date(); toast('지금 ' + d.getHours() + '시 ' + String(d.getMinutes()).padStart(2, '0') + '분 · 진짜 시계', 2400); return; }
-    if (f.id === 'radio') { toast('♪ 라디오: "정각을 알려 드립니다… 연못 근처 계신 분들은 낚싯대를…"', 3200); return; }
-    if (f.id === 'piano') { toast('도레미파솔~', 1600); burst(r[0] + 27, r[1] + 8, 6, 0, 40); return; }
-    toast(f.name, 1200);
+    if (f.id === 'bed') { var b = L.tapBed(S, now(), YTZ); toast(b.text, 2800); if (b.egg) eggFound(b.egg); refresh(); openPick('furn', f.id, '포근한 잠자리'); return; }
+    if (f.id === 'clock') { var d = new Date(); openPick('furn', f.id, '지금 ' + d.getHours() + '시 ' + String(d.getMinutes()).padStart(2, '0') + '분 · 진짜 시계'); return; }
+    if (f.id === 'radio') { toast('♪ 라디오: "정각을 알려 드립니다… 연못 근처 계신 분들은 낚싯대를…"', 3200); openPick('furn', f.id, '♪ 정각 안내 방송'); return; }
+    if (f.id === 'piano') { burst(r[0] + 27, r[1] + 8, 6, 0, 40); openPick('furn', f.id, '도레미파솔~'); return; }
+    openPick('furn', f.id, '집 안 가구');
   }
 
   // ---------- icons for shop rows ----------
@@ -184,8 +183,8 @@
     c.style.width = Math.round(w * s) + 'px'; c.style.height = Math.round(h * s) + 'px';
     return c;
   }
-  function decoIcon(id) { var r = spot(id); return drawIcon(r[2], r[3], function () { DRAW_DECO[id](0, 0, 0, false); }); }
-  function furnIcon(id) { var r = FSPOT[id]; return drawIcon(r[2] + 2, r[3] + 4, function () { DRAW_FURN[id](0, id === 'table' ? 4 : 2, 0, false); }); }
+  function decoIcon(id) { var z = L.decoById(id).sz; return drawIcon(z[0], z[1], function () { DRAW_DECO[id](0, 0, 0, false); }); }
+  function furnIcon(id) { var z = L.furnById(id).sz; return drawIcon(z[0] + 2, z[1] + 4, function () { DRAW_FURN[id](0, id === 'table' ? 4 : 2, 0, false); }); }
   function animalIcon(id) {
     return drawIcon(id === 'cow' ? 20 : 10, 14, function () { if (id === 'hen') hen(1, 4); else if (id === 'duck') duck(1, 5); else cow(1, 3, 0); });
   }
@@ -242,29 +241,45 @@
         });
     });
     h3 = document.createElement('h3'); h3.textContent = '마당 꾸미기';
-    var db = document.createElement('b'); db.textContent = L.decoCount(S) + ' / ' + L.decoSlots(S) + '자리'; h3.appendChild(db); shopEl.appendChild(h3);
+    var stored = L.storedList(S, 'deco').length;
+    var db = document.createElement('b'); db.textContent = L.decoCount(S) + ' / ' + L.decoSlots(S) + '자리' + (stored ? ' · 보관 ' + stored : ''); h3.appendChild(db); shopEl.appendChild(h3);
+    storedRows('deco');
     L.DECOS.forEach(function (d) {
       var own = !!S.yard.deco[d.id];
-      if (d.merchant && !own) return;
+      if ((d.merchant && !own) || (own && !L.decoPlaced(S, d.id))) return;
       yRow(decoIcon(d.id), d.name, d.brings ? josa(L.visitorById(d.brings).name, '이', '가') + ' 찾아온다' : '보기 좋다', own ? null : d.cost, false, function () {
         var r = L.buyDeco(S, d.id);
         if (!r.ok) return r.why;
-        josa(toast(d.name, '을', '를') + ' 마당에 놓았다', 2400);
-      }, own ? '있음' : null);
+        toast(r.stored ? josa(d.name, '은', '는') + ' 보관함에 · 놓을 자리가 없어요' : josa(d.name, '을', '를') + ' 마당에 놓았다', 2400);
+      }, own ? '마당에' : null);
     });
-    var note = document.createElement('p'); note.className = 'note'; note.textContent = '연등·풍경은 떠돌이 상인만 가져와요 · 마당의 빈 자리(+)를 두 번 눌러도 살 수 있어요'; shopEl.appendChild(note);
+    var note = document.createElement('p'); note.className = 'note'; note.textContent = '마당·집 안에서 장식이나 가구를 누르면 옮기거나 넣어 둘 수 있어요 · 연등·풍경은 떠돌이 상인만 가져와요'; shopEl.appendChild(note);
     h3 = document.createElement('h3'); h3.textContent = '가구'; shopEl.appendChild(h3);
+    storedRows('furn');
     L.FURN.forEach(function (f) {
       var own = !!S.yard.furn[f.id], locked = L.houseTier(S) < f.house;
-      yRow(furnIcon(f.id), f.name, locked ? L.HOUSE[f.house].name + '이 되면 자리가 생긴다' : '집 안 정해진 자리에 놓인다',
+      if (own && !L.furnPlaced(S, f.id)) return;
+      yRow(furnIcon(f.id), f.name, locked ? L.HOUSE[f.house].name + '이 되면 들일 수 있다' : '집 안 빈 자리에 놓인다',
         own ? null : locked ? L.HOUSE[f.house].name : f.cost, locked, function () {
           var r = L.buyFurn(S, f.id);
           if (!r.ok) return r.why;
-          josa(toast(f.name, '을', '를') + ' 들여놓았다 · 집을 눌러 구경', 2600);
-        }, own ? '있음' : null);
+          toast(r.stored ? josa(f.name, '은', '는') + ' 보관함에 · 놓을 자리가 없어요' : josa(f.name, '을', '를') + ' 들여놓았다 · 집을 눌러 구경', 2600);
+        }, own ? '집 안에' : null);
     });
   }
-  // cost: number = price button, string = disabled reason label, null = done (doneLabel or '최대')
+  // 보관함: owned things that aren't out, first in their section, each with [놓기]
+  function storedRows(kind) {
+    L.storedList(S, kind).forEach(function (id) {
+      var def = kind === 'deco' ? L.decoById(id) : L.furnById(id);
+      yRow(kind === 'deco' ? decoIcon(id) : furnIcon(id), def.name + ' <span class="pips">보관함</span>',
+        kind === 'deco' ? '놓으면 빈 자리에 · 마당에서 눌러 옮기기' : '놓으면 빈 자리에 · 집 안에서 눌러 옮기기', { label: '놓기', aria: def.name + ' 놓기' }, false, function () {
+          var r = L.placeItem(S, kind, id);
+          if (!r.ok) return r.why;
+          toast(josa(def.name, '을', '를') + (kind === 'deco' ? ' 마당에 놓았다' : ' 집 안에 놓았다') + ' · 눌러서 옮기기', 2400);
+        });
+    });
+  }
+  // cost: number = price button, string = disabled reason label, { label, aria } = action button, null = done (doneLabel or '최대')
   function yRow(icon, nameHtml, sub, cost, off, onBuy, doneLabel) {
     var r = document.createElement('div'); r.className = 'up';
     var n = document.createElement('div'); n.className = 'n'; n.innerHTML = nameHtml;
@@ -272,7 +287,14 @@
     var b = document.createElement('button'); b.type = 'button';
     if (cost === null) { b.textContent = doneLabel || '최대'; b.disabled = true; b.className = 'max'; }
     else if (off) { b.textContent = cost; b.disabled = true; b.className = 'max'; }
-    else {
+    else if (typeof cost === 'object') {
+      b.textContent = cost.label; b.setAttribute('aria-label', cost.aria);
+      b.addEventListener('click', function () {
+        var why = onBuy();
+        if (why) { toast(WHY[why] || '놓을 수 없어요'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
+        refresh(); renderShop();
+      });
+    } else {
       b.textContent = cost.toLocaleString('ko-KR');
       b.setAttribute('aria-label', '사기 ' + cost + '코인');
       if (S.coins < cost) b.classList.add('poor');

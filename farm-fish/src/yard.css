@@ -10,3 +10,13 @@
 .letter p{margin:0;font:400 12px/1.5 var(--font);color:var(--g4)}
 .letter button{width:100%;padding:5px;font-family:var(--mono)}
 .dx canvas.sq{image-rendering:pixelated}
+/* 옮기기 · 넣어 두기 bar: sits where the seed tray is (the tray is hidden in the 마당/집 안) */
+#itemBar{position:absolute;left:0;right:0;bottom:0;height:44px;box-sizing:border-box;z-index:3;display:flex;gap:4px;align-items:center;
+  padding:0 6px;background:var(--g0);border-top:2px solid var(--g4)}
+#itemBar[hidden]{display:none}
+#itemBar canvas{image-rendering:pixelated;flex:none;max-width:28px;max-height:28px}
+#itemBar .it{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+#itemBar .it b{font:700 12px var(--font)}
+#itemBar .it small{font:400 10px var(--font);color:var(--g3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#itemBar button{flex:none;min-height:30px;padding:3px 8px}
+#itemBar button.x{padding:3px 7px}
