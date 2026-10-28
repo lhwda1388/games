@@ -4006,10 +4006,17 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return e.code === 'KeyP' || (typeof e.key === 'string' && (e.key.toLowerCase() === 'p' || e.key === 'ㅔ'));
   }
   function onKeyUp(e) { if (e.code === 'Space') holdSpace = false; }
+  // Panels refresh themselves on a timer (countdowns). Rebuilding a panel between pointerdown and pointerup
+  // swaps the button under the finger and the click never fires, so timed refreshes wait while a press is down.
+  var pressing = false;
+  function quiet() { return !pressing; }
   function bindDoc(doc, win) {
+    doc.addEventListener('pointerdown', function () { pressing = true; }, true);
+    var up = function () { setTimeout(function () { pressing = false; }, 0); };   // after this press's click
+    doc.addEventListener('pointerup', up, true); doc.addEventListener('pointercancel', up, true);
     doc.addEventListener('keydown', onKeyDown);
     doc.addEventListener('keyup', onKeyUp);
-    win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; updateTitle(); });
+    win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; pressing = false; updateTitle(); });
     win.addEventListener('focus', updateTitle);
     win.addEventListener('resize', fit);
   }
@@ -5056,7 +5063,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (spotNew && !spotNewSeen && booted) toast('새 낚시터를 열 수 있다 · 오른쪽 표지판을 눌러요', 3600);
       spotNewSeen = spotNew;
     }
-    if (!calEl.hidden) renderCalIfChanged();
+    if (!calEl.hidden && quiet()) renderCalIfChanged();
   }
   setInterval(tickSky, 500);
 
@@ -5416,6 +5423,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   var bagBtnKey = '';
   function renderBagBtn() {
+    if (!quiet()) return;   // don't swap this button's insides under a press
     var ping = !!(deliverable() || L.potReady(S, now()) || (S.res && S.res.unread.length)), key = S.bag.length + '/' + L.bagCap(S) + ping;
     if (key === bagBtnKey) return;
     bagBtnKey = key;
@@ -5628,7 +5636,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var pr2 = L.potReady(S, t);
     if (pr2 && !potWas && booted) toast('요리 완성 · 냄비를 눌러 꺼내기', 2600);
     potWas = pr2;
-    if (!bagEl.hidden && bagSignature() !== bagSig) renderBag();
+    if (!bagEl.hidden && quiet() && bagSignature() !== bagSig) renderBag();
     renderBagBtn();
   }
   // ---------- 마당 scene: house, pots, animals, decorations; scene switch farm ↔ 마당 ↔ 집 안 ----------
@@ -6119,6 +6127,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   var sceneKey = '';
   function renderSceneBtn() {
+    if (!quiet()) return;   // don't swap this button's insides under a press
     var ds = sceneDests(), at = ds.map(placeAttention);
     var bite = view !== 'farm' && S.fish.phase === 'bite';
     var key = view + ds.join() + at.join() + !!reel + bite;
@@ -7955,7 +7964,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       festDot.hidden = !(id && L.festClaimable(S, w));
     }
     festChip.disabled = !!reel;
-    if (sheetKind === 'fest' && !sheetEl.hidden && Math.floor(t / 1000 / SPEED) % 30 === 0) renderFest();
+    if (sheetKind === 'fest' && !sheetEl.hidden && quiet() && Math.floor(t / 1000 / SPEED) % 30 === 0) renderFest();
   }
 
   // ---------- festival sheet ----------
@@ -9056,6 +9065,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   var vilBarKey = '';
   function renderVilBar() {
+    if (!quiet()) return;   // don't swap this bar's insides under a press
     var on = view === 'village' || view === 'home', txt = on ? storyText() : '', key = on + txt;
     if (key === vilBarKey) return;
     vilBarKey = key;
@@ -9076,7 +9086,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   function tickVillageUI(t) {
     renderVilBar();
-    if (sheetKind === 'vil' && !sheetEl.hidden && Math.floor(t / 1000 / SPEED) % 20 === 0) renderVil();
+    if (sheetKind === 'vil' && !sheetEl.hidden && quiet() && Math.floor(t / 1000 / SPEED) % 20 === 0) renderVil();
   }
   // one line under the 단골 주민 heading in the 바구니 › 주민 tab
   function renderStoryLine(el) {

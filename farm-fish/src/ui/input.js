@@ -67,10 +67,17 @@
     return e.code === 'KeyP' || (typeof e.key === 'string' && (e.key.toLowerCase() === 'p' || e.key === 'ㅔ'));
   }
   function onKeyUp(e) { if (e.code === 'Space') holdSpace = false; }
+  // Panels refresh themselves on a timer (countdowns). Rebuilding a panel between pointerdown and pointerup
+  // swaps the button under the finger and the click never fires, so timed refreshes wait while a press is down.
+  var pressing = false;
+  function quiet() { return !pressing; }
   function bindDoc(doc, win) {
+    doc.addEventListener('pointerdown', function () { pressing = true; }, true);
+    var up = function () { setTimeout(function () { pressing = false; }, 0); };   // after this press's click
+    doc.addEventListener('pointerup', up, true); doc.addEventListener('pointercancel', up, true);
     doc.addEventListener('keydown', onKeyDown);
     doc.addEventListener('keyup', onKeyUp);
-    win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; updateTitle(); });
+    win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; pressing = false; updateTitle(); });
     win.addEventListener('focus', updateTitle);
     win.addEventListener('resize', fit);
   }

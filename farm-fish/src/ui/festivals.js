@@ -42,7 +42,7 @@
       festDot.hidden = !(id && L.festClaimable(S, w));
     }
     festChip.disabled = !!reel;
-    if (sheetKind === 'fest' && !sheetEl.hidden && Math.floor(t / 1000 / SPEED) % 30 === 0) renderFest();
+    if (sheetKind === 'fest' && !sheetEl.hidden && quiet() && Math.floor(t / 1000 / SPEED) % 30 === 0) renderFest();
   }
 
   // ---------- festival sheet ----------

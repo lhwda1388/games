@@ -486,6 +486,7 @@
   }
   var sceneKey = '';
   function renderSceneBtn() {
+    if (!quiet()) return;   // don't swap this button's insides under a press
     var ds = sceneDests(), at = ds.map(placeAttention);
     var bite = view !== 'farm' && S.fish.phase === 'bite';
     var key = view + ds.join() + at.join() + !!reel + bite;

@@ -342,6 +342,7 @@
   }
   var vilBarKey = '';
   function renderVilBar() {
+    if (!quiet()) return;   // don't swap this bar's insides under a press
     var on = view === 'village' || view === 'home', txt = on ? storyText() : '', key = on + txt;
     if (key === vilBarKey) return;
     vilBarKey = key;
@@ -362,7 +363,7 @@
   }
   function tickVillageUI(t) {
     renderVilBar();
-    if (sheetKind === 'vil' && !sheetEl.hidden && Math.floor(t / 1000 / SPEED) % 20 === 0) renderVil();
+    if (sheetKind === 'vil' && !sheetEl.hidden && quiet() && Math.floor(t / 1000 / SPEED) % 20 === 0) renderVil();
   }
   // one line under the 단골 주민 heading in the 바구니 › 주민 tab
   function renderStoryLine(el) {

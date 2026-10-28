@@ -14,6 +14,7 @@
   }
   var bagBtnKey = '';
   function renderBagBtn() {
+    if (!quiet()) return;   // don't swap this button's insides under a press
     var ping = !!(deliverable() || L.potReady(S, now()) || (S.res && S.res.unread.length)), key = S.bag.length + '/' + L.bagCap(S) + ping;
     if (key === bagBtnKey) return;
     bagBtnKey = key;
@@ -226,6 +227,6 @@
     var pr2 = L.potReady(S, t);
     if (pr2 && !potWas && booted) toast('요리 완성 · 냄비를 눌러 꺼내기', 2600);
     potWas = pr2;
-    if (!bagEl.hidden && bagSignature() !== bagSig) renderBag();
+    if (!bagEl.hidden && quiet() && bagSignature() !== bagSig) renderBag();
     renderBagBtn();
   }

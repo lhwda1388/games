@@ -142,7 +142,7 @@
       if (spotNew && !spotNewSeen && booted) toast('새 낚시터를 열 수 있다 · 오른쪽 표지판을 눌러요', 3600);
       spotNewSeen = spotNew;
     }
-    if (!calEl.hidden) renderCalIfChanged();
+    if (!calEl.hidden && quiet()) renderCalIfChanged();
   }
   setInterval(tickSky, 500);
 
