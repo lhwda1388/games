@@ -1,4 +1,4 @@
-// farm-fish/test/stage5b.test.js — stage 5B: 낚시 잡동사니·보물 상자·병 편지, 계절 축제, 선택 미니게임 (자물쇠·불 조절)
+// test/stage5b.test.js — stage 5B: 낚시 잡동사니·보물 상자·병 편지, 계절 축제, 선택 미니게임 (자물쇠·불 조절)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

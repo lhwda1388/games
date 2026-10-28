@@ -35,6 +35,7 @@
   function onKeyDown(e) {
     if (e.key === 'Escape') {
       e.preventDefault();
+      if (closeSceneMenu()) { sceneBtn.focus(); return; }   // Esc first closes the 이동 list
       var moving = pick && pick.moving; closePick();     // Esc first cancels 옮기기; otherwise it is the boss key
       if (!moving) toggleBoss();
       return;

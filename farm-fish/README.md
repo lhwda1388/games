@@ -3,8 +3,8 @@
 친구에게 주는 건 `index.html` 한 파일. 고칠 때는 `src/`를 고치고 다시 합친다.
 
 ```sh
-node farm-fish/build.js                 # src/ → index.html (같은 소스면 항상 같은 결과)
-node --test farm-fish/test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index.html이 낡았으면 실패
+node build.js                 # src/ → index.html (같은 소스면 항상 같은 결과)
+node --test test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index.html이 낡았으면 실패
 ```
 
 `src/`의 파일 순서는 `build.js`의 목록이 정한다. 새 파일은 목록에 한 줄 추가. `logic/`·`ui/` 파일은 각각 하나의 클로저 조각이라 앞 파일의 이름을 그대로 쓴다. 로직 파일은 공개할 이름을 파일 끝 `expose({...})`에 적는다.
@@ -30,7 +30,7 @@ node --test farm-fish/test/*.test.js    # 빌드 없이 src/에서 바로 테스
 | `ui/farm.js` | 밭 탭·틱·그리기 |
 | `ui/pond.js` | 낚시 흐름, 연못 탭·틱·그리기, 마일스톤 장식 |
 | `ui/spots.js`, `ui/weather.js`, `ui/calendar.js`, `calendar.css` | 강·바다 그림·표지판·조건부 물고기·채집물 알림, 날씨·밤 효과와 구석 표시, 달력 패널 |
-| `ui/yard.js`, `ui/visitors.js`, `ui/house.js`, `ui/records.js`, `yard.css` | 마당 장면·장면 버튼, 방문객 그림·탭·상인/편지 창, 집 안·상점 마당 칸, 도감 기록 탭 |
+| `ui/yard.js`, `ui/visitors.js`, `ui/house.js`, `ui/records.js`, `yard.css` | 마당 장면·장면 버튼(이동 목록), 방문객 그림·탭·상인/편지 창, 집 안·상점 마당 칸, 도감 기록 탭 |
 | `logic/seasons.js`, `logic/residents.js`, `logic/aquarium.js`, `logic/daily.js`, `logic/share.js` | 계절 작물·물고기, 단골 주민(친밀도·편지·선물·선물 레시피), 수족관(`s.tank`), 오늘의 할 일(`s.daily`), 농장 N년차(`s.born`)·친구 기록 코드·4단계 세이브 블록 |
 | `ui/seasons.js`, `ui/residents.js`, `ui/aquarium.js`, `ui/daily.js`, `ui/share.js`, `stage4.css` | 계절 그림·얼음낚시, 바구니 주민 탭, 집 안 수조, 달력 할 일, 도감 친구 탭 |
 | `logic/forest.js`, `logic/challenge.js`, `logic/pets.js` | 숲 채집(채집물 표·다시 돋는 자리·숲 요리, `s.forest`), 도전 게이지 판정(채집·수확 특상품), 반려동물(`s.pet`)·5A 세이브 블록 |

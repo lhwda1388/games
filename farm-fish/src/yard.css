@@ -1,7 +1,10 @@
 /* stage 3 · 마당 scene button, merchant/letter sheet, 기록 tab letters. Same five --g* tokens, no hue. */
 #sceneBtn{position:absolute;right:3px;top:40px;z-index:2;min-width:32px;height:26px;padding:0 5px;font:700 12px var(--font);
   display:flex;align-items:center;justify-content:center}
-#sceneBtn .dot{position:absolute;right:-4px;top:-4px;width:7px;height:7px;background:var(--g4);border:1px solid var(--g0)}
+#sceneMenu{position:absolute;right:3px;top:70px;z-index:4;display:flex;flex-direction:column;gap:3px;padding:3px;background:var(--g0);border:2px solid var(--g4);box-shadow:2px 2px 0 var(--g2)}
+#sceneMenu[hidden]{display:none}
+#sceneMenu button{position:relative;min-width:44px;height:26px;padding:0 8px;box-shadow:none}
+#sceneBtn .dot,#sceneMenu .dot{position:absolute;right:-4px;top:-4px;width:7px;height:7px;background:var(--g4);border:1px solid var(--g0)}
 #ysheet{padding:10px 12px 14px}
 #ysheet .say{font:700 12px/1.45 var(--font);margin:4px 0 2px;padding:6px 8px;border:2px solid var(--g4);background:var(--g1)}
 .letter{border:2px solid var(--g4);padding:6px 8px;margin:6px 0;background:var(--g0);box-shadow:2px 2px 0 var(--g2)}

@@ -454,40 +454,90 @@
   }
 
   // ---------- scene switch ----------
+  // one destination (집 안 → 마당, or no 숲 yet) = one tap; two = the button opens a tiny list of the other places
   var sceneBtn = document.createElement('button');
   sceneBtn.type = 'button'; sceneBtn.id = 'sceneBtn';
   app.appendChild(sceneBtn);
+  var sceneMenu = document.createElement('div');
+  sceneMenu.id = 'sceneMenu'; sceneMenu.hidden = true; sceneMenu.setAttribute('role', 'menu');
+  app.appendChild(sceneMenu);
+  var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'] };
   function goScene(sc) {
     if (reel) return;
+    closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
     cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : '집 안');
     renderSceneBtn();
   }
+  function sceneDests() {
+    if (view === 'house') return ['yard'];
+    return ['farm', 'yard', 'forest'].filter(function (sc) { return sc !== view && (sc !== 'forest' || forestShown()); });
+  }
+  function placeAttention(sc) {
+    if (sc === 'forest') return !!forestAttention();
+    var pond = sc === 'farm';
+    return (!pond && yardAttention() > 0) || S.yard.vis.some(function (v) { return (L.visitorById(v.id).slot === 'pond') === pond; });
+  }
   var sceneKey = '';
   function renderSceneBtn() {
-    var nx = nextScene();   // stage 5A: 밭·연못 → 마당 → 숲 → 밭·연못
-    var other = view === 'farm' ? yardAttention() > 0 || S.yard.vis.some(function (v) { return L.visitorById(v.id).slot !== 'pond'; })
-                                 : nx === 'forest' ? forestAttention() : S.yard.vis.some(function (v) { return L.visitorById(v.id).slot === 'pond'; });
+    var ds = sceneDests(), at = ds.map(placeAttention);
     var bite = view !== 'farm' && S.fish.phase === 'bite';
-    var key = view + nx + other + !!reel + bite;
+    var key = view + ds.join() + at.join() + !!reel + bite;
     if (key === sceneKey) return;
     sceneKey = key;
+    if (bite || reel || ds.length < 2) closeSceneMenu();
     sceneBtn.innerHTML = '';
     sceneBtn.disabled = !!reel;
     sceneBtn.classList.toggle('bite', bite);
+    sceneBtn.removeAttribute('aria-haspopup'); sceneBtn.removeAttribute('aria-expanded');
     if (bite) { sceneBtn.textContent = '찌!'; sceneBtn.setAttribute('aria-label', '입질! 연못으로 가서 챔질'); return; }
-    var label = nx === 'yard' ? '마당' : nx === 'forest' ? '숲' : '밭';
-    sceneBtn.setAttribute('aria-label', nx === 'yard' ? (view === 'house' ? '마당으로 나가기' : '마당으로') : nx === 'forest' ? '숲으로' : '밭과 연못으로');
-    sceneBtn.appendChild(document.createTextNode(label));
-    if (other) { var d = document.createElement('i'); d.className = 'dot'; sceneBtn.appendChild(d); }
+    if (ds.length === 1) {
+      sceneBtn.textContent = PLACE[ds[0]][0];
+      sceneBtn.setAttribute('aria-label', view === 'house' ? '마당으로 나가기' : PLACE[ds[0]][1]);
+    } else {
+      sceneBtn.textContent = '이동';
+      sceneBtn.setAttribute('aria-label', '장소 이동: ' + ds.map(function (sc) { return PLACE[sc][0]; }).join(', '));
+      sceneBtn.setAttribute('aria-haspopup', 'menu'); sceneBtn.setAttribute('aria-expanded', String(!sceneMenu.hidden));
+    }
+    if (at.some(Boolean)) { var d = document.createElement('i'); d.className = 'dot'; sceneBtn.appendChild(d); }
+    if (!sceneMenu.hidden) fillSceneMenu();
+  }
+  function fillSceneMenu() {
+    sceneMenu.innerHTML = '';
+    sceneDests().forEach(function (sc) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.setAttribute('role', 'menuitem'); b.setAttribute('aria-label', PLACE[sc][1]);
+      b.textContent = PLACE[sc][0];
+      if (placeAttention(sc)) { var d = document.createElement('i'); d.className = 'dot'; b.appendChild(d); }
+      b.addEventListener('click', function () { goScene(sc); sceneBtn.focus(); });
+      sceneMenu.appendChild(b);
+    });
+  }
+  function closeSceneMenu() {
+    if (sceneMenu.hidden) return false;
+    sceneMenu.hidden = true; sceneBtn.setAttribute('aria-expanded', 'false');
+    return true;
   }
   sceneBtn.addEventListener('click', function () {
     if (view !== 'farm' && S.fish.phase === 'bite') { goScene('farm'); doStrike(); renderSceneBtn(); return; }
-    goScene(nextScene());
+    var ds = sceneDests();
+    if (ds.length === 1) { goScene(ds[0]); return; }
+    if (closeSceneMenu()) return;
+    fillSceneMenu(); sceneMenu.hidden = false; sceneBtn.setAttribute('aria-expanded', 'true');
+    sceneMenu.firstChild.focus();
   });
-  function nextScene() { return view === 'farm' || view === 'house' ? 'yard' : view === 'yard' && forestShown() ? 'forest' : 'farm'; }
+  sceneMenu.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    var bs = Array.prototype.slice.call(sceneMenu.children), i = bs.indexOf(e.target.ownerDocument.activeElement);
+    bs[(i + (e.key === 'ArrowDown' ? 1 : bs.length - 1)) % bs.length].focus();
+  });
+  // a tap anywhere else in the game closes the list (capture: runs before the canvas tap)
+  app.addEventListener('pointerdown', function (e) {
+    if (!sceneMenu.hidden && !sceneMenu.contains(e.target) && !sceneBtn.contains(e.target)) closeSceneMenu();
+  }, true);
 
   // ---------- hooks used by loop.js / input.js ----------
   // draws 마당 or 집 안 instead of the farm; returns false on the farm so the normal frame runs

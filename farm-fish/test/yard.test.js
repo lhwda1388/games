@@ -1,4 +1,4 @@
-// farm-fish/test/yard.test.js — stage 3: 마당, 집, 동물, 꾸미기, 방문객, 이스터에그
+// test/yard.test.js — stage 3: 마당, 집, 동물, 꾸미기, 방문객, 이스터에그
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

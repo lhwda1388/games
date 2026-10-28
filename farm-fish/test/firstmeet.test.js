@@ -1,4 +1,4 @@
-// farm-fish/test/firstmeet.test.js — 첫 만남 보정, 점심 붕어·퇴근 참치 pool share, forage boost
+// test/firstmeet.test.js — 첫 만남 보정, 점심 붕어·퇴근 참치 pool share, forage boost
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

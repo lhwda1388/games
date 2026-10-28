@@ -1,4 +1,4 @@
-// farm-fish/test/saves.test.js — saves written by RELEASED builds must load in the current build with nothing lost.
+// test/saves.test.js — saves written by RELEASED builds must load in the current build with nothing lost.
 // Fixtures in test/fixtures/ were produced by each old build's own logic (encode of a well-played state).
 // Never edit or delete a fixture; when a new version ships, ADD one.
 const { test } = require('node:test');

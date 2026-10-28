@@ -1,9 +1,9 @@
-// farm-fish/test/logic.test.js
+// test/logic.test.js
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 
-// built in memory from src/, so tests never need `node farm-fish/build.js` first
+// built in memory from src/, so tests never need `node build.js` first
 function loadLogic() {
   const html = require('../build.js').build();
   const m = html.match(/<script id="logic">([\s\S]*?)<\/script>/);
