@@ -149,7 +149,16 @@ test('festival fish bite only during their festival and never come up as orders'
   assert.ok(!ids(env).includes('moonfish'));
   assert.ok(ids({ ...env, festival: 'autumn' }).includes('moonfish'));
   assert.ok(!ids({ ...env, festival: 'spring' }).includes('moonfish'));
-  assert.ok(!ids({ ...env, phase: 'day', festival: 'autumn' }).includes('moonfish'));    // 달빛 잉어: night only
+  // 축제 물고기는 시간대를 가리지 않는다: 계절(28일)이 시간대 회전(4일)으로 나누어떨어져
+  // 같은 시각에만 오는 사람은 해마다 축제 날 같은 시간대만 만나기 때문
+  ['morning', 'day', 'evening'].forEach((phase) => assert.ok(ids({ ...env, phase, festival: 'autumn' }).includes('moonfish')));
+  assert.ok(ids({ ...env, phase: 'morning', season: 'summer', festival: 'summer' }).includes('sparkfish'));
+  // every minute of the festival can bring a 달빛 잉어
+  const fw = L.festivalNextOf('autumn', Date.UTC(2026, 9, 26, 0, 0), KST);
+  for (let t = fw.start; t < fw.end; t += 600e3) {
+    const e = L.fishEnv(t, KST);
+    assert.ok(L.availableFish(new Date(t), s, e).some((f) => f.id === 'moonfish'));
+  }
   assert.ok(ids({ ...env, phase: 'day', festival: 'spring' }).includes('blossomcarp'));
   // fishEnv works the festival out from the clock
   assert.equal(L.fishEnv(Date.UTC(2026, 9, 28, 3, 0), KST).festival, L.festivalId(Date.UTC(2026, 9, 28, 3, 0), KST));

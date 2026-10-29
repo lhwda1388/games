@@ -560,6 +560,58 @@ test('new crops: locked until ★ or bought, then grow on their own timers', () 
   assert.ok(L.SEEDS.length >= 8);
 });
 
+test('game clock: the day slides 15 minutes a real day, so the same wall-clock time meets every phase in 4 days', () => {
+  const D = 86400e3, MIN = 60e3, base = Date.UTC(2026, 9, 26);
+  for (const tz of [0, 540, -300]) for (let wall = 0; wall < 60; wall++) {
+    // one minute at the same wall time: 4 different game minutes, so night (15 long) always comes round
+    const one = new Set(), ten = new Set();
+    for (let d = 0; d < 4; d++) {
+      const t0 = base + d * D + 9 * 3600e3 + wall * MIN - tz * MIN;
+      one.add(L.gameClock(t0, tz).phase);
+      for (let k = 0; k < 10; k++) ten.add(L.gameClock(t0 + k * MIN, tz).phase);
+    }
+    assert.equal(one.size >= 3 && one.has('night'), true, 'tz ' + tz + ' :' + wall);
+    assert.equal(ten.size, 4, '10 minutes from tz ' + tz + ' :' + wall);   // even the short 저녁
+  }
+  // across the local-midnight seam the game day number never goes back or skips one; hour stays 0..24
+  let prev = L.gameClock(base, 0).day;
+  const nights = {};
+  for (let t = base; t < base + 8 * D; t += MIN) {
+    const c = L.gameClock(t, 0);
+    assert.ok(c.day === prev || c.day === prev + 1, 'day ' + prev + ' -> ' + c.day);
+    assert.ok(c.hour >= 0 && c.hour < 24);
+    if (c.phase === 'night') nights[c.day] = (nights[c.day] || 0) + 1;
+    prev = c.day;
+  }
+  assert.ok(Object.values(nights).every((n) => n === 15), 'one 15-minute night per game day');
+  // 유성우 windows follow the slid night
+  let w = L.nextMeteor(base, 540);
+  for (let k = 0; k < 20; k++, w = L.nextMeteor(w.end, 540)) {
+    assert.equal(w.end - w.start, 15 * MIN);
+    assert.ok(L.meteorNight(w.start, 540) && L.meteorNight(w.end - 1, 540) && !L.meteorNight(w.start - 1, 540));
+  }
+});
+
+test('nextPhase: the real next phase change, also across the local-midnight jump', () => {
+  const D = 86400e3, MIN = 60e3, base = Date.UTC(2026, 9, 26);
+  let jumped = 0;
+  const order = ['morning', 'day', 'evening', 'night'];
+  for (const tz of [0, 540, -300]) for (let t = base; t < base + 4 * D; t += 7 * MIN + 13e3) {
+    const ph = L.gameClock(t, tz).phase, n = L.nextPhase(t, tz);
+    assert.ok(n && n.at > t && n.at - t <= 120 * MIN, 'found ' + t);
+    assert.equal(L.gameClock(n.at, tz).phase, n.phase);
+    assert.notEqual(n.phase, ph);
+    for (let u = t; u < n.at - MIN; u += MIN) assert.equal(L.gameClock(u, tz).phase, ph, 'no earlier change');
+    // the old guess: the current phase runs its fixed length from gameMin, then the next in order
+    const m = L.gameMin(t, tz), end = m < 15 ? 15 : m < 35 ? 35 : m < 45 ? 45 : 60;
+    if (Math.abs(t + (end - m) * MIN - n.at) > MIN || order[(order.indexOf(ph) + 1) % 4] !== n.phase) jumped++;
+    const nn = L.nextPhase(t, tz, 'night');
+    assert.equal(nn.phase, 'night');
+    assert.notEqual(L.gameClock(nn.at - 1, tz).phase, 'night', 'a night start, not mid-night');
+  }
+  assert.ok(jumped > 0, 'some samples straddle local midnight');
+});
+
 test('game clock: 1 day = 1 real hour, 1 season = 1 real week, weather per 40-min block', () => {
   const mon = Date.UTC(2026, 9, 26);                       // Monday 2026-10-26 00:00 UTC
   assert.equal(L.gameClock(mon, 0).phase, 'morning');

@@ -171,6 +171,34 @@ test('orders only ask for fish from bought spots; conditional fish once caught',
   assert.ok(seen().has('eel'));
 });
 
+test('orders skip fish whose weather the season never has (빙어 only in winter, rain fish not in winter); posted orders stay', () => {
+  const rngs = (k) => seq((k * 0.6180339) % 1, (k * 0.4142) % 1, (k * 0.7320508) % 1, (k * 0.2360679) % 1);
+  const s = L.newState(0, seq(0.5));
+  s.spotOk = { river: true, sea: true };
+  for (const id of ['smelt', 'loach', 'salmon', 'bass', 'cod', 'octopus']) s.dex.fish[id] = { n: 1, best: L.fishById(id).min };
+  const seen = (season) => { const out = new Set(); for (let k = 0; k < 3000; k++) out.add(L.genOrder(s, rngs(k), season).id); return out; };
+  const snow = ['smelt', 'cod'], rain = ['loach', 'salmon', 'octopus'];
+  for (const season of L.SEASONS) {
+    const r = seen(season);
+    for (const id of snow) assert.equal(r.has(id), season === 'winter', season + ' ' + id);
+    for (const id of rain) assert.equal(r.has(id), season !== 'winter', season + ' ' + id);
+    assert.ok(r.has('bass'), season + ' bass');   // fog comes in every season
+  }
+  assert.equal(L.weatherInSeason(L.fishById('smelt'), 'summer'), false);
+  assert.equal(L.weatherInSeason(L.fishById('smelt'), undefined), true);   // no season given: as before
+  // refreshOrders reads the season from the clock; an order already on the board is left alone
+  const at = (season) => { for (let t = 0; ; t += 86400e3) if (L.gameClock(t, 0).season === season) return t; };
+  const summer = at('summer'), winter = at('winter');
+  s.orders = [{ o: { id: 'smelt', n: 1, reward: 300, rep: 1 }, at: 0 }, { o: null, at: 0 }, { o: null, at: 0 }];
+  const got = new Set();
+  for (let k = 0; k < 1500; k++) { s.orders[1] = { o: null, at: 0 }; L.refreshOrders(s, summer, rngs(k), 0); got.add(s.orders[1].o.id); }
+  assert.equal(s.orders[0].o.id, 'smelt');
+  assert.ok(!got.has('smelt') && !got.has('cod') && got.has('loach'));
+  got.clear();
+  for (let k = 0; k < 1500; k++) { s.orders[1] = { o: null, at: 0 }; L.refreshOrders(s, winter, rngs(k), 0); got.add(s.orders[1].o.id); }
+  assert.ok(got.has('cod') && !got.has('loach') && !got.has('salmon'));   // (빙어 is already on the board)
+});
+
 test('saves from v1 and from stage 1 (no spot fields) load with 연못 only; spots round-trip', () => {
   const v1 = { v: 1, coins: 50, sel: 'radish', plots: Array.from({ length: 6 }, () => ({ crop: null, progress: 0, t: 0, yieldMul: 1, weed: false, crow: null, fert: false, last: null })),
     seeds: { gold: 0 }, up: { rod: 0, bait: 0, field: 0, scare: 0 }, items: { fert: 0 }, ms: {}, nextEventAt: 0, fish: { phase: 'idle' },

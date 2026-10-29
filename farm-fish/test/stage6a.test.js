@@ -155,6 +155,8 @@ test('insects: pools by season, time, weather and place; every season has some',
   assert.ok(ids('forest', env('summer', 'day', 'clear')).includes('jewelbeetle'));
   assert.ok(!ids('forest', env('summer', 'day', 'fog')).includes('jewelbeetle'));
   assert.ok(ids('farm', env('spring', 'morning', 'fog')).includes('mayfly'));
+  for (const ph of ['day', 'evening', 'night']) assert.ok(ids('farm', env('spring', ph, 'fog')).includes('mayfly'), 'mayfly at any time: ' + ph);
+  assert.ok(!ids('farm', env('spring', 'morning', 'clear')).includes('mayfly'));
   assert.ok(ids('yard', env('winter', 'day', 'snow')).includes('springtail'));
   for (const se of L.SEASONS) assert.ok(['farm', 'yard', 'forest', 'orchard'].some((p) => ids(p, env(se, 'day', se === 'winter' ? 'snow' : 'clear')).length), se);
   for (const p of Object.keys(L.BUG_PLACES)) assert.ok(L.BUGS.some((b) => b.at.includes(p)), p);
@@ -171,6 +173,12 @@ test('first-meet boost for uncaught insects, gone once caught', () => {
   assert.equal(L.bugWeight(b, 'forest', e, s), L.BUG_W['희귀'] * 2.5);
   L.catchBug(s, 'stagbeetle');
   assert.equal(L.bugWeight(b, 'forest', e, s), L.BUG_W['희귀']);
+  // a 전설 insect's first meeting is boosted much more (one insect per look), back to 아주 드물게 once caught
+  const j = L.bugById('jewelbeetle'), ej = env('summer', 'day', 'clear');
+  assert.equal(L.bugWeight(j, 'forest', ej, s), L.BUG_W['전설'] * L.BUG_FIRST_LEGEND);
+  assert.ok(L.bugWeight(j, 'forest', ej, s) < L.BUG_W['흔함']);
+  L.catchBug(s, 'jewelbeetle');
+  assert.equal(L.bugWeight(j, 'forest', ej, s), L.BUG_W['전설']);
 });
 
 test('catch timing: only while it sits (plus a little grace); position follows the flight', () => {

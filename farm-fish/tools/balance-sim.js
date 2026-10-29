@@ -6,7 +6,8 @@
 // plus stage 6: orchard, hives, insects (fixed catch rate per hand) and the 마을 (talk, gifts, errands, stories),
 // plus stage 7: 갯벌 (dig at low tide, 통발 at high tide), 동굴 (energy, ores, gems, fossil parts, crafts), 별 관측
 // (one constellation per night look, 유성우 wishes), 섬 (boat fix, island fish, drift, coconuts, 등대) and the 박물관.
-// Idler and 하루 3번 sessions start a few minutes later each day (jit), so their looks fall in every game phase.
+// Idler and 하루 3번 sessions start a few minutes later each day (jit), so their looks fall in every game phase;
+// 같은 시각 (fixed) is 하루 3번 at :00 of 9·13·18시 every day, to see what a strict routine misses.
 // Stage 8: 오늘의 날 (ensureDay each look), 입질 폭풍 / 대풍년 (the player goes to a storm's spot; a storm or 입질 좋은 날
 // shortens the wait, so the same look fits more casts), fish personalities (already inside newReel/reelStep),
 // 보물 지도 pieces (junk / cave cell / drift) dug as soon as the map's time rule holds, and 소문 (talk, letters, visitors).
@@ -23,6 +24,8 @@
 // 동물 새끼 (broodTick each look; grown kids' share of the animal products is measured), 날씨 장난감 (a few taps per look
 // while one is on), 계절 챌린지 (questEnsure/questClaim each look) and 주민들의 하루 + 새 주민 (townMeet everyone out on the
 // street, new residents join the village round once moved in).
+// 박물관 collector: once the museum is open, a look goes where an insect still missing can show up right now (a 챌린지
+// bug still comes first); --nobughunt keeps the old random place. The report lists each room's missing ids (id×runs).
 'use strict';
 process.env.TZ = 'Asia/Seoul';
 const vm = require('node:vm');
@@ -43,6 +46,7 @@ const START = new Date(2026, 10, 2, 0, 0).getTime();      // Monday 2026-11-02 0
 const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const DAYS = +(ARGS[1] || 14);
 const NOMINI = process.argv.includes('--nomini');
+const BUGHUNT_OFF = process.argv.includes('--nobughunt') || !!process.env.NOBUGHUNT;   // pick bug places at random, as before
 
 function mulberry(a) {
   return function () {
@@ -89,7 +93,9 @@ const ARCH = {
   active: { name: '열심', skill: 'skilled', react: 0.5, plan: [
     { days: WEEKDAY, s: [[9, 18, 10, 4], [20, 20.5, 10, 6], [22, 22.5, 10, 6]] },
     { days: [0, 6], s: [[10, 10.5, 10, 6], [15, 15.5, 10, 6], [21, 21.5, 10, 6]] }] },
-  lazy: { name: '하루 3번', skill: 'average', react: 0.3, jit: [23, 60], plan: [{ days: ALL, s: [[8.5, 8.67, 10, 5], [12.5, 12.67, 10, 5], [21, 21.17, 10, 5]] }] }
+  lazy: { name: '하루 3번', skill: 'average', react: 0.3, jit: [23, 60], plan: [{ days: ALL, s: [[8.5, 8.67, 10, 5], [12.5, 12.67, 10, 5], [21, 21.17, 10, 5]] }] },
+  // 하루 3번 but always on the hour, never later (no jit): what a strict routine sees of the game day
+  fixed: { name: '같은 시각', skill: 'average', react: 0.3, plan: [{ days: ALL, s: [[9, 9.17, 10, 5], [13, 13.17, 10, 5], [18, 18.17, 10, 5]] }] }
 };
 
 // purchase priority: the first ungated item not owned is saved for; gated ones (★/house) are skipped for now
@@ -265,7 +271,7 @@ function run(archId, seed) {
       if (p.crop) return;
       let id = null;
       if (s.seeds.gold > 0) id = 'gold';
-      else if (i < 2 && !s.dex.goldSeed && archId !== 'lazy' && ok(i === 0 ? 'berry' : 'melon')) id = i === 0 ? 'berry' : 'melon';
+      else if (i < 2 && !s.dex.goldSeed && archId !== 'lazy' && archId !== 'fixed' && ok(i === 0 ? 'berry' : 'melon')) id = i === 0 ? 'berry' : 'melon';
       else { const k = wish.findIndex(ok); if (k >= 0) id = wish.splice(k, 1)[0]; else id = bestPlain(); }
       if (id) L.plant(s, i, id, t, se);
     });
@@ -423,8 +429,10 @@ function run(archId, seed) {
     if (!L.netOk(s)) return;
     const places = ['farm', 'yard'].concat(L.forestOk(s) ? ['forest'] : [], L.orchardOk(s) ? ['orchard'] : [], ['deep', 'peak'].filter((p) => L.rideOk(s, p)));
     const qb = questTodo('bug'), qp = places.filter((p) => qb.some((id) => L.BUGS.some((b) => b.id === id && (b.at || []).includes(p))));
-    const pl = qp.length ? qp : places;                // a 챌린지 bug still to see: look where it lives
-    const id = L.rollBug(pl[Math.floor(rng() * pl.length)], env(t), rng, s);
+    // a museum collector (박물관 open) looks where a bug it still lacks can show up right now
+    const e = env(t), mp = L.museumOk(s) && !BUGHUNT_OFF ? places.filter((p) => L.bugPool(p, e, s).some((x) => !(s.bugs && s.bugs.dex[x.id]))) : [];
+    const pl = qp.length ? qp : mp.length ? mp : places;   // a 챌린지 bug still to see: look where it lives
+    const id = L.rollBug(pl[Math.floor(rng() * pl.length)], e, rng, s);
     if (!id) return;
     out.bugTry++;
     if (rng() > skill.bug) return;
@@ -911,6 +919,9 @@ if (require.main === module) {
     console.log('  도감(1판): 작물 ' + Object.keys(s.dex.crops).length + '/' + Object.keys(L.CROPS).length + ' · 물고기 ' + DEX_FISH.filter((f) => s.dex.fish[f.id]).length + '/' + DEX_FISH.length + ' · 요리 ' + Object.keys(s.dex.dish).length + '/' + L.RECIPES.length + ' · 채집 ' + L.forageDexCount(s) + '/' + L.FORAGE.length + ' · 편지 ' + L.lettersFound(s) + '/12 · 업그레이드 ' + JSON.stringify(s.up));
     console.log('  7단계(판 평균, 하루): 갯벌 캐기 ' + (runs.reduce((a, r) => a + r.digs, 0) / seeds / DAYS).toFixed(1) + ' · 통발 ' + (runs.reduce((a, r) => a + r.trapN, 0) / seeds / DAYS).toFixed(1) + ' · 동굴 칸 ' + (runs.reduce((a, r) => a + r.cells, 0) / seeds / DAYS).toFixed(1) + ' · 표류물 ' + (runs.reduce((a, r) => a + r.drift, 0) / seeds / DAYS).toFixed(1) + ' · 별 ' + (runs.reduce((a, r) => a + r.stars, 0) / seeds / DAYS).toFixed(1) + ' · 소원 ' + (runs.reduce((a, r) => a + r.wishes, 0) / seeds / DAYS).toFixed(2));
     console.log('  박물관(1판): ' + L.MUSEUM_ROOM_IDS.map((k) => { const c = L.museumCount(s, k); return k + ' ' + c.n + '/' + c.m; }).join(' · ') + ' · 갯벌 도감 ' + L.flatDexCount(s) + '/' + L.FLAT.length + ' · 섬 ' + L.isleDexCount(s) + '/' + L.DRIFT.length);
+    // which ids each museum room still lacks at the end, over all runs (id×runs missing it); '·' when every run has it
+    console.log('  박물관 빠진 것(' + seeds + '판): ' + ['bug', 'fish'].map((room) => { const miss = {}; runs.forEach((r) => L.MUSEUM_ROOMS[room].ids.forEach((id) => { if (!L.museumGot(r.final, room, id)) miss[id] = (miss[id] || 0) + 1; }));
+      return room + ' ' + (Object.entries(miss).sort((a, b) => b[1] - a[1]).map(([k, n]) => k + '×' + n).join(' ') || '·'); }).join(' | '));
     const mean = (f) => Math.round(runs.reduce((a, r) => a + f(r), 0) / seeds);
     const wk = [0, 1, 2, 3, 4].filter((w) => w * 7 + 6 < DAYS).map((w) => mean((r) => r.daily[w * 7 + 6].earned - (w ? r.daily[w * 7 - 1].earned : 0)));
     console.log('  8단계' + (NOBOOM || NODAY || FORCE_DAY ? '(' + process.argv.filter((a) => /^--(no|day)/.test(a)).join(' ') + ')' : '') + ': 주당 번 돈(판 평균) ' + wk.join(' / ') + ' · ' + DAYS + '일 번 돈 평균 ' + mean((r) => r.daily[DAYS - 1].earned) +

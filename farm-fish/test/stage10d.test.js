@@ -250,3 +250,16 @@ test('season challenge never picks a constellation already seen (it could never 
     assert.ok(!q.list.some(g => g.k === 'star'), 'week ' + w);
   }
 });
+
+test('season challenge never picks something that needs one kind of weather; a card already saved stays', () => {
+  for (let k = 0; k < 16; k++) {
+    const se = L.SEASONS[k % 4], s = rich(), q = L.questEnsure(s, at(se, k >> 2), 0);
+    q.list.forEach((g) => {
+      const d = L.questItem(g.k, g.id).def;
+      assert.ok(!d.weather && !d.wet && (!d.wx || d.wx === 'dry'), se + ' ' + g.k + ':' + g.id);
+    });
+  }
+  const s = rich(), q = L.questEnsure(s, at('spring'), 0);
+  q.list[0] = { k: 'bug', id: 'mayfly', b: 0 };
+  assert.equal(L.questEnsure(s, at('spring') + DAY, 0).list[0].id, 'mayfly');
+});

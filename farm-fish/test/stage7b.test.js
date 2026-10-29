@@ -238,11 +238,12 @@ test('meteor nights: deterministic, only at night, a few a day; one wish per met
   const day0 = 2000 * HOUR;
   let n = 0;
   for (let h = 0; h < 48; h++) {
-    const t = day0 + h * HOUR;
-    assert.equal(L.meteorNight(t + 10 * MIN, 0), false, 'never by day');
-    const on = L.meteorNight(t + 50 * MIN, 0);
-    assert.equal(on, L.meteorNight(t + 50 * MIN, 0));
-    assert.equal(on, L.meteorNight(t + 46 * MIN, 0));
+    const t = day0 + h * HOUR, g = L.gameMin(t, 0) * MIN;   // the game day slides 15 minutes a real day
+    const dayAt = t + (((10 * MIN - g) % HOUR) + HOUR) % HOUR, nightAt = t + (((50 * MIN - g) % HOUR) + HOUR) % HOUR;
+    assert.equal(L.meteorNight(dayAt, 0), false, 'never by day');
+    const on = L.meteorNight(nightAt, 0);
+    assert.equal(on, L.meteorNight(nightAt, 0));
+    assert.equal(on, L.meteorNight(nightAt - 4 * MIN, 0));
     if (on) n++;
   }
   assert.ok(n >= 2 && n <= 16, 'a few a day: ' + n);

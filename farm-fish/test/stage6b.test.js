@@ -11,7 +11,8 @@ const L = globalThis.Logic;
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
 const HOUR = 3600e3, DAY = 86400e3;
 // game-clock phases inside game hour 0 (tz 0): morning 0–15 min, day 15–35, evening 35–45, night 45–60
-const at = (day, min) => day * DAY + min * 60e3;
+// game minute `min` in that real day's first hour (the clock slides 15 minutes a day)
+const at = (day, min) => day * DAY + ((((min - (day % 4) * 15) % 60) + 60) % 60) * 60e3;
 const MORNING = 5, DAYTIME = 20, EVENING = 40, NIGHT = 50;
 const homeAt = (id, day) => [MORNING, DAYTIME, EVENING, NIGHT].map((m) => at(day, m)).find((t) => !L.residentAway(id, t, 0));
 

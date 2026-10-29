@@ -11,7 +11,8 @@ const L = globalThis.Logic;
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
 const HOUR = 3600e3, DAY = 86400e3;
 // game-clock phases inside game hour 0 (tz 0): morning 0–15 min, day 15–35, evening 35–45, night 45–60
-const at = (day, min, h) => day * DAY + (h || 0) * HOUR + min * 60e3;
+// game minute `min` in real hour h of that day (the clock slides 15 minutes a day)
+const at = (day, min, h) => day * DAY + (h || 0) * HOUR + ((((min - (day % 4) * 15) % 60) + 60) % 60) * 60e3;
 const PHASE_MIN = { morning: 5, day: 20, evening: 40, night: 50 };
 const PHASES = Object.keys(PHASE_MIN);
 const ALL = () => L.RESIDENTS.concat(L.RES_EXTRA).map((r) => r.id);
@@ -206,7 +207,7 @@ test('meeting someone out in the street: a place line, 친밀도 once a real day
   assert.equal(r2.ok, true); assert.equal(r2.again, true); assert.equal(r2.pts, 0);
   assert.equal(L.friendPoints(s, 'kid'), L.TOWN_MEET_PTS);
   // next real day: again
-  const r3 = L.townMeet(s, 'kid', t + DAY, 0);
+  const r3 = L.townMeet(s, 'kid', at(4, PHASE_MIN.day), 0);
   assert.equal(r3.pts, L.TOWN_MEET_PTS);
   // at home → not out; not moved in → nobody there
   assert.equal(L.townMeet(s, 'kid', at(3, PHASE_MIN.evening), 0).why, 'home');

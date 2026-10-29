@@ -45,19 +45,22 @@ test('contest mark: deterministic from the week, a little higher for a stronger 
   s.up.rod = 3; s.spotOk = { river: true, sea: true }; assert.equal(L.contestLevel(s), 4);
 });
 
-test('contest: best catch by size fraction; win → trophy deco + coins, once per week', () => {
+test('contest: best catch of the week\'s fish by size fraction; win → trophy deco + coins, once per week', () => {
   const s = friend(fresh());
   L.contestTick(s, W0, 0);
-  const wk = s.cont.wk, mark = L.contestMark(wk, s.cont.lv);
+  const wk = s.cont.wk, mark = L.contestMark(wk, s.cont.lv, false, false), fish = mark.fish;
   assert.equal(L.contestState(s, W0, 0).best, null);
+  // other species don't count, however big
+  assert.equal(L.contestCatch(s, roll('minnow', 1), W0 + H, 0), null);
+  assert.equal(s.cont.best, null);
   // a small catch, then a big one: the fraction counts, not the cm
-  let r = L.contestCatch(s, roll('crucian', 0.1), W0 + H, 0);
+  let r = L.contestCatch(s, roll(fish, 0.1), W0 + H, 0);
   assert.equal(r.best, true); assert.equal(r.ahead, false);
-  r = L.contestCatch(s, roll('minnow', 0.05), W0 + 2 * H, 0);
+  r = L.contestCatch(s, roll(fish, 0.05), W0 + 2 * H, 0);
   assert.equal(r.best, false);
-  r = L.contestCatch(s, roll('minnow', 1), W0 + 3 * H, 0);
+  r = L.contestCatch(s, roll(fish, 1), W0 + 3 * H, 0);
   assert.equal(r.best, true); assert.equal(r.ahead, true);
-  assert.equal(L.contestState(s, W0 + 3 * H, 0).best.id, 'minnow');
+  assert.equal(L.contestState(s, W0 + 3 * H, 0).best.id, fish);
   const coins = s.coins;
   const news = L.contestTick(s, W0 + WEEK + H, 0);
   assert.equal(news.win, true);
@@ -91,8 +94,8 @@ test('contest: tiers from the margin, distinct trophy per week shape; owned → 
   const wk = s.cont.wk, id0 = L.trophyId(wk, 'gold');
   L.yardOf(s).deco[id0] = true;
   s.cont.lv = 0;
-  L.contestCatch(s, roll('crucian', 1), W0 + H, 0);
-  const tier = L.contestTier(1, L.contestMark(wk, 0).f);
+  L.contestCatch(s, roll(L.contestMark(wk, 0, false, false).fish, 1), W0 + H, 0);
+  const tier = L.contestTier(1, L.contestMark(wk, 0, false, false).f);
   if (tier === 'gold') {
     const n = L.contestTick(s, W0 + WEEK + H, 0);
     assert.equal(n.owned, true);
@@ -104,7 +107,7 @@ test('contest: lose → a teasing letter (kept), small coins; no catch → no re
   const s = friend(fresh());
   L.contestTick(s, W0, 0);
   const wk = s.cont.wk;
-  L.contestCatch(s, roll('crucian', 0), W0 + H, 0);
+  L.contestCatch(s, roll(L.contestMark(wk, s.cont.lv, false, false).fish, 0), W0 + H, 0);
   const c0 = s.coins, n = L.contestTick(s, W0 + WEEK + H, 0);
   assert.equal(n.win, false);
   assert.equal(n.coins, L.CONTEST_TRY_COINS);
@@ -120,13 +123,86 @@ test('contest: lose → a teasing letter (kept), small coins; no catch → no re
   assert.equal(s.cont.mail.length, 1);
 });
 
+test('contest species: pond/river fish until the sea opens, then sea fish; gold is in reach most weeks', () => {
+  const lo = new Set(), hi = new Set();
+  let goldOk = 0;
+  for (let wk = 100; wk < 200; wk++) {
+    const a = L.contestMark(wk, 0), b = L.contestMark(wk, 4, true);
+    assert.ok(L.CONTEST_FISH.includes(a.fish) && L.fishById(a.fish).spot !== 'sea', a.fish);
+    assert.equal(L.fishById(b.fish).spot, 'sea', b.fish);
+    assert.ok(L.CONTEST_SEA_FISH.includes(b.fish));
+    lo.add(a.fish); hi.add(b.fish);
+    assert.ok(b.f <= L.CONTEST_MAX && b.f >= L.CONTEST_BASE);
+    if (L.contestTier(1, b.f) === 'gold') goldOk++;
+    // a near-max fish at least beats him
+    assert.ok(L.contestTier(1, b.f));
+  }
+  assert.ok(lo.size >= 4 && hi.size >= 3, 'species vary by week');
+  assert.ok(goldOk >= 30 && goldOk <= 90, 'gold needs a big one, and some weeks only silver: ' + goldOk);
+  // the player's state picks the pool
+  const s = friend(fresh());
+  s.spotOk = { river: true, sea: true };
+  L.contestTick(s, W0, 0);
+  const st = L.contestState(s, W0, 0);
+  assert.equal(st.mark.fish, L.contestMark(s.cont.wk, s.cont.lv, true).fish);
+  assert.equal(L.fishById(st.mark.fish).spot, 'sea');
+});
+
+test('contest pool: a pond-only player only gets pond fish (the river is shut)', () => {
+  for (let wk = 100; wk < 200; wk++) {
+    const f = L.fishById(L.contestMark(wk, 0, false, false).fish);
+    assert.ok(!f.spot || f.spot === 'pond', f.id);
+  }
+  const s = friend(fresh());
+  L.contestTick(s, W0, 0);
+  assert.equal(s.cont.river, false);
+  assert.ok(!L.fishById(L.contestState(s, W0, 0).mark.fish).spot);
+});
+
+test('contest: a spot opening mid-week keeps that week\'s species and lead; next week uses it', () => {
+  const s = friend(fresh());
+  L.contestTick(s, W0, 0);
+  const mk = L.contestState(s, W0, 0).mark;
+  L.contestCatch(s, roll(mk.fish, 1), W0 + H, 0);
+  s.spotOk = { river: true, sea: true };
+  const st = L.contestState(s, W0 + 2 * H, 0);
+  assert.equal(st.mark.fish, mk.fish);
+  assert.equal(st.mark.f, mk.f);
+  assert.ok(st.best && st.best.f === 1);
+  const n = L.contestTick(s, W0 + WEEK + H, 0);
+  assert.equal(n.win, true, 'the lead still wins');
+  assert.equal(s.cont.sea, true);
+  assert.equal(L.fishById(L.contestState(s, W0 + WEEK + H, 0).mark.fish).spot, 'sea');
+  // the snapshot survives a save; an older save without it reads the live flags
+  assert.equal(L.decode(L.encode(s)).cont.sea, true);
+  delete s.cont.sea; delete s.cont.river;
+  const back = L.decode(L.encode(s));
+  assert.equal(back.cont.sea, undefined);
+  assert.equal(L.contestState(back, W0 + WEEK + H, 0).mark.fish, L.contestMark(s.cont.wk, s.cont.lv, true).fish);
+});
+
+test('contest: an older save\'s best of another species only takes part (참가상), settled weeks stay', () => {
+  const s = friend(fresh());
+  L.contestTick(s, W0, 0);
+  const wk = s.cont.wk, fish = L.contestMark(wk, s.cont.lv, false, false).fish, other = fish === 'crucian' ? 'catfish' : 'crucian';
+  s.cont.won[wk - 1] = 'gold';
+  s.cont.best = { id: other, size: L.fishById(other).max, f: 1 };     // saved before the species rule
+  assert.equal(L.contestState(s, W0, 0).best, null);
+  const n = L.contestTick(s, W0 + WEEK + H, 0);
+  assert.equal(n.win, false);
+  assert.equal(n.coins, L.CONTEST_TRY_COINS);
+  assert.equal(s.cont.won[wk - 1], 'gold');
+  assert.equal(s.cont.won[wk], undefined);
+});
+
 test('contest talk and calendar text use the numbers', () => {
   const s = friend(fresh());
   L.contestTick(s, W0, 0);
   const st = L.contestState(s, W0, 0);
   assert.ok(st.left > 6 * DAY && st.left <= WEEK);
   assert.match(L.contestTalk(s, W0, 0), /박 영감|내 기록|자네/);
-  L.contestCatch(s, roll('crucian', 1), W0 + H, 0);
+  assert.match(L.contestTalk(s, W0, 0), new RegExp(L.fishById(st.mark.fish).name + ' 대회'));
+  L.contestCatch(s, roll(st.mark.fish, 1), W0 + H, 0);
   assert.equal(typeof L.contestTalk(s, W0 + H, 0), 'string');
 });
 
@@ -210,7 +286,7 @@ test('friend code carries the farm name; old stage-4 and stage-8 codes still dec
 test('s.cont / s.yr / s.farm round-trip; junk is dropped', () => {
   const s = friend(fresh());
   L.contestTick(s, W0, 0);
-  L.contestCatch(s, roll('crucian', 0.4), W0 + H, 0);
+  L.contestCatch(s, roll(L.contestMark(s.cont.wk, s.cont.lv, false, false).fish, 0.4), W0 + H, 0);
   L.yearTick(s, W0, 0); L.yearCatch(s, roll('crucian', 0.4));
   L.contestTick(s, W0 + WEEK + H, 0);
   L.yearTick(s, W0 + 4 * WEEK + H, 0);
