@@ -76,7 +76,15 @@
     { id: 'farmsign', name: '농장 간판', how: '밭 아래 울타리의 간판을 누르면 농장 이름(' + FARM_NAME_MAX + '자)과 간판 모양 ' + SIGNS.length + '가지 · 결산 카드·친구 기록 코드에 나온다', lock: '' },
     // stage 10 ③
     { id: 'townday', name: '주민들의 하루', how: '주민은 시간대마다 마을 길(' + ['pavilion', 'garden', 'school', 'dock', 'hill'].map(function (k) { return TOWN_PLACES[k].name; }).join('·') + '…)에 나와 있다 · 길에서 누르면 그 자리 이야기, 하루 한 번 친밀도 +' + TOWN_MEET_PTS + ' · 창이 밝으면 집에 있다', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
-    { id: 'newres', name: '새 주민', how: '큰 목표를 이루면 마을에 새 주민 ' + RES_EXTRA.length + '명이 이사 온다 · 이사 편지는 바구니 › 주민 · 새 집을 눌러 방문, 주문·편지·선물도 똑같이', lock: '화석 ' + FOSSILS.length + '종 완성 · 섬 등대 점등 · 박물관 ' + Math.round(TOWN_MUSEUM_PART * 100) + '% 채우기' }
+    { id: 'newres', name: '새 주민', how: '큰 목표를 이루면 마을에 새 주민 ' + RES_EXTRA.length + '명이 이사 온다 · 이사 편지는 바구니 › 주민 · 새 집을 눌러 방문, 주문·편지·선물도 똑같이', lock: '화석 ' + FOSSILS.length + '종 완성 · 섬 등대 점등 · 박물관 ' + Math.round(TOWN_MUSEUM_PART * 100) + '% 채우기' },
+    // stage 11 ①
+    { id: 'port', name: '옛 포구', how: '마을 바닷가 끝 끊긴 다리 · 건물마다 꾸러미 채우고 코인 내면 복구 · ' + PORT_BLDGS.map(function (b) { return b.name; }).join('→'), lock: '마을 + 바다 낚시터' },
+    // stage 11 ②
+    { id: 'auction', name: '어판장 경매', how: '현실 일주일마다 그 주 경매 물고기 ' + AUC_N + '종 (포구 어판장 앞 표지) · 바구니에서 그 종 제일 큰 것을 내면 크기 따라 값 ×' + AUC_MIN + '~×' + AUC_MAX + ' · 종마다 한 주 한 번 · 결과는 우체통 편지로', lock: '옛 포구 어판장 복구' },
+    { id: 'trader', name: '기차 떠돌이 상인', how: '현실 하루 한 번 기차로 온다 · 황금 수박 씨앗과 포구 장식 ' + TRADER_DECOS.length + '가지 중 오늘의 ' + TRADER_N + '개에서 하나 고르기', lock: '옛 포구 기차역 복구' },
+    // stage 12 ③
+    { id: 'dive', name: '잠수', how: '포구 부두의 잠수 표시 · 탭한 쪽으로 헤엄 · 가까이서 탭하면 줍기·관찰 · 산소 ' + DIVE_O2 + '초 (기포에서 채움, 큰 산소통 ' + DIVE_O2_TANK + '초) · 바닥나면 떠오를 뿐 잃는 것 없음', lock: '옛 포구 조선소 복구' },
+    { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -93,12 +101,16 @@
     bike: bikeOk, balloon: villageOk, sled: villageOk,   // stage 9 ③
     garden: gardenOk, brood: function (s) { return !!s.animals && ANIMAL_IDS.some(function (id) { return s.animals[id] > 0; }); }, scaredress: function (s) { return tier(s, 'scare') > 0; },   // stage 10 ②
     contest: contestOk,   // stage 10 ①
-    townday: villageOk, newres: function (s) { return RES_EXTRA.some(function (r) { return resMoved(s, r.id); }); }   // stage 10 ③
+    townday: villageOk, newres: function (s) { return RES_EXTRA.some(function (r) { return resMoved(s, r.id); }); },   // stage 10 ③
+    port: portShown   // stage 11 ①
   };
   // first visit to a scene → the entry whose how-line is shown once ('farm' is where the game starts: no tip)
   var GUIDE_SCENE = { yard: 'yard', house: 'house', forest: 'forest', orchard: 'orchard', village: 'village',
     flat: 'flat', cave: 'cave', stars: 'stars', island: 'island', deep: 'deep', peak: 'peak' };
   GUIDE_SCENE.farisle = 'farisle';   // stage 9 ①
+  GUIDE_SCENE.port = 'port';         // stage 11 ①
+  GUIDE_OPEN.auction = aucOpen; GUIDE_OPEN.trader = traderOpen;   // stage 11 ②
+  GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {

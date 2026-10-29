@@ -39,6 +39,7 @@
   function letterText(k) {
     if (typeof k !== 'string') return null;
     if (k.charAt(0) === 'g') return GENERIC_LETTERS[+k.slice(1)] || null;
+    if (k.slice(0, 2) === 'a:') return aucLetter(k);   // stage 11 ②: 경매 결과
     var e = eggById(k.slice(2));
     return k.slice(0, 2) === 'e:' && e ? e.letter : null;
   }

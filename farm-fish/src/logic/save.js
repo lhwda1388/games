@@ -118,6 +118,9 @@
       decodeRide(o, s);    // stage 9 ③: s.bike (자전거), s.sled (썰매 기록), s.bal (열기구·하늘 도감; optional)
       decodeToys(o, s); decodeQuest(o, s);   // stage 10 ④: s.toy (장난감 보상 횟수), s.quest (계절 챌린지; optional)
       decodeStage10A(o, s); // stage 10 ①: s.cont (낚시 대회), s.yr (결산 카드), s.farm (농장 간판; optional; after decodeYard)
+      decodePort(o, s);    // stage 11 ①: s.port got/done (옛 포구 꾸러미·복구; optional)
+      decodeAuction(o, s); // stage 11 ②: s.port.auc (어판장 경매), s.trader (기차 상인; optional; after decodePort)
+      decodeDive(o, s);    // stage 12 ③: s.dive (잠수: 밝힌 방, 해저 도감, 장비, 항해일지, 상자; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {

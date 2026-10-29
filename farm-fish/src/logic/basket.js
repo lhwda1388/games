@@ -34,6 +34,7 @@
     var tr = treeById(id); if (tr) return { id: id, kind: 'fruit', name: tr.name, price: tr.price };   // stage 6A
     var hn = honeyById(id); if (hn) return { id: id, kind: 'honey', name: hn.name, price: hn.price };   // stage 6A
     var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
+    var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -49,6 +50,7 @@
     if (treeById(id)) return !!(s.orchard && s.orchard.trees.some(function (p) { return p && p.id === id; }));   // stage 6A
     if (honeyById(id)) return !!(s.bees && s.bees.hives.length && (id === 'wildhoney' || s.bees.dex[id]));   // stage 6A
     if (flatById(id)) return flatOk(s);   // stage 7 갯벌
+    if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
     return false;
   }
 

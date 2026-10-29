@@ -88,7 +88,11 @@
     return { gain: gain, lv: r.lv, up: r.up };
   }
   function donkeyFood(s) {
-    for (var k = 0; k < DONKEY_FOOD.length; k++) if (bagCount(s, DONKEY_FOOD[k]) > 0) return DONKEY_FOOD[k];
+    for (var k = 0; k < DONKEY_FOOD.length; k++) {
+      var id = DONKEY_FOOD[k], n = bagCount(s, id);
+      // never a 지키기 item, nor the last one a 포구 bundle still waits for
+      if (n > 0 && !(s.keep && s.keep[id]) && !(n === 1 && portWants(s, id))) return id;
+    }
     return null;
   }
   // 먹이: one food from the basket (bagTake: the cheapest of that kind), DONKEY_FEEDS_DAY a day; nothing taken when full/none
