@@ -20,7 +20,15 @@ const STYLE = [
   // stage 6A
   'stage6.css',         // 곤충 catch card buttons
   // stage 6B
-  'village.css'         // 마을: 지금 할 일 bar, visit sheet gift rows
+  'village.css',        // 마을: 지금 할 일 bar, visit sheet gift rows
+  // stage 7 ① 갯벌·사진기
+  'flat.css',           // 갯벌 tide tag, 사진기 button and flash
+  // stage 8 ① 변동성·일기
+  'events.css',         // 입질 폭풍 chip, 오늘의 날 / 일기 card
+  // stage 9 ③ 자전거·열기구·썰매
+  'ride.css',           // ride overlay, 마을 언덕 menu, 「자전거로」 button
+  // stage 10 ① 낚시 대회·결산 카드·간판
+  'contest.css'         // 농장 간판 name tag, 간판 모양 picker, 결산 카드 sheet
 ];
 
 const BODY = [
@@ -59,6 +67,40 @@ const LOGIC = [
   'logic/bugs.js',      // 곤충 채집: insect table, flight + catch judging, net, 표본 상자 (s.bugs), stage-6A save block
   // stage 6B
   'logic/village.js',   // 마을: 주민 집 방문 (대화·선물·심부름), 이어지는 심부름 이야기 (s.vil)
+  // stage 7 ① 갯벌·사진기
+  'logic/flat.js',      // 갯벌: tides, dig spots, flat finds and dishes (s.flat)
+  'logic/camera.js',    // 사진기: album slots, moments on screen now (s.cam)
+  // stage 7 동굴·별
+  'logic/cave.js',      // 동굴: pickaxe, energy, wall cells, ores/gems, fossils, ore crafting (s.cave)
+  'logic/sky.js',       // 별 관측: telescope, constellations, 유성우 nights and wishes (s.sky), stage-7B save block
+  // stage 7 섬
+  'logic/island.js',    // 섬: 낡은 배 수리, 섬 물고기, 표류물, 야자수, 등대 이야기 (s.isle); before dex.js (adds FISH)
+  // stage 9 ② 당나귀
+  'logic/donkey.js',    // 당나귀 (s.donkey), 깊은 숲·산꼭대기 finds/insects/stars; before museum.js (it reads BUGS/STARS)
+  // stage 7 박물관
+  'logic/museum.js',    // 박물관: six rooms filled by donations, curator lines, room rewards (s.museum); after every table it shows
+  // stage 8 ② 손맛
+  'logic/temper.js',    // 물고기 성격 (reel patterns, boss phases), 월척 records, 어탁 top list
+  // stage 8 ① 변동성·일기
+  'logic/events.js',    // 입질 폭풍/대풍년 windows, 오늘의 날 modifiers (s.day), 자리 비운 사이 일기 (s.diary)
+  // stage 8 ③ 소문·보물 지도
+  'logic/treasure.js',  // 보물 지도 pieces/dig, 소문 lines (s.tmap, s.rumor); after junk/cave/island/village (uses their ok checks)
+  // stage 9 ① 배·먼바다
+  'logic/ship.js',      // 배 업그레이드 (s.ship): 돛배·통통배, 먼바다·난바다 fish + bosses, 먼 섬 drift; after temper/museum (fills TEMPER, fish room)
+  // stage 9 ③ 자전거·열기구·썰매
+  'logic/ride.js',      // 자전거 배달, 열기구 windows + 하늘 도감, 겨울 썰매: pure judging from tap times (s.bike, s.sled, s.bal)
+  // stage 10 ④ 날씨 장난감·계절 챌린지
+  'logic/toys.js',      // 날씨 장난감: splash / footprints / leaf piles, tiny capped rewards (s.toy)
+  'logic/quest.js',     // 계절 도감 챌린지: 5 goals per game season, season decorations (s.quest); after every table it picks from
+  // stage 10 ② 꽃 교배·새끼·허수아비
+  'logic/garden.js',    // 꽃밭 교배 (s.garden), 동물 새끼 (s.brood), 허수아비 꾸미기 (s.scare); before guide.js
+  // stage 10 ① 낚시 대회·결산 카드·간판
+  'logic/contest.js',   // 박 영감 낚시 대회 (s.cont, trophy decos), 한 해 결산 카드 (s.yr), 농장 간판 (s.farm); before guide.js
+  // stage 10 ③ 주민들의 하루·새 주민
+  'logic/town.js',      // residents' street places by game time, 새 주민 이사 (s.town); after treasure/museum (adds RUMORS, reads museum)
+  // stage 8 ④ 이펙트
+  'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
+  'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
   'logic/dex.js',       // 도감 counts and milestones (reads CROPS and FISH at load: keep after them)
   'logic/save.js'       // newState, resume, encode/decode: all save compatibility
 ];
@@ -68,6 +110,7 @@ const UI = [
   'ui/sprites.js',      // pixel helpers and sprite tables
   'ui/background.js',   // layout constants and the pre-rendered background
   'ui/hud.js',          // runtime UI state, toast, floating text, particles
+  'ui/fx.js',           // stage 8 ④ 이펙트: hit-stop, splash, fly-to-basket, pops, coins, count-up, stamp, reduced motion
   'ui/tray.js',         // seed tray
   'ui/input.js',        // pointer/keys, tap dispatch, boss key
   'ui/farm.js',         // farm tap, tick and render
@@ -84,6 +127,7 @@ const UI = [
   'ui/yard.js',         // 마당 scene: house, pots, animals, decorations, scene switch, tick/draw/tap hooks
   'ui/visitors.js',     // visitor art, positions and taps; merchant/letter sheet
   'ui/house.js',        // 집 안: furniture, 어탁, trophies; 상점 마당·집 rows; extra pots in 냄비 tab
+  'ui/guide.js',        // 도감 놀거리 tab, first-visit scene tips, FF.guide (before records.js: its dexBtn click runs first)
   'ui/records.js',      // 도감 기록 tab: secrets with hints, visitors met, letters
   // stage 4
   'ui/residents.js',    // 주민 tab in the 바구니 panel, gift-recipe dish art
@@ -101,6 +145,37 @@ const UI = [
   'ui/bugs.js',         // 곤충: flying insect + catch, catch card, 표본 상자 art, 도감/달력/상점 rows, FF.orchard/bees/bug
   // stage 6B
   'ui/village.js',     // 마을 street + resident rooms, visit sheet (대화·선물·심부름·이야기), 지금 할 일 bar
+  // stage 7 ① 갯벌·사진기
+  'ui/flat.js',         // 갯벌 scene, tides, dig + 도전, tide tag, 도감/달력 rows, FF.flat/tide/flatFind
+  'ui/camera.js',       // 사진기 corner button, flash, 도감 앨범, 상점 row, FF.camera/shots
+  // stage 7 동굴·별
+  'ui/cave.js',         // 동굴 scene, wall/ore/gem art, 도전 hook, 도감 광물·화석, 상점 곡괭이·만들기, FF.cave
+  'ui/sky.js',          // 망원경 in the 마당, 별 잇기 panel, 유성우 + wishes, 도감 별자리, 달력 유성우, FF.sky
+  // stage 7 섬
+  'ui/island.js',       // 섬 scene: old boat, drift, palm, lighthouse + keeper, boat/등대 sheets, 섬 fish art, 도감/달력 rows
+  // stage 7 박물관
+  'ui/museum.js',       // 박물관 building in the 마을, rooms with wall cases, curator, donate sheet, 도감 line, FF.museum
+  // stage 8 ② 손맛
+  'ui/temper.js',       // reel cues per 물고기 성격, boss phase signal, 어탁 wall row, FF.temper/records/hookFish
+  // stage 8 ① 변동성·일기
+  'ui/events.js',       // 입질 폭풍/대풍년 chip, 오늘의 날 card + 달력 row, 일기 card + 기록 rows, FF.boom/day/diary
+  // stage 8 ③ 소문·보물 지도
+  'ui/treasure.js',     // map pictures, piece/rumor toasts, 꾹 눌러 파기, 기록 보물 지도 + 소문 수첩, FF.tmap/rumor/dig
+  // stage 9 ② 당나귀
+  'ui/donkey.js',       // 당나귀 art, 마당 spot + sheet, 상점 row, 깊은 숲·산꼭대기 scenes, FF.donkey/ride
+  // stage 9 ① 배·먼바다
+  'ui/ship.js',         // 배 sheet (갈 곳 + 업그레이드), 먼바다·난바다 끌낚시 water, 먼 섬 scene, new fish/drift art, 도감 rows, FF.ship/far
+  // stage 9 ③ 자전거·열기구·썰매
+  'ui/ride.js',         // ride overlay (자전거·썰매·열기구), 마을 언덕, 납품 「자전거로」, 상점 자전거, 도감 하늘 도감, FF.ride
+  // stage 10 ④ 날씨 장난감·계절 챌린지
+  'ui/toys.js',         // puddles, footprints, leaf piles on empty ground (밭·마당·숲), FF.toy
+  'ui/quest.js',        // season card at season start, 달력 챌린지 rows, reward decoration art, FF.quest
+  // stage 10 ② 꽃 교배·새끼·허수아비
+  'ui/garden.js',       // 꽃밭 sheet + bed art, 새끼 art/sheet, 허수아비 옷 sheet + art, 상점/도감 rows, FF.garden/baby/scare
+  // stage 10 ① 낚시 대회·결산 카드·간판
+  'ui/contest.js',      // 낚시 대회 cards/달력/박 영감 row/trophy art, 결산 카드 sheet + PNG, 농장 간판, FF.contest/year
+  // stage 10 ③ 주민들의 하루·새 주민
+  'ui/town.js',         // people out at street places, 새 주민 cottages + rooms + faces, arrival toast, FF.town
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold

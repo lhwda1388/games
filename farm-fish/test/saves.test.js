@@ -18,7 +18,10 @@ const KEEP = [
   'rep', 'bag', 'spotOk', 'spot', 'animals',
   'yard.house', 'yard.deco', 'yard.furn', 'yard.place', 'born', 'nick', 'tank',
   'pet.kind', 'pet.name', 'pet.f', 'forest.dex', 'junk.n', 'junk.letters', 'junk.box', 'fest.got', 'fest.rec',
-  'orchard.trees', 'orchard.dex', 'bees.hives', 'bees.dex', 'bugs', 'vil', 'res', 'keep', 'noSell'
+  'orchard.trees', 'orchard.dex', 'bees.hives', 'bees.dex', 'bugs', 'vil', 'res', 'keep', 'noSell',
+  'flat.dex', 'flat.traps', 'cam.album', 'cave.done', 'cave.dex', 'cave.parts', 'sky.seen', 'isle', 'museum', 'guide',
+  'day', 'diary', 'tmap', 'rumor', 'donkey', 'ship', 'bike', 'sled', 'bal',
+  'farm', 'garden', 'cont', 'town'
 ];
 const get = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 

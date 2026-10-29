@@ -611,3 +611,14 @@ test('basket: 지키기 pushes out the cheapest unkept item, 자동 판매 끔 n
   assert.equal(L.sellOne(s, 'radish'), 30);
   assert.equal(L.bagCount(s, 'radish'), n - 1);
 });
+
+test('basket item ids are unique across every item table (parallel lanes must not reuse one)', () => {
+  const ids = a => (Array.isArray(a) ? a : Object.values(a)).map(x => x.id);
+  const tables = { CROPS: Object.keys(L.CROPS), FISH: ids(L.FISH), PRODUCTS: ids(L.PRODUCTS), RECIPES: ids(L.RECIPES), FORAGE: ids(L.FORAGE),
+    TREES: ids(L.TREES), HONEYS: ids(L.HONEYS), BUGS: ids(L.BUGS), FLAT: ids(L.FLAT), ORES: ids(L.ORES), DRIFT: ids(L.DRIFT), FAR: ids(L.FAR_DRIFT) };
+  const seen = {};
+  for (const [t, list] of Object.entries(tables)) for (const id of list) {
+    assert.ok(!seen[id] || seen[id] === t, id + ' is in both ' + seen[id] + ' and ' + t);
+    seen[id] = t;
+  }
+});
