@@ -18,7 +18,7 @@
   }
   function calSignature() {
     var t = now(), e = curEnv(t);
-    return [calTab, e.season, e.phase, e.weather, Math.round(((t + TZ * 60e3) % 3600e3) / SPEED / 30e3), S.coins, S.rep,
+    return [calTab, e.season, e.phase, e.weather, Math.round(L.gameMin(t, TZ) * 60e3 / SPEED / 30e3), S.coins, S.rep,
       L.curSpot(S), Object.keys(S.dex.fish).length, Object.keys(S.spotOk || {}).join(), dailySig(), questSig()].join('|');
   }
   function renderCalIfChanged() { if (calSignature() !== calSig) renderCal(); }
@@ -63,7 +63,7 @@
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';
     var hb = document.createElement('b'); hb.textContent = '하루 = 현실 1시간'; h3.appendChild(hb); calEl.appendChild(h3);
-    var m = (((t + TZ * 60e3) % 3600e3) + 3600e3) % 3600e3 / 60e3;
+    var m = L.gameMin(t, TZ);
     var bar = document.createElement('div'); bar.className = 'daybar';
     PHASE_SPAN.forEach(function (p) {
       var seg = document.createElement('div'); seg.className = 'seg ' + p[0] + (p[0] === c.phase ? ' on' : '');
@@ -75,10 +75,9 @@
     var mark = document.createElement('i'); mark.className = 'mark'; mark.style.left = (m / 60 * 100).toFixed(2) + '%';
     bar.appendChild(mark);
     calEl.appendChild(bar);
-    var cur = PHASE_SPAN.filter(function (p) { return p[0] === c.phase; })[0];
-    var nxt = PHASE_SPAN[(PHASE_SPAN.indexOf(cur) + 1) % 4][0];
+    var nxt = L.nextPhase(t, TZ);   // scanned: the day jumps at local midnight
     note('지금 ' + L.PHASE_NAME[c.phase] + (phaseOverride ? ' (시험: ' + L.PHASE_NAME[e.phase] + ')' : '') +
-      ' · ' + L.PHASE_NAME[nxt] + '까지 ' + fmtReal((cur[2] - m) * 60e3 * SPEED));
+      (nxt ? ' · ' + L.PHASE_NAME[nxt.phase] + '까지 ' + fmtReal(nxt.at - t) : ''));
 
     // weather now → next block
     h3 = document.createElement('h3'); h3.textContent = '날씨';

@@ -102,17 +102,19 @@
     for (k = 0; k < list.length; k++) { r -= list[k].w; if (r < 0) return list[k]; }
     return list[list.length - 1];
   }
-  function orderPool(s, special) {
+  // a fish whose weather the season never has (빙어: snow = winter only, rain fish in winter) stays off the board then
+  function weatherInSeason(f, season) { return !season || !f.weather || WEATHER_ODDS[season].some(function (w) { return w[0] === f.weather; }); }
+  function orderPool(s, special, season) {
     var out = [];
     if (special) {
       // harder: a rarer pond fish, or two of a dish already cooked
-      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && !f.fest && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
+      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && !f.fest && fishOpen(s, f) && weatherInSeason(f, season)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
       RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
       return out;
     }
     SEEDS.forEach(function (id) { if (seedUnlocked(s, id) && !seasonalItem(id)) out.push({ id: id, w: 3 }); });
     // seasonal fish (and 장마 가물치) stay off like seasonal crops: an order outlives the season it was posted in
-    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
+    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && weatherInSeason(f, season) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
     RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
     caveOrders(s, out);     // stage 7: common ores
     forageOrders(s, out);   // stage 5A: common 숲 finds
@@ -124,10 +126,10 @@
     return out;
   }
   function between(rng, a, b) { return a + Math.floor(rng() * (b - a + 1)); }
-  function genOrder(s, rng) {
+  function genOrder(s, rng, season) {
     var special = rng() < SPECIAL_CHANCE;
-    var pool = orderPool(s, special);
-    if (special && !pool.length) { special = false; pool = orderPool(s, false); }
+    var pool = orderPool(s, special, season);
+    if (special && !pool.length) { special = false; pool = orderPool(s, false, season); }
     var taken = s.orders.map(function (q) { return q.o && q.o.id; });
     var fresh = pool.filter(function (e) { return taken.indexOf(e.id) < 0; });
     var it = itemInfo(pick(fresh.length ? fresh : pool, rng).id), n;
@@ -145,9 +147,9 @@
     return o;   // stage 5B: festival orders pay more
   }
   // fills every empty slot whose wait is over; time-based so it catches up after being away
-  function refreshOrders(s, now, rng) {
-    var n = 0;
-    s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng); n++; } });
+  function refreshOrders(s, now, rng, tzMin) {
+    var n = 0, season = gameClock(now, tzMin).season;
+    s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng, season); n++; } });
     return n;
   }
   function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && bagCount(s, q.o.id) >= q.o.n); }
@@ -201,6 +203,6 @@
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
     BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
-    orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
+    weatherInSeason: weatherInSeason, orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });

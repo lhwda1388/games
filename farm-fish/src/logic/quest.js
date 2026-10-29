@@ -4,7 +4,7 @@
   // done when the count goes above b. Pick order, each by a week hash, at most QUEST_CAT_CAP of a kind per pass:
   //   1. only-this-season things not recorded yet  2. this-and-other-season things not recorded
   //   3. this-season things recorded already ("again")  4. everyday basics ("again": 무·붕어…)
-  // Completing gives that season's decoration once (s.quest.got), later completions QUEST_COINS. A missed season
+  // Things that need one kind of weather are never picked (qWeather). Completing gives that season's decoration once (s.quest.got), later completions QUEST_COINS. A missed season
   // simply comes round again next game year. s.quest = { w, list, ok, card, got } is optional (older saves: none).
   var QUEST_N = 5, QUEST_CAT_CAP = 2, QUEST_COINS = 3000;
   var QUEST_DECOS = { spring: 'qazalea', summer: 'qsunflower', autumn: 'qmaple', winter: 'qsnowlamp' };
@@ -55,12 +55,15 @@
     h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
     return h >>> 0;
   }
+  // needs one kind of weather (비·안개·눈·맑음, 비 젖은 날): the week's sky could make the card unfinishable.
+  // 'dry' (just "not raining") is easy to meet any week, so it stays pickable.
+  function qWeather(x) { return !!(x.weather || x.wet || (x.wx && x.wx !== 'dry')); }
   function questPick(s, w) {
     var se = questSeason(w), tiers = [[], [], [], []];
     QK_IDS.forEach(function (k) {
       QK[k].list().forEach(function (x) {
         var ss = qSeasons(x);
-        if (ss.indexOf(se) < 0 || x.rarity === '전설' || !QK[k].ok(s, x)) return;
+        if (ss.indexOf(se) < 0 || x.rarity === '전설' || qWeather(x) || !QK[k].ok(s, x)) return;
         var n = QK[k].n(s, x.id);
         if (n && k === 'star') return;   // seen stars stay at 1: "한 번 더" could never tick off
         tiers[n ? 2 : ss.length === 1 ? 0 : 1].push({ k: k, id: x.id, b: n });

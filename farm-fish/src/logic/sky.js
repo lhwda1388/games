@@ -107,16 +107,20 @@
     return (h >>> 0) / 4294967296 < METEOR_P;
   }
   function meteorNight(now, tzMin) {
-    var t = now + (tzMin || 0) * 60e3, m = (((t % HOUR_MS) + HOUR_MS) % HOUR_MS) / 60e3;
-    return m >= 45 && meteorDay(Math.floor(t / HOUR_MS));
+    var c = gameClock(now, tzMin);
+    return c.phase === 'night' && meteorDay(c.day);
   }
   // the 유성우 night on now, or the next one: { start, end } in real ms
   function nextMeteor(now, tzMin) {
-    var off = (tzMin || 0) * 60e3, d = Math.floor((now + off) / HOUR_MS);
+    var off = (tzMin || 0) * 60e3, d = gameClock(now, tzMin).day;
     for (var k = 0; k < 2000; k++, d++) {
       if (!meteorDay(d)) continue;
-      var end = (d + 1) * HOUR_MS - off;
-      if (now < end) return { start: end - 15 * 60e3, end: end };
+      // game day d's night ends where local + that day's rotation reaches the next whole hour
+      for (var r = 0; r < 4; r++) {
+        var end = (d + 1) * HOUR_MS - r * 15 * 60e3 - off;
+        if (gameClock(end - 1, tzMin).day === d && gameMin(end - 1, tzMin) >= 59) break;
+      }
+      if (r < 4 && now < end) return { start: end - 15 * 60e3, end: end };
     }
     return null;
   }

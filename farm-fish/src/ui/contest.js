@@ -52,12 +52,12 @@
       var r = document.createElement('div'); r.className = 'dx' + (q[0] ? '' : ' unk');
       var ic = q[0] ? fishCanvas(q[0].id || q[0].fish) : fishCanvas('crucian', true); ic.className = 'sq';
       var nm = document.createElement('div'); nm.className = 'n'; nm.textContent = q[1];
-      var sm = document.createElement('small'); sm.textContent = q[0] ? fishText(q[0]) : '아직 없음 · 이번 주에 낚은 물고기 중 크기 %가 제일 높은 것';
+      var sm = document.createElement('small'); sm.textContent = q[0] ? fishText(q[0]) : '아직 없음 · 이번 주에 낚은 ' + L.fishById(st.mark.fish).name + ' 중 크기 %가 제일 높은 것';
       nm.appendChild(sm);
       var v = document.createElement('div'); v.className = 'v'; v.textContent = q[0] ? L.contestPct(q[0].f) : '—';
       r.appendChild(ic); r.appendChild(nm); r.appendChild(v); calEl.appendChild(r);
     });
-    note(st.best ? (ahead ? '지금은 앞서는 중 · 주말까지 지키면 트로피' : '조금 더 큰 녀석을 · 종마다 크기 % 기준') : '현실 일주일 대회 · 월요일에 결과 · 져도 잃는 건 없어요');
+    note(st.best ? (ahead ? '지금은 앞서는 중 · 주말까지 지키면 트로피' : '조금 더 큰 ' + L.fishById(st.mark.fish).name + '를 · 크기 % 기준') : '이번 주는 ' + L.fishById(st.mark.fish).name + ' 대회 · 월요일에 결과 · 져도 잃는 건 없어요');
   }
 
   // ----- 박 영감 visit sheet row (renderVil) -----
@@ -82,7 +82,7 @@
       var won = Object.keys(S.cont.won).map(Number).sort(function (a, c) { return c - a; });
       h3 = document.createElement('h3'); h3.textContent = '박 영감 낚시 대회';
       b = document.createElement('b'); b.textContent = '트로피 ' + won.length + '개'; h3.appendChild(b); dexEl.appendChild(h3);
-      if (!won.length) { var q = document.createElement('p'); q.className = 'note'; q.textContent = '그 주에 낚은 가장 큰 물고기(크기 %)가 박 영감 기록을 넘으면 트로피'; dexEl.appendChild(q); }
+      if (!won.length) { var q = document.createElement('p'); q.className = 'note'; q.textContent = '그 주 대회 물고기 중 가장 큰 것(크기 %)이 박 영감 기록을 넘으면 트로피'; dexEl.appendChild(q); }
       won.slice(0, 12).forEach(function (wk) {
         var t = S.cont.won[wk], id = L.trophyId(wk, t);
         recRow(decoIconC(id), L.decoById(id).name, weekLabel(wk) + ' 우승', TIER_NAME[t]);
@@ -307,7 +307,7 @@
     FF.contest = function (a) {
       if (!L.contestOk(S)) { S.res = S.res || { f: {}, lv: {}, rec: {}, unread: [] }; S.res.lv.fisher = Math.max(L.CONTEST_FRIEND, S.res.lv.fisher || 0); }
       L.contestTick(S, now(), CTZ);
-      if (typeof a === 'number') { var f = L.fishById('crucian'); contestAfterCatch({ id: 'crucian', size: Math.round((f.min + (f.max - f.min) * a) * 10) / 10 }); }
+      if (typeof a === 'number') { var f = L.fishById(L.contestState(S, now(), CTZ).mark.fish); contestAfterCatch({ id: f.id, size: Math.round((f.min + (f.max - f.min) * a) * 10) / 10 }); }
       if (a === 'end') S.cont.wk--;
       save(); return L.contestState(S, now(), CTZ);
     };

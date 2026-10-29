@@ -8,7 +8,7 @@
     { id: 'bag', name: '바구니·주문', how: '바구니 버튼 · 주문을 납품하면 코인과 신뢰도 ★ · 싫은 주문은 ×로 버리기', lock: '' },
     { id: 'cook', name: '요리', how: '바구니의 냄비 탭에서 재료로 요리 · 다 되면 냄비를 눌러 꺼내기', lock: '' },
     { id: 'shop', name: '상점', how: '낚싯대·미끼·밭 확장·허수아비·바구니 · 동물·장식·도구도 여기서', lock: '' },
-    { id: 'seasons', name: '계절·날씨·달력', how: '시계 버튼을 누르면 달력 · 현실 1시간이 게임 하루, 1주가 한 계절 · 비가 오면 작물이 빨리 자란다', lock: '' },
+    { id: 'seasons', name: '계절·날씨·달력', how: '시계 버튼을 누르면 달력 · 현실 1시간이 게임 하루(밤이 오는 시각은 날마다 15분씩 늦어져 늘 같은 때 와도 나흘이면 밤을 만난다), 1주가 한 계절 · 비가 오면 작물이 빨리 자란다', lock: '' },
     { id: 'daily', name: '오늘의 할 일', how: '달력에 매일 할 일 세 개 · 다 하면 보상 · 못 해도 손해 없음', lock: '' },
     { id: 'river', name: '강 낚시', how: '밭 옆 표지판에서 낚시터 바꾸기 · 강에만 사는 물고기', lock: '★' + SPOTS.river.rep + ' · 표지판에서 ' + won(SPOTS.river.cost) },
     { id: 'sea', name: '바다 낚시', how: '표지판에서 바다로 · 큰 물고기가 많다 · 시간·날씨 따라 다른 물고기', lock: '★' + SPOTS.sea.rep + ' · 표지판에서 ' + won(SPOTS.sea.cost) },
@@ -71,7 +71,7 @@
     { id: 'brood', name: '동물 새끼', how: '알·우유를 거둘수록 친밀도 · ' + BABY_CARE + '이 차면 가끔 병아리·새끼오리·송아지 (한 마리당 ' + BABY_PER_HEAD + ') · 새끼를 눌러 이름 짓기 · ' + (BABY_GROW / 86400e3) + '일이면 자라 산물을 낸다', lock: '상점 마당 칸에서 닭·오리·젖소' },
     { id: 'scaredress', name: '허수아비 꾸미기', how: '상점 「허수아비 꾸미기」에서 모자·옷·소품 ' + SCARE_ITEMS.length + '가지 · ' + SCARE_ITEMS.filter(function (x) { return x.fest; }).length + '가지는 축제 날에만 받는다 · 쫓는 힘은 그대로', lock: '상점 허수아비 · ' + won(UPG.scare.costs[0]) },
     // stage 10 ①
-    { id: 'contest', name: '박 영감 낚시 대회', how: '현실 일주일마다 · 그 주에 낚은 가장 큰 물고기(종마다 크기 %)로 박 영감 기록과 겨루기 · 이기면 트로피 장식(금·은·동, 주마다 모양이 다름) + 최대 ' + won(CONTEST_COINS.gold) + ', 지면 박 영감 편지 + ' + won(CONTEST_TRY_COINS) + ' · 달력·박 영감 대화에서 진행 확인', lock: '박 영감 친밀도 ' + CONTEST_FRIEND },
+    { id: 'contest', name: '박 영감 낚시 대회', how: '현실 일주일마다 · 그 주 대회 물고기(박 영감이 고름 · 바다가 열리면 바다 물고기) 중 가장 큰 것(크기 %)으로 박 영감 기록과 겨루기 · 이기면 트로피 장식(금·은·동, 주마다 모양이 다름) + 최대 ' + won(CONTEST_COINS.gold) + ', 지면 박 영감 편지 + ' + won(CONTEST_TRY_COINS) + ' · 달력·박 영감 대화에서 진행 확인', lock: '박 영감 친밀도 ' + CONTEST_FRIEND },
     { id: 'yearcard', name: '한 해 결산 카드', how: '게임 1년(4계절 = 현실 4주)이 끝나면 그해 카드: 낚은 수·제일 큰 물고기·많이 만든 요리·새로 연 곳·박물관 · 도감 기록 탭에서 지난 카드 ' + YEAR_KEEP + '장과 「지금까지」 · PNG 저장', lock: '' },
     { id: 'farmsign', name: '농장 간판', how: '밭 아래 울타리의 간판을 누르면 농장 이름(' + FARM_NAME_MAX + '자)과 간판 모양 ' + SIGNS.length + '가지 · 결산 카드·친구 기록 코드에 나온다', lock: '' },
     // stage 10 ③

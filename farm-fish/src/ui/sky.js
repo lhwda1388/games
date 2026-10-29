@@ -33,8 +33,8 @@
   function openStars(force, peak) {
     var t = now(), e = curEnv(t);
     if (!force && !L.skyOpen(S, t, TZ, e.phase)) {
-      var g = (t + TZ * 60e3) % 3600e3 / 60e3;
-      toast('망원경 · 별은 밤에만 보여요 · 밤까지 ' + fmtLeft((g < 45 ? 45 - g : 105 - g) * 60e3), 2400);
+      var nn = L.nextPhase(t, TZ, 'night');
+      toast('망원경 · 별은 밤에만 보여요' + (nn ? ' · 밤까지 ' + fmtLeft(nn.at - t) : ''), 2400);
       return;
     }
     starForce = !!force;

@@ -5,6 +5,9 @@
   var BUG_W = { '흔함': 30, '드묾': 12, '희귀': 4, '전설': 1 };
   // how long it sits (ms, ×0.8–1.2): about 0.9–1.6 s, rarer ones a little shorter; still a light timing tap in a tiny PiP
   var BUG_STOP = { '흔함': 1350, '드묾': 1250, '희귀': 1150, '전설': 1050 };
+  // an uncaught 전설 insect gets a much bigger 첫 만남 보정: one shows up per look, so ×2.5 on weight 1 was about 1 in 40
+  // even at the right place, season and time (비단벌레, 장수하늘소 were never caught by a casual player in 8 weeks)
+  var BUG_FIRST_LEGEND = 20;
   var BUG_HIT = 18;   // tap radius (logical px) around a sitting insect; a flying one only takes taps right on it
   var BUG_PLACES = { farm: '밭', yard: '마당', forest: '숲', orchard: '과수원' };
   var BUGS = [
@@ -14,7 +17,7 @@
     { id: 'honeybee',      name: '꿀벌',       rarity: '흔함', price: 12,  season: ['spring', 'summer', 'autumn'], phase: ['morning', 'day'], wx: 'dry', at: ['orchard', 'yard'], hint: '꽃 곁에서 윙윙 · 과수원에 많다' },
     { id: 'ladybug',       name: '무당벌레',   rarity: '흔함', price: 18,  season: ['spring', 'summer'], phase: ['morning', 'day'], at: ['farm', 'orchard'], hint: '진딧물 사냥꾼 · 점 일곱 개' },
     { id: 'ant',           name: '개미',       rarity: '흔함', price: 5,   season: ['spring', 'summer', 'autumn'], phase: ['day'], at: ['farm', 'yard', 'forest'], hint: '줄지어 가는 부지런한 일꾼' },
-    { id: 'mayfly',        name: '하루살이',   rarity: '드묾', price: 40,  season: ['spring'], phase: ['morning'], wx: 'fog', at: ['farm'], hint: '봄 · 안개 낀 아침 물가' },
+    { id: 'mayfly',        name: '하루살이',   rarity: '드묾', price: 40,  season: ['spring'], wx: 'fog', at: ['farm'], hint: '봄 · 안개 낀 날 물가' },
     { id: 'dragonfly',     name: '밀잠자리',   rarity: '흔함', price: 15,  season: ['summer'], phase: ['day'], wx: 'dry', at: ['farm'], hint: '여름 연못가 · 꼬리가 푸르스름' },
     { id: 'emperor',       name: '왕잠자리',   rarity: '드묾', price: 70,  season: ['summer'], phase: ['day', 'evening'], wx: 'dry', at: ['farm'], hint: '여름 연못 위를 크게 도는 녀석' },
     { id: 'damselfly',     name: '실잠자리',   rarity: '드묾', price: 50,  season: ['summer'], phase: ['morning'], at: ['farm'], hint: '여름 아침 · 물풀 끝에 가느다랗게' },
@@ -47,14 +50,15 @@
   function bugWxOk(b, w) { return !b.wx || (b.wx === 'dry' ? w !== 'rain' && w !== 'snow' : b.wx === w); }
   // conditional = only at some time of day or weather (seasons alone count too, as for fish)
   function bugConditional(b) { return !!(b.season || b.phase || b.wx); }
-  // 0 = not here now. s optional: an uncaught conditional insect gets the 첫 만남 보정 (FIRST_MUL, as for fish and finds)
+  // 0 = not here now. s optional: an uncaught conditional insect gets the 첫 만남 보정 (FIRST_MUL, as for fish and finds;
+  // BUG_FIRST_LEGEND for a 전설 one)
   function bugWeight(b, place, env, s) {
     if (b.at.indexOf(place) < 0) return 0;
     if (b.season && b.season.indexOf(env.season) < 0) return 0;
     if (b.phase && b.phase.indexOf(env.phase) < 0) return 0;
     if (!bugWxOk(b, env.weather)) return 0;
     var w = BUG_W[b.rarity];
-    if (s && s.bugs && bugConditional(b) && !s.bugs.dex[b.id]) w *= FIRST_MUL;
+    if (s && s.bugs && bugConditional(b) && !s.bugs.dex[b.id]) w *= b.rarity === '전설' ? BUG_FIRST_LEGEND : FIRST_MUL;
     return w;
   }
   function bugPool(place, env, s) {
@@ -146,7 +150,7 @@
   function decodeStage6A(o, s) { decodeOrchard(o, s); decodeBugs(o, s); }
 
   expose({
-    BUGS: BUGS, BUG_W: BUG_W, BUG_STOP: BUG_STOP, BUG_PLACES: BUG_PLACES, NET_COST: NET_COST, BUG_GRACE: BUG_GRACE, BUG_HIT: BUG_HIT,
+    BUGS: BUGS, BUG_W: BUG_W, BUG_STOP: BUG_STOP, BUG_PLACES: BUG_PLACES, NET_COST: NET_COST, BUG_GRACE: BUG_GRACE, BUG_HIT: BUG_HIT, BUG_FIRST_LEGEND: BUG_FIRST_LEGEND,
     bugById: bugById, bugConditional: bugConditional, bugWeight: bugWeight, bugPool: bugPool, rollBug: rollBug,
     bugFlight: bugFlight, bugPos: bugPos, bugJudge: bugJudge, netOk: netOk, buyNet: buyNet, catchBug: catchBug,
     releaseBug: releaseBug, keepBug: keepBug, bugDexCount: bugDexCount, boxList: boxList, decodeBugs: decodeBugs, decodeStage6A: decodeStage6A

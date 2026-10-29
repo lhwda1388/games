@@ -13,8 +13,8 @@
   // festival-only fish: 연못 (always open), `fest` = only while that festival is on (fishEnvOk), never on the order board
   [
     { id: 'blossomcarp', name: '벚꽃 붕어',   rarity: '축제', w: 26, min: 15, max: 32, power: 1.1, price: 260, fest: 'spring', hint: '벚꽃 축제 날에만 연못에서' },
-    { id: 'sparkfish',   name: '불꽃 송사리', rarity: '축제', w: 30, min: 4,  max: 9,  power: 0.9, price: 220, fest: 'summer', phase: ['evening', 'night'], hint: '불꽃놀이 날 · 저녁과 밤에 반짝인다' },
-    { id: 'moonfish',    name: '달빛 잉어',   rarity: '축제', w: 22, min: 35, max: 80, power: 1.5, price: 420, fest: 'autumn', phase: ['night'], hint: '보름달 축제의 밤에만 떠오른다' },
+    { id: 'sparkfish',   name: '불꽃 송사리', rarity: '축제', w: 30, min: 4,  max: 9,  power: 0.9, price: 220, fest: 'summer', hint: '불꽃놀이 날 · 축제 내내 반짝인다' },
+    { id: 'moonfish',    name: '달빛 잉어',   rarity: '축제', w: 22, min: 35, max: 80, power: 1.5, price: 420, fest: 'autumn', hint: '보름달 축제 날 · 축제 내내 떠오른다' },
     { id: 'snowsmelt',   name: '눈꽃 빙어',   rarity: '축제', w: 28, min: 8,  max: 16, power: 0.9, price: 240, fest: 'winter', hint: '눈사람 축제 날 얼음 밑에서' }
   ].forEach(function (f) { FISH.push(f); });
   [

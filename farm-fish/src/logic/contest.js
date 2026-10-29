@@ -1,14 +1,16 @@
   // ---------- stage 10 ①: 박 영감 낚시 대회 (real week), 한 해 결산 카드 (game year), 농장 간판 ----------
   // s.cont, s.yr and s.farm are all optional and made on first use; older saves simply have none.
 
-  // ----- 낚시 대회: the week's best catch (size fraction 0..1 of its species) against 박 영감's mark -----
+  // ----- 낚시 대회: the week's best catch of that week's species (size fraction 0..1) against 박 영감's mark -----
   var CONTEST_FRIEND = 1;                     // 박 영감 친밀도 that opens it
-  var CONTEST_BASE = 0.94, CONTEST_STEP = 0.01, CONTEST_JIT = 0.06, CONTEST_MAX = 0.997;
-  var CONTEST_MARGIN = { gold: 0.01, silver: 0.004 };   // how far past his mark (else 동)
+  var CONTEST_BASE = 0.75, CONTEST_STEP = 0.01, CONTEST_JIT = 0.08, CONTEST_MAX = 0.88;
+  var CONTEST_MARGIN = { gold: 0.15, silver: 0.09 };   // how far past his mark (else 동)
   var CONTEST_COINS = { gold: 10000, silver: 6000, bronze: 3000 };
   var CONTEST_DUP_COINS = 2000;               // that trophy is already in the yard
   var CONTEST_TRY_COINS = 500;                // took part and lost: 참가상
-  var CONTEST_FISH = ['carp', 'catfish', 'crucian', 'trout', 'bass', 'eel', 'snapper', 'flounder'];
+  // the week's species: pond (+ river once it's open), or sea fish once the sea is open (that's where the catches are by then)
+  var CONTEST_FISH = ['carp', 'catfish', 'crucian', 'trout', 'bass', 'eel'];
+  var CONTEST_SEA_FISH = ['flounder', 'yellowtail', 'mackerel', 'horse'];
   var CONTEST_KEEP = 12;                      // letters kept in 기록
   var TROPHY_SHAPES = [
     { id: 'trcup', name: '우승컵' }, { id: 'trshield', name: '방패' }, { id: 'trfish', name: '물고기상' }, { id: 'trstar', name: '별 메달' }
@@ -33,8 +35,11 @@
   function contestLeft(now, tzMin) { return MON0 + (contestWeek(now, tzMin) + 1) * WEEK_MS - (now + (tzMin || 0) * 60e3); }
   // 0..4: rod tier + 바다 open
   function contestLevel(s) { return Math.min(4, tier(s, 'rod') + (spotUnlocked(s, 'sea') ? 1 : 0)); }
-  function contestMark(wk, lv) {
-    var r = seedRng(strHash('contest:' + wk)), pool = CONTEST_FISH.filter(function (id) { return !!fishById(id); });
+  // river: false leaves out river fish (a pond-only player); omitted = included
+  function contestMark(wk, lv, sea, river) {
+    var r = seedRng(strHash('contest:' + wk)), pool = (sea ? CONTEST_SEA_FISH : CONTEST_FISH).filter(function (id) {
+      var f = fishById(id); return !!f && (river !== false || f.spot !== 'river');
+    });
     var id = pool[Math.floor(r() * pool.length) % pool.length], f = fishById(id);
     var fr = Math.min(CONTEST_MAX, CONTEST_BASE + CONTEST_STEP * (lv || 0) + CONTEST_JIT * r());
     fr = Math.round(fr * 1000) / 1000;
@@ -47,19 +52,25 @@
   }
   function trophyId(wk, t) { return TROPHY_SHAPES[((wk % TROPHY_SHAPES.length) + TROPHY_SHAPES.length) % TROPHY_SHAPES.length].id + '_' + t.charAt(0); }
   function contestLetter(m) { return m && CONTEST_LETTERS[m.k] || null; }
-  function newWeek(s, wk) { return { wk: wk, lv: contestLevel(s), best: null }; }
+  // the pool is fixed at week start (sea/river snapshot), so a spot opening mid-week doesn't swap the species
+  function newWeek(s, wk) { return { wk: wk, lv: contestLevel(s), sea: spotUnlocked(s, 'sea'), river: spotUnlocked(s, 'river'), best: null }; }
   function contestOf(s, wk) {
-    if (!s.cont) s.cont = { wk: wk, lv: contestLevel(s), best: null, won: {}, mail: [], news: null };
+    if (!s.cont) { var nw = newWeek(s, wk); s.cont = { wk: wk, lv: nw.lv, sea: nw.sea, river: nw.river, best: null, won: {}, mail: [], news: null }; }
     return s.cont;
+  }
+  // older saves have no snapshot: the live flags
+  function weekMark(s, c) {
+    return contestMark(c.wk, c.lv, typeof c.sea === 'boolean' ? c.sea : spotUnlocked(s, 'sea'),
+      typeof c.river === 'boolean' ? c.river : spotUnlocked(s, 'river'));
   }
   // settles the last week once a new one starts → the result (also kept in s.cont.news until shown), else null
   function contestTick(s, now, tzMin) {
     if (!s.cont && !contestOk(s)) return null;
     var wk = contestWeek(now, tzMin), c = contestOf(s, wk);
     if (wk <= c.wk) return null;
-    var out = null, mk = contestMark(c.wk, c.lv);
+    var out = null, mk = weekMark(s, c);
     if (c.best && !c.won[c.wk]) {
-      var t = contestTier(c.best.f, mk.f);
+      var t = c.best.id === mk.fish ? contestTier(c.best.f, mk.f) : null;   // another species (older save) only takes part
       out = { wk: c.wk, win: !!t, best: c.best, mark: mk };
       if (t) {
         var id = trophyId(c.wk, t), g = grantDeco(s, id);
@@ -76,7 +87,7 @@
       c.news = out;
     }
     var nw = newWeek(s, wk);
-    c.wk = nw.wk; c.lv = nw.lv; c.best = null;
+    c.wk = nw.wk; c.lv = nw.lv; c.sea = nw.sea; c.river = nw.river; c.best = null;
     return out;
   }
   function contestNews(s) { var n = s.cont && s.cont.news; if (!n) return null; s.cont.news = null; return n; }
@@ -84,17 +95,19 @@
   function contestCatch(s, roll, now, tzMin) {
     if (!contestOk(s) || !fishById(roll.id)) return null;
     contestTick(s, now, tzMin);
-    var c = contestOf(s, contestWeek(now, tzMin)), f = Math.round(sizeFrac(roll) * 1000) / 1000, mk = contestMark(c.wk, c.lv);
-    var better = !c.best || f > c.best.f;
+    var c = contestOf(s, contestWeek(now, tzMin)), f = Math.round(sizeFrac(roll) * 1000) / 1000, mk = weekMark(s, c);
+    if (roll.id !== mk.fish) return null;
+    var better = !c.best || c.best.id !== mk.fish || f > c.best.f;
     if (better) c.best = { id: roll.id, size: roll.size, f: f };
     return { best: better, ahead: c.best.f >= mk.f, f: f, mark: mk };
   }
   function contestState(s, now, tzMin) {
     if (!s.cont) return null;
-    return { wk: s.cont.wk, mark: contestMark(s.cont.wk, s.cont.lv), best: s.cont.best, left: contestLeft(now, tzMin),
+    var mk = weekMark(s, s.cont), b = s.cont.best;
+    return { wk: s.cont.wk, mark: mk, best: b && b.id === mk.fish ? b : null, left: contestLeft(now, tzMin),
       won: Object.keys(s.cont.won).length };
   }
-  // marks sit near the top of the size range, so one decimal (99.7%) keeps close weeks apart
+  // one decimal (87.3%) keeps close catches apart
   function contestPct(f) { return Math.round(f * 1000) / 10 + '%'; }
   // 박 영감's line about this week's contest
   function contestTalk(s, now, tzMin) {
@@ -102,7 +115,7 @@
     var st = contestState(s, now, tzMin);
     if (!st) return null;
     var mk = st.mark, mine = fishById(mk.fish).name + ' ' + mk.size.toFixed(1) + 'cm(크기 ' + contestPct(mk.f) + ')';
-    if (!st.best) return '이번 주 내 기록은 ' + mine + '일세. 자네는 아직 한 마리도 안 보여 줬구먼.';
+    if (!st.best) return '이번 주는 ' + fishById(mk.fish).name + ' 대회일세. 내 기록은 ' + mine + '. 자네는 아직 한 마리도 안 보여 줬구먼.';
     var b = st.best, yours = fishById(b.id).name + ' ' + b.size.toFixed(1) + 'cm(' + contestPct(b.f) + ')';
     if (b.f >= mk.f) return '…자네 ' + yours + ', 내 ' + mine + '보다 낫군. 아직 주말이 남았네. 두고 보게.';
     return '내 기록 ' + mine + ', 자네는 ' + yours + '. 허허, 아직 멀었네.';
@@ -181,6 +194,8 @@
     var q = o.cont;
     if (obj(q) && num(q.wk) && num(q.lv)) {
       var c = { wk: Math.floor(q.wk), lv: Math.max(0, Math.min(4, Math.floor(q.lv))), best: null, won: {}, mail: [], news: null };
+      if (typeof q.sea === 'boolean') c.sea = q.sea;
+      if (typeof q.river === 'boolean') c.river = q.river;
       var b = q.best;
       if (obj(b) && fishById(b.id) && num(b.size) && num(b.f) && b.f >= 0 && b.f <= 1) c.best = { id: b.id, size: b.size, f: b.f };
       if (obj(q.won)) Object.keys(q.won).forEach(function (k) { if (/^-?\d{1,7}$/.test(k) && TROPHY_TIERS[q.won[k]]) c.won[k] = q.won[k]; });
@@ -228,7 +243,7 @@
   function trophyOk(id) { return typeof id === 'string' && /^tr[a-z]+_[gsb]$/.test(id) && DECOS.some(function (d) { return d.id === id; }); }
 
   expose({
-    CONTEST_FRIEND: CONTEST_FRIEND, CONTEST_BASE: CONTEST_BASE, CONTEST_MAX: CONTEST_MAX, CONTEST_MARGIN: CONTEST_MARGIN,
+    CONTEST_FRIEND: CONTEST_FRIEND, CONTEST_FISH: CONTEST_FISH, CONTEST_SEA_FISH: CONTEST_SEA_FISH, CONTEST_BASE: CONTEST_BASE, CONTEST_MAX: CONTEST_MAX, CONTEST_MARGIN: CONTEST_MARGIN,
     CONTEST_COINS: CONTEST_COINS, CONTEST_DUP_COINS: CONTEST_DUP_COINS, CONTEST_TRY_COINS: CONTEST_TRY_COINS,
     TROPHY_SHAPES: TROPHY_SHAPES, TROPHY_TIERS: TROPHY_TIERS,
     contestOk: contestOk, contestWeek: contestWeek, contestLevel: contestLevel, contestMark: contestMark, contestTier: contestTier,

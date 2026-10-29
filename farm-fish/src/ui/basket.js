@@ -262,7 +262,7 @@
 
   var potWas = false;
   function tickBasket(t) {
-    if (L.refreshOrders(S, t, Math.random)) { if (booted && bagEl.hidden) toast('주문 게시판에 새 주문', 2200); save(); }
+    if (L.refreshOrders(S, t, Math.random, TZ)) { if (booted && bagEl.hidden) toast('주문 게시판에 새 주문', 2200); save(); }
     var pr2 = L.potReady(S, t);
     if (pr2 && !potWas && booted) toast('요리 완성 · 냄비를 눌러 꺼내기', 2600);
     potWas = pr2;

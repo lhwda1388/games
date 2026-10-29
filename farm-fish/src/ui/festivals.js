@@ -166,7 +166,7 @@
     var ph = curEnv(t).phase, dark = ph === 'night' || ph === 'evening';
     if (id === 'spring') festPetals(tt);
     else if (id === 'summer' && dark) festFireworks(tt, view === 'yard' ? 4 : 8, view === 'yard' ? 16 : 40);
-    else if (id === 'autumn' && ph === 'night') {
+    else if (id === 'autumn' && dark) {
       if (view === 'yard') festMoon(150, 12);
       else if (view === 'farm' && scene === 'pond') {
         // the full moon is behind you: its reflection wobbles on the pond
