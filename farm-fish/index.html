@@ -431,6 +431,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- game clock ----------
   // 1 game day = 1 real hour (아침 15분 · 낮 20분 · 저녁 10분 · 밤 15분), 1 season = 1 real week (월요일 시작),
   // 1 month = a third of a season (~56 real hours). No years: the 12 months just loop.
+  // The day slides 15 real minutes later each real (local) day, so the same wall-clock minute meets
+  // all 4 phases every 4 days. At local midnight one game day is cut short or runs long (never skipped).
   // Real-time windows (점심 붕어, 금요일 참치, 자정 이스터에그) stay on the real clock via inWindow.
   // tzMin = minutes east of UTC (UI passes -new Date().getTimezoneOffset()).
   var HOUR_MS = 3600e3, WEEK_MS = 7 * 86400e3, MON0 = 4 * 86400e3;   // 1970-01-05 was a Monday
@@ -438,6 +440,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var SEASON_NAME = { spring: '봄', summer: '여름', autumn: '가을', winter: '겨울' };
   var PHASE_NAME = { morning: '아침', day: '낮', evening: '저녁', night: '밤' };
   var SEASON_MONTH0 = { spring: 3, summer: 6, autumn: 9, winter: 12 };
+  var DAY_MS = 86400e3, ROT_MS = 15 * 60e3;
   var WEATHER_MS = 40 * 60e3;
   var WEATHER_NAME = { clear: '맑음', rain: '비', fog: '안개', snow: '눈' };
   // Cumulative odds per season: summer is 장마, winter snows instead of raining.
@@ -448,16 +451,23 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     winter: [['clear', 0.5], ['snow', 0.85], ['fog', 1]]
   };
 
-  function gameClock(now, tzMin) {
+  // local time slid by today's rotation (0/15/30/45 minutes): game days are whole hours of this
+  function gameT(now, tzMin) {
     var t = now + (tzMin || 0) * 60e3;
-    var m = (((t % HOUR_MS) + HOUR_MS) % HOUR_MS) / 60e3;           // 0..60 real minutes into the game day
+    return t + (((Math.floor(t / DAY_MS) % 4) + 4) % 4) * ROT_MS;
+  }
+  function gameMin(now, tzMin) { var g = gameT(now, tzMin); return (((g % HOUR_MS) + HOUR_MS) % HOUR_MS) / 60e3; }
+
+  function gameClock(now, tzMin) {
+    var t = now + (tzMin || 0) * 60e3, g = gameT(now, tzMin);
+    var m = gameMin(now, tzMin);                                       // 0..60 real minutes into the game day
     var phase = m < 15 ? 'morning' : m < 35 ? 'day' : m < 45 ? 'evening' : 'night';
     var wk = (t - MON0) / WEEK_MS, week = Math.floor(wk);
     var season = SEASONS[((week % 4) + 4) % 4];
     return {
       phase: phase,
       hour: (6 + m * 0.4) % 24,                                       // display only: day starts at 6시
-      day: Math.floor(t / HOUR_MS),
+      day: Math.floor(g / HOUR_MS),
       season: season,
       month: (SEASON_MONTH0[season] + Math.min(2, Math.floor((wk - week) * 3)) - 1) % 12 + 1
     };
@@ -471,10 +481,21 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return odds[odds.length - 1][0];
   }
   function rainJustStopped(now, tzMin) { return weatherAt(now, tzMin) !== 'rain' && weatherAt(now - WEATHER_MS, tzMin) === 'rain'; }
+  // when the next phase (or the next start of phase `want`) begins → { phase, at } | null.
+  // Scans whole minutes (phases change on them) because the day jumps at local midnight.
+  function nextPhase(now, tzMin, want) {
+    var m0 = Math.floor(now / 60e3), prev = gameClock(now, tzMin).phase;
+    for (var k = 1; k <= 180; k++) {
+      var at = (m0 + k) * 60e3, ph = gameClock(at, tzMin).phase;
+      if (ph !== prev && (!want || ph === want)) return { phase: ph, at: at };
+      prev = ph;
+    }
+    return null;
+  }
 
   expose({
     SEASONS: SEASONS, SEASON_NAME: SEASON_NAME, PHASE_NAME: PHASE_NAME, WEATHER_NAME: WEATHER_NAME, WEATHER_MS: WEATHER_MS, WEATHER_ODDS: WEATHER_ODDS,
-    gameClock: gameClock, weatherAt: weatherAt, rainJustStopped: rainJustStopped
+    gameClock: gameClock, gameMin: gameMin, weatherAt: weatherAt, rainJustStopped: rainJustStopped, nextPhase: nextPhase
   });
   // ---------- shop upgrades: tiers, prices, buying ----------
   // Shop. costs[t] is the price of going from tier t to t+1; effect arrays are indexed by current tier.
@@ -1081,17 +1102,19 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     for (k = 0; k < list.length; k++) { r -= list[k].w; if (r < 0) return list[k]; }
     return list[list.length - 1];
   }
-  function orderPool(s, special) {
+  // a fish whose weather the season never has (빙어: snow = winter only, rain fish in winter) stays off the board then
+  function weatherInSeason(f, season) { return !season || !f.weather || WEATHER_ODDS[season].some(function (w) { return w[0] === f.weather; }); }
+  function orderPool(s, special, season) {
     var out = [];
     if (special) {
       // harder: a rarer pond fish, or two of a dish already cooked
-      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && !f.fest && fishOpen(s, f)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
+      FISH.forEach(function (f) { if (f.rarity !== '흔함' && !f.season && !f.fest && fishOpen(s, f) && weatherInSeason(f, season)) out.push({ id: f.id, w: f.window || f.unlock || isConditional(f) ? 1 : 2 }); });
       RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
       return out;
     }
     SEEDS.forEach(function (id) { if (seedUnlocked(s, id) && !seasonalItem(id)) out.push({ id: id, w: 3 }); });
     // seasonal fish (and 장마 가물치) stay off like seasonal crops: an order outlives the season it was posted in
-    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
+    FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && weatherInSeason(f, season) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
     RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
     caveOrders(s, out);     // stage 7: common ores
     forageOrders(s, out);   // stage 5A: common 숲 finds
@@ -1103,10 +1126,10 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return out;
   }
   function between(rng, a, b) { return a + Math.floor(rng() * (b - a + 1)); }
-  function genOrder(s, rng) {
+  function genOrder(s, rng, season) {
     var special = rng() < SPECIAL_CHANCE;
-    var pool = orderPool(s, special);
-    if (special && !pool.length) { special = false; pool = orderPool(s, false); }
+    var pool = orderPool(s, special, season);
+    if (special && !pool.length) { special = false; pool = orderPool(s, false, season); }
     var taken = s.orders.map(function (q) { return q.o && q.o.id; });
     var fresh = pool.filter(function (e) { return taken.indexOf(e.id) < 0; });
     var it = itemInfo(pick(fresh.length ? fresh : pool, rng).id), n;
@@ -1124,9 +1147,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return o;   // stage 5B: festival orders pay more
   }
   // fills every empty slot whose wait is over; time-based so it catches up after being away
-  function refreshOrders(s, now, rng) {
-    var n = 0;
-    s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng); n++; } });
+  function refreshOrders(s, now, rng, tzMin) {
+    var n = 0, season = gameClock(now, tzMin).season;
+    s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng, season); n++; } });
     return n;
   }
   function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && bagCount(s, q.o.id) >= q.o.n); }
@@ -1180,7 +1203,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
     BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
-    orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
+    weatherInSeason: weatherInSeason, orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });
   // ---------- 마당: house tiers, animals, decorations, furniture, extra pots ----------
@@ -2794,8 +2817,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // festival-only fish: 연못 (always open), `fest` = only while that festival is on (fishEnvOk), never on the order board
   [
     { id: 'blossomcarp', name: '벚꽃 붕어',   rarity: '축제', w: 26, min: 15, max: 32, power: 1.1, price: 260, fest: 'spring', hint: '벚꽃 축제 날에만 연못에서' },
-    { id: 'sparkfish',   name: '불꽃 송사리', rarity: '축제', w: 30, min: 4,  max: 9,  power: 0.9, price: 220, fest: 'summer', phase: ['evening', 'night'], hint: '불꽃놀이 날 · 저녁과 밤에 반짝인다' },
-    { id: 'moonfish',    name: '달빛 잉어',   rarity: '축제', w: 22, min: 35, max: 80, power: 1.5, price: 420, fest: 'autumn', phase: ['night'], hint: '보름달 축제의 밤에만 떠오른다' },
+    { id: 'sparkfish',   name: '불꽃 송사리', rarity: '축제', w: 30, min: 4,  max: 9,  power: 0.9, price: 220, fest: 'summer', hint: '불꽃놀이 날 · 축제 내내 반짝인다' },
+    { id: 'moonfish',    name: '달빛 잉어',   rarity: '축제', w: 22, min: 35, max: 80, power: 1.5, price: 420, fest: 'autumn', hint: '보름달 축제 날 · 축제 내내 떠오른다' },
     { id: 'snowsmelt',   name: '눈꽃 빙어',   rarity: '축제', w: 28, min: 8,  max: 16, power: 0.9, price: 240, fest: 'winter', hint: '눈사람 축제 날 얼음 밑에서' }
   ].forEach(function (f) { FISH.push(f); });
   [
@@ -3153,6 +3176,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var BUG_W = { '흔함': 30, '드묾': 12, '희귀': 4, '전설': 1 };
   // how long it sits (ms, ×0.8–1.2): about 0.9–1.6 s, rarer ones a little shorter; still a light timing tap in a tiny PiP
   var BUG_STOP = { '흔함': 1350, '드묾': 1250, '희귀': 1150, '전설': 1050 };
+  // an uncaught 전설 insect gets a much bigger 첫 만남 보정: one shows up per look, so ×2.5 on weight 1 was about 1 in 40
+  // even at the right place, season and time (비단벌레, 장수하늘소 were never caught by a casual player in 8 weeks)
+  var BUG_FIRST_LEGEND = 20;
   var BUG_HIT = 18;   // tap radius (logical px) around a sitting insect; a flying one only takes taps right on it
   var BUG_PLACES = { farm: '밭', yard: '마당', forest: '숲', orchard: '과수원' };
   var BUGS = [
@@ -3162,7 +3188,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'honeybee',      name: '꿀벌',       rarity: '흔함', price: 12,  season: ['spring', 'summer', 'autumn'], phase: ['morning', 'day'], wx: 'dry', at: ['orchard', 'yard'], hint: '꽃 곁에서 윙윙 · 과수원에 많다' },
     { id: 'ladybug',       name: '무당벌레',   rarity: '흔함', price: 18,  season: ['spring', 'summer'], phase: ['morning', 'day'], at: ['farm', 'orchard'], hint: '진딧물 사냥꾼 · 점 일곱 개' },
     { id: 'ant',           name: '개미',       rarity: '흔함', price: 5,   season: ['spring', 'summer', 'autumn'], phase: ['day'], at: ['farm', 'yard', 'forest'], hint: '줄지어 가는 부지런한 일꾼' },
-    { id: 'mayfly',        name: '하루살이',   rarity: '드묾', price: 40,  season: ['spring'], phase: ['morning'], wx: 'fog', at: ['farm'], hint: '봄 · 안개 낀 아침 물가' },
+    { id: 'mayfly',        name: '하루살이',   rarity: '드묾', price: 40,  season: ['spring'], wx: 'fog', at: ['farm'], hint: '봄 · 안개 낀 날 물가' },
     { id: 'dragonfly',     name: '밀잠자리',   rarity: '흔함', price: 15,  season: ['summer'], phase: ['day'], wx: 'dry', at: ['farm'], hint: '여름 연못가 · 꼬리가 푸르스름' },
     { id: 'emperor',       name: '왕잠자리',   rarity: '드묾', price: 70,  season: ['summer'], phase: ['day', 'evening'], wx: 'dry', at: ['farm'], hint: '여름 연못 위를 크게 도는 녀석' },
     { id: 'damselfly',     name: '실잠자리',   rarity: '드묾', price: 50,  season: ['summer'], phase: ['morning'], at: ['farm'], hint: '여름 아침 · 물풀 끝에 가느다랗게' },
@@ -3195,14 +3221,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function bugWxOk(b, w) { return !b.wx || (b.wx === 'dry' ? w !== 'rain' && w !== 'snow' : b.wx === w); }
   // conditional = only at some time of day or weather (seasons alone count too, as for fish)
   function bugConditional(b) { return !!(b.season || b.phase || b.wx); }
-  // 0 = not here now. s optional: an uncaught conditional insect gets the 첫 만남 보정 (FIRST_MUL, as for fish and finds)
+  // 0 = not here now. s optional: an uncaught conditional insect gets the 첫 만남 보정 (FIRST_MUL, as for fish and finds;
+  // BUG_FIRST_LEGEND for a 전설 one)
   function bugWeight(b, place, env, s) {
     if (b.at.indexOf(place) < 0) return 0;
     if (b.season && b.season.indexOf(env.season) < 0) return 0;
     if (b.phase && b.phase.indexOf(env.phase) < 0) return 0;
     if (!bugWxOk(b, env.weather)) return 0;
     var w = BUG_W[b.rarity];
-    if (s && s.bugs && bugConditional(b) && !s.bugs.dex[b.id]) w *= FIRST_MUL;
+    if (s && s.bugs && bugConditional(b) && !s.bugs.dex[b.id]) w *= b.rarity === '전설' ? BUG_FIRST_LEGEND : FIRST_MUL;
     return w;
   }
   function bugPool(place, env, s) {
@@ -3294,7 +3321,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function decodeStage6A(o, s) { decodeOrchard(o, s); decodeBugs(o, s); }
 
   expose({
-    BUGS: BUGS, BUG_W: BUG_W, BUG_STOP: BUG_STOP, BUG_PLACES: BUG_PLACES, NET_COST: NET_COST, BUG_GRACE: BUG_GRACE, BUG_HIT: BUG_HIT,
+    BUGS: BUGS, BUG_W: BUG_W, BUG_STOP: BUG_STOP, BUG_PLACES: BUG_PLACES, NET_COST: NET_COST, BUG_GRACE: BUG_GRACE, BUG_HIT: BUG_HIT, BUG_FIRST_LEGEND: BUG_FIRST_LEGEND,
     bugById: bugById, bugConditional: bugConditional, bugWeight: bugWeight, bugPool: bugPool, rollBug: rollBug,
     bugFlight: bugFlight, bugPos: bugPos, bugJudge: bugJudge, netOk: netOk, buyNet: buyNet, catchBug: catchBug,
     releaseBug: releaseBug, keepBug: keepBug, bugDexCount: bugDexCount, boxList: boxList, decodeBugs: decodeBugs, decodeStage6A: decodeStage6A
@@ -4181,16 +4208,20 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return (h >>> 0) / 4294967296 < METEOR_P;
   }
   function meteorNight(now, tzMin) {
-    var t = now + (tzMin || 0) * 60e3, m = (((t % HOUR_MS) + HOUR_MS) % HOUR_MS) / 60e3;
-    return m >= 45 && meteorDay(Math.floor(t / HOUR_MS));
+    var c = gameClock(now, tzMin);
+    return c.phase === 'night' && meteorDay(c.day);
   }
   // the 유성우 night on now, or the next one: { start, end } in real ms
   function nextMeteor(now, tzMin) {
-    var off = (tzMin || 0) * 60e3, d = Math.floor((now + off) / HOUR_MS);
+    var off = (tzMin || 0) * 60e3, d = gameClock(now, tzMin).day;
     for (var k = 0; k < 2000; k++, d++) {
       if (!meteorDay(d)) continue;
-      var end = (d + 1) * HOUR_MS - off;
-      if (now < end) return { start: end - 15 * 60e3, end: end };
+      // game day d's night ends where local + that day's rotation reaches the next whole hour
+      for (var r = 0; r < 4; r++) {
+        var end = (d + 1) * HOUR_MS - r * 15 * 60e3 - off;
+        if (gameClock(end - 1, tzMin).day === d && gameMin(end - 1, tzMin) >= 59) break;
+      }
+      if (r < 4 && now < end) return { start: end - 15 * 60e3, end: end };
     }
     return null;
   }
@@ -5762,7 +5793,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // done when the count goes above b. Pick order, each by a week hash, at most QUEST_CAT_CAP of a kind per pass:
   //   1. only-this-season things not recorded yet  2. this-and-other-season things not recorded
   //   3. this-season things recorded already ("again")  4. everyday basics ("again": 무·붕어…)
-  // Completing gives that season's decoration once (s.quest.got), later completions QUEST_COINS. A missed season
+  // Things that need one kind of weather are never picked (qWeather). Completing gives that season's decoration once (s.quest.got), later completions QUEST_COINS. A missed season
   // simply comes round again next game year. s.quest = { w, list, ok, card, got } is optional (older saves: none).
   var QUEST_N = 5, QUEST_CAT_CAP = 2, QUEST_COINS = 3000;
   var QUEST_DECOS = { spring: 'qazalea', summer: 'qsunflower', autumn: 'qmaple', winter: 'qsnowlamp' };
@@ -5813,12 +5844,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
     return h >>> 0;
   }
+  // needs one kind of weather (비·안개·눈·맑음, 비 젖은 날): the week's sky could make the card unfinishable.
+  // 'dry' (just "not raining") is easy to meet any week, so it stays pickable.
+  function qWeather(x) { return !!(x.weather || x.wet || (x.wx && x.wx !== 'dry')); }
   function questPick(s, w) {
     var se = questSeason(w), tiers = [[], [], [], []];
     QK_IDS.forEach(function (k) {
       QK[k].list().forEach(function (x) {
         var ss = qSeasons(x);
-        if (ss.indexOf(se) < 0 || x.rarity === '전설' || !QK[k].ok(s, x)) return;
+        if (ss.indexOf(se) < 0 || x.rarity === '전설' || qWeather(x) || !QK[k].ok(s, x)) return;
         var n = QK[k].n(s, x.id);
         if (n && k === 'star') return;   // seen stars stay at 1: "한 번 더" could never tick off
         tiers[n ? 2 : ss.length === 1 ? 0 : 1].push({ k: k, id: x.id, b: n });
@@ -6159,14 +6193,16 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- stage 10 ①: 박 영감 낚시 대회 (real week), 한 해 결산 카드 (game year), 농장 간판 ----------
   // s.cont, s.yr and s.farm are all optional and made on first use; older saves simply have none.
 
-  // ----- 낚시 대회: the week's best catch (size fraction 0..1 of its species) against 박 영감's mark -----
+  // ----- 낚시 대회: the week's best catch of that week's species (size fraction 0..1) against 박 영감's mark -----
   var CONTEST_FRIEND = 1;                     // 박 영감 친밀도 that opens it
-  var CONTEST_BASE = 0.94, CONTEST_STEP = 0.01, CONTEST_JIT = 0.06, CONTEST_MAX = 0.997;
-  var CONTEST_MARGIN = { gold: 0.01, silver: 0.004 };   // how far past his mark (else 동)
+  var CONTEST_BASE = 0.75, CONTEST_STEP = 0.01, CONTEST_JIT = 0.08, CONTEST_MAX = 0.88;
+  var CONTEST_MARGIN = { gold: 0.15, silver: 0.09 };   // how far past his mark (else 동)
   var CONTEST_COINS = { gold: 10000, silver: 6000, bronze: 3000 };
   var CONTEST_DUP_COINS = 2000;               // that trophy is already in the yard
   var CONTEST_TRY_COINS = 500;                // took part and lost: 참가상
-  var CONTEST_FISH = ['carp', 'catfish', 'crucian', 'trout', 'bass', 'eel', 'snapper', 'flounder'];
+  // the week's species: pond (+ river once it's open), or sea fish once the sea is open (that's where the catches are by then)
+  var CONTEST_FISH = ['carp', 'catfish', 'crucian', 'trout', 'bass', 'eel'];
+  var CONTEST_SEA_FISH = ['flounder', 'yellowtail', 'mackerel', 'horse'];
   var CONTEST_KEEP = 12;                      // letters kept in 기록
   var TROPHY_SHAPES = [
     { id: 'trcup', name: '우승컵' }, { id: 'trshield', name: '방패' }, { id: 'trfish', name: '물고기상' }, { id: 'trstar', name: '별 메달' }
@@ -6191,8 +6227,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function contestLeft(now, tzMin) { return MON0 + (contestWeek(now, tzMin) + 1) * WEEK_MS - (now + (tzMin || 0) * 60e3); }
   // 0..4: rod tier + 바다 open
   function contestLevel(s) { return Math.min(4, tier(s, 'rod') + (spotUnlocked(s, 'sea') ? 1 : 0)); }
-  function contestMark(wk, lv) {
-    var r = seedRng(strHash('contest:' + wk)), pool = CONTEST_FISH.filter(function (id) { return !!fishById(id); });
+  // river: false leaves out river fish (a pond-only player); omitted = included
+  function contestMark(wk, lv, sea, river) {
+    var r = seedRng(strHash('contest:' + wk)), pool = (sea ? CONTEST_SEA_FISH : CONTEST_FISH).filter(function (id) {
+      var f = fishById(id); return !!f && (river !== false || f.spot !== 'river');
+    });
     var id = pool[Math.floor(r() * pool.length) % pool.length], f = fishById(id);
     var fr = Math.min(CONTEST_MAX, CONTEST_BASE + CONTEST_STEP * (lv || 0) + CONTEST_JIT * r());
     fr = Math.round(fr * 1000) / 1000;
@@ -6205,19 +6244,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   function trophyId(wk, t) { return TROPHY_SHAPES[((wk % TROPHY_SHAPES.length) + TROPHY_SHAPES.length) % TROPHY_SHAPES.length].id + '_' + t.charAt(0); }
   function contestLetter(m) { return m && CONTEST_LETTERS[m.k] || null; }
-  function newWeek(s, wk) { return { wk: wk, lv: contestLevel(s), best: null }; }
+  // the pool is fixed at week start (sea/river snapshot), so a spot opening mid-week doesn't swap the species
+  function newWeek(s, wk) { return { wk: wk, lv: contestLevel(s), sea: spotUnlocked(s, 'sea'), river: spotUnlocked(s, 'river'), best: null }; }
   function contestOf(s, wk) {
-    if (!s.cont) s.cont = { wk: wk, lv: contestLevel(s), best: null, won: {}, mail: [], news: null };
+    if (!s.cont) { var nw = newWeek(s, wk); s.cont = { wk: wk, lv: nw.lv, sea: nw.sea, river: nw.river, best: null, won: {}, mail: [], news: null }; }
     return s.cont;
+  }
+  // older saves have no snapshot: the live flags
+  function weekMark(s, c) {
+    return contestMark(c.wk, c.lv, typeof c.sea === 'boolean' ? c.sea : spotUnlocked(s, 'sea'),
+      typeof c.river === 'boolean' ? c.river : spotUnlocked(s, 'river'));
   }
   // settles the last week once a new one starts → the result (also kept in s.cont.news until shown), else null
   function contestTick(s, now, tzMin) {
     if (!s.cont && !contestOk(s)) return null;
     var wk = contestWeek(now, tzMin), c = contestOf(s, wk);
     if (wk <= c.wk) return null;
-    var out = null, mk = contestMark(c.wk, c.lv);
+    var out = null, mk = weekMark(s, c);
     if (c.best && !c.won[c.wk]) {
-      var t = contestTier(c.best.f, mk.f);
+      var t = c.best.id === mk.fish ? contestTier(c.best.f, mk.f) : null;   // another species (older save) only takes part
       out = { wk: c.wk, win: !!t, best: c.best, mark: mk };
       if (t) {
         var id = trophyId(c.wk, t), g = grantDeco(s, id);
@@ -6234,7 +6279,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       c.news = out;
     }
     var nw = newWeek(s, wk);
-    c.wk = nw.wk; c.lv = nw.lv; c.best = null;
+    c.wk = nw.wk; c.lv = nw.lv; c.sea = nw.sea; c.river = nw.river; c.best = null;
     return out;
   }
   function contestNews(s) { var n = s.cont && s.cont.news; if (!n) return null; s.cont.news = null; return n; }
@@ -6242,17 +6287,19 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function contestCatch(s, roll, now, tzMin) {
     if (!contestOk(s) || !fishById(roll.id)) return null;
     contestTick(s, now, tzMin);
-    var c = contestOf(s, contestWeek(now, tzMin)), f = Math.round(sizeFrac(roll) * 1000) / 1000, mk = contestMark(c.wk, c.lv);
-    var better = !c.best || f > c.best.f;
+    var c = contestOf(s, contestWeek(now, tzMin)), f = Math.round(sizeFrac(roll) * 1000) / 1000, mk = weekMark(s, c);
+    if (roll.id !== mk.fish) return null;
+    var better = !c.best || c.best.id !== mk.fish || f > c.best.f;
     if (better) c.best = { id: roll.id, size: roll.size, f: f };
     return { best: better, ahead: c.best.f >= mk.f, f: f, mark: mk };
   }
   function contestState(s, now, tzMin) {
     if (!s.cont) return null;
-    return { wk: s.cont.wk, mark: contestMark(s.cont.wk, s.cont.lv), best: s.cont.best, left: contestLeft(now, tzMin),
+    var mk = weekMark(s, s.cont), b = s.cont.best;
+    return { wk: s.cont.wk, mark: mk, best: b && b.id === mk.fish ? b : null, left: contestLeft(now, tzMin),
       won: Object.keys(s.cont.won).length };
   }
-  // marks sit near the top of the size range, so one decimal (99.7%) keeps close weeks apart
+  // one decimal (87.3%) keeps close catches apart
   function contestPct(f) { return Math.round(f * 1000) / 10 + '%'; }
   // 박 영감's line about this week's contest
   function contestTalk(s, now, tzMin) {
@@ -6260,7 +6307,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var st = contestState(s, now, tzMin);
     if (!st) return null;
     var mk = st.mark, mine = fishById(mk.fish).name + ' ' + mk.size.toFixed(1) + 'cm(크기 ' + contestPct(mk.f) + ')';
-    if (!st.best) return '이번 주 내 기록은 ' + mine + '일세. 자네는 아직 한 마리도 안 보여 줬구먼.';
+    if (!st.best) return '이번 주는 ' + fishById(mk.fish).name + ' 대회일세. 내 기록은 ' + mine + '. 자네는 아직 한 마리도 안 보여 줬구먼.';
     var b = st.best, yours = fishById(b.id).name + ' ' + b.size.toFixed(1) + 'cm(' + contestPct(b.f) + ')';
     if (b.f >= mk.f) return '…자네 ' + yours + ', 내 ' + mine + '보다 낫군. 아직 주말이 남았네. 두고 보게.';
     return '내 기록 ' + mine + ', 자네는 ' + yours + '. 허허, 아직 멀었네.';
@@ -6339,6 +6386,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var q = o.cont;
     if (obj(q) && num(q.wk) && num(q.lv)) {
       var c = { wk: Math.floor(q.wk), lv: Math.max(0, Math.min(4, Math.floor(q.lv))), best: null, won: {}, mail: [], news: null };
+      if (typeof q.sea === 'boolean') c.sea = q.sea;
+      if (typeof q.river === 'boolean') c.river = q.river;
       var b = q.best;
       if (obj(b) && fishById(b.id) && num(b.size) && num(b.f) && b.f >= 0 && b.f <= 1) c.best = { id: b.id, size: b.size, f: b.f };
       if (obj(q.won)) Object.keys(q.won).forEach(function (k) { if (/^-?\d{1,7}$/.test(k) && TROPHY_TIERS[q.won[k]]) c.won[k] = q.won[k]; });
@@ -6386,7 +6435,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function trophyOk(id) { return typeof id === 'string' && /^tr[a-z]+_[gsb]$/.test(id) && DECOS.some(function (d) { return d.id === id; }); }
 
   expose({
-    CONTEST_FRIEND: CONTEST_FRIEND, CONTEST_BASE: CONTEST_BASE, CONTEST_MAX: CONTEST_MAX, CONTEST_MARGIN: CONTEST_MARGIN,
+    CONTEST_FRIEND: CONTEST_FRIEND, CONTEST_FISH: CONTEST_FISH, CONTEST_SEA_FISH: CONTEST_SEA_FISH, CONTEST_BASE: CONTEST_BASE, CONTEST_MAX: CONTEST_MAX, CONTEST_MARGIN: CONTEST_MARGIN,
     CONTEST_COINS: CONTEST_COINS, CONTEST_DUP_COINS: CONTEST_DUP_COINS, CONTEST_TRY_COINS: CONTEST_TRY_COINS,
     TROPHY_SHAPES: TROPHY_SHAPES, TROPHY_TIERS: TROPHY_TIERS,
     contestOk: contestOk, contestWeek: contestWeek, contestLevel: contestLevel, contestMark: contestMark, contestTier: contestTier,
@@ -6621,7 +6670,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'bag', name: '바구니·주문', how: '바구니 버튼 · 주문을 납품하면 코인과 신뢰도 ★ · 싫은 주문은 ×로 버리기', lock: '' },
     { id: 'cook', name: '요리', how: '바구니의 냄비 탭에서 재료로 요리 · 다 되면 냄비를 눌러 꺼내기', lock: '' },
     { id: 'shop', name: '상점', how: '낚싯대·미끼·밭 확장·허수아비·바구니 · 동물·장식·도구도 여기서', lock: '' },
-    { id: 'seasons', name: '계절·날씨·달력', how: '시계 버튼을 누르면 달력 · 현실 1시간이 게임 하루, 1주가 한 계절 · 비가 오면 작물이 빨리 자란다', lock: '' },
+    { id: 'seasons', name: '계절·날씨·달력', how: '시계 버튼을 누르면 달력 · 현실 1시간이 게임 하루(밤이 오는 시각은 날마다 15분씩 늦어져 늘 같은 때 와도 나흘이면 밤을 만난다), 1주가 한 계절 · 비가 오면 작물이 빨리 자란다', lock: '' },
     { id: 'daily', name: '오늘의 할 일', how: '달력에 매일 할 일 세 개 · 다 하면 보상 · 못 해도 손해 없음', lock: '' },
     { id: 'river', name: '강 낚시', how: '밭 옆 표지판에서 낚시터 바꾸기 · 강에만 사는 물고기', lock: '★' + SPOTS.river.rep + ' · 표지판에서 ' + won(SPOTS.river.cost) },
     { id: 'sea', name: '바다 낚시', how: '표지판에서 바다로 · 큰 물고기가 많다 · 시간·날씨 따라 다른 물고기', lock: '★' + SPOTS.sea.rep + ' · 표지판에서 ' + won(SPOTS.sea.cost) },
@@ -6684,7 +6733,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'brood', name: '동물 새끼', how: '알·우유를 거둘수록 친밀도 · ' + BABY_CARE + '이 차면 가끔 병아리·새끼오리·송아지 (한 마리당 ' + BABY_PER_HEAD + ') · 새끼를 눌러 이름 짓기 · ' + (BABY_GROW / 86400e3) + '일이면 자라 산물을 낸다', lock: '상점 마당 칸에서 닭·오리·젖소' },
     { id: 'scaredress', name: '허수아비 꾸미기', how: '상점 「허수아비 꾸미기」에서 모자·옷·소품 ' + SCARE_ITEMS.length + '가지 · ' + SCARE_ITEMS.filter(function (x) { return x.fest; }).length + '가지는 축제 날에만 받는다 · 쫓는 힘은 그대로', lock: '상점 허수아비 · ' + won(UPG.scare.costs[0]) },
     // stage 10 ①
-    { id: 'contest', name: '박 영감 낚시 대회', how: '현실 일주일마다 · 그 주에 낚은 가장 큰 물고기(종마다 크기 %)로 박 영감 기록과 겨루기 · 이기면 트로피 장식(금·은·동, 주마다 모양이 다름) + 최대 ' + won(CONTEST_COINS.gold) + ', 지면 박 영감 편지 + ' + won(CONTEST_TRY_COINS) + ' · 달력·박 영감 대화에서 진행 확인', lock: '박 영감 친밀도 ' + CONTEST_FRIEND },
+    { id: 'contest', name: '박 영감 낚시 대회', how: '현실 일주일마다 · 그 주 대회 물고기(박 영감이 고름 · 바다가 열리면 바다 물고기) 중 가장 큰 것(크기 %)으로 박 영감 기록과 겨루기 · 이기면 트로피 장식(금·은·동, 주마다 모양이 다름) + 최대 ' + won(CONTEST_COINS.gold) + ', 지면 박 영감 편지 + ' + won(CONTEST_TRY_COINS) + ' · 달력·박 영감 대화에서 진행 확인', lock: '박 영감 친밀도 ' + CONTEST_FRIEND },
     { id: 'yearcard', name: '한 해 결산 카드', how: '게임 1년(4계절 = 현실 4주)이 끝나면 그해 카드: 낚은 수·제일 큰 물고기·많이 만든 요리·새로 연 곳·박물관 · 도감 기록 탭에서 지난 카드 ' + YEAR_KEEP + '장과 「지금까지」 · PNG 저장', lock: '' },
     { id: 'farmsign', name: '농장 간판', how: '밭 아래 울타리의 간판을 누르면 농장 이름(' + FARM_NAME_MAX + '자)과 간판 모양 ' + SIGNS.length + '가지 · 결산 카드·친구 기록 코드에 나온다', lock: '' },
     // stage 10 ③
@@ -8709,7 +8758,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   function calSignature() {
     var t = now(), e = curEnv(t);
-    return [calTab, e.season, e.phase, e.weather, Math.round(((t + TZ * 60e3) % 3600e3) / SPEED / 30e3), S.coins, S.rep,
+    return [calTab, e.season, e.phase, e.weather, Math.round(L.gameMin(t, TZ) * 60e3 / SPEED / 30e3), S.coins, S.rep,
       L.curSpot(S), Object.keys(S.dex.fish).length, Object.keys(S.spotOk || {}).join(), dailySig(), questSig()].join('|');
   }
   function renderCalIfChanged() { if (calSignature() !== calSig) renderCal(); }
@@ -8754,7 +8803,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';
     var hb = document.createElement('b'); hb.textContent = '하루 = 현실 1시간'; h3.appendChild(hb); calEl.appendChild(h3);
-    var m = (((t + TZ * 60e3) % 3600e3) + 3600e3) % 3600e3 / 60e3;
+    var m = L.gameMin(t, TZ);
     var bar = document.createElement('div'); bar.className = 'daybar';
     PHASE_SPAN.forEach(function (p) {
       var seg = document.createElement('div'); seg.className = 'seg ' + p[0] + (p[0] === c.phase ? ' on' : '');
@@ -8766,10 +8815,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var mark = document.createElement('i'); mark.className = 'mark'; mark.style.left = (m / 60 * 100).toFixed(2) + '%';
     bar.appendChild(mark);
     calEl.appendChild(bar);
-    var cur = PHASE_SPAN.filter(function (p) { return p[0] === c.phase; })[0];
-    var nxt = PHASE_SPAN[(PHASE_SPAN.indexOf(cur) + 1) % 4][0];
+    var nxt = L.nextPhase(t, TZ);   // scanned: the day jumps at local midnight
     note('지금 ' + L.PHASE_NAME[c.phase] + (phaseOverride ? ' (시험: ' + L.PHASE_NAME[e.phase] + ')' : '') +
-      ' · ' + L.PHASE_NAME[nxt] + '까지 ' + fmtReal((cur[2] - m) * 60e3 * SPEED));
+      (nxt ? ' · ' + L.PHASE_NAME[nxt.phase] + '까지 ' + fmtReal(nxt.at - t) : ''));
 
     // weather now → next block
     h3 = document.createElement('h3'); h3.textContent = '날씨';
@@ -9301,7 +9349,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   var potWas = false;
   function tickBasket(t) {
-    if (L.refreshOrders(S, t, Math.random)) { if (booted && bagEl.hidden) toast('주문 게시판에 새 주문', 2200); save(); }
+    if (L.refreshOrders(S, t, Math.random, TZ)) { if (booted && bagEl.hidden) toast('주문 게시판에 새 주문', 2200); save(); }
     var pr2 = L.potReady(S, t);
     if (pr2 && !potWas && booted) toast('요리 완성 · 냄비를 눌러 꺼내기', 2600);
     potWas = pr2;
@@ -11846,7 +11894,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var ph = curEnv(t).phase, dark = ph === 'night' || ph === 'evening';
     if (id === 'spring') festPetals(tt);
     else if (id === 'summer' && dark) festFireworks(tt, view === 'yard' ? 4 : 8, view === 'yard' ? 16 : 40);
-    else if (id === 'autumn' && ph === 'night') {
+    else if (id === 'autumn' && dark) {
       if (view === 'yard') festMoon(150, 12);
       else if (view === 'farm' && scene === 'pond') {
         // the full moon is behind you: its reflection wobbles on the pond
@@ -13623,8 +13671,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function openStars(force, peak) {
     var t = now(), e = curEnv(t);
     if (!force && !L.skyOpen(S, t, TZ, e.phase)) {
-      var g = (t + TZ * 60e3) % 3600e3 / 60e3;
-      toast('망원경 · 별은 밤에만 보여요 · 밤까지 ' + fmtLeft((g < 45 ? 45 - g : 105 - g) * 60e3), 2400);
+      var nn = L.nextPhase(t, TZ, 'night');
+      toast('망원경 · 별은 밤에만 보여요' + (nn ? ' · 밤까지 ' + fmtLeft(nn.at - t) : ''), 2400);
       return;
     }
     starForce = !!force;
@@ -16582,12 +16630,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var r = document.createElement('div'); r.className = 'dx' + (q[0] ? '' : ' unk');
       var ic = q[0] ? fishCanvas(q[0].id || q[0].fish) : fishCanvas('crucian', true); ic.className = 'sq';
       var nm = document.createElement('div'); nm.className = 'n'; nm.textContent = q[1];
-      var sm = document.createElement('small'); sm.textContent = q[0] ? fishText(q[0]) : '아직 없음 · 이번 주에 낚은 물고기 중 크기 %가 제일 높은 것';
+      var sm = document.createElement('small'); sm.textContent = q[0] ? fishText(q[0]) : '아직 없음 · 이번 주에 낚은 ' + L.fishById(st.mark.fish).name + ' 중 크기 %가 제일 높은 것';
       nm.appendChild(sm);
       var v = document.createElement('div'); v.className = 'v'; v.textContent = q[0] ? L.contestPct(q[0].f) : '—';
       r.appendChild(ic); r.appendChild(nm); r.appendChild(v); calEl.appendChild(r);
     });
-    note(st.best ? (ahead ? '지금은 앞서는 중 · 주말까지 지키면 트로피' : '조금 더 큰 녀석을 · 종마다 크기 % 기준') : '현실 일주일 대회 · 월요일에 결과 · 져도 잃는 건 없어요');
+    note(st.best ? (ahead ? '지금은 앞서는 중 · 주말까지 지키면 트로피' : '조금 더 큰 ' + L.fishById(st.mark.fish).name + '를 · 크기 % 기준') : '이번 주는 ' + L.fishById(st.mark.fish).name + ' 대회 · 월요일에 결과 · 져도 잃는 건 없어요');
   }
 
   // ----- 박 영감 visit sheet row (renderVil) -----
@@ -16612,7 +16660,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var won = Object.keys(S.cont.won).map(Number).sort(function (a, c) { return c - a; });
       h3 = document.createElement('h3'); h3.textContent = '박 영감 낚시 대회';
       b = document.createElement('b'); b.textContent = '트로피 ' + won.length + '개'; h3.appendChild(b); dexEl.appendChild(h3);
-      if (!won.length) { var q = document.createElement('p'); q.className = 'note'; q.textContent = '그 주에 낚은 가장 큰 물고기(크기 %)가 박 영감 기록을 넘으면 트로피'; dexEl.appendChild(q); }
+      if (!won.length) { var q = document.createElement('p'); q.className = 'note'; q.textContent = '그 주 대회 물고기 중 가장 큰 것(크기 %)이 박 영감 기록을 넘으면 트로피'; dexEl.appendChild(q); }
       won.slice(0, 12).forEach(function (wk) {
         var t = S.cont.won[wk], id = L.trophyId(wk, t);
         recRow(decoIconC(id), L.decoById(id).name, weekLabel(wk) + ' 우승', TIER_NAME[t]);
@@ -16837,7 +16885,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     FF.contest = function (a) {
       if (!L.contestOk(S)) { S.res = S.res || { f: {}, lv: {}, rec: {}, unread: [] }; S.res.lv.fisher = Math.max(L.CONTEST_FRIEND, S.res.lv.fisher || 0); }
       L.contestTick(S, now(), CTZ);
-      if (typeof a === 'number') { var f = L.fishById('crucian'); contestAfterCatch({ id: 'crucian', size: Math.round((f.min + (f.max - f.min) * a) * 10) / 10 }); }
+      if (typeof a === 'number') { var f = L.fishById(L.contestState(S, now(), CTZ).mark.fish); contestAfterCatch({ id: f.id, size: Math.round((f.min + (f.max - f.min) * a) * 10) / 10 }); }
       if (a === 'end') S.cont.wk--;
       save(); return L.contestState(S, now(), CTZ);
     };
