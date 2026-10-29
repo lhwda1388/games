@@ -8,8 +8,8 @@
   SPOTS.ocean = { id: 'ocean', name: '난바다', rep: Infinity, cost: 0 };
   var SHIP_TIERS = [
     { id: 'raft', name: '나룻배' },
-    { id: 'sail', name: '돛배', coins: 900000, need: [['driftwood', 4], ['rope', 3], ['iron', 3]], spot: 'offshore' },
-    { id: 'motor', name: '통통배', coins: 1600000, need: [['iron', 6], ['copper', 6], ['coal', 8], ['glassfloat', 2]], spot: 'ocean' }
+    { id: 'sail', name: '돛배', coins: 400000, need: [['driftwood', 4], ['rope', 3], ['iron', 3]], spot: 'offshore' },
+    { id: 'motor', name: '통통배', coins: 800000, need: [['iron', 6], ['copper', 6], ['coal', 8], ['glassfloat', 2]], spot: 'ocean' }
   ];
 
   // 끌낚시 fish: big ones only, the usual cast/reel/land flow at spot 'offshore' / 'ocean'

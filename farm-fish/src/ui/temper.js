@@ -26,7 +26,8 @@
   function reelIntro(roll) {
     var f = L.fishById(roll.id), n = L.temperOf(roll.id).length;
     if (n > 1) { toast('전설의 보스전! ' + n + '단계 · 화면이 번쩍이면 싸우는 법이 바뀐다', 3000); return; }
-    if (S.dex.fish[roll.id] && L.temperName(roll.id) !== '순한형') toast(f.name + ' · ' + L.temperName(roll.id) + ' · ' + L.temperTip(roll.id), 2600);
+    // 순한형 still shows its name (VOC: 갈겨니·미꾸라지 had no name while reeling)
+    if (S.dex.fish[roll.id]) toast(L.temperName(roll.id) === '순한형' ? f.name : f.name + ' · ' + L.temperName(roll.id) + ' · ' + L.temperTip(roll.id), 2600);
   }
   // boss phase change: shake, splash, and a blinking frame drawn by drawReelFrame
   function bossPhaseFx() {
