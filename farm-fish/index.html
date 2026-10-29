@@ -5314,8 +5314,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   SPOTS.ocean = { id: 'ocean', name: '난바다', rep: Infinity, cost: 0 };
   var SHIP_TIERS = [
     { id: 'raft', name: '나룻배' },
-    { id: 'sail', name: '돛배', coins: 900000, need: [['driftwood', 4], ['rope', 3], ['iron', 3]], spot: 'offshore' },
-    { id: 'motor', name: '통통배', coins: 1600000, need: [['iron', 6], ['copper', 6], ['coal', 8], ['glassfloat', 2]], spot: 'ocean' }
+    { id: 'sail', name: '돛배', coins: 400000, need: [['driftwood', 4], ['rope', 3], ['iron', 3]], spot: 'offshore' },
+    { id: 'motor', name: '통통배', coins: 800000, need: [['iron', 6], ['copper', 6], ['coal', 8], ['glassfloat', 2]], spot: 'ocean' }
   ];
 
   // 끌낚시 fish: big ones only, the usual cast/reel/land flow at spot 'offshore' / 'ocean'
@@ -14632,7 +14632,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function reelIntro(roll) {
     var f = L.fishById(roll.id), n = L.temperOf(roll.id).length;
     if (n > 1) { toast('전설의 보스전! ' + n + '단계 · 화면이 번쩍이면 싸우는 법이 바뀐다', 3000); return; }
-    if (S.dex.fish[roll.id] && L.temperName(roll.id) !== '순한형') toast(f.name + ' · ' + L.temperName(roll.id) + ' · ' + L.temperTip(roll.id), 2600);
+    // 순한형 still shows its name (VOC: 갈겨니·미꾸라지 had no name while reeling)
+    if (S.dex.fish[roll.id]) toast(L.temperName(roll.id) === '순한형' ? f.name : f.name + ' · ' + L.temperName(roll.id) + ' · ' + L.temperTip(roll.id), 2600);
   }
   // boss phase change: shake, splash, and a blinking frame drawn by drawReelFrame
   function bossPhaseFx() {
