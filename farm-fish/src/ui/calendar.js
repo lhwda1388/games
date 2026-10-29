@@ -59,6 +59,7 @@
     renderQuestCal();  // stage 10 ④: 계절 챌린지
     renderFestCal();   // stage 5B: current / next 계절 축제
     renderContestCal(); // stage 10 ①: 박 영감 낚시 대회
+    renderAuctionCal(); // stage 11 ②: 이번 주 경매
 
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';

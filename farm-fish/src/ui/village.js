@@ -112,6 +112,7 @@
     });
     drawMuseumHouse(tt);   // stage 7 박물관
     drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
+    drawPortSign(tt);      // stage 11 ①: 「끊긴 다리」 → 옛 포구
     drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
@@ -123,6 +124,7 @@
     if (tapTown(x, y)) return;          // stage 10 ③: people out on the street, 새 주민 cottages
     if (tapMuseumHouse(x, y)) return;   // stage 7 박물관
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
+    if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
@@ -369,6 +371,7 @@
     if (sc === 'home' && vilCur) cv.setAttribute('aria-label', L.residentById(vilCur).name + ' 집 안');
     if (sc !== 'home' && sheetKind === 'vil') closeSheet();
     sceneMuseum(sc);   // stage 7 박물관
+    scenePort(sc);     // stage 11 ① 옛 포구
     renderVilBar();
   }
   function tickVillageUI(t) {

@@ -49,6 +49,7 @@
     renderShipDex(row);     // stage 9 ①: 먼 섬 표류물
     renderRideDex(row);     // stage 9 ③: 하늘 (열기구) + 썰매·자전거 기록
     renderGardenDex(row);   // stage 10 ②: 꽃
+    renderDiveDex(row);     // stage 12 ③: 해저
     renderMuseumDex();      // stage 7 박물관: one progress line
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');

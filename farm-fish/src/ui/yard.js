@@ -474,13 +474,15 @@
   app.appendChild(sceneMenu);
   var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'], orchard: ['과수원', '과수원으로'], village: ['마을', '마을로'], flat: ['갯벌', '갯벌로'], island: ['섬', '섬으로'] };
   PLACE.cave = ['동굴', '동굴로'];   // stage 7
+  PLACE.port = ['포구', '옛 포구로'];   // stage 11 ①
   function goScene(sc) {
     if (reel) return;
+    if (view === 'dive' && sc !== 'dive' && dv) return endDive();   // stage 12: surfacing toast, dive state cleared
     closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : '집 안');
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
@@ -490,7 +492,8 @@
     if (view === 'home') return ['village'];   // stage 6B: out of a resident's house
     if (view === 'stars') return [starHome];   // stage 7: out of the 별 잇기 view (stage 9: back to the 산꼭대기 too)
     if (view === 'museum') return ['village']; // stage 7 박물관
-    return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak'].filter(function (sc) { return sc !== view && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
+    if (view === 'dive') return [diveHome()];  // stage 12 ③: the button surfaces (포구, else 마을)
+    return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak', 'port'].filter(function (sc) { return sc !== view && (sc !== 'port' || L.portShown(S)) && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
   }
   function placeAttention(sc) {
     if (boomAttention(sc)) return true;   // stage 8: 입질 폭풍 / 대풍년 here
@@ -501,6 +504,7 @@
     if (sc === 'flat') return flatAttention();   // stage 7 갯벌: low tide with spots to dig
     if (sc === 'island') return isleAttention();       // stage 7 섬
     if (sc === 'deep' || sc === 'peak') return rideAttention(sc);   // stage 9 ②
+    if (sc === 'port') return portAttention();   // stage 11 ① 옛 포구
     var pond = sc === 'farm';
     return (!pond && yardAttention() > 0) || S.yard.vis.some(function (v) { return (L.visitorById(v.id).slot === 'pond') === pond; });
   }
@@ -580,6 +584,8 @@
     if (view === 'island') { drawIsle(tt, dt); return true; }       // stage 7 섬
     if (view === 'deep' || view === 'peak') { drawRideScene(view, tt, dt); return true; }   // stage 9 ②
     if (view === 'farisle') { drawFarIsle(tt); return true; }       // stage 9 ① 먼 섬
+    if (view === 'port') { drawPort(tt, dt); return true; }         // stage 11 ① 옛 포구
+    if (view === 'dive') { drawDive(tt, dt); return true; }         // stage 12 ③ 잠수
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
@@ -599,6 +605,8 @@
     if (view === 'island') { tapIsle(x, y); return true; }       // stage 7 섬
     if (view === 'deep' || view === 'peak') { tapRideScene(view, x, y); return true; }   // stage 9 ②
     if (view === 'farisle') { tapFarIsle(x, y); return true; }   // stage 9 ① 먼 섬
+    if (view === 'port') { tapPort(x, y); return true; }         // stage 11 ① 옛 포구
+    if (view === 'dive') { tapDive(x, y); return true; }         // stage 12 ③ 잠수
     if (S.fish.phase === 'bite') return false;
     if (tapIsleWater(x, y)) return true;                          // stage 7 섬: the boat on the 바다 / 섬 shore
     if (tapShipWater(x, y)) return true;                          // stage 9 ①: the boat at 먼바다·난바다

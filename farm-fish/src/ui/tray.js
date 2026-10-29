@@ -33,6 +33,7 @@
     if (it && it.kind === 'honey') return honeyIcon(id);     // stage 6A
     if (it && it.kind === 'flat') return flatIcon(id);       // stage 7 갯벌
     if (it && it.kind === 'isle') return driftIcon(id);      // stage 7 섬
+    if (it && it.kind === 'dive') return diveIcon(id);       // stage 12 ③ 잠수
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;

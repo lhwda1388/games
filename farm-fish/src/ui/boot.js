@@ -58,6 +58,9 @@
   addToyHooks(globalThis.FF); addQuestHooks(globalThis.FF);   // stage 10 ④: FF.toy(), FF.quest(cmd)
   addContestHooks(globalThis.FF);  // stage 10 ①: FF.contest(frac|'end'), FF.year('end')
   addTownHooks(globalThis.FF);     // stage 10 ③: FF.town(id) moves a new resident in, FF.town() who is out where
+  addPortHooks(globalThis.FF);     // stage 11 ①: FF.port.go(), FF.port.fill(bldgId), FF.port.build()
+  addAuctionHooks(globalThis.FF);  // stage 11 ②: FF.auction.open(), .trader(), .sell(id), .train()
+  addDiveHooks(globalThis.FF);     // stage 12 ③: FF.dive.go(room), .o2(n), .gear(id), .sheet(), .state()
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });
