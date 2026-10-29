@@ -16,6 +16,7 @@ test('every src file is listed in build.js exactly once', () => {
   (function walk(dir) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
       const p = path.join(dir, e.name);
+      if (e.name.startsWith('.')) return;   // tool state dirs (.omc) are not sources
       if (e.isDirectory()) walk(p);
       else onDisk.push(path.relative(src, p).split(path.sep).join('/'));
     });

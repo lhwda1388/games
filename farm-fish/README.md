@@ -48,6 +48,8 @@ node --test farm-fish/test/*.test.js    # 빌드 없이 src/에서 바로 테스
 | `logic/toys.js`, `logic/quest.js`, `ui/toys.js`, `ui/quest.js` | 10단계 ④: 날씨 장난감(비 웅덩이 첨벙·눈 발자국·가을 낙엽 더미, 밭·마당·숲 빈 땅에서만, 가끔 도토리·동전 하루 `TOY_DAY_CAP`번, `s.toy`), 계절 도감 챌린지(계절=현실 1주마다 「꼭 볼 것 5개」를 주 키로 골라 고정, 실제 도감 기록으로 체크, 다 채우면 계절 장식 4종 하나씩·이후 코인, `s.quest`), 계절 시작 카드·달력 줄, `FF.toy`/`FF.quest` |
 | `logic/contest.js`, `ui/contest.js`, `contest.css` | 10단계 ①: 박 영감 낚시 대회(현실 주, 그 주 최고 크기 % vs 박 영감 기록(주 키 + 낚싯대·바다 수준), 금·은·동 트로피 장식 4모양, 진 주는 편지, `s.cont`), 한 해 결산 카드(게임 1년 = 현실 4주, 캔버스 그림 + PNG 저장, 기록 탭, `s.yr`), 농장 간판(이름·모양, 밭 아래 울타리, 친구 코드 `n…` 칸, `s.farm`), 달력 줄·박 영감 줄, `FF.contest/year` |
 | `logic/town.js`, `ui/town.js` | 10단계 ③ 주민들의 하루·새 주민: 주민이 집에 없는 시간대엔 마을 길 자리(`TOWN_PLACES`: 정자·텃밭·분교 마당·나루터 길·우물가·언덕·장터 가는 길·박물관 앞)에 서 있고 누르면 그 자리 대사(하루 한 번 친밀도 +1, `townMeet`), 큰 목표(화석 완성·등대 점등·박물관 절반)로 새 주민 3명 이사(`RES_EXTRA`, `s.town`: 이사 편지·만난 날), 윗길 새 집·방·얼굴, `FF.town` |
+| `logic/port.js`, `ui/port.js` | 11단계 ① 옛 포구: 마을 바닷가 끝 「끊긴 다리」 표지 → `port` 장면, 다리→조선소→어판장→기차역을 꾸러미(바구니 `bagTake`·고물 `s.junk`·기록 확인)와 코인으로 차례로 복구(`s.port` got/done), 포구지기 할머니 대사·다음 건물 힌트, 고친 건물마다 배경 인물, 칭호 「포구를 되살린 사람」, 부두 → 바다 낚시터, `PORT_AT` 배치(레인 ②③의 `drawPortExtra_*`/`tapPortExtra_*`가 읽음), `FF.port` |
+| `logic/auction.js`, `ui/auction.js` | 11단계 ②: 어판장 경매(현실 주마다 도감 강·바다·섬 물고기 3종, 바구니의 제일 큰 것 ×1.5~×3, 종마다 주 1회, 결과는 우체통 편지 `a:` 키, `s.port.auc`), 기차 떠돌이 상인(현실 하루 3개 중 하나, 황금 씨앗·포구 장식 5종, `s.trader`), 포구 장면 위 `drawPortExtra_auction`/`tapPortExtra_auction`, 달력 경매 줄, `FF.auction` |
 | `ui/loop.js` | 제목 알림, 틱, 프레임, 루프, 창 맞춤 |
 | `ui/pip.js` | 작게 띄우기(PiP) |
 | `ui/boot.js` | 시작 순서, 콘솔용 `FF` (항상 마지막) |

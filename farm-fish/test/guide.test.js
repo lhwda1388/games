@@ -73,6 +73,8 @@ test('entries open under the real conditions', () => {
   s.coins += 1e5; s.up.scare = 1; L.buyDeco(s, 'flowers'); assert.ok(L.buyAnimal(s, 'hen', 0).ok);   // stage 10 ②: 꽃밭, 새끼, 허수아비
   s.res = s.res || { f: {}, lv: {}, rec: {}, unread: [] }; s.res.lv.fisher = L.CONTEST_FRIEND; assert.ok(L.guideOpen(s, 'contest'));   // stage 10 ①
   s.isle.lit = true; assert.ok(L.townArrive(s).length); assert.ok(L.guideOpen(s, 'newres'));   // stage 10 ③: 등대 점등 → 바다 이사
+  s.port = s.port || { got: {}, done: {} }; s.port.done.market = s.port.done.station = true;   // stage 11 ②: 어판장, 기차역
+  s.port = s.port || { got: {}, done: {} }; s.port.done.shipyard = true; assert.ok(L.guideOpen(s, 'dive'));   // stage 12 ③: 조선소 → 잠수
   assert.deepEqual(open(s), L.GUIDE.map((g) => g.id), 'everything open');
 });
 

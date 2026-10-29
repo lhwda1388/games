@@ -98,6 +98,13 @@ const LOGIC = [
   'logic/contest.js',   // 박 영감 낚시 대회 (s.cont, trophy decos), 한 해 결산 카드 (s.yr), 농장 간판 (s.farm); before guide.js
   // stage 10 ③ 주민들의 하루·새 주민
   'logic/town.js',      // residents' street places by game time, 새 주민 이사 (s.town); after treasure/museum (adds RUMORS, reads museum)
+  // stage 11 ① 옛 포구
+  'logic/port.js',      // 옛 포구: bundles fill four buildings in order, granny lines (s.port got/done); after museum/sky/cave/junk
+  // stage 11 ② 어판장 경매·떠돌이 상인
+  'logic/auction.js',   // 어판장 경매 (s.port.auc), 기차 떠돌이 상인 (s.trader), port decos; before guide.js
+  // stage 12 ③ 잠수 탐험
+  'logic/divemap.js',   // 24-room dive map data (rooms, exits, gates, bubbles, things)
+  'logic/dive.js',      // 잠수: gates, gear, 해저 도감, 항해일지, 난파선 상자 (s.dive); after divemap.js, before guide.js
   // stage 8 ④ 이펙트
   'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
   'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
@@ -176,6 +183,13 @@ const UI = [
   'ui/contest.js',      // 낚시 대회 cards/달력/박 영감 row/trophy art, 결산 카드 sheet + PNG, 농장 간판, FF.contest/year
   // stage 10 ③ 주민들의 하루·새 주민
   'ui/town.js',         // people out at street places, 새 주민 cottages + rooms + faces, arrival toast, FF.town
+  // stage 11 ① 옛 포구
+  'ui/port.js',         // 옛 포구 scene, 끊긴 다리 sign in the 마을, bundle sheet, granny, fix dust + name plate, FF.port
+  // stage 11 ② 어판장 경매·떠돌이 상인
+  'ui/auction.js',      // 경매 sign + sheet, train + 상인 sheet on the port scene, 달력 경매 row, port deco art, FF.auction
+  // stage 12 ③ 잠수 탐험
+  'ui/dive.js',         // dive scene: swim by tap, rooms, oxygen, take/see things, 포구 marker + 잠수 sheet, FF.dive
+  'ui/divemap.js',      // minimap overlay, 해저 도감 rows, dive thing art and basket icons
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold

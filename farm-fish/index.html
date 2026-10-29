@@ -1034,6 +1034,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var tr = treeById(id); if (tr) return { id: id, kind: 'fruit', name: tr.name, price: tr.price };   // stage 6A
     var hn = honeyById(id); if (hn) return { id: id, kind: 'honey', name: hn.name, price: hn.price };   // stage 6A
     var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
+    var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -1049,6 +1050,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (treeById(id)) return !!(s.orchard && s.orchard.trees.some(function (p) { return p && p.id === id; }));   // stage 6A
     if (honeyById(id)) return !!(s.bees && s.bees.hives.length && (id === 'wildhoney' || s.bees.dex[id]));   // stage 6A
     if (flatById(id)) return flatOk(s);   // stage 7 갯벌
+    if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
     return false;
   }
 
@@ -1599,6 +1601,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function letterText(k) {
     if (typeof k !== 'string') return null;
     if (k.charAt(0) === 'g') return GENERIC_LETTERS[+k.slice(1)] || null;
+    if (k.slice(0, 2) === 'a:') return aucLetter(k);   // stage 11 ②: 경매 결과
     var e = eggById(k.slice(2));
     return k.slice(0, 2) === 'e:' && e ? e.letter : null;
   }
@@ -4610,7 +4613,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return { gain: gain, lv: r.lv, up: r.up };
   }
   function donkeyFood(s) {
-    for (var k = 0; k < DONKEY_FOOD.length; k++) if (bagCount(s, DONKEY_FOOD[k]) > 0) return DONKEY_FOOD[k];
+    for (var k = 0; k < DONKEY_FOOD.length; k++) {
+      var id = DONKEY_FOOD[k], n = bagCount(s, id);
+      // never a 지키기 item, nor the last one a 포구 bundle still waits for
+      if (n > 0 && !(s.keep && s.keep[id]) && !(n === 1 && portWants(s, id))) return id;
+    }
     return null;
   }
   // 먹이: one food from the basket (bagTake: the cheapest of that kind), DONKEY_FEEDS_DAY a day; nothing taken when full/none
@@ -6624,6 +6631,507 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     TOWN_ARRIVE: TOWN_ARRIVE, townArrive: townArrive, townUnread: townUnread, townRead: townRead, resHere: resHere,
     residentPlace: residentPlace, townOut: townOut, townMeet: townMeet, decodeTown: decodeTown
   });
+  // ---------- 옛 포구 (stage 11 ①): four buildings fixed in order by filling bundles, then paying coins ----------
+  // Opens with the 마을 + the 바다 낚시터 (a 「끊긴 다리」 sign at the end of the 마을 street). A 'bag' slot takes one basket item
+  // (the cheapest, bagTake, like a 박물관 donation), a 'junk' slot one 고물 from s.junk, a 'rec' slot only checks a record.
+  // s.port = { got: { bundleId: { itemId: true } }, done: { bldgId: true } }, made on the first put. s.port.auc belongs to lane ②.
+  var PORT_BLDGS = [
+    { id: 'bridge', name: '다리', coins: 50000, bundles: [
+      { id: 'forest', name: '숲 꾸러미', kind: 'bag', ids: ['pinecone', 'acorn', 'chestnut', 'gosari'], coins: 2000 },
+      { id: 'river', name: '강 꾸러미', kind: 'bag', ids: ['dace', 'loach', 'chub', 'trout'], coins: 2000 },
+      { id: 'sea', name: '바다 꾸러미', kind: 'bag', ids: ['mackerel', 'horse', 'flounder', 'rockfish'], coins: 2000 }
+    ] },
+    { id: 'shipyard', name: '조선소', coins: 150000, bundles: [
+      { id: 'drift', name: '표류물 꾸러미', kind: 'bag', ids: ['driftwood', 'rope', 'glassfloat', 'conch'], coins: 5000 },
+      { id: 'ore', name: '광석 꾸러미', kind: 'bag', ids: ['copper', 'iron', 'coal', 'silver'], coins: 5000 },
+      { id: 'junk', name: '잡동사니 꾸러미', kind: 'junk', ids: ['boot', 'can', 'bottle', 'key'], coins: 5000 }
+    ] },
+    { id: 'market', name: '어판장', coins: 300000, bundles: [
+      { id: 'cook', name: '요리 꾸러미', kind: 'bag', ids: ['maeuntang', 'jjim', 'friedfish', 'jeon'], coins: 10000 },
+      { id: 'field', name: '밭 꾸러미', kind: 'bag', ids: ['potato', 'pepper', 'corn', 'pumpkin'], coins: 10000 },
+      { id: 'fruit', name: '과일 꾸러미', kind: 'bag', ids: ['apple', 'pear', 'persimmon', 'tangerine'], coins: 10000 },
+      { id: 'bigfish', name: '큰 물고기 꾸러미', kind: 'bag', ids: ['snapper', 'yellowtail', 'salmon', 'mandarin'], coins: 10000 }
+    ] },
+    { id: 'station', name: '기차역', coins: 600000, bundles: [
+      { id: 'museum', name: '박물관 칸', kind: 'rec', need: { rec: 'museum', n: 30 }, coins: 20000 },
+      { id: 'stars', name: '별 칸', kind: 'rec', need: { rec: 'stars', n: 5 }, coins: 20000 },
+      { id: 'fossils', name: '화석 칸', kind: 'rec', need: { rec: 'fossils', n: 3 }, coins: 20000 },
+      { id: 'gems', name: '보석 꾸러미', kind: 'bag', ids: ['amethyst', 'jade', 'garnet', 'moonstone'], coins: 20000 }
+    ] }
+  ];
+  var PORT_TITLE = '포구를 되살린 사람';
+  var PORT_REC_NAME = { museum: '박물관 전시품', stars: '별자리', fossils: '화석' };
+  var PORT_GRANNY = {
+    start:    ['할머니: 이 다리 너머가 옛 포구야. 배도 사람도 다 떠났지.', '할머니: 다리부터 고쳐 주면 이 늙은이가 길을 안내하마.'],
+    bridge:   ['할머니: 다리가 이어졌구나! 부두에 다시 발소리가 나네.', '할머니: 저 조선소에서 우리 영감이 배를 짓곤 했지.'],
+    shipyard: ['할머니: 조선소에 망치 소리가 돌아왔어. 잠수복도 하나 남아 있더구나.', '할머니: 어판장에 생선 소리가 나면 좋겠는데.'],
+    market:   ['할머니: 경매 종소리! 몇 해 만인지 모르겠다.', '할머니: 이제 기차역만 남았어. 기차가 끊기면서 다들 떠났거든.'],
+    station:  ['할머니: 기차가 다시 서는구나. 네가 이 포구를 살렸어.', '할머니: 떠난 사람들도 하나둘 돌아오겠지. 고맙다.']
+  };
+
+  function portShown(s) { return villageOk(s) && spotUnlocked(s, 'sea'); }
+  function portOf(s) { if (!s.port) s.port = { got: {}, done: {} }; return s.port; }
+  function portDone(s, id) { return !!(s.port && s.port.done[id]); }
+  function portNext(s) { for (var k = 0; k < PORT_BLDGS.length; k++) if (!portDone(s, PORT_BLDGS[k].id)) return PORT_BLDGS[k]; return null; }
+  function portBundle(id) {
+    for (var k = 0; k < PORT_BLDGS.length; k++) for (var j = 0; j < PORT_BLDGS[k].bundles.length; j++) if (PORT_BLDGS[k].bundles[j].id === id) return { b: PORT_BLDGS[k], u: PORT_BLDGS[k].bundles[j] };
+    return null;
+  }
+  // a 'rec' bundle has one slot named after its record
+  function portSlots(u) { return u.kind === 'rec' ? [u.need.rec] : u.ids; }
+  function portGot(s, bundleId, itemId) { return !!(s.port && s.port.got[bundleId] && s.port.got[bundleId][itemId]); }
+  function portCount(s, bundleId) {
+    var u = portBundle(bundleId).u, sl = portSlots(u), n = 0;
+    sl.forEach(function (id) { if (portGot(s, bundleId, id)) n++; });
+    return { n: n, m: sl.length };
+  }
+  function portBundleDone(s, bundleId) { var c = portCount(s, bundleId); return c.n >= c.m; }
+  function portRecNow(s, rec) { return rec === 'museum' ? museumTotal(s).n : rec === 'stars' ? skyDexCount(s) : fossilCount(s); }
+  function portItemName(id) { var i = itemInfo(id); if (i) return i.name; var j = junkById(id); return j ? j.name : null; }
+  // how many the player holds for a slot right now
+  function portHave(s, bundleId, itemId) {
+    var f = portBundle(bundleId);
+    if (!f) return 0;
+    if (f.u.kind === 'junk') return junkCount(s, itemId);
+    if (f.u.kind === 'rec') return portRecNow(s, f.u.need.rec) >= f.u.need.n ? 1 : 0;
+    return bagCount(s, itemId);
+  }
+  // 'ok' | 'closed' | 'bundle' | 'order' | 'got' | 'need'
+  function portWhy(s, bundleId, itemId) {
+    if (!portShown(s)) return 'closed';
+    var f = portBundle(bundleId);
+    if (!f || portSlots(f.u).indexOf(itemId) < 0) return 'bundle';
+    var nx = portNext(s);
+    if (!nx || nx.id !== f.b.id) return 'order';
+    if (portGot(s, bundleId, itemId)) return 'got';
+    return portHave(s, bundleId, itemId) > 0 ? 'ok' : 'need';
+  }
+  // marks the slot; pays the bundle's coins when it is the last one
+  function portFill(s, u, itemId) {
+    var p = portOf(s);
+    (p.got[u.id] || (p.got[u.id] = {}))[itemId] = true;
+    var out = { ok: true };
+    if (portBundleDone(s, u.id)) { out.bundleDone = true; out.coins = u.coins; s.coins += u.coins; }
+    return out;
+  }
+  function portPut(s, bundleId, itemId) {
+    var f = portBundle(bundleId);
+    if (f && f.u.kind === 'rec') return { ok: false, why: portShown(s) ? 'bundle' : 'closed' };
+    var why = portWhy(s, bundleId, itemId);
+    if (why !== 'ok') return { ok: false, why: why };
+    if (f.u.kind === 'junk') { var j = junkOf(s); if ((j.n[itemId] -= 1) <= 0) delete j.n[itemId]; }
+    else if (!bagTake(s, itemId, 1)) return { ok: false, why: 'need' };
+    return portFill(s, f.u, itemId);
+  }
+  function portCheck(s, bundleId) {
+    var f = portBundle(bundleId);
+    if (!f || f.u.kind !== 'rec') return { ok: false, why: portShown(s) ? 'bundle' : 'closed' };
+    var why = portWhy(s, bundleId, f.u.need.rec);
+    if (why !== 'ok') return { ok: false, why: why };
+    return portFill(s, f.u, f.u.need.rec);
+  }
+  // anything the current building can take right now? (the UI's attention mark)
+  function portCan(s) {
+    var b = portNext(s);
+    if (!b || !portShown(s)) return false;
+    return b.bundles.some(function (u) { return portSlots(u).some(function (id) { return portWhy(s, u.id, id) === 'ok'; }); }) ||
+      (b.bundles.every(function (u) { return portBundleDone(s, u.id); }) && s.coins >= b.coins);
+  }
+  function portBuild(s) {
+    if (!portShown(s)) return { ok: false, why: 'closed' };
+    var b = portNext(s);
+    if (!b) return { ok: false, why: 'done' };
+    if (!b.bundles.every(function (u) { return portBundleDone(s, u.id); })) return { ok: false, why: 'bundles' };
+    if (s.coins < b.coins) return { ok: false, why: 'coins' };
+    s.coins -= b.coins;
+    portOf(s).done[b.id] = true;
+    return { ok: true, bldg: b };
+  }
+  // the building being fixed still needs this basket item (당나귀 leaves the last one alone)
+  function portWants(s, id) {
+    var b = portShown(s) && portNext(s);
+    return !!b && b.bundles.some(function (u) { return u.kind === 'bag' && u.ids.indexOf(id) >= 0 && !portGot(s, u.id, id); });
+  }
+  function portTitles(s) { return portDone(s, 'station') ? [PORT_TITLE] : []; }
+  // granny's line for where the port is now (the last fixed building, or 'start')
+  function grannyLine(s, rng) {
+    var key = 'start';
+    PORT_BLDGS.forEach(function (b) { if (portDone(s, b.id)) key = b.id; });
+    var lines = PORT_GRANNY[key];
+    return lines[Math.floor(rng() * lines.length) % lines.length];
+  }
+  // one line: what the next building still needs
+  function portHint(s) {
+    var b = portNext(s);
+    if (!b) return '포구가 다 살아났어요';
+    var left = b.bundles.filter(function (u) { return !portBundleDone(s, u.id); }).map(function (u) {
+      return u.kind === 'rec' ? PORT_REC_NAME[u.need.rec] + ' ' + u.need.n + '개' : u.name.replace(' 꾸러미', '');
+    });
+    return b.name + ' · ' + (left.length ? left.join('·') + ' 남음 · ' : '꾸러미 다 참 · ') + String(b.coins).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '코인';
+  }
+
+  // ---------- save: called by decode() (absent in older saves); got/done only, auc is lane ②'s ----------
+  function decodePort(o, s) {
+    var q = o.port;
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var p = { got: {}, done: {} };
+    PORT_BLDGS.forEach(function (b) {
+      if (q.done && q.done[b.id] === true) p.done[b.id] = true;
+      b.bundles.forEach(function (u) {
+        var g = q.got && typeof q.got === 'object' && q.got[u.id];
+        if (g && typeof g === 'object') portSlots(u).forEach(function (id) { if (g[id] === true) (p.got[u.id] || (p.got[u.id] = {}))[id] = true; });
+      });
+    });
+    s.port = p;
+  }
+
+  expose({
+    PORT_BLDGS: PORT_BLDGS, PORT_GRANNY: PORT_GRANNY, PORT_TITLE: PORT_TITLE, PORT_REC_NAME: PORT_REC_NAME,
+    portShown: portShown, portDone: portDone, portNext: portNext, portBundle: portBundle, portSlots: portSlots, portGot: portGot,
+    portCount: portCount, portBundleDone: portBundleDone, portRecNow: portRecNow, portItemName: portItemName, portHave: portHave,
+    portWhy: portWhy, portPut: portPut, portCheck: portCheck, portCan: portCan, portBuild: portBuild, portWants: portWants, portTitles: portTitles,
+    grannyLine: grannyLine, portHint: portHint, decodePort: decodePort
+  });
+  // ---------- stage 11 ②: 어판장 경매 (real week), 떠돌이 상인 by train (real day) ----------
+  // Buildings are read straight from s.port.done (lane ①). s.port.auc and s.trader are optional and made on first use.
+
+  // ----- 어판장 경매: 3 species a week; the biggest of one from the basket sells at ×1.5..×3 by its size -----
+  var AUC_N = 3, AUC_MIN = 1.5, AUC_MAX = 3;
+  var AUC_SPOTS = ['river', 'sea', 'island'];
+  function aucOpen(s) { return !!(s.port && s.port.done && s.port.done.market); }
+  function aucWeek(now, tzMin) { return contestWeek(now, tzMin); }
+  function aucLeft(now, tzMin) { return contestLeft(now, tzMin); }
+  // 도감 fish of 강·바다·섬, no legends, no festival fish
+  function aucPool(s) {
+    return FISH.filter(function (f) { return AUC_SPOTS.indexOf(f.spot) >= 0 && f.rarity !== '전설' && !f.fest && !!s.dex.fish[f.id]; })
+      .map(function (f) { return f.id; });
+  }
+  function aucPick(pool, wk) {
+    var r = seedRng(strHash('auction:' + wk)), p = pool.slice(), out = [];
+    while (out.length < AUC_N && p.length) out.push(p.splice(Math.floor(r() * p.length) % p.length, 1)[0]);
+    return out;
+  }
+  // the week's sale, fixed once the week starts
+  function aucOf(s, now, tzMin) {
+    if (!aucOpen(s)) return null;
+    var wk = aucWeek(now, tzMin);
+    if (!s.port.auc || s.port.auc.wk !== wk) s.port.auc = { wk: wk, ids: aucPick(aucPool(s), wk), sold: {} };
+    return s.port.auc;
+  }
+  function aucFish(s, now, tzMin) { var a = aucOf(s, now, tzMin); return a ? a.ids.slice() : []; }
+  // basket entries are { id, v }: landFish made v = price × (0.7 + 0.6 × size) (× 장날), so the size comes back from v
+  function aucMul(fishId, v) {
+    var f = fishById(fishId);
+    if (!f) return AUC_MIN;
+    var fr = Math.max(0, Math.min(1, (Math.min(v, f.price * 1.3) / f.price - 0.7) / 0.6));   // 장날 ×2 capped off
+    return Math.round((AUC_MIN + (AUC_MAX - AUC_MIN) * fr) * 100) / 100;
+  }
+  // index of the most valuable one of id in the basket, else -1
+  function aucBest(s, id) {
+    var k = -1;
+    s.bag.forEach(function (e, j) { if (e.id === id && (k < 0 || e.v > s.bag[k].v)) k = j; });
+    return k;
+  }
+  function aucSell(s, fishId, now, tzMin) {
+    var a = aucOf(s, now, tzMin);
+    if (!a) return { ok: false, why: 'closed' };
+    if (a.ids.indexOf(fishId) < 0) return { ok: false, why: 'week' };
+    if (a.sold[fishId]) return { ok: false, why: 'sold' };
+    var k = aucBest(s, fishId);
+    if (k < 0) return { ok: false, why: 'need' };
+    var v = s.bag.splice(k, 1)[0].v, mul = aucMul(fishId, v), f = fishById(fishId), coins = Math.round(Math.min(v, f.price * 1.3) * mul);
+    s.coins += coins;
+    a.sold[fishId] = true;
+    var y = yardOf(s);
+    y.mail.push({ k: 'a:' + fishId + ':' + coins, at: now, c: 0, read: true });
+    if (y.mail.length > MAIL_MAX) { var old = y.mail.findIndex(function (m) { return m.read; }); y.mail.splice(old < 0 ? 0 : old, 1); }   // keep unread letters (coins)
+    return { ok: true, coins: coins, mul: mul };
+  }
+  // 'a:<fish>:<coins>' → the result letter (letterText reads it)
+  function aucLetter(k) {
+    var m = /^a:([a-z0-9]+):(\d{1,9})$/.exec(k), f = m && fishById(m[1]);
+    if (!f) return null;
+    var c = f.name.charCodeAt(f.name.length - 1) - 0xAC00, ga = c >= 0 && c < 11172 && c % 28 ? '이' : '가';
+    return '어판장 소식: 이번 주 경매에서 ' + f.name + ga + ' ' + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '코인에 팔렸어요.';
+  }
+
+  // ----- 떠돌이 상인: comes by train once a real day, 3 wares, one pick a day -----
+  var TRADER_N = 3, TRADER_DAY_MS = 86400e3;
+  var TRADER_DECOS = [
+    { id: 'pbuoy',  name: '부표',       cost: 20000, sz: [10, 18] },
+    { id: 'pcrate', name: '생선 상자',  cost: 15000, sz: [20, 12] },
+    { id: 'pnet',   name: '그물 걸이',  cost: 25000, sz: [24, 18] },
+    { id: 'plamp',  name: '항구 가로등', cost: 30000, sz: [8, 30] },
+    { id: 'ptrain', name: '기차 모형',  cost: 40000, sz: [26, 14] }
+  ];
+  TRADER_DECOS.forEach(function (d) { DECOS.push({ id: d.id, name: d.name, cost: d.cost, merchant: true, from: 'port', sz: d.sz }); });
+  var TRADER_STOCK = [{ id: 'gold', name: '황금 수박 씨앗', cost: 2000 }].concat(TRADER_DECOS.map(function (d) {
+    return { id: d.id, name: d.name, cost: d.cost, deco: true };
+  }));
+  function traderById(id) { for (var k = 0; k < TRADER_STOCK.length; k++) if (TRADER_STOCK[k].id === id) return TRADER_STOCK[k]; return null; }
+  function traderOpen(s) { return !!(s.port && s.port.done && s.port.done.station); }
+  function traderDay(now, tzMin) { return Math.floor((now + (tzMin || 0) * 60e3) / TRADER_DAY_MS); }
+  // owned decorations stay home, except today's pick (so the list doesn't change after picking)
+  function traderToday(s, now, tzMin) {
+    if (!traderOpen(s)) return [];
+    var day = traderDay(now, tzMin), mine = s.trader && s.trader.day === day ? s.trader.picked : null;
+    var pool = TRADER_STOCK.filter(function (w) { return !w.deco || w.id === mine || !(s.yard && s.yard.deco[w.id]); });
+    var r = seedRng(strHash('trader:' + day)), out = [];
+    while (out.length < TRADER_N && pool.length) out.push(pool.splice(Math.floor(r() * pool.length) % pool.length, 1)[0].id);
+    return out;
+  }
+  function traderPicked(s, now, tzMin) { return s.trader && s.trader.day === traderDay(now, tzMin) ? s.trader.picked : null; }
+  function traderPick(s, id, now, tzMin) {
+    if (!traderOpen(s)) return { ok: false, why: 'closed' };
+    if (traderToday(s, now, tzMin).indexOf(id) < 0) return { ok: false, why: 'day' };
+    if (traderPicked(s, now, tzMin)) return { ok: false, why: 'picked' };
+    var w = traderById(id);
+    if (s.coins < w.cost) return { ok: false, why: 'coins' };
+    s.coins -= w.cost;
+    var out = { ok: true, name: w.name };
+    if (id === 'gold') { s.seeds.gold++; s.dex.goldSeed = true; }
+    else out.stored = !!grantDeco(s, id).stored;
+    s.trader = { day: traderDay(now, tzMin), picked: id };
+    return out;
+  }
+
+  function decodeAuction(o, s) {
+    var num = function (x) { return typeof x === 'number' && isFinite(x); };
+    var obj = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
+    var q = obj(o.port) ? o.port.auc : null;
+    if (obj(q) && num(q.wk)) {
+      var a = { wk: Math.floor(q.wk), ids: [], sold: {} };
+      if (Array.isArray(q.ids)) q.ids.forEach(function (id) { if (typeof id === 'string' && fishById(id) && a.ids.indexOf(id) < 0 && a.ids.length < AUC_N) a.ids.push(id); });
+      if (obj(q.sold)) a.ids.forEach(function (id) { if (q.sold[id] === true) a.sold[id] = true; });
+      if (!s.port) s.port = { got: {}, done: {} };
+      s.port.auc = a;
+    }
+    var t = o.trader;
+    if (obj(t) && num(t.day)) s.trader = { day: Math.floor(t.day), picked: typeof t.picked === 'string' && traderById(t.picked) ? t.picked : null };
+  }
+
+  expose({
+    AUC_N: AUC_N, AUC_MIN: AUC_MIN, AUC_MAX: AUC_MAX, aucOpen: aucOpen, aucWeek: aucWeek, aucLeft: aucLeft, aucFish: aucFish, aucMul: aucMul,
+    aucBest: aucBest, aucSell: aucSell, aucLetter: aucLetter,
+    TRADER_N: TRADER_N, TRADER_STOCK: TRADER_STOCK, traderById: traderById, traderOpen: traderOpen, traderDay: traderDay,
+    traderToday: traderToday, traderPicked: traderPicked, traderPick: traderPick, decodeAuction: decodeAuction
+  });
+  // ---------- 잠수 지도 (stage 12): 24 hand-placed rooms, one screen each (data only; rules in logic/dive.js) ----------
+  // x/y = grid cell for the minimap (exits always point at the grid neighbour). gate: what a diver needs to come in.
+  // Every deep room also needs the 손전등 (zone rule). bubbles: refill spots [x, y]. things: { id, x, y } where id is a
+  // 해저 도감 id, 'key', 'log' (+ n) or 'box' (+ box). 얕은 여 r0..r7, 난파선 w0..w7 (w0 = 열쇠 문), 심해 d0..d7.
+  // Long passages: w6 → w7 and d1 → d7 have no bubbles on the way, so those two rooms are behind the 큰 산소통.
+  var DIVE_ROOMS = [
+    // 얕은 여: bright, open from the start; the key lies in the far room r7
+    { id: 'r0', zone: 'reef', x: 2, y: 0, exits: { w: 'r1', e: 'r2', s: 'r3' }, bubbles: [[90, 150]],
+      things: [{ id: 'wakame', x: 40, y: 160 }, { id: 'reefschool', x: 130, y: 70 }] },
+    { id: 'r1', zone: 'reef', x: 1, y: 0, exits: { e: 'r0', s: 'r4' }, bubbles: [[40, 160]],
+      things: [{ id: 'coralbit', x: 120, y: 165 }, { id: 'seagrape', x: 60, y: 90 }] },
+    { id: 'r2', zone: 'reef', x: 3, y: 0, exits: { w: 'r0', e: 'r6', s: 'r5' }, bubbles: [],
+      things: [{ id: 'scallop', x: 50, y: 170 }, { id: 'seahorse', x: 130, y: 150 }] },
+    { id: 'r3', zone: 'reef', x: 2, y: 1, exits: { n: 'r0', w: 'r4', e: 'r5' }, bubbles: [[130, 160]],
+      things: [{ id: 'coralbit', x: 45, y: 168 }, { id: 'nudibranch', x: 100, y: 172 }] },
+    { id: 'r4', zone: 'reef', x: 1, y: 1, exits: { n: 'r1', e: 'r3', s: 'w0' }, bubbles: [[30, 150]],
+      things: [{ id: 'wakame', x: 140, y: 165 }, { id: 'coralbit', x: 60, y: 60 }] },
+    { id: 'r5', zone: 'reef', x: 3, y: 1, exits: { n: 'r2', w: 'r3', s: 'd0' }, bubbles: [[150, 150]],
+      things: [{ id: 'scallop', x: 40, y: 170 }, { id: 'reefschool', x: 120, y: 60 }] },
+    { id: 'r6', zone: 'reef', x: 4, y: 0, exits: { w: 'r2', s: 'r7' }, bubbles: [[140, 160]],
+      things: [{ id: 'seagrape', x: 40, y: 165 }, { id: 'seahorse', x: 120, y: 80 }] },
+    { id: 'r7', zone: 'reef', x: 4, y: 1, exits: { n: 'r6' }, bubbles: [[40, 150]],
+      things: [{ id: 'key', x: 130, y: 172 }, { id: 'nudibranch', x: 80, y: 120 }, { id: 'coralbit', x: 150, y: 90 }] },
+    // 난파선: the hull past the 열쇠 문
+    { id: 'w0', zone: 'wreck', x: 1, y: 2, exits: { n: 'r4', w: 'w1', s: 'w3' }, gate: 'key', bubbles: [[140, 150]],
+      things: [{ id: 'scrap', x: 50, y: 168 }, { id: 'mussel', x: 140, y: 60 }] },
+    { id: 'w1', zone: 'wreck', x: 0, y: 2, exits: { e: 'w0', s: 'w2' }, bubbles: [[40, 140]],
+      things: [{ id: 'box', box: 'bxhold', x: 120, y: 168 }, { id: 'wreckcrab', x: 50, y: 172 }] },
+    { id: 'w2', zone: 'wreck', x: 0, y: 3, exits: { n: 'w1', e: 'w3', s: 'w5' }, bubbles: [[140, 160]],
+      things: [{ id: 'log', n: 1, x: 60, y: 160 }, { id: 'scrap', x: 120, y: 70 }] },
+    { id: 'w3', zone: 'wreck', x: 1, y: 3, exits: { n: 'w0', w: 'w2', e: 'w4', s: 'w6' }, bubbles: [[40, 165]],
+      things: [{ id: 'wreckeel', x: 130, y: 150 }, { id: 'mussel', x: 70, y: 60 }] },
+    { id: 'w4', zone: 'wreck', x: 2, y: 3, exits: { w: 'w3', e: 'd2' }, bubbles: [[90, 160]],
+      things: [{ id: 'seaturtle', x: 120, y: 60 }, { id: 'pearlclam', x: 40, y: 172 }] },
+    { id: 'w5', zone: 'wreck', x: 0, y: 4, exits: { n: 'w2', e: 'w6' }, bubbles: [[30, 150]],
+      things: [{ id: 'log', n: 2, x: 130, y: 165 }, { id: 'scrap', x: 70, y: 172 }] },
+    { id: 'w6', zone: 'wreck', x: 1, y: 4, exits: { n: 'w3', w: 'w5', e: 'w7' }, bubbles: [],
+      things: [{ id: 'box', box: 'bxcabin', x: 60, y: 168 }, { id: 'wreckcrab', x: 140, y: 172 }] },
+    { id: 'w7', zone: 'wreck', x: 2, y: 4, exits: { w: 'w6' }, gate: 'tank', bubbles: [[140, 150]],
+      things: [{ id: 'log', n: 3, x: 100, y: 165 }, { id: 'pearlclam', x: 40, y: 172 }, { id: 'seaturtle', x: 130, y: 70 }] },
+    // 심해 동굴: dark, past the 손전등
+    { id: 'd0', zone: 'deep', x: 3, y: 2, exits: { n: 'r5', e: 'd1', s: 'd2' }, gate: 'light', bubbles: [[40, 160]],
+      things: [{ id: 'glowshell', x: 130, y: 170 }, { id: 'lanternfish', x: 60, y: 70 }] },
+    { id: 'd1', zone: 'deep', x: 4, y: 2, exits: { w: 'd0', s: 'd3', e: 'd7' }, gate: 'light', bubbles: [],
+      things: [{ id: 'deepjelly', x: 90, y: 60 }, { id: 'blackcoral', x: 50, y: 172 }] },
+    { id: 'd2', zone: 'deep', x: 3, y: 3, exits: { n: 'd0', w: 'w4', e: 'd3', s: 'd5' }, gate: 'light', bubbles: [[140, 160]],
+      things: [{ id: 'anglerfish', x: 50, y: 80 }, { id: 'glowshell', x: 60, y: 172 }] },
+    { id: 'd3', zone: 'deep', x: 4, y: 3, exits: { n: 'd1', w: 'd2', e: 'd4', s: 'd6' }, gate: 'light', bubbles: [[40, 165]],
+      things: [{ id: 'gulper', x: 130, y: 70 }, { id: 'blackcoral', x: 130, y: 172 }] },
+    { id: 'd4', zone: 'deep', x: 5, y: 3, exits: { w: 'd3' }, gate: 'light', bubbles: [[60, 150]],
+      things: [{ id: 'log', n: 4, x: 130, y: 165 }, { id: 'glowsquid', x: 110, y: 70 }] },
+    { id: 'd5', zone: 'deep', x: 3, y: 4, exits: { n: 'd2', e: 'd6' }, gate: 'light', bubbles: [[140, 150]],
+      things: [{ id: 'deepjelly', x: 50, y: 70 }, { id: 'glowshell', x: 60, y: 172 }] },
+    { id: 'd6', zone: 'deep', x: 4, y: 4, exits: { w: 'd5', n: 'd3' }, gate: 'light', bubbles: [[40, 165]],
+      things: [{ id: 'log', n: 5, x: 130, y: 168 }, { id: 'lanternfish', x: 120, y: 60 }] },
+    { id: 'd7', zone: 'deep', x: 5, y: 2, exits: { w: 'd1' }, gate: 'tank', bubbles: [[140, 150]],
+      things: [{ id: 'box', box: 'bxdeep', x: 100, y: 168 }, { id: 'anglerfish', x: 60, y: 80 }, { id: 'glowsquid', x: 130, y: 60 }] }
+  ];
+  // room.log / room.box mirror what lies there (for the minimap and quick checks)
+  DIVE_ROOMS.forEach(function (r) {
+    r.things.forEach(function (t) { if (t.id === 'log') r.log = t.n; if (t.id === 'box') r.box = t.box; });
+  });
+
+  expose({ DIVE_ROOMS: DIVE_ROOMS });
+  // ---------- 잠수 탐험 (stage 12): gates, gear, 해저 도감, 항해일지, 난파선 상자 (s.dive) ----------
+  // Opens once the 옛 포구 조선소 is rebuilt (lane ① field s.port.done.shipyard, read directly). Map data in logic/divemap.js.
+  // s.dive = { seen: { roomId: true }, got: { id: true }, gear: { tank, light, key }, log: { n: true }, box: { id: true } },
+  // made on the first dive. Oxygen runs in the UI on frame time (it stops while hidden); running out loses nothing.
+  var DIVE_O2 = 60, DIVE_O2_TANK = 120, DIVE_SEE_COINS = 300;
+  var DIVE_DEX = [
+    // 얕은 여
+    { id: 'wakame',      name: '미역',           zone: 'reef',  kind: 'pick', price: 10,  hint: '얕은 바위에 흔들리는 갈색 띠' },
+    { id: 'coralbit',    name: '산호 조각',      zone: 'reef',  kind: 'pick', price: 20,  hint: '여 바닥에 부러진 흰 가지 · 산소통 재료' },
+    { id: 'scallop',     name: '가리비',         zone: 'reef',  kind: 'pick', price: 25,  hint: '모래 위 부채 모양 껍데기' },
+    { id: 'seagrape',    name: '바다포도',       zone: 'reef',  kind: 'pick', price: 35,  hint: '알알이 맺힌 초록 해초' },
+    { id: 'seahorse',    name: '해마',           zone: 'reef',  kind: 'see',  hint: '꼬리를 해초에 감고 꼿꼿이' },
+    { id: 'nudibranch',  name: '갯민숭달팽이',   zone: 'reef',  kind: 'see',  hint: '바위 위를 느릿느릿 · 뿔 두 개' },
+    { id: 'reefschool',  name: '자리돔 떼',      zone: 'reef',  kind: 'see',  hint: '물 가운데 반짝이는 작은 무리' },
+    // 난파선
+    { id: 'scrap',       name: '쇠붙이',         zone: 'wreck', kind: 'pick', price: 15,  hint: '녹슨 배 조각 · 손전등 재료' },
+    { id: 'mussel',      name: '홍합',           zone: 'wreck', kind: 'pick', price: 25,  hint: '뱃전에 다닥다닥 붙은 검은 조개' },
+    { id: 'pearlclam',   name: '진주조개',       zone: 'wreck', kind: 'pick', price: 90,  hint: '난파선 바닥에 숨은 큰 조개' },
+    { id: 'wreckeel',    name: '곰치',           zone: 'wreck', kind: 'see',  hint: '부서진 선창 구멍에서 고개만' },
+    { id: 'seaturtle',   name: '바다거북',       zone: 'wreck', kind: 'see',  hint: '갑판 위를 천천히 지나가는 그림자' },
+    { id: 'wreckcrab',   name: '난파선 게',      zone: 'wreck', kind: 'see',  hint: '상자 옆을 옆걸음으로' },
+    // 심해 동굴
+    { id: 'glowshell',   name: '빛조개',         zone: 'deep',  kind: 'pick', price: 70,  hint: '어둠 속에 은은히 빛나는 껍데기' },
+    { id: 'blackcoral',  name: '검은 산호',      zone: 'deep',  kind: 'pick', price: 110, hint: '깊은 벽에 자라는 검은 가지' },
+    { id: 'anglerfish',  name: '초롱아귀',       zone: 'deep',  kind: 'see',  hint: '머리 위 작은 등불 하나' },
+    { id: 'gulper',      name: '풍선장어',       zone: 'deep',  kind: 'see',  hint: '입만 커다란 긴 물고기' },
+    { id: 'glowsquid',   name: '반딧불오징어',   zone: 'deep',  kind: 'see',  hint: '점점이 깜빡이는 작은 오징어' },
+    { id: 'lanternfish', name: '샛비늘치',       zone: 'deep',  kind: 'see',  hint: '옆구리에 빛 점이 줄지어' },
+    { id: 'deepjelly',   name: '심해 해파리',    zone: 'deep',  kind: 'see',  hint: '어둠 속을 둥실 떠도는 우산' }
+  ];
+  var DIVE_DEX_BY = {};
+  DIVE_DEX.forEach(function (d) { DIVE_DEX_BY[d.id] = d; });
+  var DIVE_ROOM_BY = {};
+  DIVE_ROOMS.forEach(function (r) { DIVE_ROOM_BY[r.id] = r; });
+  var DIVE_GEAR = {
+    tank:  { name: '큰 산소통', coins: 100000, need: [['coralbit', 8], ['iron', 3]] },
+    light: { name: '손전등',    coins: 200000, need: [['scrap', 10], ['copper', 3]] }
+  };
+  var DIVE_BOXES = [
+    { id: 'bxhold',  coins: 4000 },
+    { id: 'bxcabin', deco: 'wreckwheel' },
+    { id: 'bxdeep',  coins: 12000 }
+  ];
+  [
+    { id: 'wreckwheel', name: '난파선 조타륜',   cost: 0, merchant: true, from: 'dive', sz: [14, 18] },
+    { id: 'seamap',     name: '해저 지도 액자', cost: 0, merchant: true, from: 'dive', sz: [16, 14] }
+  ].forEach(function (d) { DECOS.push(d); });
+  // 옛 포구가 버려진 이야기 (포구지기 할머니 이야기와 이어진다)
+  var DIVE_LOG = [
+    '1 · 포구에 배가 가득하던 해. 어판장은 새벽마다 시끌벅적, 기차는 생선을 싣고 도시로 갔다.',
+    '2 · 가을 끝, 큰 폭풍. 등대 불이 꺼지고 다리가 끊겼다. 배들이 서로 부딪혀 가라앉았다.',
+    '3 · 마지막 배 「순풍호」. 남은 사람들을 태우고 나가다 여 바깥에서 멈췄다. 이 일지는 그 배의 것.',
+    '4 · 폭풍 뒤 기차가 끊겼다. 생선을 실어 갈 길이 없으니 사람들도 하나둘 떠났다.',
+    '5 · 포구지기만 남았다. "언젠가 누가 다리를 다시 놓으면, 이 포구도 숨을 쉬겠지."'
+  ];
+
+  function diveRoom(id) { return DIVE_ROOM_BY.hasOwnProperty(id) ? DIVE_ROOM_BY[id] : null; }
+  function diveDexById(id) { return DIVE_DEX_BY.hasOwnProperty(id) ? DIVE_DEX_BY[id] : null; }
+  // basket item info for pickable things (logic/basket.js itemInfo asks here)
+  function diveItem(id) { var d = diveDexById(id); return d && d.kind === 'pick' ? d : null; }
+  function diveOk(s) { return !!(s.port && s.port.done && s.port.done.shipyard); }
+  function diveOf(s) {
+    if (!s.dive) s.dive = { seen: {}, got: {}, gear: { tank: false, light: false, key: false }, log: {}, box: {} };
+    return s.dive;
+  }
+  function diveGear(s, g) { return !!(s.dive && s.dive.gear[g]); }
+  function diveO2Max(s) { return diveGear(s, 'tank') ? DIVE_O2_TANK : DIVE_O2; }
+  function diveCanEnter(s, roomId) {
+    var r = diveRoom(roomId);
+    if (!diveOk(s)) return { ok: false, why: 'closed' };
+    if (!r) return { ok: false, why: 'room' };
+    if (r.gate === 'key' && !diveGear(s, 'key')) return { ok: false, why: 'key' };
+    if ((r.zone === 'deep' || r.gate === 'light') && !diveGear(s, 'light')) return { ok: false, why: 'light' };
+    if (r.gate === 'tank' && !diveGear(s, 'tank')) return { ok: false, why: 'tank' };
+    return { ok: true };
+  }
+  function diveSeenCount(s) { return s.dive ? Object.keys(s.dive.seen).length : 0; }
+  // → { first, map?, stored? } or null if the room is shut. The 24th room seen gives the 해저 지도 액자 (once: seen never shrinks).
+  function diveEnter(s, roomId) {
+    if (!diveCanEnter(s, roomId).ok) return null;
+    var d = diveOf(s), first = !d.seen[roomId];
+    d.seen[roomId] = true;
+    var out = { first: first };
+    if (first && diveSeenCount(s) === DIVE_ROOMS.length) { out.map = true; out.stored = !!grantDeco(s, 'seamap').stored; }
+    return out;
+  }
+  // take / look at thing k of a room. pick → basket (sold if full), see → 도감 (+coins the first time),
+  // key/log/box once. null when it can't be taken (no dive yet, no such thing, already had).
+  function diveTake(s, roomId, k, rng) {
+    var r = diveRoom(roomId);
+    if (!r || !diveOk(s) || !(k >= 0 && k < r.things.length)) return null;
+    var t = r.things[k], d = diveOf(s);
+    if (t.id === 'key') { if (d.gear.key) return null; d.gear.key = true; return { id: 'key', kind: 'key' }; }
+    if (t.id === 'log') { if (d.log[t.n]) return null; d.log[t.n] = true; return { id: 'log', kind: 'log', n: t.n, done: diveLogDone(s) }; }
+    if (t.id === 'box') {
+      if (d.box[t.box]) return null;
+      d.box[t.box] = true;
+      var b = byId(DIVE_BOXES, t.box), res = { id: t.box, kind: 'box' };
+      if (b.coins) { s.coins += b.coins; res.coins = b.coins; }
+      if (b.deco) { var g = grantDeco(s, b.deco); res.deco = b.deco; res.stored = !!g.stored; if (!g.ok) { s.coins += 3000; res.coins = 3000; } }
+      return res;
+    }
+    var x = diveDexById(t.id);
+    if (!x) return null;
+    var first = !d.got[x.id];
+    d.got[x.id] = true;
+    if (x.kind === 'see') {
+      var seen = { id: x.id, kind: 'see', first: first };
+      if (first) { s.coins += DIVE_SEE_COINS; seen.coins = DIVE_SEE_COINS; }
+      return seen;
+    }
+    var v = Math.round(x.price * (0.8 + 0.4 * rng()));
+    return { id: x.id, kind: 'pick', first: first, sold: bagAdd(s, x.id, v) };
+  }
+  // 조선소: 큰 산소통 / 손전등 for coins + materials (cheapest of each taken)
+  function diveBuy(s, gear) {
+    var g = DIVE_GEAR.hasOwnProperty(gear) ? DIVE_GEAR[gear] : null;
+    if (!diveOk(s)) return { ok: false, why: 'closed' };
+    if (!g) return { ok: false, why: 'gear' };
+    if (diveGear(s, gear)) return { ok: false, why: 'got' };
+    if (s.coins < g.coins) return { ok: false, why: 'coins' };
+    if (!g.need.every(function (q) { return bagCount(s, q[0]) >= q[1]; })) return { ok: false, why: 'need' };
+    s.coins -= g.coins;
+    g.need.forEach(function (q) { bagTake(s, q[0], q[1]); });
+    diveOf(s).gear[gear] = true;
+    return { ok: true };
+  }
+  function diveLogCount(s) { return s.dive ? Object.keys(s.dive.log).length : 0; }
+  function diveLogDone(s) { return diveLogCount(s) >= DIVE_LOG.length; }
+  function diveTitles(s) { return diveLogDone(s) ? ['바다 이야기꾼'] : []; }
+  function diveDexCount(s) { var n = 0; if (s.dive) DIVE_DEX.forEach(function (d) { if (s.dive.got[d.id]) n++; }); return n; }
+
+  // ---------- save ----------
+  function decodeDive(o, s) {
+    var q = o.dive;
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var d = { seen: {}, got: {}, gear: { tank: false, light: false, key: false }, log: {}, box: {} };
+    if (q.seen && typeof q.seen === 'object') DIVE_ROOMS.forEach(function (r) { if (q.seen[r.id] === true) d.seen[r.id] = true; });
+    if (q.got && typeof q.got === 'object') DIVE_DEX.forEach(function (x) { if (q.got[x.id] === true) d.got[x.id] = true; });
+    if (q.gear && typeof q.gear === 'object') ['tank', 'light', 'key'].forEach(function (g) { d.gear[g] = q.gear[g] === true; });
+    if (q.log && typeof q.log === 'object') for (var n = 1; n <= DIVE_LOG.length; n++) if (q.log[n] === true) d.log[n] = true;
+    if (q.box && typeof q.box === 'object') DIVE_BOXES.forEach(function (b) { if (q.box[b.id] === true) d.box[b.id] = true; });
+    s.dive = d;
+  }
+
+  expose({
+    DIVE_O2: DIVE_O2, DIVE_O2_TANK: DIVE_O2_TANK, DIVE_SEE_COINS: DIVE_SEE_COINS, DIVE_DEX: DIVE_DEX, DIVE_GEAR: DIVE_GEAR,
+    DIVE_BOXES: DIVE_BOXES, DIVE_LOG: DIVE_LOG, diveRoom: diveRoom, diveDexById: diveDexById, diveItem: diveItem, diveOk: diveOk,
+    diveO2Max: diveO2Max, diveCanEnter: diveCanEnter, diveSeenCount: diveSeenCount, diveEnter: diveEnter, diveTake: diveTake,
+    diveBuy: diveBuy, diveLogCount: diveLogCount, diveLogDone: diveLogDone, diveTitles: diveTitles, diveDexCount: diveDexCount,
+    decodeDive: decodeDive
+  });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -6738,7 +7246,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'farmsign', name: '농장 간판', how: '밭 아래 울타리의 간판을 누르면 농장 이름(' + FARM_NAME_MAX + '자)과 간판 모양 ' + SIGNS.length + '가지 · 결산 카드·친구 기록 코드에 나온다', lock: '' },
     // stage 10 ③
     { id: 'townday', name: '주민들의 하루', how: '주민은 시간대마다 마을 길(' + ['pavilion', 'garden', 'school', 'dock', 'hill'].map(function (k) { return TOWN_PLACES[k].name; }).join('·') + '…)에 나와 있다 · 길에서 누르면 그 자리 이야기, 하루 한 번 친밀도 +' + TOWN_MEET_PTS + ' · 창이 밝으면 집에 있다', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
-    { id: 'newres', name: '새 주민', how: '큰 목표를 이루면 마을에 새 주민 ' + RES_EXTRA.length + '명이 이사 온다 · 이사 편지는 바구니 › 주민 · 새 집을 눌러 방문, 주문·편지·선물도 똑같이', lock: '화석 ' + FOSSILS.length + '종 완성 · 섬 등대 점등 · 박물관 ' + Math.round(TOWN_MUSEUM_PART * 100) + '% 채우기' }
+    { id: 'newres', name: '새 주민', how: '큰 목표를 이루면 마을에 새 주민 ' + RES_EXTRA.length + '명이 이사 온다 · 이사 편지는 바구니 › 주민 · 새 집을 눌러 방문, 주문·편지·선물도 똑같이', lock: '화석 ' + FOSSILS.length + '종 완성 · 섬 등대 점등 · 박물관 ' + Math.round(TOWN_MUSEUM_PART * 100) + '% 채우기' },
+    // stage 11 ①
+    { id: 'port', name: '옛 포구', how: '마을 바닷가 끝 끊긴 다리 · 건물마다 꾸러미 채우고 코인 내면 복구 · ' + PORT_BLDGS.map(function (b) { return b.name; }).join('→'), lock: '마을 + 바다 낚시터' },
+    // stage 11 ②
+    { id: 'auction', name: '어판장 경매', how: '현실 일주일마다 그 주 경매 물고기 ' + AUC_N + '종 (포구 어판장 앞 표지) · 바구니에서 그 종 제일 큰 것을 내면 크기 따라 값 ×' + AUC_MIN + '~×' + AUC_MAX + ' · 종마다 한 주 한 번 · 결과는 우체통 편지로', lock: '옛 포구 어판장 복구' },
+    { id: 'trader', name: '기차 떠돌이 상인', how: '현실 하루 한 번 기차로 온다 · 황금 수박 씨앗과 포구 장식 ' + TRADER_DECOS.length + '가지 중 오늘의 ' + TRADER_N + '개에서 하나 고르기', lock: '옛 포구 기차역 복구' },
+    // stage 12 ③
+    { id: 'dive', name: '잠수', how: '포구 부두의 잠수 표시 · 탭한 쪽으로 헤엄 · 가까이서 탭하면 줍기·관찰 · 산소 ' + DIVE_O2 + '초 (기포에서 채움, 큰 산소통 ' + DIVE_O2_TANK + '초) · 바닥나면 떠오를 뿐 잃는 것 없음', lock: '옛 포구 조선소 복구' },
+    { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -6755,12 +7271,16 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     bike: bikeOk, balloon: villageOk, sled: villageOk,   // stage 9 ③
     garden: gardenOk, brood: function (s) { return !!s.animals && ANIMAL_IDS.some(function (id) { return s.animals[id] > 0; }); }, scaredress: function (s) { return tier(s, 'scare') > 0; },   // stage 10 ②
     contest: contestOk,   // stage 10 ①
-    townday: villageOk, newres: function (s) { return RES_EXTRA.some(function (r) { return resMoved(s, r.id); }); }   // stage 10 ③
+    townday: villageOk, newres: function (s) { return RES_EXTRA.some(function (r) { return resMoved(s, r.id); }); },   // stage 10 ③
+    port: portShown   // stage 11 ①
   };
   // first visit to a scene → the entry whose how-line is shown once ('farm' is where the game starts: no tip)
   var GUIDE_SCENE = { yard: 'yard', house: 'house', forest: 'forest', orchard: 'orchard', village: 'village',
     flat: 'flat', cave: 'cave', stars: 'stars', island: 'island', deep: 'deep', peak: 'peak' };
   GUIDE_SCENE.farisle = 'farisle';   // stage 9 ①
+  GUIDE_SCENE.port = 'port';         // stage 11 ①
+  GUIDE_OPEN.auction = aucOpen; GUIDE_OPEN.trader = traderOpen;   // stage 11 ②
+  GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {
@@ -6961,6 +7481,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       decodeRide(o, s);    // stage 9 ③: s.bike (자전거), s.sled (썰매 기록), s.bal (열기구·하늘 도감; optional)
       decodeToys(o, s); decodeQuest(o, s);   // stage 10 ④: s.toy (장난감 보상 횟수), s.quest (계절 챌린지; optional)
       decodeStage10A(o, s); // stage 10 ①: s.cont (낚시 대회), s.yr (결산 카드), s.farm (농장 간판; optional; after decodeYard)
+      decodePort(o, s);    // stage 11 ①: s.port got/done (옛 포구 꾸러미·복구; optional)
+      decodeAuction(o, s); // stage 11 ②: s.port.auc (어판장 경매), s.trader (기차 상인; optional; after decodePort)
+      decodeDive(o, s);    // stage 12 ③: s.dive (잠수: 밝힌 방, 해저 도감, 장비, 항해일지, 상자; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -7497,6 +8020,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (it && it.kind === 'honey') return honeyIcon(id);     // stage 6A
     if (it && it.kind === 'flat') return flatIcon(id);       // stage 7 갯벌
     if (it && it.kind === 'isle') return driftIcon(id);      // stage 7 섬
+    if (it && it.kind === 'dive') return diveIcon(id);       // stage 12 ③ 잠수
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;
@@ -8799,6 +9323,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     renderQuestCal();  // stage 10 ④: 계절 챌린지
     renderFestCal();   // stage 5B: current / next 계절 축제
     renderContestCal(); // stage 10 ①: 박 영감 낚시 대회
+    renderAuctionCal(); // stage 11 ②: 이번 주 경매
 
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';
@@ -8964,6 +9489,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     renderShipDex(row);     // stage 9 ①: 먼 섬 표류물
     renderRideDex(row);     // stage 9 ③: 하늘 (열기구) + 썰매·자전거 기록
     renderGardenDex(row);   // stage 10 ②: 꽃
+    renderDiveDex(row);     // stage 12 ③: 해저
     renderMuseumDex();      // stage 7 박물관: one progress line
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
@@ -9832,13 +10358,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   app.appendChild(sceneMenu);
   var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'], orchard: ['과수원', '과수원으로'], village: ['마을', '마을로'], flat: ['갯벌', '갯벌로'], island: ['섬', '섬으로'] };
   PLACE.cave = ['동굴', '동굴로'];   // stage 7
+  PLACE.port = ['포구', '옛 포구로'];   // stage 11 ①
   function goScene(sc) {
     if (reel) return;
+    if (view === 'dive' && sc !== 'dive' && dv) return endDive();   // stage 12: surfacing toast, dive state cleared
     closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : '집 안');
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
@@ -9848,7 +10376,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (view === 'home') return ['village'];   // stage 6B: out of a resident's house
     if (view === 'stars') return [starHome];   // stage 7: out of the 별 잇기 view (stage 9: back to the 산꼭대기 too)
     if (view === 'museum') return ['village']; // stage 7 박물관
-    return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak'].filter(function (sc) { return sc !== view && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
+    if (view === 'dive') return [diveHome()];  // stage 12 ③: the button surfaces (포구, else 마을)
+    return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak', 'port'].filter(function (sc) { return sc !== view && (sc !== 'port' || L.portShown(S)) && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
   }
   function placeAttention(sc) {
     if (boomAttention(sc)) return true;   // stage 8: 입질 폭풍 / 대풍년 here
@@ -9859,6 +10388,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (sc === 'flat') return flatAttention();   // stage 7 갯벌: low tide with spots to dig
     if (sc === 'island') return isleAttention();       // stage 7 섬
     if (sc === 'deep' || sc === 'peak') return rideAttention(sc);   // stage 9 ②
+    if (sc === 'port') return portAttention();   // stage 11 ① 옛 포구
     var pond = sc === 'farm';
     return (!pond && yardAttention() > 0) || S.yard.vis.some(function (v) { return (L.visitorById(v.id).slot === 'pond') === pond; });
   }
@@ -9938,6 +10468,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (view === 'island') { drawIsle(tt, dt); return true; }       // stage 7 섬
     if (view === 'deep' || view === 'peak') { drawRideScene(view, tt, dt); return true; }   // stage 9 ②
     if (view === 'farisle') { drawFarIsle(tt); return true; }       // stage 9 ① 먼 섬
+    if (view === 'port') { drawPort(tt, dt); return true; }         // stage 11 ① 옛 포구
+    if (view === 'dive') { drawDive(tt, dt); return true; }         // stage 12 ③ 잠수
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
@@ -9957,6 +10489,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (view === 'island') { tapIsle(x, y); return true; }       // stage 7 섬
     if (view === 'deep' || view === 'peak') { tapRideScene(view, x, y); return true; }   // stage 9 ②
     if (view === 'farisle') { tapFarIsle(x, y); return true; }   // stage 9 ① 먼 섬
+    if (view === 'port') { tapPort(x, y); return true; }         // stage 11 ① 옛 포구
+    if (view === 'dive') { tapDive(x, y); return true; }         // stage 12 ③ 잠수
     if (S.fish.phase === 'bite') return false;
     if (tapIsleWater(x, y)) return true;                          // stage 7 섬: the boat on the 바다 / 섬 shore
     if (tapShipWater(x, y)) return true;                          // stage 9 ①: the boat at 먼바다·난바다
@@ -12643,6 +13177,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     });
     drawMuseumHouse(tt);   // stage 7 박물관
     drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
+    drawPortSign(tt);      // stage 11 ①: 「끊긴 다리」 → 옛 포구
     drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
@@ -12654,6 +13189,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (tapTown(x, y)) return;          // stage 10 ③: people out on the street, 새 주민 cottages
     if (tapMuseumHouse(x, y)) return;   // stage 7 박물관
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
+    if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
@@ -12900,6 +13436,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (sc === 'home' && vilCur) cv.setAttribute('aria-label', L.residentById(vilCur).name + ' 집 안');
     if (sc !== 'home' && sheetKind === 'vil') closeSheet();
     sceneMuseum(sc);   // stage 7 박물관
+    scenePort(sc);     // stage 11 ① 옛 포구
     renderVilBar();
   }
   function tickVillageUI(t) {
@@ -14505,7 +15042,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       p.textContent = cnt.n >= cnt.m ? '이 전시실은 가득 찼어요' : (can.length ? '' : '지금 기증할 수 있는 게 없어요 · ') + '아직 못 구한 것 ' + left + '개 · 힌트는 도감에';
       sheetEl.appendChild(p);
     });
-    var titles = L.museumTitles(S);
+    var titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S));
     var p2 = document.createElement('p'); p2.className = 'note';
     p2.textContent = (titles.length ? '칭호: ' + titles.join(' · ') + ' · ' : '') + '기증해도 도감 기록은 그대로 · 바구니 물건은 하나만 빠져요';
     sheetEl.appendChild(p2);
@@ -14534,7 +15071,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- 도감: one progress line ----------
   function renderMuseumDex() {
     if (!L.museumOk(S) && !S.museum) return;
-    var t = L.museumTotal(S), titles = L.museumTitles(S);
+    var t = L.museumTotal(S), titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S));
     dexHead('박물관', t.n, t.m, L.MUSEUM_ROOM_IDS.map(function (r) { var c = L.museumCount(S, r); return L.MUSEUM_ROOMS[r].name + ' ' + c.n + '/' + c.m; }).join(' · ') +
       (titles.length ? ' · 칭호 ' + titles.join('·') : '') + ' (이동 › 마을)');
   }
@@ -17048,6 +17585,927 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       return L.residentById(id).name;
     };
   }
+  // ---------- 옛 포구 (stage 11 ①): view 'port' — near shore + bridge + quay with 조선소·어판장·기차역, granny, bundle sheet ----------
+  // Logic: logic/port.js. Lanes ②③ put their own signs on this scene through drawPortExtra_auction/_dive and
+  // tapPortExtra_auction/_dive (called only when defined); PORT_AT below is the shared layout they can read.
+  var PORT_AT = {
+    shipyard: [4, 46, 52, 46], market: [62, 54, 50, 38], station: [118, 40, 58, 52],
+    bridge: [78, 104, 24, 58], dock: [4, 92, 34, 20], granny: [134, 150, 14, 26]
+  };
+  var PORT_SIGN = [157, 90, 14, 18];   // the 「끊긴 다리」 sign at the sea end of the 마을 lane
+  var PORT_WHY = { closed: '아직 포구로 가는 길이 없어요', order: '앞 건물부터 고쳐야 해요', got: '이미 넣었어요', need: '지금 가진 게 없어요', bundle: '이 꾸러미 것이 아니에요' };
+  var portSheetFor = null, portSay = '', portAttnAt = 0, portAttn = false, portFx = null;
+  var PORT_PEOPLE = {   // one figure per fixed building: 어부 on the dock, 목수, 짐꾼, 역무원
+    bridge:   { at: [14, 83], rows: ['.444...', '44444..', '.404...', '.444...', '..3....', '.333.4.', '3.3.4..', '.333...', '.3.3...', '.3.3...'] },
+    shipyard: { at: [46, 82], rows: ['..2....', '.444...', '.404...', '.444...', '..3...4', '.33334.', '3.3....', '.333...', '.3.3...', '.3.3...'] },
+    market:   { at: [100, 82], rows: ['.444...', '.404...', '.444...', '..3....', '.3333..', '3.3.444', '..34444', '.3.3444', '.3.3...', '.3.3...'] },
+    station:  { at: [164, 82], rows: ['44444..', '.444...', '.404...', '.444...', '..4....', '.444...', '4.4.4..', '.444...', '.4.4...', '.4.4...'] }
+  };
+
+  function portAttention() {
+    var p = performance.now();
+    if (p - portAttnAt > 1000) { portAttnAt = p; portAttn = L.portCan(S); }
+    return portAttn;
+  }
+  function bridgeOk() { return L.portDone(S, 'bridge'); }
+
+  // ---------- the sign in the 마을 ----------
+  function drawPortSign(tt) {
+    if (!L.portShown(S)) return;
+    var x = PORT_SIGN[0], y = PORT_SIGN[1];
+    px(x + 6, y + 6, 1, 12, 4);                                                    // post
+    px(x, y + 1, 14, 7, 4); px(x + 1, y + 2, 12, 5, 0);                             // board
+    px(x + 2, y + 4, 4, 1, 4); px(x + 8, y + 4, 4, 1, 4); px(x + 6, y + 5, 1, 1, 3); px(x + 7, y + 3, 1, 1, 3);   // a bridge with a gap
+    px(x + 3, y + 5, 1, 1, 4); px(x + 10, y + 5, 1, 1, 4);
+    if (portAttention()) markAbove(x + 7, y, false, tt);
+  }
+  function tapPortSign(x, y) {
+    if (!L.portShown(S) || !hit(PORT_SIGN, x, y, 2)) return false;
+    enterPort();
+    return true;
+  }
+  function enterPort() {
+    portSay = '';
+    goScene('port');
+    toast(bridgeOk() ? '옛 포구 · 건물을 누르면 꾸러미' : '끊긴 다리 · 할머니에게 말 걸기 · 다리를 누르면 꾸러미', 2800);
+  }
+
+  // ---------- pre-rendered sea, quay and shore ----------
+  var bgPort = document.createElement('canvas'); bgPort.width = W; bgPort.height = H;
+  (function paintPort() {
+    var saved = ctx, k; ctx = bgPort.getContext('2d');
+    px(0, 0, W, H, 0);
+    px(0, 26, W, 134, 1);                                                          // sea
+    for (k = 0; k < 90; k++) px(Math.floor(hash(k * 5 + 3) * (W - 4)), 28 + Math.floor(hash(k * 11 + 7) * 130), 3, 1, 2);
+    px(0, 92, W, 12, 3); px(0, 92, W, 1, 4); px(0, 103, W, 1, 4);                  // quay
+    for (k = 2; k < W; k += 8) px(k, 94, 1, 9, 2);
+    for (k = 3; k < W; k += 14) px(k, 104, 2, 4, 4);                              // quay piles
+    px(0, 160, W, 40, 2); px(0, 160, W, 1, 4);                                     // near shore
+    for (k = 0; k < 70; k++) px(Math.floor(hash(k * 13 + 1) * W), 162 + Math.floor(hash(k * 7 + 5) * 38), 1, 1, k % 3 ? 3 : 0);
+    ctx = saved;
+  })();
+
+  // ---------- buildings: old / fixed ----------
+  function boards(x, y, w, h) { px(x, y + 1, w, 1, 3); px(x, y + h - 2, w, 1, 3); px(x + 1, y, 1, h, 2); }
+  function drawShipyard(fixed, tt) {
+    var a = PORT_AT.shipyard, x = a[0], y = a[1], j;
+    for (j = 0; j < 14; j++) px(x + 26 - (6 + j * 2), y + j, 12 + j * 4, 1, fixed ? 4 : (j * 7 + 3) % 5 ? 3 : 1);   // gable roof (holes when old)
+    px(x + 2, y + 14, 48, 32, 4); px(x + 3, y + 15, 46, 31, fixed ? 0 : 2);
+    for (j = y + 17; j < y + 46; j += 4) px(x + 3, j, 46, 1, fixed ? 1 : 3);       // planks
+    px(x + 16, y + 22, 20, 24, 4); px(x + 17, y + 23, 18, 23, fixed ? 2 : 1);     // big door
+    if (fixed) {   // a hull on the slip, a small crane arm
+      px(x + 19, y + 36, 14, 4, 4); px(x + 20, y + 40, 12, 2, 3); px(x + 25, y + 30, 1, 6, 4);
+      px(x + 50, y + 2, 1, 44, 4); px(x + 36, y + 2, 15, 1, 4); px(x + 38, y + 3, 1, 4 + Math.round(Math.sin(tt) * 1), 3);
+    } else { boards(x + 18, y + 26, 16, 10); px(x + 8, y + 20, 5, 1, 1); px(x + 40, y + 30, 1, 6, 1); }
+  }
+  function drawMarket(fixed, tt) {
+    var a = PORT_AT.market, x = a[0], y = a[1], k;
+    px(x, y + 4, 50, 3, 4);                                                        // flat roof
+    px(x + 2, y + 7, 46, 31, 4); px(x + 3, y + 8, 44, 30, fixed ? 0 : 2);
+    for (k = 0; k < 44; k += 4) {                                                  // awning: stripes, torn when old
+      if (fixed) px(x + 3 + k, y + 8, 4, 6, (k / 4) % 2 ? 0 : 4);
+      else if (k % 12) px(x + 3 + k, y + 8, 4, 2 + (k % 3), (k / 4) % 2 ? 1 : 3);
+    }
+    px(x + 5, y + 20, 40, 18, 4); px(x + 6, y + 21, 38, 17, fixed ? 1 : 3);       // open front
+    if (fixed) {   // crates of fish and a hand bell
+      for (k = 0; k < 3; k++) { px(x + 8 + k * 12, y + 30, 10, 7, 4); px(x + 9 + k * 12, y + 31, 8, 3, 0); px(x + 10 + k * 12, y + 32, 5, 1, 3); }
+      var sw = Math.floor(tt * 2) % 2; px(x + 44, y - 2, 1, 6, 4); px(x + 42 + sw, y - 4, 4, 3, 3);
+    } else { boards(x + 8, y + 24, 34, 12); }
+  }
+  function drawStation(fixed, tt) {
+    var a = PORT_AT.station, x = a[0], y = a[1], k;
+    for (k = 0; k < 10; k++) px(x + 29 - (10 + k * 2), y + k, 20 + k * 4, 1, fixed ? 4 : k % 3 ? 3 : 1);   // hip roof
+    px(x + 4, y + 10, 50, 36, 4); px(x + 5, y + 11, 48, 35, fixed ? 0 : 2);
+    px(x + 23, y + 12, 12, 10, 4); px(x + 24, y + 13, 10, 8, fixed ? 0 : 1);      // clock
+    var m = fixed ? Math.floor(tt / 2) % 4 : 1;                                    // minute hand turns once fixed
+    px(x + 26, y + 17, 3, 1, 4); px(x + [28, 29, 28, 25][m], y + [14, 17, 18, 17][m], m % 2 ? 3 : 1, m % 2 ? 1 : 3, 4);
+    for (k = 0; k < 2; k++) { px(x + 8 + k * 34, y + 24, 8, 10, 4); px(x + 9 + k * 34, y + 25, 6, 8, fixed ? 1 : 3); if (!fixed) px(x + 8 + k * 34, y + 28, 8, 1, 2); }
+    px(x + 24, y + 28, 10, 18, 4); px(x + 25, y + 29, 8, 17, fixed ? 2 : 1);      // door
+    if (fixed) { px(x + 6, y + 6, 14, 3, 4); px(x + 7, y + 7, 12, 1, 0); }       // name board on the eave
+    else boards(x + 25, y + 32, 8, 10);
+    px(x - 2, y + 48, 62, 2, 4); for (k = 0; k < 60; k += 5) px(x - 1 + k, y + 50, 2, 1, 3);   // rails
+  }
+  function drawBridge(fixed, tt) {
+    var a = PORT_AT.bridge, x = a[0], y = a[1], k;
+    for (k = 0; k < 4; k++) px(x + 2 + (k % 2) * 18, y + 8 + Math.floor(k / 2) * 34, 2, 10, 4);   // posts
+    for (var j = 0; j < a[3]; j += 3) {
+      if (!fixed && j > 14 && j < 42) continue;                                     // the broken middle
+      px(x, y + j, a[2], 2, 4); px(x + 1, y + j, a[2] - 2, 1, j % 2 ? 2 : 3);
+    }
+    if (fixed) { px(x - 1, y, 1, a[3], 4); px(x + a[2], y, 1, a[3], 4); }
+    else {   // planks hanging into the gap, bobbing
+      var b = Math.round(Math.sin(tt * 2) * 1);
+      px(x + 3, y + 17, 2, 6 + b, 3); px(x + 16, y + 17, 2, 4 - b, 3); px(x + 8, y + 38 + b, 6, 1, 3); px(x + 12, y + 30, 5, 1, 2);
+    }
+  }
+  var PORT_DRAW = { shipyard: drawShipyard, market: drawMarket, station: drawStation };
+
+  function drawGranny(tt) {
+    var a = PORT_AT.granny, b = Math.round(Math.sin(tt * 1.6) * 0.6);
+    spr(['...3333....', '..344443...', '..340403...', '...4444....', '...3333....', '..333333...', '.33333333..', '.3333333.4.', '..333333.4.', '..333333.4.', '...44.44.4.'], a[0], a[1] + 10 + b);
+    px(a[0] + 2, a[1] + 21, 9, 1, 3);
+  }
+  function drawDock(tt) {
+    var a = PORT_AT.dock;
+    px(a[0] + 1, a[1] + 3, 4, 6, 4); px(a[0], a[1] + 2, 6, 1, 4);                  // bollard on the quay
+    px(a[0] + 26, a[1] + 4, 5, 5, 4); px(a[0] + 27, a[1] + 5, 3, 2, 0);            // bait bucket
+    for (var r = 0; r < 14; r++) px(a[0] + 8 + r, a[1] + 2 - Math.floor(r / 3), 1, 1, 4);   // rod held out over the water
+    var bob = Math.round(Math.sin(tt * 1.5));
+    px(a[0] + 22, a[1] - 2, 1, 16 + bob, 3); px(a[0] + 21, a[1] + 14 + bob, 3, 2, 4);   // line and float below the quay
+  }
+  function drawPort(tt, dt) {
+    var e = curEnv(now()), ok = bridgeOk();
+    ctx.drawImage(bgPort, 0, 0);
+    drawSky(tt, e.phase);
+    for (var k = 0; k < 24; k++) { var ph = (tt * 0.25 + k * 0.13) % 1; if (ph < 0.5) px((hash(k * 3 + 1) * W + ph * 6) % W, 110 + Math.floor(hash(k * 9) * 46), 2, 1, 0); }
+    var fxOn = portFx && performance.now() - portFx.t0 < 2600;
+    if (!fxOn) portFx = null;
+    ['shipyard', 'market', 'station'].forEach(function (id) {
+      var fixed = L.portDone(S, id) && !(fxOn && portFx.id === id && performance.now() - portFx.t0 < 900);
+      PORT_DRAW[id](fixed, tt);
+    });
+    if (!ok) { ctx.globalAlpha = 0.5; px(0, 26, W, 78, 1); ctx.globalAlpha = 1; }   // mist over the far side until the bridge stands
+    if (ok) drawDock(tt);
+    L.PORT_BLDGS.forEach(function (b) {
+      var p = PORT_PEOPLE[b.id];
+      if (L.portDone(S, b.id) && !(fxOn && portFx.id === b.id)) spr(p.rows, p.at[0] + Math.round(Math.sin(tt + p.at[0]) * 1), p.at[1]);
+    });
+    drawBridge(ok && !(fxOn && portFx.id === 'bridge' && performance.now() - portFx.t0 < 900), tt);
+    drawGranny(tt);
+    if (typeof drawPortExtra_auction === 'function') drawPortExtra_auction(tt);   // stage 11 ②
+    if (typeof drawPortExtra_dive === 'function') drawPortExtra_dive(tt);         // stage 12
+    var nx = L.portNext(S);
+    if (nx && portAttention()) { var r = PORT_AT[nx.id]; markAbove(r[0] + Math.floor(r[2] / 2), r[1] - 1, false, tt); }
+    if (fxOn) drawPortFx(tt);
+    if (e.phase === 'night') { ctx.globalAlpha = 0.3; px(0, 0, W, H, 4); ctx.globalAlpha = 1; drawStars(tt); }
+  }
+  // fixing: a hammer swinging in the dust, then the name plate drops in
+  function drawPortFx(tt) {
+    var r = PORT_AT[portFx.id], age = performance.now() - portFx.t0, cx = r[0] + Math.floor(r[2] / 2), cy = r[1] + Math.floor(r[3] / 2);
+    if (age < 900) {
+      var up = reduceMotion ? 0 : Math.floor(age / 120) % 2;
+      px(cx - 1, cy - 8 - up * 3, 2, 7, 4); px(cx - 4, cy - 10 - up * 3, 8, 3, 4); px(cx - 3, cy - 9 - up * 3, 6, 1, 2);
+      return;
+    }
+    var drop = reduceMotion ? 0 : Math.max(0, 8 - Math.floor((age - 900) / 30));
+    var py = Math.max(2, r[1] - 12) - drop;
+    px(cx - 13, py, 26, 9, 4); px(cx - 12, py + 1, 24, 7, 0);
+    px(cx - 9, py + 3, 3, 3, 4); px(cx - 8, py + 2, 1, 5, 4); px(cx - 10, py + 4, 5, 1, 4);   // a little star
+    for (var k = 0; k < 3; k++) px(cx - 3 + k * 4, py + 4, 2, 1, 3);
+  }
+
+  function tapPort(x, y) {
+    if (typeof tapPortExtra_auction === 'function' && tapPortExtra_auction(x, y)) return;   // stage 11 ②
+    if (typeof tapPortExtra_dive === 'function' && tapPortExtra_dive(x, y)) return;         // stage 12
+    if (hit(PORT_AT.granny, x, y, 4)) { portSay = L.grannyLine(S, Math.random); toast(portSay + ' · ' + L.portHint(S), 3800); return; }
+    if (hit(PORT_AT.bridge, x, y, 2)) { openPortSheet('bridge'); return; }
+    var ids = ['shipyard', 'market', 'station'];
+    for (var k = 0; k < ids.length; k++) if (hit(PORT_AT[ids[k]], x, y, 1)) {
+      if (!bridgeOk()) { toast('다리가 끊겨 건너갈 수 없어요 · 다리부터 고치기', 2400); return; }
+      openPortSheet(ids[k]); return;
+    }
+    if (bridgeOk() && hit(PORT_AT.dock, x, y, 2)) { openPortSheet('dock'); return; }
+    toast(L.portHint(S), 2600);
+  }
+
+  // ---------- sheet: the tapped building's bundles, a 복구 row; the dock's 바다 낚시터로 ----------
+  function openPortSheet(what) {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'port'; sheetEl.hidden = false; portSheetFor = what;
+    renderPort();
+  }
+  function portIcon(u, id) {
+    if (u.kind === 'junk') return junkCanvas(id);
+    if (u.kind === 'rec') return roomIcon(u.need.rec === 'museum' ? 'fish' : u.need.rec === 'stars' ? 'star' : 'fossil');
+    return itemIcon(id);
+  }
+  function bldgIcon(id) {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(id === 'bridge' ? ['............', '............', '444444444444', '.4.4.4.4.4.4', '.4........4.', '.4........4.']
+      : ['.....44.....', '...444444...', '.4444444444.', '..40000004..', '..40044004..', '..40044004..', '..44444444..'], 0, 3, false, c.getContext('2d'));
+    return c;
+  }
+  function renderPort() {
+    var keep = sheetEl.scrollTop, what = portSheetFor;
+    sheetHead('옛 포구');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = portSay || L.grannyLine(S, function () { return 0; });
+    sheetEl.appendChild(say);
+    if (what === 'dock') {
+      var row = sheetRow(bldgIcon('bridge'), '부두 낚시 자리', '바다 낚시터와 같은 물고기 · 부두에서 낚싯대 드리우기');
+      row.appendChild(vBtn('바다 낚시터로', false, function () { closeSheet(); goScene('farm'); if (S.spot !== 'sea') goSpot('sea'); }, '바다 낚시터로 가기'));
+      sheetEl.scrollTop = keep;
+      return;
+    }
+    var b = L.PORT_BLDGS.filter(function (q) { return q.id === what; })[0], nx = L.portNext(S), cur = !!nx && nx.id === b.id, done = L.portDone(S, b.id);
+    var h3 = document.createElement('h3'); h3.textContent = b.name;
+    var hb = document.createElement('b');
+    hb.textContent = done ? '복구됨' : b.bundles.filter(function (u) { return L.portBundleDone(S, u.id); }).length + ' / ' + b.bundles.length + ' 꾸러미';
+    h3.appendChild(hb); sheetEl.appendChild(h3);
+    if (!done && !cur) { var w = document.createElement('p'); w.className = 'note'; w.textContent = '앞 건물(' + nx.name + ')부터 고쳐야 해요 · 꾸러미는 미리 볼 수 있어요'; sheetEl.appendChild(w); }
+    b.bundles.forEach(function (u) {
+      var c = L.portCount(S, u.id);
+      sheetRow(portIcon(u, L.portSlots(u)[0]), u.name + ' ' + c.n + '/' + c.m, c.n >= c.m ? '다 참 · 받은 보상 ' + u.coins + '코인' : '다 채우면 ' + u.coins + '코인');
+      if (c.n >= c.m) return;   // a full bundle stays one row (short in the small window)
+      L.portSlots(u).forEach(function (id) {
+        var got = L.portGot(S, u.id, id), why = L.portWhy(S, u.id, id), name, sub;
+        if (u.kind === 'rec') { name = L.PORT_REC_NAME[id] + ' ' + u.need.n + '개 이상'; sub = got ? '확인됨' : '지금 ' + L.portRecNow(S, id) + '개 · 기록만 보고 가져가지 않아요'; }
+        else { name = L.portItemName(id); sub = got ? '넣음' : (u.kind === 'junk' ? '고물 상자에 ' : '바구니에 ') + L.portHave(S, u.id, id) + '개'; }
+        var it = sheetRow(portIcon(u, id), name, sub, 'gift');
+        if (got) return;
+        if (u.kind === 'rec') it.appendChild(vBtn('확인', why !== 'ok', function () { doPortPut(u, id, name); }, name + ' 확인하기'));
+        else it.appendChild(vBtn('넣기', why !== 'ok', function () { doPortPut(u, id, name); }, name + ' 넣기'));
+      });
+    });
+    if (!done) {
+      var all = b.bundles.every(function (u) { return L.portBundleDone(S, u.id); });
+      var br = sheetRow(bldgIcon(b.id), b.name + ' 복구', all ? b.coins.toLocaleString('ko-KR') + '코인을 내면 복구' : '꾸러미를 다 채우면 ' + b.coins.toLocaleString('ko-KR') + '코인으로 복구');
+      br.appendChild(vBtn('복구', !cur || !all || S.coins < b.coins, doPortBuild, b.name + ' 복구하기'));
+    }
+    var titles = L.portTitles(S), p2 = document.createElement('p'); p2.className = 'note';
+    p2.textContent = (titles.length ? '칭호: ' + titles.join(' · ') + ' · ' : '') + '바구니 물건은 가장 싼 것 하나만 빠져요 · 기록 칸은 아무것도 가져가지 않아요';
+    sheetEl.appendChild(p2);
+    sheetEl.scrollTop = keep;
+  }
+  function doPortPut(u, id, name) {
+    var r = u.kind === 'rec' ? L.portCheck(S, u.id) : L.portPut(S, u.id, id);
+    if (!r.ok) { toast(PORT_WHY[r.why] || '아직이에요'); renderPort(); return; }
+    portAttnAt = 0;
+    if (r.bundleDone) { toast('★ ' + u.name + ' 완성 · +' + r.coins + '코인', 3000); fxStamp(toastEl); }
+    else toast(josa(name, '을', '를') + ' 넣었다 · ' + u.name + ' ' + L.portCount(S, u.id).n + '/' + L.portCount(S, u.id).m, 2000);
+    refresh(); renderPort();
+  }
+  function doPortBuild() {
+    var r = L.portBuild(S);
+    if (!r.ok) { toast(r.why === 'coins' ? '코인이 모자라요' : r.why === 'bundles' ? '꾸러미를 먼저 다 채워요' : '아직이에요'); renderPort(); return; }
+    portFixed(r.bldg);
+  }
+  function portFixed(b) {
+    closeSheet();
+    portFx = { id: b.id, t0: performance.now() }; portAttnAt = 0; portSay = '';
+    var a = PORT_AT[b.id];
+    for (var k = 0; k < 3; k++) burst(a[0] + a[2] / 2 + (k - 1) * 8, a[1] + a[3] - 4, 10, k % 2 ? 2 : 3, 50);
+    var t = L.portTitles(S);
+    toast('★ ' + b.name + ' 복구! ' + (b.id === 'bridge' ? '포구 안으로 들어갈 수 있어요' : t.length ? '칭호 「' + t[0] + '」' : '포구에 사람이 늘었어요'), 4200);
+    setTimeout(function () { fxStamp(toastEl); }, 900);
+    refresh();
+  }
+  // called by sceneVillage (goScene)
+  function scenePort(sc) {
+    if (sc === 'port') cv.setAttribute('aria-label', '옛 포구');
+    if (sc !== 'port' && /^(port|auction|trader|dive)$/.test(sheetKind)) closeSheet();
+  }
+
+  // ---------- console hooks ----------
+  function addPortHooks(FF) {
+    function open() {
+      if (!L.villageOk(S)) S.rep = Math.max(S.rep, L.VILLAGE_REP);
+      if (!L.spotUnlocked(S, 'sea')) { S.spotOk = S.spotOk || {}; S.spotOk.sea = true; }
+    }
+    // FF.port.fill('market'): fixes every earlier building, then fills that building's bundles (items given, records set)
+    // FF.port.build(): pays (adding coins if short) and fixes the current building with its effect
+    FF.port = {
+      go: function () { open(); enterPort(); refresh(); return L.portHint(S); },
+      fill: function (id) {
+        open();
+        var want = L.PORT_BLDGS.filter(function (b) { return b.id === id; })[0] || L.portNext(S);
+        if (!want) return 'all done';
+        L.PORT_BLDGS.forEach(function (b) {
+          if (L.portDone(S, b.id) || L.PORT_BLDGS.indexOf(b) > L.PORT_BLDGS.indexOf(want)) return;
+          b.bundles.forEach(function (u) {
+            if (u.kind === 'rec') {
+              var n = u.need.n;
+              if (u.need.rec === 'museum') { S.museum = S.museum || { got: {}, done: {} }; S.museum.got.fish = S.museum.got.fish || {}; L.MUSEUM_ROOMS.fish.ids.slice(0, n).forEach(function (f) { S.museum.got.fish[f] = true; }); }
+              else if (u.need.rec === 'stars') { if (!L.skyOk(S)) { S.coins += L.SCOPE_COST; L.buyScope(S); } L.STARS.slice(0, n).forEach(function (c) { L.seeStar(S, c.id, now()); }); }
+              else { if (!S.cave) { S.rep = Math.max(S.rep, L.CAVE_REP); S.coins += L.PICK_COST; L.buyPick(S, now(), Math.random); } L.FOSSILS.slice(0, n).forEach(function (f) { S.cave.done[f.id] = true; }); }
+              L.portCheck(S, u.id);
+              return;
+            }
+            u.ids.forEach(function (it) {
+              if (L.portGot(S, u.id, it)) return;
+              if (u.kind === 'junk') { var j = L.junkOf(S); j.n[it] = (j.n[it] || 0) + 1; }
+              else S.bag.push({ id: it, v: L.itemInfo(it).price });   // over the cap: a test hook
+              L.portPut(S, u.id, it);
+            });
+          });
+          if (b !== want) { S.coins += b.coins; L.portBuild(S); }
+        });
+        portAttnAt = 0; refresh();
+        if (sheetKind === 'port') renderPort();
+        return L.portHint(S);
+      },
+      build: function () {
+        open();
+        var b = L.portNext(S);
+        if (!b) return 'all done';
+        if (S.coins < b.coins) S.coins += b.coins - S.coins;
+        var r = L.portBuild(S);
+        if (r.ok) { if (view !== 'port') enterPort(); portFixed(r.bldg); }
+        return r;
+      }
+    };
+  }
+  // ---------- stage 11 ②: 어판장 경매 (sign + sheet), 기차 떠돌이 상인 (train + sheet), 달력 row, port deco art ----------
+  // Lane ① (port scene) calls drawPortExtra_auction(tt) / tapPortExtra_auction(x, y) when they exist.
+  var AUC_TZ = -new Date().getTimezoneOffset();
+  var AUC_SIGN = { x: 44, y: 90, w: 30, h: 22 };       // 어판장 앞 경매 표지 (post + board)
+  var AUC_TRAIN_Y = 30, AUC_TRAIN_REST = 70, AUC_TRAIN_IN = 3;   // track row, parked x, seconds to pull in
+  var AUC_SELLER = { x: 54, y: 28, w: 10, h: 16 };     // the 상인 by the parked train
+  var aucTrainDay = null, aucTrainT0 = 0, aucTrainIn = false;
+  var AUC_WHY = { closed: '어판장이 아직 문을 안 열었어요', week: '이번 주 경매 물고기가 아니에요', sold: '이번 주엔 이미 냈어요', need: '바구니에 그 물고기가 없어요',
+    day: '오늘 물건이 아니에요', picked: '오늘은 이미 하나 골랐어요 · 내일 또 와요', coins: '코인이 모자라요' };
+
+  // ----- port scene: sign, train, 상인 -----
+  function drawPortExtra_auction(tt) {
+    if (L.aucOpen(S)) drawAucSign(tt);
+    if (L.traderOpen(S)) drawAucTrain(tt);
+  }
+  function drawAucSign(tt) {
+    var r = AUC_SIGN, ids = L.aucFish(S, now(), AUC_TZ), sold = S.port.auc ? S.port.auc.sold : {};
+    px(r.x + 4, r.y + r.h - 6, 2, 8, 4); px(r.x + r.w - 6, r.y + r.h - 6, 2, 8, 4);
+    px(r.x, r.y, r.w, r.h - 4, 4); px(r.x + 1, r.y + 1, r.w - 2, r.h - 6, 0);
+    px(r.x + 2, r.y + 2, r.w - 4, 1, 2);   // 경매 title rule
+    ids.forEach(function (id, k) {
+      var fx = r.x + 3 + k * 9, fy = r.y + 7, c = sold[id] ? 2 : 4;
+      px(fx, fy + 1, 5, 3, c); px(fx + 5, fy, 2, 1, c); px(fx + 5, fy + 4, 2, 1, c); px(fx + 1, fy + 2, 1, 1, 0);
+    });
+    // a small hammer nods when something is still unsold
+    if (ids.some(function (id) { return !sold[id]; }) && Math.floor(tt * 1.5) % 4 === 0) px(r.x + r.w - 4, r.y - 3, 3, 2, 3);
+  }
+  function aucTrainX(tt) {
+    var day = L.traderDay(now(), AUC_TZ);
+    if (aucTrainDay !== day) { aucTrainDay = day; aucTrainT0 = tt; }   // first port visit of the real day: it pulls in
+    var k = Math.min(1, (tt - aucTrainT0) / AUC_TRAIN_IN), e = 1 - (1 - k) * (1 - k);
+    aucTrainIn = k >= 1;
+    return { x: Math.round(W + (AUC_TRAIN_REST - W) * e), in: aucTrainIn };
+  }
+  function drawAucTrain(tt) {
+    var y = AUC_TRAIN_Y, t = aucTrainX(tt), x = t.x;
+    px(0, y + 14, W, 1, 3); for (var k = 0; k < W; k += 6) px(k, y + 15, 3, 1, 2);   // track + sleepers
+    // engine (front left) + two cars
+    px(x, y + 2, 22, 11, 4); px(x + 2, y + 4, 6, 4, 1); px(x + 16, y - 3, 4, 6, 4); px(x - 2, y + 10, 3, 3, 4);
+    [26, 52].forEach(function (o) {
+      px(x + o, y + 3, 24, 10, 4); px(x + o + 1, y + 4, 22, 1, 2);
+      for (var w = 0; w < 3; w++) px(x + o + 3 + w * 7, y + 6, 4, 3, S.port && aucNight() ? 1 : 0);
+    });
+    for (k = 0; k < 6; k++) px(x + 3 + k * 13, y + 13, 3, 2, 3);   // wheels
+    if (!t.in) { var p = Math.floor(tt * 6) % 3; px(x + 17 - p, y - 6 - p * 2, 3, 2, 2); px(x + 19 + p, y - 10 - p, 2, 2, 1); return; }
+    // the 상인: hat, coat, a pack; bobs while today's pick is still open
+    var r = AUC_SELLER, b = !L.traderPicked(S, now(), AUC_TZ) && Math.floor(tt * 2) % 2 ? 1 : 0, sy = r.y - b;
+    px(r.x + 1, sy, 8, 2, 4); px(r.x + 3, sy - 2, 4, 2, 4);
+    px(r.x + 3, sy + 2, 4, 4, 1); px(r.x + 4, sy + 3, 1, 1, 4);
+    px(r.x + 2, sy + 6, 6, 7, 3); px(r.x + 7, sy + 6, 3, 5, 4);
+    px(r.x + 3, sy + 13, 2, 3, 4); px(r.x + 6, sy + 13, 2, 3, 4);
+  }
+  function aucNight() { return curEnv(now()).phase === 'night'; }
+  function tapPortExtra_auction(x, y) {
+    var r = AUC_SIGN;
+    if (L.aucOpen(S) && x >= r.x - 2 && x <= r.x + r.w + 2 && y >= r.y && y <= r.y + r.h + 4) { openAuctionSheet(); return true; }
+    r = AUC_SELLER;
+    if (L.traderOpen(S) && aucTrainIn && x >= r.x - 3 && x <= r.x + r.w + 3 && y >= r.y - 5 && y <= r.y + r.h + 3) { openTraderSheet(); return true; }
+    return false;
+  }
+
+  // ----- 경매 sheet -----
+  function openAuctionSheet() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'auction'; sheetEl.hidden = false;
+    renderAuction();
+  }
+  function renderAuction() {
+    var ids = L.aucFish(S, now(), AUC_TZ);
+    sheetHead('어판장 경매');
+    var line = document.createElement('p'); line.className = 'say';
+    line.textContent = '경매사: 이번 주 물건은 이 셋! 큰 놈일수록 값이 훨씬 뛰어요.';
+    sheetEl.appendChild(line);
+    var h3 = document.createElement('h3'); h3.textContent = '이번 주 경매';
+    var b = document.createElement('b'); b.textContent = fmtReal(L.aucLeft(now(), AUC_TZ)) + ' 남음'; h3.appendChild(b); sheetEl.appendChild(h3);
+    ids.forEach(function (id) {
+      var f = L.fishById(id), sold = !!S.port.auc.sold[id], k = L.aucBest(S, id), v = k < 0 ? 0 : S.bag[k].v, mul = L.aucMul(id, v);
+      var sub = sold ? '이번 주엔 팔았어요 · 다음 주에 또' : k < 0 ? '바구니에 없음 · 낚아 오면 낼 수 있어요'
+        : '제일 큰 것 ' + v + ' × ' + mul + ' = ' + Math.round(v * mul).toLocaleString('ko-KR') + '코인';
+      var ic = fishCanvas(id); ic.className = 'sq';
+      var r = sheetRow(ic, f.name, sub, sold || k < 0 ? 'idle' : '');
+      var btn = document.createElement('button'); btn.type = 'button';
+      btn.textContent = sold ? '팔림' : '내기';
+      btn.setAttribute('aria-label', f.name + ' 경매에 내기');
+      if (sold || k < 0) { btn.disabled = true; btn.className = 'max'; }
+      btn.addEventListener('click', function () {
+        var res = L.aucSell(S, id, now(), AUC_TZ);
+        if (!res.ok) { toast(AUC_WHY[res.why] || '낼 수 없어요'); return; }
+        toast('경매 낙찰! ' + f.name + ' ×' + res.mul + ' · +' + res.coins.toLocaleString('ko-KR') + '코인 · 결과는 우체통에', 3200);
+        floatText('+' + res.coins, AUC_SIGN.x, AUC_SIGN.y);
+        refresh(); renderAuction();
+      });
+      r.appendChild(btn);
+    });
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '바구니에서 그 물고기 중 제일 큰 것 하나를 내요 · 크기 따라 ×' + L.AUC_MIN + '~×' + L.AUC_MAX + ' · 종마다 한 주 한 번 · 월요일에 새 경매';
+    sheetEl.appendChild(p);
+  }
+
+  // ----- 기차 상인 sheet -----
+  function openTraderSheet() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'trader'; sheetEl.hidden = false;
+    renderTrader();
+  }
+  function renderTrader() {
+    var list = L.traderToday(S, now(), AUC_TZ), picked = L.traderPicked(S, now(), AUC_TZ);
+    sheetHead('기차 떠돌이 상인');
+    var line = document.createElement('p'); line.className = 'say';
+    line.textContent = picked ? '상인: 좋은 걸 고르셨네요. 내일 기차로 또 올게요.' : '상인: 기차 타고 먼 데서 왔어요. 오늘은 하나만 골라 가세요.';
+    sheetEl.appendChild(line);
+    var h3 = document.createElement('h3'); h3.textContent = '오늘의 물건';
+    var b = document.createElement('b'); b.textContent = '하루 하나'; h3.appendChild(b); sheetEl.appendChild(h3);
+    list.forEach(function (id) {
+      var w = L.traderById(id), mine = picked === id;
+      var icon = id === 'gold' ? iconCanvas('gold') : decoIcon(id);
+      var r = sheetRow(icon, w.name, id === 'gold' ? '심으면 황금 수박 · 교배 없이' : '포구에서 온 장식 · 상인만 가져와요', picked && !mine ? 'idle' : '');
+      var btn = document.createElement('button'); btn.type = 'button';
+      if (picked) { btn.textContent = mine ? '골랐음' : '내일'; btn.disabled = true; btn.className = 'max'; }
+      else {
+        btn.textContent = w.cost.toLocaleString('ko-KR'); btn.setAttribute('aria-label', w.name + ' 고르기 ' + w.cost + '코인');
+        if (S.coins < w.cost) btn.classList.add('poor');
+        btn.addEventListener('click', function () {
+          var res = L.traderPick(S, id, now(), AUC_TZ);
+          if (!res.ok) { toast(AUC_WHY[res.why] || '살 수 없어요'); btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake'); return; }
+          toast(res.name + (id === 'gold' ? ' 샀다' : res.stored ? ' · 보관함에' : ' · 마당에 놓았다') + ' · 상인: 고마워요!', 2600);
+          if (id === 'gold') renderTray();
+          refresh(); renderTrader();
+        });
+      }
+      r.appendChild(btn);
+    });
+  }
+
+  // ----- 달력 row (renderToday) -----
+  function renderAuctionCal() {
+    if (!L.aucOpen(S)) return;
+    var ids = L.aucFish(S, now(), AUC_TZ), sold = S.port.auc.sold;
+    var h3 = document.createElement('h3'); h3.textContent = '이번 주 경매';
+    var b = document.createElement('b'); b.textContent = fmtReal(L.aucLeft(now(), AUC_TZ)) + ' 남음'; h3.appendChild(b); calEl.appendChild(h3);
+    note(ids.length ? ids.map(function (id) { return L.fishById(id).name + (sold[id] ? ' (팔림)' : ''); }).join(' · ') + ' · 포구 어판장 앞 표지에서'
+      : '도감에 강·바다·섬 물고기가 생기면 다음 주부터 경매');
+  }
+
+  // ----- port decorations (상인만 가져옴) -----
+  DRAW_DECO.pbuoy = function (x, y, tt) {
+    var b = Math.floor((tt || 0) * 1.5) % 2;
+    px(x + 4, y + b, 2, 4, 4); px(x + 3, y - 1 + b, 4, 1, 3);
+    px(x + 1, y + 4 + b, 8, 4, 4); px(x + 1, y + 8 + b, 8, 3, 0); px(x + 1, y + 8 + b, 1, 3, 4); px(x + 8, y + 8 + b, 1, 3, 4);
+    px(x, y + 11 + b, 10, 4, 4); px(x + 2, y + 15, 6, 3, 3);
+  };
+  DRAW_DECO.pcrate = function (x, y) {
+    px(x, y + 4, 20, 8, 4); px(x + 1, y + 5, 18, 6, 1); px(x, y + 7, 20, 1, 4);
+    px(x + 3, y + 1, 6, 3, 2); px(x + 9, y + 2, 2, 1, 2); px(x + 11, y + 2, 5, 2, 3); px(x + 16, y + 1, 1, 1, 3);
+  };
+  DRAW_DECO.pnet = function (x, y) {
+    px(x + 1, y, 2, 18, 4); px(x + 21, y, 2, 18, 4); px(x + 1, y, 22, 2, 4);
+    for (var k = 0; k < 5; k++) { px(x + 4 + k * 4, y + 2, 1, 11 - (k % 2) * 2, 2); }
+    for (k = 0; k < 3; k++) px(x + 3, y + 5 + k * 3, 18, 1, 2);
+    px(x + 9, y + 9, 5, 3, 4); px(x + 14, y + 10, 2, 1, 4);
+  };
+  DRAW_DECO.plamp = function (x, y, tt, night) {
+    px(x + 3, y + 6, 2, 22, 4); px(x + 1, y + 27, 6, 3, 4);
+    px(x + 1, y + 1, 6, 5, 4); px(x + 2, y + 2, 4, 3, night ? 0 : 2); px(x, y, 8, 1, 4);
+    if (night) { px(x - 1, y + 7, 10, 1, 1); }
+  };
+  DRAW_DECO.ptrain = function (x, y, tt) {
+    px(x, y + 12, 26, 2, 3);
+    px(x + 1, y + 4, 11, 7, 4); px(x + 3, y + 5, 3, 3, 0); px(x + 8, y, 3, 4, 4);
+    px(x + 13, y + 5, 12, 6, 4); px(x + 15, y + 6, 3, 2, 0); px(x + 20, y + 6, 3, 2, 0);
+    px(x + 2, y + 11, 2, 2, 2); px(x + 8, y + 11, 2, 2, 2); px(x + 15, y + 11, 2, 2, 2); px(x + 21, y + 11, 2, 2, 2);
+    if (Math.floor((tt || 0) * 2) % 3 === 0) px(x + 9, y - 2, 2, 1, 2);
+  };
+
+  // ---------- console hooks ----------
+  function addAuctionHooks(FF) {
+    // FF.auction.open() opens the 경매 window (rebuilding the 어판장 if needed); .trader() the 상인; .sell(id); .train() replays the arrival
+    var port = function () { if (!S.port) S.port = { got: {}, done: {} }; return S.port; };
+    FF.auction = {
+      open: function () { port().done.market = true; openAuctionSheet(); save(); return S.port.auc; },
+      trader: function () { port().done.station = true; openTraderSheet(); save(); return L.traderToday(S, now(), AUC_TZ); },
+      sell: function (id) { var r = L.aucSell(S, id, now(), AUC_TZ); refresh(); return r; },
+      train: function () { aucTrainDay = null; }
+    };
+  }
+  // ---------- 잠수 탐험 (stage 12): one room = one screen, tap to swim, oxygen, take / look at things ----------
+  // Logic in logic/dive.js + logic/divemap.js. Oxygen runs on frame time (dt), so it stops whenever the game is hidden
+  // (no frames) or behind the boss key; it also waits while the minimap is open. At 0 the diver floats up: nothing is lost.
+  // The 옛 포구 scene (lane ①) calls drawPortExtra_dive / tapPortExtra_dive for the dock marker; diveGearRows fills a sheet.
+  var DIVE_SPEED = 38, DIVE_GAP = 18, DIVE_MID = 110;   // px/s; half width of a passage; e/w passage centre y
+  var DIVE_MARK = [14, 114, 18, 26];                    // dock marker on the 포구 scene (x, y, w, h)
+  var DIVE_MAPBTN = [3, 183, 18, 14];
+  var DIVE_ZONE = { reef: '얕은 여', wreck: '난파선', deep: '심해 동굴' };
+  var dv = null;   // the dive in progress: { room, x, y, tx, ty, o2, want, taken, map, dark, up, face, zones, n }
+  function diveHome() { return L.portShown(S) ? 'port' : L.villageOk(S) ? 'village' : 'farm'; }
+
+  function startDive(roomId) {
+    if (!L.diveOk(S)) { toast('잠수는 옛 포구 조선소를 고친 뒤에', 2200); return false; }
+    var id = roomId && L.diveCanEnter(S, roomId).ok ? roomId : 'r0';
+    L.diveEnter(S, id);
+    dv = { room: id, x: 90, y: 30, tx: 90, ty: 60, o2: L.diveO2Max(S), want: -1, taken: {}, map: false, dark: 0, up: 0, face: 1, zones: {}, n: 0 };
+    dv.zones[L.diveRoom(id).zone] = true;
+    goScene('dive');
+    cv.setAttribute('aria-label', '잠수 · ' + DIVE_ZONE[L.diveRoom(id).zone]);
+    save();
+    return true;
+  }
+  function endDive(why) {
+    var n = dv ? dv.n : 0;
+    dv = null;
+    goScene(diveHome());
+    toast((why === 'o2' ? '숨이 차서 물 위로 · ' : '물 위로 · ') + (n ? '이번에 ' + n + '가지 · ' : '') + '주운 것·밝힌 방은 그대로', 3000);
+    refresh();
+  }
+
+  // ---------- pre-rendered water per zone ----------
+  var bgDive = {};
+  ['reef', 'wreck', 'deep'].forEach(function (z) {
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var saved = ctx; ctx = c.getContext('2d');
+    try {
+      if (z === 'reef') {
+        px(0, 0, W, H, 0);
+        for (var y = 60; y < H; y += 4) px(0, y, W, 2, 1);   // light falling off with depth
+        for (var k = 0; k < 6; k++) for (var j = 0; j < 120; j += 2) px(20 + k * 28 + Math.floor(j / 4), j, 1, 1, 1);   // rays
+        px(0, 182, W, H - 182, 2);
+        for (var s = 0; s < 60; s++) px(Math.floor(hash(s * 7 + 1) * W), 183 + Math.floor(hash(s * 3 + 2) * 16), 1, 1, 3);
+      } else if (z === 'wreck') {
+        px(0, 0, W, H, 1);
+        for (var p = 30; p < 180; p += 12) { px(0, p, W, 1, 2); for (var q = (p / 12) % 2 ? 6 : 26; q < W; q += 40) px(q, p, 1, 12, 2); }   // hull planks
+        px(0, 184, W, H - 184, 3);
+        for (var r2 = 0; r2 < 40; r2++) px(Math.floor(hash(r2 * 11 + 4) * W), 185 + Math.floor(hash(r2 * 5 + 9) * 14), 2, 1, 2);
+      } else {
+        px(0, 0, W, H, 4);
+        for (var m = 0; m < 50; m++) px(Math.floor(hash(m * 13 + 3) * W), Math.floor(hash(m * 17 + 8) * H), 1, 1, 3);   // drifting specks
+        px(0, 186, W, H - 186, 3);
+      }
+    } finally { ctx = saved; }
+    bgDive[z] = c;
+  });
+  // rock walls around a room, a gap where each passage leaves (bumps differ per room)
+  function drawDiveWalls(r) {
+    var col = r.zone === 'reef' ? 3 : r.zone === 'wreck' ? 4 : 3, h0 = r.id.charCodeAt(1) * 31;
+    function bump(k) { return 6 + Math.floor(hash(h0 + k) * 5); }
+    for (var x = 0; x < W; x += 4) {
+      var gapN = r.exits.n && Math.abs(x + 2 - 90) < DIVE_GAP, gapS = r.exits.s && Math.abs(x + 2 - 90) < DIVE_GAP;
+      if (!gapN && r.id !== 'r0') px(x, 0, 4, bump(x) + 6, col);
+      if (!gapS) px(x, H - bump(x + 500), 4, bump(x + 500), col);
+    }
+    for (var y = 0; y < H; y += 4) {
+      var gapW = r.exits.w && Math.abs(y + 2 - DIVE_MID) < DIVE_GAP, gapE = r.exits.e && Math.abs(y + 2 - DIVE_MID) < DIVE_GAP;
+      if (!gapW) px(0, y, bump(y + 900), 4, col);
+      if (!gapE) px(W - bump(y + 1300), y, bump(y + 1300), 4, col);
+    }
+    if (r.id === 'r0') { for (var x2 = 0; x2 < W; x2++) px(x2, 4 + Math.round(Math.sin(x2 / 8 + performance.now() / 600)), 1, 1, 2); }   // the surface
+    // a locked 열쇠 door: bars across the passage
+    Object.keys(r.exits).forEach(function (d) {
+      var o = L.diveRoom(r.exits[d]);
+      if (o.gate !== 'key' || (S.dive && S.dive.gear.key)) return;
+      if (d === 'n' || d === 's') { var yy = d === 'n' ? 2 : H - 10; px(90 - DIVE_GAP, yy, DIVE_GAP * 2, 2, 4); px(90 - DIVE_GAP, yy + 6, DIVE_GAP * 2, 2, 4); for (var b = -DIVE_GAP; b < DIVE_GAP; b += 6) px(90 + b, yy, 2, 8, 4); px(87, yy + 2, 6, 5, 2); px(89, yy + 3, 2, 2, 4); }
+      else { var xx = d === 'w' ? 2 : W - 10; px(xx, DIVE_MID - DIVE_GAP, 2, DIVE_GAP * 2, 4); px(xx + 6, DIVE_MID - DIVE_GAP, 2, DIVE_GAP * 2, 4); for (var b2 = -DIVE_GAP; b2 < DIVE_GAP; b2 += 6) px(xx, DIVE_MID + b2, 8, 2, 4); px(xx + 1, DIVE_MID - 3, 6, 6, 2); }
+    });
+  }
+  // the diver (x, y = centre): mask, tank, kicking fins
+  function drawDiver(x, y, face, tt) {
+    var f = Math.floor(tt * 5) % 2;
+    x = Math.round(x); y = Math.round(y);
+    var rows = ['..444....', '.40044444', '.40044444', '..4444.4.', '....4....'];
+    spr(rows, x - 4, y - 3, face < 0);
+    px(face > 0 ? x - 7 : x + 5, y - 2 + f, 3, 1, 4); px(face > 0 ? x - 7 : x + 5, y + f, 3, 1, 4);   // fins
+    px(face > 0 ? x - 1 : x - 1, y - 5, 3, 2, 3);   // tank
+    if (S.dive && S.dive.gear.light) px(face > 0 ? x + 5 : x - 6, y - 1, 2, 1, 0);
+  }
+  function thingShown(r, k) {
+    var t = r.things[k], d = S.dive;
+    if (dv.taken[r.id + ':' + k]) return false;
+    if (t.id === 'key') return !(d && d.gear.key);
+    if (t.id === 'log') return !(d && d.log[t.n]);
+    if (t.id === 'box') return !(d && d.box[t.box]);
+    return true;
+  }
+  function o2Bar() {
+    var max = L.diveO2Max(S), w = 96, f = Math.max(0, Math.round(w * dv.o2 / max));
+    px(22, 4, w + 2, 7, 4); px(23, 5, w, 5, 2); px(23, 5, f, 5, dv.o2 < 10 && Math.floor(performance.now() / 250) % 2 ? 1 : 0);
+    // bubble icon
+    px(8, 4, 6, 6, 4); px(9, 5, 4, 4, 0); px(10, 6, 1, 1, 4); px(15, 2, 3, 3, 4); px(16, 3, 1, 1, 0);
+  }
+
+  // ---------- scene ----------
+  function drawDive(tt, dt) {
+    if (!dv) { dv = { room: 'r0', x: 90, y: 30, tx: 90, ty: 60, o2: L.diveO2Max(S), want: -1, taken: {}, map: false, dark: 0, up: 0, face: 1, zones: { reef: true }, n: 0 }; }
+    var r = L.diveRoom(dv.room);
+    ctx.drawImage(bgDive[r.zone], 0, 0);
+    if (dv.dark > 0) {   // a deep room without the 손전등: pitch black, then back out
+      px(0, 0, W, H, 4);
+      dv.dark -= dt;
+      if (dv.dark <= 0) dv.dark = 0;
+      return;
+    }
+    var deep = r.zone === 'deep';
+    if (deep) {   // the 손전등 pool of light around the diver
+      ctx.globalAlpha = 0.7;
+      for (var ly = -52; ly < 52; ly += 2) { var sp = Math.round(Math.sqrt(52 * 52 - ly * ly)); px(Math.round(dv.x) - sp, Math.round(dv.y) + ly, sp * 2, 2, Math.abs(ly) < 30 && sp > 40 ? 1 : 2); }
+      ctx.globalAlpha = 1;
+    }
+    // bubble spots: a crack in the floor letting air up
+    r.bubbles.forEach(function (b, j) {
+      px(b[0] - 4, b[1] + 4, 9, 2, deep ? 2 : 3);
+      for (var k = 0; k < 4; k++) {
+        var ph = (tt * 0.8 + k / 4 + j * 0.3) % 1, by = Math.round(b[1] + 2 - ph * 40), bx = b[0] + Math.round(Math.sin(ph * 9 + k) * 2);
+        px(bx, by, 2, 2, deep ? 1 : 4); if (!deep) px(bx, by, 1, 1, 0);
+      }
+    });
+    drawDiveWalls(r);
+    r.things.forEach(function (t, k) {
+      if (!thingShown(r, k)) return;
+      var lit = !deep || Math.hypot(t.x - dv.x, t.y - dv.y) < 52 || t.id === 'glowshell' || t.id === 'anglerfish' || t.id === 'lanternfish' || t.id === 'glowsquid';
+      if (!lit) { px(t.x, t.y - 3, 1, 1, 3); return; }
+      drawDiveThing(t.id, t.x, t.y, tt + k);
+      if (k === dv.want) sparkle(t.x + 7, t.y - 10, tt);
+    });
+    // swim
+    var still = boss || dv.up > 0 || dv.map;
+    if (!still) {
+      var dx = dv.tx - dv.x, dy = dv.ty - dv.y, dist = Math.hypot(dx, dy), step = DIVE_SPEED * dt;
+      if (dist > 0.5) { dv.x += dx / dist * Math.min(step, dist); dv.y += dy / dist * Math.min(step, dist); if (Math.abs(dx) > 1) dv.face = dx > 0 ? 1 : -1; }
+      if (dv.want >= 0) { var wt = r.things[dv.want]; if (!thingShown(r, dv.want)) dv.want = -1; else if (Math.hypot(wt.x - dv.x, wt.y - 4 - dv.y) < 16) { var k2 = dv.want; dv.want = -1; diveTakeNow(r, k2); } }
+      diveEdge(r);
+      // oxygen
+      var near = L.diveRoom(dv.room).bubbles.some(function (b) { return Math.hypot(b[0] - dv.x, b[1] - 10 - dv.y) < 18; });
+      dv.o2 = near ? Math.min(L.diveO2Max(S), dv.o2 + 30 * dt) : dv.o2 - dt;
+      if (dv.o2 <= 0) { dv.o2 = 0; dv.up = 1.6; dv.want = -1; }
+    }
+    if (dv.up > 0 && !boss) {
+      dv.y -= 40 * dt;
+      dv.up -= dt;
+      if (dv.up <= 0) { drawDiver(dv.x, dv.y, dv.face, tt); endDive('o2'); return; }
+    }
+    if (deep) {   // the 손전등 circle: everything outside it stays dim
+      ctx.globalAlpha = 0.55;
+      for (var y = 0; y < H; y += 2) {
+        var span = Math.sqrt(Math.max(0, 52 * 52 - (y - dv.y) * (y - dv.y)));
+        if (!span) { px(0, y, W, 2, 4); continue; }
+        px(0, y, Math.max(0, Math.round(dv.x - span)), 2, 4); px(Math.round(dv.x + span), y, W, 2, 4);
+      }
+      ctx.globalAlpha = 1;
+    }
+    drawDiver(dv.x, dv.y, dv.face, tt);
+    if (Math.floor(tt * 1.5) % 2) px(dv.x + dv.face * 3, dv.y - 6 - Math.floor((tt * 12) % 6), 1, 1, deep ? 1 : 4);
+    o2Bar();
+    // minimap button
+    var mb = DIVE_MAPBTN;
+    px(mb[0], mb[1], mb[2], mb[3], 4); px(mb[0] + 1, mb[1] + 1, mb[2] - 2, mb[3] - 2, 0);
+    for (var j = 0; j < 3; j++) { px(mb[0] + 3 + j * 5, mb[1] + 3, 3, 3, 3); px(mb[0] + 3 + j * 5, mb[1] + 8, 3, 3, j === 1 ? 4 : 2); }
+    if (dv.up > 0) { ctx.globalAlpha = Math.min(1, (1.6 - dv.up) / 1.6); px(0, 0, W, H, 0); ctx.globalAlpha = 1; }
+    if (dv.map) drawDiveMap(tt);
+  }
+  // reaching a passage: next room, or bounce back with the reason
+  function diveEdge(r) {
+    var d = null;
+    if (dv.x < 3 && r.exits.w) d = 'w';
+    else if (dv.x > W - 3 && r.exits.e) d = 'e';
+    else if (dv.y < 3 && r.exits.n) d = 'n';
+    else if (dv.y > H - 3 && r.exits.s) d = 's';
+    if (!d) return;
+    var next = r.exits[d], can = L.diveCanEnter(S, next);
+    var back = { w: [14, DIVE_MID], e: [W - 14, DIVE_MID], n: [90, 18], s: [90, H - 16] }[d];
+    if (!can.ok) {
+      dv.x = back[0]; dv.y = back[1]; dv.tx = dv.x + (d === 'w' ? 16 : d === 'e' ? -16 : 0); dv.ty = dv.y + (d === 'n' ? 16 : d === 's' ? -16 : 0);
+      if (can.why === 'light') { dv.dark = 1.4; toast('너무 어둡다… 아무것도 안 보여 · 조선소에서 손전등을', 2800); }
+      else if (can.why === 'key') toast('녹슨 문이 잠겨 있다 · 얕은 여 어딘가에 열쇠가', 2600);
+      else if (can.why === 'tank') toast('기포 없는 긴 통로 · 큰 산소통이 있으면 끝까지 갈 수 있다', 2800);
+      return;
+    }
+    var res = L.diveEnter(S, next), o = L.diveRoom(next);
+    dv.room = next; dv.want = -1;
+    var arrive = { w: [W - 10, DIVE_MID], e: [10, DIVE_MID], n: [90, H - 12], s: [90, 14] }[d];
+    dv.x = arrive[0]; dv.y = arrive[1];
+    dv.tx = dv.x + (d === 'w' ? -18 : d === 'e' ? 18 : 0); dv.ty = dv.y + (d === 'n' ? -18 : d === 's' ? 18 : 0);
+    if (!dv.zones[o.zone]) { dv.zones[o.zone] = true; toast(DIVE_ZONE[o.zone] + (o.zone === 'deep' ? ' · 손전등 불빛만큼 보인다' : o.zone === 'wreck' ? ' · 가라앉은 옛 배' : ''), 2200); }
+    else if (res && res.first) floatText('새 방 ' + L.diveSeenCount(S) + '/' + L.DIVE_ROOMS.length, dv.x, dv.y - 8);
+    if (res && res.map) setTimeout(function () { toast('★ 해저 지도 완성 · 해저 지도 액자 ' + (res.stored ? '(보관함)' : '(마당)'), 4200); }, 600);
+    save();
+  }
+  function diveTakeNow(r, k) {
+    var t = r.things[k], dx = L.diveDexById(t.id);
+    if (dx && dx.kind === 'pick' && bagStop()) return;
+    var res = L.diveTake(S, r.id, k, Math.random);
+    dv.taken[r.id + ':' + k] = true;
+    if (!res) return;
+    dv.n++;
+    burst(t.x, t.y - 4, 8, r.zone === 'deep' ? 0 : 4, 30);
+    if (res.kind === 'pick') {
+      floatText('+' + dx.name, t.x, t.y - 10);
+      toast((res.first ? '★ 처음 · 해저 도감에 · ' : '') + dx.name + ' 주웠다' + (res.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + res.sold : ''), 2000);
+    } else if (res.kind === 'see') {
+      toast(res.first ? '★ ' + dx.name + ' 발견 · 해저 도감에 · +' + res.coins : dx.name + ' · 오늘도 그 자리에', res.first ? 2800 : 1600);
+    } else if (res.kind === 'key') {
+      toast('★ 녹슨 열쇠! · 난파선 문이 열린다', 3200);
+    } else if (res.kind === 'log') {
+      toast('항해일지 ' + res.n + '/' + L.DIVE_LOG.length + ' · ' + L.DIVE_LOG[res.n - 1], 6500);
+      if (res.done) setTimeout(function () { toast('★ 항해일지 완성 · 칭호 「' + L.diveTitles(S)[0] + '」 · 도감 해저 칸에서 다시 읽기', 4500); }, 6600);
+    } else if (res.kind === 'box') {
+      toast('★ 난파선 상자 · ' + (res.deco ? L.decoById(res.deco).name + (res.stored ? ' (보관함)' : ' (마당)') : '') + (res.coins ? (res.deco ? ' · ' : '') + '+' + res.coins + '코인' : ''), 3600);
+    }
+    refresh();
+  }
+  function tapDive(x, y) {
+    if (!dv || dv.up > 0 || dv.dark > 0) return;
+    if (dv.map) { dv.map = false; return; }
+    if (hit(DIVE_MAPBTN, x, y, 3)) { dv.map = true; toast('해저 지도 ' + L.diveSeenCount(S) + '/' + L.DIVE_ROOMS.length + ' · 아무 데나 누르면 닫기 · 지도 보는 동안 산소는 그대로', 2600); return; }
+    var r = L.diveRoom(dv.room), best = -1, bd = 14;
+    r.things.forEach(function (t, k) { var d = Math.hypot(t.x - x, t.y - 5 - y); if (thingShown(r, k) && d < bd) { bd = d; best = k; } });
+    if (best >= 0) {
+      var t = r.things[best];
+      if (Math.hypot(t.x - dv.x, t.y - 4 - dv.y) < 16) { diveTakeNow(r, best); return; }
+      dv.want = best; dv.tx = t.x; dv.ty = t.y - 4; return;
+    }
+    dv.want = -1;
+    // a tap near an open passage swims right through it; elsewhere the walls hold the diver in
+    var ex = r.exits;
+    if (ex.w && x < 26 && Math.abs(y - DIVE_MID) < DIVE_GAP + 6) { dv.tx = -6; dv.ty = DIVE_MID; return; }
+    if (ex.e && x > W - 26 && Math.abs(y - DIVE_MID) < DIVE_GAP + 6) { dv.tx = W + 6; dv.ty = DIVE_MID; return; }
+    if (ex.n && y < 22 && Math.abs(x - 90) < DIVE_GAP + 6) { dv.tx = 90; dv.ty = -6; return; }
+    if (ex.s && y > H - 22 && Math.abs(x - 90) < DIVE_GAP + 6) { dv.tx = 90; dv.ty = H + 6; return; }
+    dv.tx = Math.max(12, Math.min(W - 12, x)); dv.ty = Math.max(16, Math.min(H - 14, y));
+  }
+
+  // ---------- 옛 포구 hooks (lane ① calls these when they exist) ----------
+  function drawPortExtra_dive(tt) {
+    if (!L.diveOk(S)) return;
+    var m = DIVE_MARK, x = m[0], y = m[1], bob = Math.round(Math.sin(tt * 2));
+    // a buoy with the diver-down flag (white with a dark diagonal)
+    px(x + 8, y + 2 + bob, 1, 14, 4);
+    px(x + 9, y + 2 + bob, 9, 7, 4); px(x + 10, y + 3 + bob, 7, 5, 0);
+    for (var k = 0; k < 7; k++) px(x + 10 + k, y + 3 + bob + Math.floor(k * 5 / 7), 1, 1, 4);
+    px(x + 3, y + 16 + bob, 11, 5, 4); px(x + 4, y + 17 + bob, 9, 2, 1);
+    px(x, y + 22, m[2], 1, 2);
+  }
+  function tapPortExtra_dive(x, y) {
+    if (!L.diveOk(S) || y < DIVE_MARK[1] || !hit(DIVE_MARK, x, y, 3)) return false;   // no top pad: the dock's tap area ends at its top
+    openDiveSheet();
+    return true;
+  }
+  function openDiveSheet() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'dive'; sheetEl.hidden = false;
+    renderDiveSheet();
+  }
+  function renderDiveSheet() {
+    sheetHead('잠수');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = '밝힌 방 ' + L.diveSeenCount(S) + '/' + L.DIVE_ROOMS.length + ' · 해저 도감 ' + L.diveDexCount(S) + '/' + L.DIVE_DEX.length + ' · 항해일지 ' + L.diveLogCount(S) + '/' + L.DIVE_LOG.length;
+    sheetEl.appendChild(say);
+    var r = sheetRow(diveIcon('diver'), '잠수하기', '산소 ' + L.diveO2Max(S) + '초 · 기포에서 다시 채움 · 바닥나도 잃는 것 없음');
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = '들어가기'; b.setAttribute('aria-label', '잠수하기');
+    b.addEventListener('click', function () { closeSheet(); startDive(); });
+    r.appendChild(b);
+    diveGearRows(renderDiveSheet);
+    sheetRow(diveIcon('key'), '난파선 열쇠', S.dive && S.dive.gear.key ? '있음 · 난파선 문이 열려 있다' : '상점에 없음 · 얕은 여 안쪽 어딘가에');
+  }
+  // 조선소 장비 rows (큰 산소통, 손전등) into the open sheet; after = how to redraw that sheet once bought
+  function diveGearRows(after) {
+    ['tank', 'light'].forEach(function (id) {
+      var g = L.DIVE_GEAR[id], have = !!(S.dive && S.dive.gear[id]);
+      var need = g.need.map(function (q) { return L.itemInfo(q[0]).name + ' ' + Math.min(L.bagCount(S, q[0]), q[1]) + '/' + q[1]; }).join(' · ');
+      var row = sheetRow(diveIcon(id), g.name, have ? (id === 'tank' ? '산소 ' + L.DIVE_O2_TANK + '초 · 긴 통로 끝까지' : '심해 동굴이 보인다') : g.coins.toLocaleString('ko-KR') + '코인 · ' + need);
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = have ? '있음' : '만들기';
+      if (have) { b.disabled = true; b.className = 'max'; }
+      else b.addEventListener('click', function () {
+        var res = L.diveBuy(S, id);
+        if (!res.ok) { toast(res.why === 'coins' ? '코인이 모자라요' : res.why === 'need' ? '바구니에 재료가 모자라요 · ' + need : '아직 못 만들어요', 2400); return; }
+        toast('★ ' + g.name + ' · ' + (id === 'tank' ? '산소가 ' + L.DIVE_O2_TANK + '초로' : '이제 심해 동굴로'), 3000);
+        refresh(); if (after) after();
+      });
+      row.appendChild(b);
+    });
+  }
+
+  // ---------- console hooks ----------
+  function addDiveHooks(FF) {
+    FF.dive = {
+      // FF.dive.go('d3') opens the 조선소 field if needed and dives straight into that room (its gate must be open)
+      go: function (roomId) { if (!L.diveOk(S)) { S.port = S.port || { got: {}, done: {} }; S.port.done.shipyard = true; } startDive(roomId); return dv; },
+      o2: function (n) { if (dv) dv.o2 = n === undefined ? L.diveO2Max(S) : n; return dv && dv.o2; },
+      gear: function (id) { if (!S.dive) L.diveEnter(S, 'r0'); if (id === 'all') ['tank', 'light', 'key'].forEach(function (g) { S.dive.gear[g] = true; }); else if (id) S.dive.gear[id] = true; save(); return S.dive.gear; },
+      sheet: function () { openDiveSheet(); return sheetKind; },
+      tap: tapDive,
+      state: function () { return dv && { room: dv.room, x: Math.round(dv.x), y: Math.round(dv.y), o2: Math.round(dv.o2 * 10) / 10, map: dv.map, dark: dv.dark, up: dv.up }; },
+      seeAll: function () { if (!S.dive) L.diveEnter(S, 'r0'); L.DIVE_ROOMS.forEach(function (r) { S.dive.seen[r.id] = true; }); save(); return L.diveSeenCount(S); }
+    };
+  }
+  // ---------- 잠수 (stage 12): minimap overlay, 해저 도감 rows, thing art, basket icons, decorations ----------
+  // Minimap: seen rooms as cells (light 얕은 여 → dark 심해), passages as lines, a stub with a cross where a passage is
+  // still shut for the gear in hand, a stub alone where it leads somewhere not yet seen. The current room blinks.
+  var DMAP = { x: 15, y: 46, w: 20, h: 19, gx: 6 };   // origin, cell size, cell gap
+  function dmapCell(r) { return [DMAP.x + r.x * (DMAP.w + DMAP.gx), DMAP.y + r.y * (DMAP.h + DMAP.gx), DMAP.w, DMAP.h]; }
+  function drawDiveMap(tt) {
+    ctx.globalAlpha = 0.85; px(0, 0, W, H, 0); ctx.globalAlpha = 1;
+    px(8, 28, W - 16, 154, 4); px(10, 30, W - 20, 150, 1);
+    var seen = (S.dive && S.dive.seen) || {}, on = Math.floor(tt * 3) % 2;
+    var STEPV = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] };
+    L.DIVE_ROOMS.forEach(function (r) {
+      if (!seen[r.id]) return;
+      var c = dmapCell(r), cx = c[0] + c[2] / 2, cy = c[1] + c[3] / 2;
+      Object.keys(r.exits).forEach(function (d) {
+        var o = L.diveRoom(r.exits[d]), v = STEPV[d], open = L.diveCanEnter(S, o.id).ok;
+        var len = seen[o.id] ? DMAP.gx : Math.floor(DMAP.gx / 2) + 1;
+        var x0 = d === 'e' ? c[0] + c[2] : d === 'w' ? c[0] - len : cx - 1, y0 = d === 's' ? c[1] + c[3] : d === 'n' ? c[1] - len : cy - 1;
+        if (v[0]) px(x0, y0, len, 3, 4); else px(x0, y0, 3, len, 4);
+        if (!open) { var mx = d === 'e' ? c[0] + c[2] + 2 : d === 'w' ? c[0] - 5 : cx - 2, my = d === 's' ? c[1] + c[3] + 2 : d === 'n' ? c[1] - 5 : cy - 2; px(mx, my, 1, 1, 0); px(mx + 2, my, 1, 1, 0); px(mx + 1, my + 1, 1, 1, 0); px(mx, my + 2, 1, 1, 0); px(mx + 2, my + 2, 1, 1, 0); }
+      });
+    });
+    L.DIVE_ROOMS.forEach(function (r) {
+      var c = dmapCell(r);
+      if (!seen[r.id]) { px(c[0] + c[2] / 2 - 1, c[1] + c[3] / 2 - 1, 2, 2, 2); return; }
+      px(c[0], c[1], c[2], c[3], 4);
+      px(c[0] + 1, c[1] + 1, c[2] - 2, c[3] - 2, r.zone === 'reef' ? 0 : r.zone === 'wreck' ? 2 : 3);
+      if (r.bubbles.length) { px(c[0] + 3, c[1] + c[3] - 5, 2, 2, 4); }
+      if (r.log && !(S.dive && S.dive.log[r.log])) { px(c[0] + c[2] - 6, c[1] + 3, 3, 4, 4); }
+      if (dv && dv.room === r.id && on) { px(c[0] + c[2] / 2 - 2, c[1] + c[3] / 2 - 2, 4, 4, 4); px(c[0] + c[2] / 2 - 1, c[1] + c[3] / 2 - 1, 2, 2, 0); }
+    });
+    // the boat above r0
+    var c0 = dmapCell(L.diveRoom('r0'));
+    px(c0[0] + 4, c0[1] - 8, 14, 3, 4); px(c0[0] + 10, c0[1] - 14, 1, 6, 4); px(c0[0] + 11, c0[1] - 13, 4, 4, 0);
+  }
+
+  // ---------- thing art (x = centre, y = bottom) ----------
+  var DIVE_ART = {
+    wakame:     ['.4..4.', '.40.4.', '..404.', '.4.04.', '.40.4.', '..404.', '.4.4..', '444444'],
+    coralbit:   ['.4..4..', '404.404', '.40404.', '..404..', '..404..', '.44444.'],
+    scallop:    ['..444..', '.40404.', '4040404', '4040404', '.44444.', '..444..'],
+    seagrape:   ['.4.4.4', '404040', '.40404', '..404.', '..4...', '.444..'],
+    seahorse:   ['.444.', '40044', '.404.', '.400.', '..40.', '.404.', '.44..', '..4..'],
+    nudibranch: ['.4...4.', '..4.4..', '.44444.', '4022204', '.44444.'],
+    reefschool: ['.4.....4..', '444...444.', '.4..4..4..', '...444....', '....4.....'],
+    scrap:      ['....44', '..4434', '.43334', '433344', '44444.'],
+    mussel:     ['..44.', '.4334', '43334', '43344', '4344.', '.44..'],
+    pearlclam:  ['.44444.', '4222224', '4220224', '4444444', '.42224.', '..444..'],
+    wreckeel:   ['...444...', '..40044..', '.4444444.', '44.....44'],
+    seaturtle:  ['..4444...', '.422224.4', '422222444', '.422224.4', '.4...4...'],
+    wreckcrab:  ['4.....4', '44...44', '.44444.', '4422244', '.4.4.4.'],
+    glowshell:  ['..444..', '.40004.', '4000004', '4444444'],
+    blackcoral: ['4..4..4', '.4.4.4.', '..444..', '...4...', '...4...', '.44444.'],
+    anglerfish: ['....0..', '...4...', '.44444.', '4400044', '4404444', '.44444.'],
+    gulper:     ['44......', '4044....', '40004444', '4044..44', '44......'],
+    glowsquid:  ['..4..', '.404.', '.404.', '40004', '.4.4.', '4.4.4'],
+    lanternfish:['..4444..', '.400004.', '40404044', '.444444.'],
+    deepjelly:  ['.4444.', '400004', '444444', '.4.4..', '4.4.4.', '.4.4..'],
+    key:        ['.44.....', '4004444.', '40044.44', '.44.....'],
+    log:        ['.44444.', '4000004', '4044404', '4000004', '.44444.'],
+    box:        ['.444444.', '42222224', '44444444', '42204224', '42222224', '44444444'],
+    diver:      ['..444....', '.40044444', '.40044444', '..4444.4.', '....4....'],
+    tank:       ['.44.', '4004', '4004', '4004', '4004', '4444'],
+    light:      ['4444...', '40044..', '4000044', '40044..', '4444...']
+  };
+  var DIVE_SWIM = { seahorse: 1, nudibranch: 0.3, reefschool: 1, wreckeel: 0.5, seaturtle: 1, wreckcrab: 0.4, anglerfish: 1, gulper: 1, glowsquid: 1, lanternfish: 1, deepjelly: 1 };
+  function drawDiveThing(id, x, y, tt) {
+    var rows = DIVE_ART[id];
+    if (!rows) return;
+    var w = rows[0].length, sw = DIVE_SWIM[id] || 0;
+    var bob = sw ? Math.round(Math.sin((tt || 0) * 1.6) * 2 * sw) : 0, dx = id === 'reefschool' || id === 'seaturtle' ? Math.round(Math.sin((tt || 0) * 0.5) * 6) : 0;
+    spr(rows, x - Math.floor(w / 2) + dx, y - rows.length + bob);
+    if (id === 'glowshell' || id === 'anglerfish' || id === 'pearlclam' || id === 'key' || id === 'box' || id === 'log') sparkle(x + Math.ceil(w / 2) + 1, y - rows.length + bob, tt || 0);
+  }
+  function diveIcon(id) {
+    var c = document.createElement('canvas'); c.width = 14; c.height = 14;
+    var saved = ctx; ctx = c.getContext('2d');
+    try { var rows = DIVE_ART[id]; if (rows) spr(rows, 7 - Math.floor(rows[0].length / 2), 12 - rows.length); } finally { ctx = saved; }
+    return c;
+  }
+
+  // ---------- 도감: 해저 ----------
+  function renderDiveDex(row) {
+    if (!L.diveOk(S) && !S.dive) return;
+    var titles = L.diveTitles(S);
+    dexHead('해저', L.diveDexCount(S), L.DIVE_DEX.length, '밝힌 방 ' + L.diveSeenCount(S) + '/' + L.DIVE_ROOMS.length + ' · 항해일지 ' + L.diveLogCount(S) + '/' + L.DIVE_LOG.length + (titles.length ? ' · 칭호 ' + titles.join('·') : '') + ' (포구 부두의 잠수 표시)');
+    L.DIVE_DEX.forEach(function (d) {
+      var got = !!(S.dive && S.dive.got[d.id]), ic = diveIcon(d.id); ic.className = 'sq';
+      row(ic, got ? d.name : '???', got ? { reef: '얕은 여', wreck: '난파선', deep: '심해 동굴' }[d.zone] + ' · ' + (d.kind === 'pick' ? '주워서 바구니로 · ' + d.price + '코인' : '보기만 · ' + d.hint) : d.hint, got ? (d.kind === 'pick' ? '주움' : '봄') : '', !got);
+    });
+    for (var n = 1; n <= L.DIVE_LOG.length; n++) {
+      if (!(S.dive && S.dive.log[n])) continue;
+      var p = document.createElement('p'); p.className = 'note'; p.textContent = '항해일지 ' + L.DIVE_LOG[n - 1];
+      dexEl.appendChild(p);
+    }
+  }
+
+  // ---------- 마당 decorations from the dive ----------
+  DRAW_DECO.wreckwheel = function (x, y, tt) {
+    var cx = x + 7, cy = y + 7, a = (tt || 0) * 0.2;
+    for (var k = 0; k < 8; k++) { var ang = a + k * Math.PI / 4; px(Math.round(cx + Math.cos(ang) * 6), Math.round(cy + Math.sin(ang) * 6), 2, 2, 4); }
+    for (var j = 0; j < 16; j++) { var b = j * Math.PI / 8; px(Math.round(cx + Math.cos(b) * 4), Math.round(cy + Math.sin(b) * 4), 1, 1, 3); }
+    px(cx - 1, cy - 1, 3, 3, 4); px(x + 6, y + 13, 3, 5, 3); px(x + 3, y + 17, 9, 1, 4);
+  };
+  DRAW_DECO.seamap = function (x, y) {
+    px(x, y, 16, 12, 4); px(x + 1, y + 1, 14, 10, 0);
+    [[3, 3], [7, 3], [11, 3], [3, 7], [7, 7], [11, 7]].forEach(function (p, k) { px(x + p[0], y + p[1], 3, 2, k < 3 ? 1 : k < 5 ? 2 : 3); });
+    px(x + 6, y + 4, 1, 1, 4); px(x + 10, y + 4, 1, 1, 4); px(x + 4, y + 5, 1, 2, 4);
+    px(x + 6, y + 12, 1, 2, 4); px(x + 9, y + 12, 1, 2, 4);
+  };
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -17311,6 +18769,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   addToyHooks(globalThis.FF); addQuestHooks(globalThis.FF);   // stage 10 ④: FF.toy(), FF.quest(cmd)
   addContestHooks(globalThis.FF);  // stage 10 ①: FF.contest(frac|'end'), FF.year('end')
   addTownHooks(globalThis.FF);     // stage 10 ③: FF.town(id) moves a new resident in, FF.town() who is out where
+  addPortHooks(globalThis.FF);     // stage 11 ①: FF.port.go(), FF.port.fill(bldgId), FF.port.build()
+  addAuctionHooks(globalThis.FF);  // stage 11 ②: FF.auction.open(), .trader(), .sell(id), .train()
+  addDiveHooks(globalThis.FF);     // stage 12 ③: FF.dive.go(room), .o2(n), .gear(id), .sheet(), .state()
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

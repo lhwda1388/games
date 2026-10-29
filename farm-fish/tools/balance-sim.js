@@ -26,6 +26,11 @@
 // street, new residents join the village round once moved in).
 // 박물관 collector: once the museum is open, a look goes where an insect still missing can show up right now (a 챌린지
 // bug still comes first); --nobughunt keeps the old random place. The report lists each room's missing ids (id×runs).
+// Stage 11: 옛 포구 (every look puts whatever the current building's bundles can take; items for its open bag slots, the
+// cook bundle's dishes and their parts, and one of each 잡동사니 slot are kept, not sold; the building itself is a PLAN
+// entry), 어판장 경매 (the biggest one of each of the week's 3 species is kept and sold once it is ≥ ×2.6 or the week
+// has under 3 days left), 떠돌이 상인 (a decoration not owned yet when coins ≥ 3× its price, else the 황금 수박 씨앗
+// when it costs less than the 2,400 melon). Stage 12: 잠수 one dive per look once the 조선소 is fixed (see diveChores).
 'use strict';
 process.env.TZ = 'Asia/Seoul';
 const vm = require('node:vm');
@@ -42,7 +47,8 @@ vm.runInThisContext(logicSrc, { filename: 'logic.js' });
 const L = globalThis.Logic;
 
 const TZ = 540, MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR;
-const START = new Date(2026, 10, 2, 0, 0).getTime();      // Monday 2026-11-02 00:00 KST
+// --weeks=N: start N weeks later (week 1 is summer; --weeks=3 starts in spring), to see a season-gated goal fall elsewhere
+const START = new Date(2026, 10, 2 + 7 * +((process.argv.find((a) => a.startsWith('--weeks=')) || '=0').split('=')[1]), 0, 0).getTime();   // Monday 2026-11-02 00:00 KST
 const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const DAYS = +(ARGS[1] || 14);
 const NOMINI = process.argv.includes('--nomini');
@@ -105,7 +111,10 @@ const PLAN = [
   ['up', 'rod'], ['up', 'scare'], ['animal', 'cow'], ['seed', 'tomato'], ['animal', 'duck'], ['furn', 'bed'], ['up', 'field'],
   ['tree'], ['tree'], ['hive'], ['up', 'bait'], ['seed', 'corn'], ['house'], ['tree'], ['tree'], ['deco', 'bench'], ['deco', 'tree'], ['spot', 'sea'], ['pick'], ['boat'], ['up', 'rod'],
   ['up', 'basket'], ['up', 'scare'], ['up', 'bait'], ['animal', 'hen'], ['animal', 'cow'], ['animal', 'duck'],
-  ['seed', 'pumpkin'], ['tree'], ['tree'], ['hive'], ['tree'], ['tree'], ['house'], ['ship'], ['ship'],
+  // 옛 포구: each building is saved for only once its bundles are full (else skipped like a gated item).
+  // 다리 before the 배 (cheap, and its bundles are the slow part); 조선소·어판장·기차역 after the 통통배, which earns
+  // (먼바다·난바다 fish) where the 포구 only pays its small bundle coins; the 어판장 waits for winter fruit anyway.
+  ['seed', 'pumpkin'], ['tree'], ['tree'], ['hive'], ['tree'], ['tree'], ['port'], ['house'], ['ship'], ['ship'], ['port'], ['port'], ['port'],
   ...L.DECOS.filter((d) => !d.merchant).map((d) => ['deco', d.id]), ...L.FURN.map((f) => ['furn', f.id])
 ];
 function owned(s, p) {
@@ -144,6 +153,10 @@ function buyNext(s, now, log) {
     else if (p[0] === 'up') { if (L.tier(s, p[1]) >= seen[key]) continue; cost = L.upgradeCost(s, p[1]); if (cost === null) continue; }
     else if (p[0] === 'animal') { if ((s.animals[p[1]] || 0) >= seen[key]) continue; cost = L.animalCost(s, p[1]); if (cost === null) continue; gated = L.houseTier(s) < L.ANIMALS[p[1]].house; }
     else if (p[0] === 'ship') { if (L.shipTier(s) < 0 || L.shipTier(s) >= seen[key]) continue; const nx = L.shipNext(s); if (!nx) continue; cost = nx.coins; gated = L.shipStatus(s) === 'item'; label = 'ship:' + nx.id; }
+    else if (p[0] === 'port') {
+      const b = L.portNext(s); if (!b || !L.portShown(s) || L.PORT_BLDGS.indexOf(b) !== seen[key] - 1) continue;
+      cost = b.coins; gated = !b.bundles.every((u) => L.portBundleDone(s, u.id)); label = 'port:' + b.id;
+    }
     else if (p[0] === 'house') { if (L.houseTier(s) >= seen[key]) continue; const n = L.houseNext(s); if (!n) continue; cost = n.cost; gated = s.rep < n.rep; label = 'house:' + n.id; }
     else if (owned(s, p)) continue;
     else if (p[0] === 'seed') cost = L.seedCost(s, p[1]);
@@ -178,6 +191,7 @@ function buyNext(s, now, log) {
     else if (p[0] === 'pick') done = L.buyPick(s, now, s._rng).ok;
     else if (p[0] === 'boat') done = L.fixBoat(s).ok;
     else if (p[0] === 'ship') done = L.upgradeShip(s).ok;
+    else if (p[0] === 'port') done = L.portBuild(s).ok;
     else if (p[0] === 'donkey') done = L.buyDonkey(s, '', now).ok;
     else if (p[0] === 'bike') done = L.buyBike(s).ok;
     else if (p[0] === 'hive') { done = L.buyHive(s, now).ok; label = 'hive' + seen[key]; }
@@ -194,7 +208,8 @@ function run(archId, seed) {
   const tryMini = () => !NOMINI && rng() < M.try;
   const s = L.newState(START, rng);
   L.yardOf(s); s.born = START; s._rng = rng;
-  const out = { events: {}, daily: [], spent: 0, fishTry: {}, fishOk: {}, earn: { raw: 0, order: 0, dish: 0, other: 0, forage: 0, pet: 0, junk: 0, fest: 0, mini: 0, orchard: 0, honey: 0, bug: 0, village: 0, flat: 0, cave: 0, sky: 0, isle: 0, islefish: 0, museum: 0, treasure: 0, shipfish: 0, far: 0, donkey: 0, bike: 0, ride: 0, contest: 0, toy: 0, quest: 0 },
+  const out = { events: {}, daily: [], spent: 0, fishTry: {}, fishOk: {}, earn: { raw: 0, order: 0, dish: 0, other: 0, forage: 0, pet: 0, junk: 0, fest: 0, mini: 0, orchard: 0, honey: 0, bug: 0, village: 0, flat: 0, cave: 0, sky: 0, isle: 0, islefish: 0, museum: 0, treasure: 0, shipfish: 0, far: 0, donkey: 0, bike: 0, ride: 0, contest: 0, toy: 0, quest: 0, port: 0, auction: 0, dive: 0 },
+    portLooks: 0, aucN: 0, aucMul: 0, aucBase: 0, traderSpent: 0, traderN: 0, dives: 0, diveRooms: 0, diveSecs: 0, diveAt: {},
     bikeTry: 0, bikeClean: 0, bikeFlowers: 0, balRides: 0, sledRuns: 0, dkFed: 0, rides: 0, farN: 0,
     pieces: { junk: 0, cave: 0, drift: 0 }, rumorBy: {}, castMul: 0, castN: 0, boomLooks: 0, boomCalls: 0,
     bugTry: 0, bugOk: 0, vilPts: 0, cells: 0, digs: 0, trapN: 0, drift: 0, stars: 0, wishes: 0,
@@ -229,15 +244,31 @@ function run(archId, seed) {
     L.CAVE_CRAFT.forEach((c) => { if (L.caveOk(s) && !(s.yard && s.yard.deco[c.id])) Object.keys(c.need).forEach((x) => { keep[x] = (keep[x] || 0) + c.need[x]; }); });
     const nx = L.shipNext(s); if (nx) nx.need.forEach(([id, n]) => { keep[id] = (keep[id] || 0) + n; });   // 배 materials
     if (s.donkey && s.donkey.fn < L.DONKEY_FEEDS_DAY) keep.potato = (keep.potato || 0) + 1;                 // one 먹이 on hand
+    portWants().forEach((id) => { keep[id] = (keep[id] || 0) + 1; });                                     // 포구 bag slots
+    portDishes().forEach((r) => r.need.forEach((x) => { keep[x] = (keep[x] || 0) + 1; }));               // and the dishes' parts
+    aucWants().forEach((id) => { keep[id] = Math.max(keep[id] || 0, 1); });                               // 경매: the best one
+    if (L.diveOk(s)) Object.keys(L.DIVE_GEAR).forEach((g) => { if (!(s.dive && s.dive.gear[g])) L.DIVE_GEAR[g].need.forEach(([id, n]) => { keep[id] = (keep[id] || 0) + n; }); });
     return keep;
   }
+  // ---------- stage 11/12 helpers ----------
+  // bag items the current 포구 building still wants (one each), the dishes of its cook bundle not in hand
+  function portOpenSlots(kind) {
+    const b = L.portShown(s) && L.portNext(s); if (!b) return [];
+    const out2 = [];
+    b.bundles.forEach((u) => { if (u.kind === kind) L.portSlots(u).forEach((id) => { if (!L.portGot(s, u.id, id)) out2.push(id); }); });
+    return out2;
+  }
+  function portWants() { return portOpenSlots('bag'); }
+  function portDishes() { return portWants().filter((id) => L.recipeById(id) && !L.bagCount(s, id)).map((id) => L.recipeById(id)).filter((r) => L.obtainable(s, r.id)); }
+  function aucWants() { if (!L.aucOpen(s) || !s._t) return []; const a = s.port.auc && s.port.auc.wk === L.aucWeek(s._t, TZ) ? s.port.auc : null; return L.aucFish(s, s._t, TZ).filter((id) => !(a && a.sold[id])); }
   function sellExtra() {
-    const keep = keepSet(), have = {};
+    const keep = keepSet(), have = {}, aw = aucWants();
+    aw.forEach((id) => { const k = L.aucBest(s, id); if (k > 0) s.bag.unshift(s.bag.splice(k, 1)[0]); });   // the kept one is the biggest
     s.bag = s.bag.filter((e) => {
       have[e.id] = (have[e.id] || 0) + 1;
       if (have[e.id] <= (keep[e.id] || 0)) return true;
       const kind = L.itemInfo(e.id).kind, extra = e.mini || 0;
-      s.coins += e.v; out.earn[e.src || (kind === 'dish' ? 'dish' : kind === 'forage' ? 'forage' : kind === 'fruit' ? 'orchard' : kind === 'honey' ? 'honey' : kind === 'flat' ? 'flat' : kind === 'isle' ? 'isle' : kind === 'ore' || kind === 'gem' || kind === 'fossil' ? 'cave' : 'raw')] += e.v - extra; out.earn.mini += extra;
+      s.coins += e.v; out.earn[e.src || (kind === 'dish' ? 'dish' : kind === 'forage' ? 'forage' : kind === 'fruit' ? 'orchard' : kind === 'honey' ? 'honey' : kind === 'flat' ? 'flat' : kind === 'isle' ? 'isle' : kind === 'ore' || kind === 'gem' || kind === 'fossil' ? 'cave' : kind === 'dive' ? 'dive' : 'raw')] += e.v - extra; out.earn.mini += extra;
       if (extra) out.miniBy[kind === 'dish' ? 'heat' : kind === 'forage' ? 'forage' : 'harvest'] += extra; return false;
     });
   }
@@ -258,6 +289,8 @@ function run(archId, seed) {
     // the best known dish's crops (one batch)
     const best = targetDish();
     if (best) best.need.forEach((x) => { if (L.CROPS[x]) need[x] = (need[x] || 0) + 1; });
+    portWants().forEach((id) => { if (L.CROPS[id] && L.cropSeasonOk(id, season(s._t))) need[id] = (need[id] || 0) + 1; });   // 포구 밭 꾸러미
+    portDishes().forEach((r) => r.need.forEach((x) => { if (L.CROPS[x] && L.cropSeasonOk(x, season(s._t))) need[x] = (need[x] || 0) + 1; }));
     const out2 = [];
     Object.keys(need).forEach((id) => { for (let k = (have[id] || 0); k < need[id]; k++) out2.push(id); });
     return out2;
@@ -281,6 +314,10 @@ function run(archId, seed) {
     const want = {}; s.orders.forEach((q) => { if (q.o && L.fishById(q.o.id)) want[q.o.id] = 1; });
     vilWants().forEach(([id, n]) => { if (L.fishById(id) && L.bagCount(s, id) < n) want[id] = 1; });
     questTodo('fish').forEach((id) => { want[id] = 1; });
+    aucWants().forEach((id) => { if (!L.bagCount(s, id)) want[id] = 1; });   // 경매 species not in hand count ×3, like an order
+    // 포구: a bundle fish not in hand that bites somewhere right now → go there (the bundle shows which and the 도감 hint where)
+    const pw = portWants().concat(...portDishes().map((r) => r.need)).filter((id, k, a) => L.fishById(id) && L.bagCount(s, id) < a.filter((x) => x === id).length);
+    for (const sp of spots) { s.spot = sp; if (L.availableFish(d, s, e).some((f) => pw.includes(f.id))) { out.portLooks++; return; } }
     let best = null, bestV = -1;
     if (e.boom && e.boom.kind === 'storm' && spots.includes(e.boom.place)) { s.spot = e.boom.place; out.boomLooks++; return; }   // the chip says where
     spots.forEach((sp) => {
@@ -351,6 +388,7 @@ function run(archId, seed) {
       r.items.forEach((pid) => { const v = L.itemInfo(pid).price, kind = pid === 'egg' ? 'hen' : pid === 'milk' ? 'cow' : 'duck'; out.animalV += v; out.kidV += v * kidPart[kind]; });
     }
     broodChores(t);
+    if (portWants().length) sellExtra();   // room for a 포구 crop or fruit (the eggs since last time fill the basket)
     for (let i = 0; i < s.plots.length; i++) {
       const r = L.harvest(s, i, t, rng);
       if (!r) continue;
@@ -389,6 +427,7 @@ function run(archId, seed) {
     // cook the best dish we can (keeping order items), before delivering so dish orders can use it later
     deliverAll(t);
     villageChores(t);
+    portDishes().forEach((r) => { if (L.canCook(s, r.id)) L.cook(s, r.id, t); });   // 포구 요리 꾸러미 first
     for (let k = 0; k < 3; k++) {
       const r = L.RECIPES.filter((x) => L.canCook(s, x.id) && !s.orders.some((q) => q.o && x.need.includes(q.o.id) && L.bagCount(s, q.o.id) <= q.o.n)).sort((a, b) => b.sell - a.sell)[0];
       if (!r || !L.cook(s, r.id, t)) break;
@@ -401,6 +440,10 @@ function run(archId, seed) {
       const it = L.itemInfo(q.o.id), now = L.fishById(q.o.id) ? (() => { const sp = s.spot; const ok = L.SPOT_IDS.some((id) => { if (!L.spotUnlocked(s, id)) return false; s.spot = id; return L.availableFish(new Date(t), s, env(t)).some((f) => f.id === q.o.id); }); s.spot = sp; return ok; })() : L.obtainable(s, q.o.id);
       if (t - orderAge[key] > 6 * HOUR || (t - orderAge[key] > 3 * HOUR && (!now || it.kind === 'dish'))) { L.discard(s, k, t, rng); delete orderAge[key]; }
     });
+    portChores(t);
+    auctionChores(t);
+    traderChores(t);
+    diveChores(t);
     sellExtra();
     if (L.dailyDone(s) && !s.daily.paid) { const r = L.claimDaily(s); out.earn.other += r.coins; out.dailyPaid++; }
     questChores(t);
@@ -499,7 +542,8 @@ function run(archId, seed) {
   // recycle what we can, open boxes (lock-pick sometimes), sell scrap nobody needs any more; keys are kept for boxes
   function junkChores() {
     if (!s.junk) return;
-    L.RECYCLE.forEach((r) => { while (L.canRecycle(s, r.id) === 'ok') { L.recycle(s, r.id); if (r.id !== 'chest') log('recycle:' + r.id, t0()); } });
+    const keyOpen = L.portShown(s) && !L.portDone(s, 'shipyard') && !L.portGot(s, 'junk', 'key');   // 포구 잡동사니 꾸러미 wants one 열쇠
+    L.RECYCLE.forEach((r) => { while (L.canRecycle(s, r.id) === 'ok' && !(r.id === 'chest' && keyOpen && L.junkCount(s, 'key') < 3)) { L.recycle(s, r.id); if (r.id !== 'chest') log('recycle:' + r.id, t0()); } });
     while (s.junk.box > 0) {
       const tier = tryMini() && rng() < M.pick ? 1 : 0, c0 = s.coins, r = L.openChest(s, rng, tier);
       out.chests++;
@@ -509,7 +553,7 @@ function run(archId, seed) {
     }
     if (!L.isleOk(s)) return;           // scrap is kept for the 섬 boat until it is fixed
     L.SCRAP_IDS.forEach((id) => {
-      if (id === 'key') return;
+      if (id === 'key' || (!L.portDone(s, 'shipyard') && ['boot', 'can', 'bottle'].includes(id) && !L.portGot(s, 'junk', id))) return;   // 포구 잡동사니 꾸러미
       if (L.RECYCLE.every((r) => !r.need[id] || (s.yard && s.yard.deco[r.id]))) out.earn.junk += L.sellScrap(s, id);
     });
   }
@@ -621,6 +665,103 @@ function run(archId, seed) {
     const m = L.museumTotal(s);
     if (m.n * 2 >= m.m) log('museumHalf', t);
   }
+  // ---------- stage 11: 옛 포구·경매·상인 ----------
+  // put whatever the current building can take now (bag slots take the cheapest one, record slots are just checked)
+  function portChores(t) {
+    if (!L.portShown(s)) return;
+    log('portOpen', t);
+    const b = L.portNext(s); if (!b) return;
+    b.bundles.forEach((u) => L.portSlots(u).forEach((id) => {
+      if (L.portWhy(s, u.id, id) !== 'ok') return;
+      const c0 = s.coins, r = u.kind === 'rec' ? L.portCheck(s, u.id) : L.portPut(s, u.id, id);
+      if (r.ok) { out.earn.port += s.coins - c0; log('slot:' + id, t); }
+    }));
+    if (b.bundles.every((u) => L.portBundleDone(s, u.id))) log('bundles:' + b.id, t);
+  }
+  // 경매: the best one of each species is kept; it goes once it fetches ≥ ×2.6, or from Friday on (under 3 days left)
+  function auctionChores(t) {
+    if (!L.aucOpen(s)) return;
+    const late = L.aucLeft(t, TZ) < 3 * DAY;
+    aucWants().forEach((id) => {
+      const k = L.aucBest(s, id); if (k < 0) return;
+      const v = s.bag[k].v; if (L.aucMul(id, v) < 2.6 && !late) return;
+      const r = L.aucSell(s, id, t, TZ);
+      if (r.ok) { out.earn.auction += r.coins; out.aucN++; out.aucMul += r.mul; out.aucBase += v; log('auc1', t); }
+    });
+  }
+  // 떠돌이 상인: a decoration not owned yet once coins ≥ 3× its price, else the gold seed if it pays (or gold was never had)
+  function traderChores(t) {
+    if (!L.traderOpen(s) || L.traderPicked(s, t, TZ)) return;
+    for (const id of L.traderToday(s, t, TZ).sort((a, b) => (a === 'gold') - (b === 'gold'))) {
+      const w = L.traderById(id);
+      if (id === 'gold' ? s.dex.goldSeed && w.cost >= L.CROPS.gold.sell : s.coins < 3 * w.cost) continue;
+      if (L.traderPick(s, id, t, TZ).ok) { out.traderSpent += w.cost; out.traderN++; out.spent += w.cost; break; }
+    }
+  }
+  // ---------- stage 12: 잠수 ----------
+  // One dive per look, always from r0 like the UI. Crossing a room costs DIVE_ROOM_S s (the UI swims 38 px/s, a room is
+  // 180×200), each thing taken DIVE_THING_S s (a detour down to the floor). Oxygen drains 1/s; in a room with a bubble
+  // spot the diver tops up when under half (+2 s). The dive ends when the oxygen runs out in a passage, or after DIVE_LEN s
+  // (the player's patience; the spec says 1–3 min). Route: the nearest room not seen yet among the rooms the gear lets in
+  // (BFS); with none left, the nearest room with something new or a gear material still short, else the nearest room with
+  // anything to pick this dive. Gear is bought as soon as the coins (+80) and materials are in.
+  const DIVE_ROOM_S = 6, DIVE_THING_S = 3, DIVE_LEN = { average: 120, skilled: 150 }[A.skill];
+  function diveChores(t) {
+    if (!L.diveOk(s)) return;
+    log('diveOpen', t);
+    Object.keys(L.DIVE_GEAR).forEach((g) => { const c = L.DIVE_GEAR[g].coins; if (s.coins - c >= 80 && L.diveBuy(s, g).ok) { out.spent += c; log('gear:' + g, t); } });
+    const max = L.diveO2Max(s), taken = {};
+    let o2 = max, time = 0, room = 'r0';
+    const d = () => s.dive;
+    const worth = (rid, k) => {
+      if (taken[rid + ':' + k]) return false;
+      const th = L.diveRoom(rid).things[k];
+      if (th.id === 'key') return !d().gear.key;
+      if (th.id === 'log') return !d().log[th.n];
+      if (th.id === 'box') return !d().box[th.box];
+      return L.diveDexById(th.id).kind === 'pick' || !d().got[th.id];
+    };
+    const short = {};   // gear materials still missing
+    Object.keys(L.DIVE_GEAR).forEach((g) => { if (!d() || !d().gear[g]) L.DIVE_GEAR[g].need.forEach(([id, n]) => { short[id] = (short[id] || 0) + n; }); });
+    const needed = (rid, k) => { const th = L.diveRoom(rid).things[k], x = L.diveDexById(th.id); return worth(rid, k) && (!x || x.kind === 'see' || L.bagCount(s, th.id) < (short[th.id] || 0)); };
+    const refill = (rid) => { if (L.diveRoom(rid).bubbles.length && o2 < max / 2) { time += 2; o2 = max; } };
+    const takeAll = (rid) => L.diveRoom(rid).things.forEach((th, k) => {
+      if (o2 <= DIVE_THING_S || !worth(rid, k)) return;
+      o2 -= DIVE_THING_S; time += DIVE_THING_S; taken[rid + ':' + k] = true;
+      const n0 = s.bag.length, c0 = s.coins; L.diveTake(s, rid, k, rng); tagNew(n0, c0, 'dive');
+    });
+    L.diveEnter(s, room); out.dives++;
+    refill(room); takeAll(room); refill(room);
+    while (time < DIVE_LEN) {
+      const prev = { [room]: null }, q = [room];
+      let goal = null, want = null, alt = null;
+      while (q.length) {
+        const r = q.shift();
+        Object.values(L.diveRoom(r).exits).forEach((n) => {
+          if (n in prev || !L.diveCanEnter(s, n).ok) return;
+          prev[n] = r; q.push(n);
+          if (!goal && !d().seen[n]) goal = n;
+          if (!want && L.diveRoom(n).things.some((x, k) => needed(n, k))) want = n;
+          if (!alt && L.diveRoom(n).things.some((x, k) => worth(n, k))) alt = n;
+        });
+      }
+      const to = goal || want || alt;
+      if (!to) break;
+      let next = to; while (prev[next] !== room) next = prev[next];
+      o2 -= DIVE_ROOM_S; time += DIVE_ROOM_S;
+      if (o2 <= 0) break;                                // out of air in the passage: up to the surface, nothing lost
+      L.diveEnter(s, next); room = next; out.diveRooms++;
+      refill(room); takeAll(room); refill(room);
+    }
+    out.diveSecs += time;
+    const at = (k) => { log(k, t); if (!(k in out.diveAt)) out.diveAt[k] = out.dives; };   // which dive it came on
+    if (d().gear.tank) at('gear:tank');
+    if (d().gear.light) at('gear:light');
+    if (d().gear.key) at('diveKey');
+    [12, 24].forEach((n) => { if (L.diveSeenCount(s) >= n) at('diveMap' + n); });
+    if (L.diveLogDone(s)) at('diveLog');
+    if (L.diveDexCount(s) >= L.DIVE_DEX.length) at('diveDex');
+  }
   // ---------- stage 9 ----------
   // 먼 섬: pick every drift spot (통통배)
   function farChores(t) {
@@ -638,7 +779,10 @@ function run(archId, seed) {
   function donkeyChores(t) {
     if (!s.donkey) return;
     for (let k = 0; k < 4; k++) L.donkeyPet(s, t, TZ);
-    for (let k = 0; k < 4; k++) { const r = L.donkeyFeed(s, t, TZ); if (!r || !r.ok) break; out.dkFed++; }
+    for (let k = 0; k < 4; k++) {
+      const f = L.donkeyFood(s); if (f && portWants().includes(f) && L.bagCount(s, f) <= 1) break;   // it would eat a 포구 item: wait
+      const r = L.donkeyFeed(s, t, TZ); if (!r || !r.ok) break; out.dkFed++;
+    }
     for (let lv = 1; lv <= L.donkeyLevel(s); lv++) log('dk' + lv, t);
     const e = env(t); e.wet = e.weather === 'rain' || L.rainJustStopped(t, TZ);
     ['deep', 'peak'].forEach((pl) => {
@@ -874,8 +1018,10 @@ const KEYS = ['up:rod', 'up:scare', 'animal:hen', 'up:field', 'rep5', 'spot:rive
   'ship:sail', 'ship:motor', 'legend:marlin', 'legend:oarfish', 'farAll', 'donkey', 'dk1', 'dk2', 'dk3', 'rideForageAll', 'bike', 'sky6', 'sky12', 'skyAll',
   'piece1', 'mapDone1', 'dug1', ...L.TMAPS.map((m) => 'map:' + m.id), 'mapsDone', 'mapsAll', 'rumorHalf', 'rumor:res', 'rumor:letter', 'rumor:visitor', 'rumorAll',
   'contestOpen', 'contestWin', 'contestGold', 'flower8', 'flower12', 'flower16', 'flower20', 'flower24', 'flowerNight', 'have:hen', 'baby:hen', 'have:duck', 'baby:duck', 'have:cow', 'baby:cow', 'baby1',
-  'quest1', 'move:archaeo', 'move:seagirl', 'move:botanist'];
-const SRC = [['raw', '그냥 팔기'], ['order', '주문'], ['dish', '요리'], ['other', '기타'], ['forage', '숲'], ['pet', '반려'], ['junk', '잡동사니'], ['fest', '축제'], ['mini', '도전 덤'], ['orchard', '과일'], ['honey', '꿀'], ['bug', '곤충'], ['village', '마을'], ['flat', '갯벌'], ['cave', '동굴'], ['sky', '별'], ['islefish', '섬 물고기'], ['isle', '섬 줍기'], ['museum', '박물관'], ['treasure', '보물'], ['shipfish', '먼바다 물고기'], ['far', '먼 섬'], ['donkey', '깊은 숲·산꼭대기'], ['bike', '자전거 팁'], ['ride', '열기구·썰매'], ['contest', '낚시 대회'], ['toy', '날씨 장난감'], ['quest', '계절 챌린지']];
+  'quest1', 'move:archaeo', 'move:seagirl', 'move:botanist',
+  'portOpen', 'bundles:bridge', 'port:bridge', 'bundles:shipyard', 'port:shipyard', 'bundles:market', 'port:market', 'bundles:station', 'port:station', 'auc1',
+  'diveOpen', 'diveKey', 'gear:tank', 'gear:light', 'diveMap12', 'diveMap24', 'diveLog', 'diveDex'];
+const SRC = [['raw', '그냥 팔기'], ['order', '주문'], ['dish', '요리'], ['other', '기타'], ['forage', '숲'], ['pet', '반려'], ['junk', '잡동사니'], ['fest', '축제'], ['mini', '도전 덤'], ['orchard', '과일'], ['honey', '꿀'], ['bug', '곤충'], ['village', '마을'], ['flat', '갯벌'], ['cave', '동굴'], ['sky', '별'], ['islefish', '섬 물고기'], ['isle', '섬 줍기'], ['museum', '박물관'], ['treasure', '보물'], ['shipfish', '먼바다 물고기'], ['far', '먼 섬'], ['donkey', '깊은 숲·산꼭대기'], ['bike', '자전거 팁'], ['ride', '열기구·썰매'], ['contest', '낚시 대회'], ['toy', '날씨 장난감'], ['quest', '계절 챌린지'], ['port', '포구 꾸러미'], ['auction', '경매'], ['dive', '잠수']];
 
 function reelTable() {
   const rng = mulberry(42), rows = [];
@@ -946,6 +1092,16 @@ if (require.main === module) {
       ' | 새끼: 동물 산물 중 새끼 몫 ' + (sm((r) => r.kidV) / Math.max(1, sm((r) => r.animalV)) * 100).toFixed(1) + '% · 동물 산물 = 전체 수입의 ' + (sm((r) => r.animalV) / tot * 100).toFixed(1) + '% · 새끼 몫 = 전체의 ' + (sm((r) => r.kidV) / tot * 100).toFixed(2) + '% · 새끼 수(판 평균) ' + (sm((r) => r.final.brood ? r.final.brood.kids.length : 0) / seeds).toFixed(1));
     console.log('  10단계 돈: 대회 ' + Math.round(sum.contest / seeds) + ' · 장난감 ' + Math.round(sum.toy / seeds) + ' (' + sm((r) => r.toyWins) + '/' + sm((r) => r.toyTaps) + ') · 챌린지 ' + Math.round(sum.quest / seeds) + ' 코인/판 = 합쳐 수입의 ' + ((sum.contest + sum.toy + sum.quest) / tot * 100).toFixed(2) + '% · 주 평균 수입 ' + weekly +
       ' · 주별 수입 ' + [0, 1, 2, 3, 4, 5, 6, 7].filter((w) => w < nW).map(wkTot).join(' / ') + ' · 길에서 만남 하루 ' + (sm((r) => r.meets) / seeds / DAYS).toFixed(1));
+    // ---------- stage 11·12 ----------
+    const md = (k) => fmtDay(median(runs.map((r) => r.events[k])));
+    const gap = (a, b) => { const v = median(runs.map((r) => (a in r.events && b in r.events ? r.events[b] - r.events[a] : undefined))); return v === undefined ? '—' : v.toFixed(1) + '일'; };
+    console.log('  11·12단계: 다리 ' + md('port:bridge') + ' · 조선소 ' + md('port:shipyard') + ' · 어판장 ' + md('port:market') + ' · 기차역 ' + md('port:station') + ' (다리→기차역 ' + gap('port:bridge', 'port:station') + ', 다 한 판 ' + runs.filter((r) => 'port:station' in r.events).length + '/' + seeds + ')' +
+      ' · 돛배 ' + md('ship:sail') + ' · 통통배 ' + md('ship:motor') + ' | 잠수: 첫 ' + md('diveOpen') + ' · 열쇠 ' + md('diveKey') + ' · 12방 ' + md('diveMap12') + ' · 산소통 ' + md('gear:tank') + ' · 손전등 ' + md('gear:light') + ' · 24방 ' + md('diveMap24') + ' · 일지 ' + md('diveLog') + ' · 해저 도감 ' + md('diveDex') +
+      ' (24방까지 ' + gap('diveOpen', 'diveMap24') + ', 다 한 판 ' + runs.filter((r) => 'diveMap24' in r.events).length + '/' + seeds + ') · 몇 번째 잠수에(중앙값): ' +
+      ['diveKey', 'gear:tank', 'gear:light', 'diveMap24', 'diveLog', 'diveDex'].map((k) => k + ' ' + (median(runs.map((r) => r.diveAt[k])) || '—')).join(' · '));
+    console.log('  11·12단계 돈: 포구 꾸러미 ' + Math.round(sum.port / seeds) + ' · 경매 ' + Math.round(sum.auction / seeds) + ' (' + (sm((r) => r.aucN) / seeds).toFixed(1) + '번/판, 평균 ×' + (sm((r) => r.aucMul) / Math.max(1, sm((r) => r.aucN))).toFixed(2) + ', 그냥 팔았으면 ' + Math.round(sm((r) => r.aucBase) / seeds) + ')' +
+      ' · 잠수 ' + Math.round(sum.dive / seeds) + ' (' + (sm((r) => r.dives) / seeds).toFixed(0) + '번/판, 평균 ' + (sm((r) => r.diveSecs) / Math.max(1, sm((r) => r.dives))).toFixed(0) + '초·' + (sm((r) => r.diveRooms) / Math.max(1, sm((r) => r.dives))).toFixed(1) + '방) · 상인 ' + (sm((r) => r.traderN) / seeds).toFixed(1) + '번 ' + Math.round(sm((r) => r.traderSpent) / seeds) + '코인/판 · 코인/판 = 포구 꾸러미·경매·잠수 몫 ' +
+      ['port', 'auction', 'dive'].map((k) => (sum[k] / tot * 100).toFixed(1) + '%').join('·') + ' (그냥 팔기 ' + (sum.raw / tot * 100).toFixed(1) + '%)');
     console.log('  낚시 성공(1판): ' + Object.keys(r0.fishTry).map((k) => k + ' ' + (r0.fishOk[k] || 0) + '/' + r0.fishTry[k]).join(' · '));
   }
 }
