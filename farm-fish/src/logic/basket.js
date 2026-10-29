@@ -24,28 +24,36 @@
   function recipeById(id) { for (var k = 0; k < RECIPES.length; k++) if (RECIPES[k].id === id) return RECIPES[k]; return null; }
   function itemInfo(id) {
     if (CROPS[id]) return { id: id, kind: 'crop', name: CROPS[id].name, price: CROPS[id].sell };
+    var cv = caveItem(id); if (cv) return cv;   // stage 7: ores, gems, 화석 조각
     var f = fishById(id); if (f) return { id: id, kind: 'fish', name: f.name, price: f.price };
     var r = recipeById(id); if (r) return { id: id, kind: 'dish', name: r.name, price: r.sell };
+    var il = isleItem(id); if (il) return { id: id, kind: 'isle', name: il.name, price: il.price };   // stage 7 섬
+    var fr = farItem(id); if (fr) return { id: id, kind: 'isle', name: fr.name, price: fr.price };   // stage 9 ① 먼 섬
     if (PRODUCTS[id]) return { id: id, kind: 'product', name: PRODUCTS[id].name, price: PRODUCTS[id].price };
     var g = forageById(id); if (g) return { id: id, kind: 'forage', name: g.name, price: g.price };   // stage 5A
     var tr = treeById(id); if (tr) return { id: id, kind: 'fruit', name: tr.name, price: tr.price };   // stage 6A
     var hn = honeyById(id); if (hn) return { id: id, kind: 'honey', name: hn.name, price: hn.price };   // stage 6A
+    var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
   function obtainable(s, id) {
     if (CROPS[id]) return id !== 'gold' ? seedUnlocked(s, id) : s.seeds.gold > 0 || !!s.dex.crops.gold;
     var f = fishById(id); if (f) return fishOpen(s, f);
+    if (caveItem(id)) return caveOk(s);   // stage 7
     if (PRODUCTS[id]) return !!(s.animals && s.animals[PRODUCTS[id].from] > 0);
     var r = recipeById(id); if (r) return recipeKnown(s, r) && r.need.every(function (x) { return obtainable(s, x); });
+    if (isleItem(id)) return isleOk(s);   // stage 7 섬
+    if (farItem(id)) return farOk(s);     // stage 9 ① 먼 섬
     if (forageById(id)) return forestOk(s);
     if (treeById(id)) return !!(s.orchard && s.orchard.trees.some(function (p) { return p && p.id === id; }));   // stage 6A
     if (honeyById(id)) return !!(s.bees && s.bees.hives.length && (id === 'wildhoney' || s.bees.dex[id]));   // stage 6A
+    if (flatById(id)) return flatOk(s);   // stage 7 갯벌
     return false;
   }
 
   // ---------- basket ----------
-  function bagCap(s) { return UPG.basket.cap[tier(s, 'basket')] + houseBag(s); }
+  function bagCap(s) { return UPG.basket.cap[tier(s, 'basket')] + houseBag(s) + donkeyBag(s); }   // stage 9: 당나귀 짐 싣기
   // into the basket if there's room, otherwise sold on the spot; returns coins earned by overflow.
   // s.keep[id] (지키기): a kept item pushes out the cheapest unkept one instead (or squeezes in if all are kept).
   // s.noSell (자동 판매 끔): nothing is sold; the UI stops new catches/harvests while full (bagBlocked),
@@ -106,8 +114,12 @@
     // seasonal fish (and 장마 가물치) stay off like seasonal crops: an order outlives the season it was posted in
     FISH.forEach(function (f) { if (!f.window && !f.unlock && !f.season && !f.fest && fishOpen(s, f) && (isConditional(f) ? s.dex.fish[f.id] : f.rarity === '흔함' || s.dex.fish[f.id])) out.push({ id: f.id, w: 2 }); });
     RECIPES.forEach(function (r) { if (s.dex.dish[r.id] && !r.hidden && obtainable(s, r.id) && !seasonalItem(r.id)) out.push({ id: r.id, w: 2 }); });
+    caveOrders(s, out);     // stage 7: common ores
     forageOrders(s, out);   // stage 5A: common 숲 finds
+    isleOrders(s, out);     // stage 7: 섬 finds and coconuts
+    farOrders(s, out);      // stage 9 ①: 먼 섬 finds
     orchardOrders(s, out);  // stage 6A: 잡화꿀
+    flatOrders(s, out);     // stage 7: common 갯벌 finds
     festPool(s, out);   // stage 5B: festival items while a festival is on
     return out;
   }
@@ -123,11 +135,14 @@
     else if (it.kind === 'crop') { var g = CROPS[it.id].grow; n = g <= 300e3 ? between(rng, 3, 6) : g <= 1200e3 ? between(rng, 2, 4) : between(rng, 1, 2); }
     else if (it.kind === 'fish') n = it.price < 50 ? between(rng, 2, 4) : between(rng, 1, 2);
     else if (it.kind === 'forage') n = between(rng, 2, 4);
+    else if (it.kind === 'flat') n = between(rng, 2, 4);   // stage 7 갯벌
     else n = 1;
     var mult = special ? 3 + rng() : 1.5 + rng();
     var o = { id: it.id, n: n, reward: Math.round(it.price * n * mult), rep: special ? 3 : it.kind === 'dish' ? 2 : 1 };
     if (special) o.special = true;
-    return festMark(s, o);   // stage 5B: festival orders pay more
+    o = festMark(s, o);
+    if (!special) o.by = residentFor(o, s);   // who posted it stays fixed (stage 10 new residents)
+    return o;   // stage 5B: festival orders pay more
   }
   // fills every empty slot whose wait is over; time-based so it catches up after being away
   function refreshOrders(s, now, rng) {
@@ -140,10 +155,11 @@
     if (!canDeliver(s, k)) return null;
     var o = s.orders[k].o;
     bagTake(s, o.id, o.n);
-    s.coins += o.reward; s.rep += o.rep;
+    var pay = dayIs(s, 'orders') ? Math.round(o.reward * DAY_ORDER_MUL) : o.reward;   // stage 8: 단골 손님의 날
+    s.coins += pay; s.rep += o.rep;
     s.orders[k] = { o: null, at: now + REFILL_MIN + rng() * REFILL_SPAN };
     dailyBump(s, 'order');
-    return { coins: o.reward, rep: o.rep, special: !!o.special, unlocked: checkUnlocks(s), friend: befriend(s, o) };
+    return { coins: pay, rep: o.rep, special: !!o.special, unlocked: checkUnlocks(s), friend: befriend(s, o) };
   }
   // no penalty: drop any order any time, a new one comes in 1–2 min
   function discard(s, k, now, rng) {
@@ -184,7 +200,7 @@
     PRODUCTS: PRODUCTS, RECIPES: RECIPES, ORDER_SLOTS: ORDER_SLOTS, REFILL_MIN: REFILL_MIN, REFILL_SPAN: REFILL_SPAN,
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
-    bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
+    BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
     orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });

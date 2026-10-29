@@ -19,7 +19,7 @@
   function calSignature() {
     var t = now(), e = curEnv(t);
     return [calTab, e.season, e.phase, e.weather, Math.round(((t + TZ * 60e3) % 3600e3) / SPEED / 30e3), S.coins, S.rep,
-      L.curSpot(S), Object.keys(S.dex.fish).length, Object.keys(S.spotOk || {}).join(), dailySig()].join('|');
+      L.curSpot(S), Object.keys(S.dex.fish).length, Object.keys(S.spotOk || {}).join(), dailySig(), questSig()].join('|');
   }
   function renderCalIfChanged() { if (calSignature() !== calSig) renderCal(); }
 
@@ -54,8 +54,11 @@
     var sm = document.createElement('small');
     sm.textContent = L.SEASON_NAME[nextSeason] + '까지 ' + fmtReal(L.seasonLeftMs(t, TZ)) + ' · 계절은 현실 1주';
     big.appendChild(sm); top.appendChild(big); calEl.appendChild(top);
+    renderDayCal();    // stage 8: 오늘의 날, boom note
     renderDaily();     // stage 4: 오늘의 할 일 + 농장 N년차
+    renderQuestCal();  // stage 10 ④: 계절 챌린지
     renderFestCal();   // stage 5B: current / next 계절 축제
+    renderContestCal(); // stage 10 ①: 박 영감 낚시 대회
 
     // today's day bar: 아침 15 · 낮 20 · 저녁 10 · 밤 15 (real minutes in each real hour)
     var h3 = document.createElement('h3'); h3.textContent = '오늘 하루';
@@ -122,7 +125,10 @@
       r.appendChild(ic); r.appendChild(n); r.appendChild(v); calEl.appendChild(r);
     });
     renderForestNow(e);   // stage 5A: what grows in the 숲 only now
+    renderStage7BCal();   // stage 7: 유성우, cave gems only now
     renderStage6Now();    // stage 6A: insects only now, fruit this season
+    renderFlatNow();      // stage 7: 다음 썰물, night-only 갯벌 finds
+    renderIsleNow();      // stage 7 섬: drift only now, 등대 이야기
   }
   function note(text) { var p = document.createElement('p'); p.className = 'note'; p.textContent = text; calEl.appendChild(p); }
 

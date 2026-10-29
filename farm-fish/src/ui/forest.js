@@ -165,6 +165,7 @@
     }
     if (tapPet(x, y)) return;
     if (empty) { toast('다시 돋는 중 · ' + fmtLeft(Math.max(0, empty.at - now())), 1600); return; }
+    if (tapToy(x, y)) return;   // stage 10 ④: 날씨 장난감 on empty ground
     var ready = L.forageReady(S);
     toast(ready ? '반짝이는 걸 누르면 줍기 · 꾹 누르면 도전 (표시 칸에서 떼면 두 배)' : '다 주웠다 · ' + fmtLeft(Math.max(0, L.forestNextAt(S) - now())) + ' 뒤 다시 돋는다', 2600);
   }
@@ -182,10 +183,15 @@
     var c = chal; chal = null;
     var won = res === 'win';
     if (c.kind === 'harvest') { doHarvest(c.i, c.r, won, res === 'miss'); return; }
+    if (c.kind === 'flat') { finishFlat(c, res); return; }   // stage 7 갯벌
+    if (c.kind === 'cave') { caveDone(c, won, res); return; }   // stage 7: 동굴 cell
+    if (c.kind === 'ride') { rideDone(c, won, res); return; }   // stage 9 ②: 깊은 숲·산꼭대기
     var r = L.pickForage(S, c.k, now(), Math.random, won);
     if (!r) return;
     var f = L.forageById(r.id);
     burst(c.x, c.y + 6, won ? 16 : 8, won ? 4 : 2, won ? 70 : 40);
+    fxHarvest(c.x, c.y + 8, itemIcon(r.id), won);   // stage 8 ④
+    if (r.sold) fxCoins(c.x, c.y, r.sold);
     floatText((won ? '★' : '+') + f.name + (r.n > 1 ? '×' + r.n : ''), c.x, c.y - 6);
     var tail = r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에';
     if (won) toast('도전 성공! ' + f.name + (r.n > 1 ? ' 두 개' : ' 하나 · 이번엔 덤이 없었다') + tail, 2600);
@@ -238,6 +244,7 @@
     if (f.season) out.push(f.season.map(function (x) { return L.SEASON_NAME[x]; }).join('·'));
     if (f.phase) out.push(f.phase.map(function (x) { return L.PHASE_NAME[x]; }).join('·') + '에만');
     if (f.wet) out.push('비 올 때');
+    if (f.place) out.unshift(L.RIDE_PLACES[f.place]);   // stage 9 ②
     return out.length ? out.join(' · ') : '언제나';
   }
   function renderForageDex(row) {

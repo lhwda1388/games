@@ -133,7 +133,7 @@
   }
   function canTalk(s, id, now, tzMin) { var v = vilOf(s); vilDay(v, now, tzMin); return !v.talk[id] && !residentAway(id, now, tzMin); }
   function vilTalk(s, id, now, tzMin) {
-    if (!VIL[id]) return { ok: false, why: 'who' };
+    if (!VIL[id] || !resHere(s, id)) return { ok: false, why: 'who' };   // stage 10 ③: new residents once moved in
     if (residentAway(id, now, tzMin)) return { ok: false, why: 'away' };
     var v = vilOf(s), day = vilDay(v, now, tzMin);
     if (v.talk[id]) return { ok: false, why: 'talked' };
@@ -145,7 +145,7 @@
   // ---------- 선물: one basket item per resident per real day ----------
   function canGift(s, id, now, tzMin) { var v = vilOf(s); vilDay(v, now, tzMin); return !v.gift[id] && !residentAway(id, now, tzMin); }
   function vilGift(s, id, item, now, tzMin) {
-    if (!VIL[id]) return { ok: false, why: 'who' };
+    if (!VIL[id] || !resHere(s, id)) return { ok: false, why: 'who' };   // stage 10 ③: new residents once moved in
     if (residentAway(id, now, tzMin)) return { ok: false, why: 'away' };
     var v = vilOf(s); vilDay(v, now, tzMin);
     if (v.gift[id]) return { ok: false, why: 'gifted' };
@@ -232,7 +232,7 @@
     if (!q || typeof q !== 'object') return;
     var num = function (x) { return typeof x === 'number' && isFinite(x); }, obj = function (x) { return x && typeof x === 'object'; };
     var v = { day: num(q.day) ? Math.floor(q.day) : -1, talk: {}, gift: {}, ed: {}, err: {}, st: { cur: null, k: 0, done: {} } };
-    VIL_IDS.forEach(function (id) {
+    Object.keys(VIL).forEach(function (id) {   // stage 10 ③: VIL also holds the residents who moved in later
       if (obj(q.talk) && q.talk[id] === true) v.talk[id] = true;
       if (obj(q.gift) && q.gift[id] === true) v.gift[id] = true;
       if (obj(q.ed) && num(q.ed[id])) v.ed[id] = Math.floor(q.ed[id]);

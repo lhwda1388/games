@@ -248,6 +248,7 @@
     standing('deco').forEach(function (e) { if (e.id !== 'chime') DRAW_DECO[e.id](e.r[0], e.r[1], tt, night); });
     drawHouse(tt, night, wx === 'snow' || seasonNow() === 'winter');
     drawTrophyDecor(tt);
+    drawScope(tt);   // stage 7: 망원경
     var cs = decoRect('chime'); if (cs) DRAW_DECO.chime(cs[0], cs[1], tt);
     drawYardPots(tt);
     if (S.yard.gifts.length) {
@@ -255,6 +256,8 @@
       sparkle(g.x + 9, g.y - 2, tt);
     }
     drawAnimals(tt);
+    drawBrood(tt);            // stage 10 ②: 새끼
+    drawDonkeyYard(tt, dt);   // stage 9 ②
     drawVisitors(tt, dt, 'yard');
     drawPet(tt, dt, 'yard');   // stage 5A
     drawYardWeather(tt, wx);
@@ -266,6 +269,7 @@
       drawStars(tt);
     }
     drawVisitors(tt, dt, 'sky');
+    drawSkyYard(tt);   // stage 7: 유성우
     drawPick(tt);
   }
   // what stands in the 마당 / 집 안, back to front: [{ id, r }]
@@ -289,6 +293,7 @@
   }
   function drawYardWeather(tt, wx) {
     var k;
+    drawToys(tt);   // stage 10 ④: puddles, footprints, leaf piles (마당·숲 only)
     if (wx === 'rain') for (k = 0; k < 36; k++) { var rx = (hash(k * 3) * W + tt * 40) % W, ry = (hash(k * 5 + 1) * H + tt * 160) % H; px(rx, ry, 1, 3, 3); }
     else if (wx === 'snow') {
       for (k = 0; k < 40; k++) { var sx = (hash(k * 3) * W + Math.sin(tt + k) * 6) % W, sy = (hash(k * 5 + 1) * H + tt * 14) % H; px(sx, sy, 1, 1, 0); if (k % 3 === 0) px(sx + 1, sy, 1, 1, 0); }
@@ -311,6 +316,8 @@
   function tapYard(x, y) {
     var t = now(), k;
     if (tapPick(x, y)) return;
+    if (tapSkyYard(x, y)) return;   // stage 7: 유성, 망원경
+    if (tapDonkeyYard(x, y)) return;   // stage 9 ②: 당나귀 (before the pen)
     if (tapVisitorAt(x, y, 'sky') || tapVisitorAt(x, y, 'yard')) return;
     if (S.yard.gifts.length && Math.abs(x - GIFT_AT.x - 4) < 8 && Math.abs(y - GIFT_AT.y - 2) < 8) {
       var g = L.collectGifts(S); floatText('+' + g.c, GIFT_AT.x, GIFT_AT.y - 6); burst(GIFT_AT.x + 4, GIFT_AT.y, 8, 0, 40);
@@ -324,6 +331,7 @@
     if (cr && hit(cr, x, y, 2)) { tapDeco(L.decoById('chime')); return; }
     var b = houseBox();
     if (hit([b.x, b.y, b.w, b.h], x, y)) { goScene('house'); return; }
+    if (tapBroodYard(x, y)) return;   // stage 10 ②: a baby in the pen
     if (hit([PEN.x, PEN.y, PEN.w, PEN.h], x, y)) { tapPen(); return; }
     var on = standing('deco').filter(function (e) { return hit(e.r, x, y, 2); }).pop();
     if (on) { tapDeco(L.decoById(on.id)); return; }
@@ -338,6 +346,7 @@
       });
       return;
     }
+    if (tapToy(x, y)) return;   // stage 10 ④: 날씨 장난감 on empty ground
     toast('마당 · 집을 누르면 안으로 · 빈 자리(+)를 누르면 꾸미기 · 장식을 누르면 옮기기', 2400);
   }
   function tapPen() {
@@ -362,6 +371,7 @@
     if (d.id === 'mailbox') { openPick('deco', d.id, '편지가 오는 곳', ['편지', function () { openSheet('mail'); }]); return; }
     if (d.id === 'windmill') { millSpin = 3; openPick('deco', d.id, '빙글빙글'); return; }
     if (d.id === 'chime') { chimeRing = 2; openPick('deco', d.id, '딸랑… · ' + likes); return; }
+    if (d.id === 'flowers') { openPick('deco', d.id, gardenLine(), ['꽃밭', openGardenSheet]); return; }   // stage 10 ②
     if (d.id === 'bench') { openPick('deco', d.id, '고양이가 좋아하는 자리'); return; }
     if (d.id === 'snowman') { openPick('deco', d.id, snowWear(), ['꾸미기', function () { L.snowmanStyle(S); refresh(); closePick(); }]); return; }   // stage 5B
     var r = decoRect(d.id); burst(r[0] + r[2] / 2, r[1] + 4, 4, 2, 30);
@@ -462,26 +472,35 @@
   var sceneMenu = document.createElement('div');
   sceneMenu.id = 'sceneMenu'; sceneMenu.hidden = true; sceneMenu.setAttribute('role', 'menu');
   app.appendChild(sceneMenu);
-  var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'], orchard: ['과수원', '과수원으로'], village: ['마을', '마을로'] };
+  var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'], orchard: ['과수원', '과수원으로'], village: ['마을', '마을로'], flat: ['갯벌', '갯벌로'], island: ['섬', '섬으로'] };
+  PLACE.cave = ['동굴', '동굴로'];   // stage 7
   function goScene(sc) {
     if (reel) return;
     closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : '집 안');
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
+    guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
   }
   function sceneDests() {
     if (view === 'house') return ['yard'];
     if (view === 'home') return ['village'];   // stage 6B: out of a resident's house
-    return ['farm', 'yard', 'forest', 'orchard', 'village'].filter(function (sc) { return sc !== view && (sc !== 'forest' || forestShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)); });
+    if (view === 'stars') return [starHome];   // stage 7: out of the 별 잇기 view (stage 9: back to the 산꼭대기 too)
+    if (view === 'museum') return ['village']; // stage 7 박물관
+    return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak'].filter(function (sc) { return sc !== view && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
   }
   function placeAttention(sc) {
+    if (boomAttention(sc)) return true;   // stage 8: 입질 폭풍 / 대풍년 here
     if (sc === 'forest') return !!forestAttention();
+    if (sc === 'cave') return caveAttention();   // stage 7
     if (sc === 'orchard') return !!orchardAttention();   // stage 6A
     if (sc === 'village') return villageAttention();   // stage 6B
+    if (sc === 'flat') return flatAttention();   // stage 7 갯벌: low tide with spots to dig
+    if (sc === 'island') return isleAttention();       // stage 7 섬
+    if (sc === 'deep' || sc === 'peak') return rideAttention(sc);   // stage 9 ②
     var pond = sc === 'farm';
     return (!pond && yardAttention() > 0) || S.yard.vis.some(function (v) { return (L.visitorById(v.id).slot === 'pond') === pond; });
   }
@@ -551,22 +570,40 @@
     if (view === 'yard') { drawYard(tt, dt); return true; }
     if (view === 'house') { drawRoom(tt, dt); return true; }
     if (view === 'forest') { drawForest(tt, dt); return true; }   // stage 5A
+    if (view === 'cave') { drawCave(tt, dt); return true; }       // stage 7
+    if (view === 'stars') { drawStarView(tt); return true; }      // stage 7
     if (view === 'orchard') { drawOrchard(tt, dt); return true; }   // stage 6A
     if (view === 'village') { drawVillage(tt, dt); return true; }   // stage 6B
     if (view === 'home') { drawHome(tt, dt); return true; }         // stage 6B
+    if (view === 'museum') { drawMuseum(tt); return true; }         // stage 7 박물관
+    if (view === 'flat') { drawFlat(tt); return true; }             // stage 7 갯벌
+    if (view === 'island') { drawIsle(tt, dt); return true; }       // stage 7 섬
+    if (view === 'deep' || view === 'peak') { drawRideScene(view, tt, dt); return true; }   // stage 9 ②
+    if (view === 'farisle') { drawFarIsle(tt); return true; }       // stage 9 ① 먼 섬
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
   function tapScene(x, y) {
+    digPress(x, y);                  // stage 8 ③: a long press may dig a 보물 지도 X
     if (tapBug(x, y)) return true;   // stage 6A: an insect on screen
     if (view === 'yard') { if (!pick && tapPet(x, y)) return true; tapYard(x, y); return true; }
     if (view === 'house') { tapRoom(x, y); return true; }
     if (view === 'forest') { tapForest(x, y); return true; }   // stage 5A
+    if (view === 'cave') { tapCave(x, y); return true; }       // stage 7
+    if (view === 'stars') { tapStarView(x, y); return true; }  // stage 7
     if (view === 'orchard') { tapOrchard(x, y); return true; }   // stage 6A
     if (view === 'village') { tapVillage(x, y); return true; }   // stage 6B
     if (view === 'home') { tapHome(x, y); return true; }         // stage 6B
+    if (view === 'museum') { tapMuseum(x, y); return true; }     // stage 7 박물관
+    if (view === 'flat') { tapFlat(x, y); return true; }         // stage 7 갯벌
+    if (view === 'island') { tapIsle(x, y); return true; }       // stage 7 섬
+    if (view === 'deep' || view === 'peak') { tapRideScene(view, x, y); return true; }   // stage 9 ②
+    if (view === 'farisle') { tapFarIsle(x, y); return true; }   // stage 9 ① 먼 섬
     if (S.fish.phase === 'bite') return false;
+    if (tapIsleWater(x, y)) return true;                          // stage 7 섬: the boat on the 바다 / 섬 shore
+    if (tapShipWater(x, y)) return true;                          // stage 9 ①: the boat at 먼바다·난바다
     if (tapPet(x, y)) return true;
+    if (view === 'farm' && tapFarmSign(x, y)) return true;      // stage 10 ①: 농장 간판
     if (tapVisitorAt(x, y, 'pond')) return true;
     var st = L.tier(S, 'scare');
     if (st && ((x >= 2 && x < 15 && y >= 36 && y < 54) || (st >= 3 && x >= 168 && y >= 36 && y < 54))) {
@@ -574,6 +611,7 @@
       scareWob = r.egg ? 3 : 0.35;
       if (r.egg) { burst(9, 42, 16, 0, 70); eggFound(r.egg); }
       else if (r.n >= 5) toast('허수아비가 들썩인다… ' + r.n, 1200);
+      else if (r.n === 1 && !S.scare) toast('허수아비 · 상점에서 옷을 입힐 수 있어요', 1400);   // stage 10 ②
       return true;
     }
     return false;

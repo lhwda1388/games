@@ -28,6 +28,7 @@
     if (S.fish.phase === 'bite') { doStrike(); return; }
     if (tapPlot(x, y)) return;
     if (tapCorner(x, y)) return;
+    if (tapToy(x, y)) return;   // stage 10 ④: 날씨 장난감 on dry ground
     tapPond(x, y);
   }
   function refresh() { renderTray(); save(); updateTitle(); }
@@ -49,13 +50,14 @@
       if (e.repeat) return;
       holdSpace = true;
       if (miniOn()) { miniTap(); return; }   // stage 5B: 도전 overlay takes the tap
+      if (rideOn()) { rideTap(); return; }   // stage 9 ③: 자전거·썰매·열기구
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
       else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden) {
         if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
-        L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k));
+        L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k), curEnv(now()));
         castAnim = { t: 0 }; refresh();
       }
     }

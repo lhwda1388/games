@@ -114,11 +114,11 @@
     orchardTick(s, now, tz);
     var p = s.orchard && s.orchard.trees[k];
     if (!p || !p.n) return null;
-    var d = treeById(p.id), n = p.n, sold = 0;
+    var d = treeById(p.id), boom = boomExtra(s, 'orchard', now, p.n), n = p.n + boom, sold = 0;   // stage 8: 대풍년
     for (var j = 0; j < n; j++) sold += bagAdd(s, d.id, d.price);
     p.n = 0;
     s.orchard.dex[d.id] = Math.min(1e6, (s.orchard.dex[d.id] || 0) + n);
-    return { id: d.id, n: n, sold: sold };
+    return { id: d.id, n: n, sold: sold, boom: boom };
   }
   // 옮겨 심기: pull a tree up to free its spot (a second tree of a kind would otherwise block that kind for good).
   // Ripe fruit goes to the basket first and the sapling's price comes back, so nothing is lost but the growing time.
@@ -150,6 +150,7 @@
     var w = { wildhoney: 1 };
     var add = function (id, x) { w[id] = Math.min(4, (w[id] || 0) + x); };
     if (season !== 'winter' && s.yard && s.yard.place && s.yard.place.deco.flowers !== undefined) add('flowerbed', 2);
+    gardenHoney(s, season, now, add);   // stage 10 ②: planted flowers (none in older saves)
     var fh = FIELD_HONEY[season];
     if (fh && s.plots) s.plots.forEach(function (p) { if (p.crop && fh[1].indexOf(p.crop) >= 0) add(fh[0], 1); });
     if (s.forest) add(FOREST_HONEY[season], 2);

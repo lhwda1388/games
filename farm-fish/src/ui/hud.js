@@ -11,6 +11,7 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
   }
   function floatText(text, x, y) {
+    while (floatsEl.children.length >= L.FX_FLOATS) floatsEl.removeChild(floatsEl.firstChild);   // stage 8 ④: cap
     var d = document.createElement('div');
     d.className = 'float'; d.textContent = text;
     d.style.left = (x * 2) + 'px'; d.style.top = (36 + y * 2) + 'px';
@@ -18,6 +19,7 @@
     setTimeout(function () { d.remove(); }, 1150);
   }
   function burst(x, y, n, c, spread) {
+    n = L.fxRoom(particles.length, n, L.FX_PARTICLES);   // stage 8 ④: hard cap
     for (var k = 0; k < n; k++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * (spread || 40), vy: -Math.random() * 40 - 10, life: 0.6 + Math.random() * 0.4, c: c });
   }
   function drawParticles(dt) {

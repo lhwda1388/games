@@ -36,6 +36,7 @@
       if (!near) continue;
       var res = L.tapVisitor(S, v.id, now(), Math.random, YTZ);
       if (!res) return false;
+      rumorAfter('visitor', v.id);   // stage 8 ③
       if (res.coins) floatText('+' + res.coins, Math.max(10, Math.min(170, p.x)), Math.max(8, p.y - 10));
       burst(Math.max(4, Math.min(176, p.x)), Math.max(4, p.y), res.coins ? 8 : 4, 0, 40);
       if (res.id === 'merchant') merchantLine = res.text;

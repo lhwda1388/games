@@ -93,10 +93,12 @@
         if (oo && itemInfo(oo.id) && num(oo.n) && oo.n > 0 && num(oo.reward) && num(oo.rep)) {
           s.orders[k] = { o: { id: oo.id, n: Math.floor(oo.n), reward: Math.round(oo.reward), rep: Math.floor(oo.rep) }, at: 0 };
           if (oo.special === true) s.orders[k].o.special = true;
+          if (typeof oo.by === 'string' && residentById(oo.by)) s.orders[k].o.by = oo.by;   // stage 10
           if (typeof oo.fest === 'string' && FESTIVALS[oo.fest]) s.orders[k].o.fest = oo.fest;   // stage 5B
         } else if (num(q.at)) s.orders[k] = { o: null, at: q.at };
       }
       if (o.pot && recipeById(o.pot.id) && num(o.pot.until)) s.pot = { id: o.pot.id, until: o.pot.until };
+      decodeDonkey(o, s);  // stage 9 ②: s.donkey (당나귀, 깊은 숲·산꼭대기 자리; optional)
       decodeYard(o, s);   // stage 3: s.yard, s.animals (optional; absent in older saves)
       decodeStage4(o, s); // stage 4: s.born, s.nick, s.res, s.tank, s.daily (optional; needs the house tier above)
       decodeStage5A(o, s); // stage 5A: s.forest, s.pet (optional)
@@ -104,6 +106,24 @@
       decodeFest(o, s);   // stage 5B: s.fest (축제 선물, 송편, 눈사람; optional)
       decodeStage6A(o, s); // stage 6A: s.orchard, s.bees, s.bugs (optional)
       decodeVillage(o, s); // stage 6B: s.vil (마을 대화·선물·심부름·이야기; optional)
+      decodeStage10B(o, s); // stage 10 ②: s.garden (꽃밭), s.brood (새끼), s.scare (허수아비 옷; optional)
+      decodeTown(o, s);    // stage 10 ③: s.town (새 주민 이사, 길에서 만난 날; optional)
+      decodeFlat(o, s); decodeCamera(o, s);   // stage 7 ①: s.flat (갯벌), s.cam (사진기; optional)
+      decodeStage7B(o, s); // stage 7 동굴·별: s.cave, s.sky (optional)
+      decodeIsland(o, s);  // stage 7: s.isle (섬: 배, 표류물, 야자수, 등대; optional) + the 섬 spot
+      decodeMuseum(o, s);  // stage 7: s.museum (박물관 기증; optional)
+      decodeStage8A(o, s); // stage 8 ①: s.day (오늘의 날), s.diary (일기; optional)
+      decodeTreasure(o, s); // stage 8 ③: s.tmap (보물 지도 조각·판 곳), s.rumor (소문 수첩; optional)
+      decodeShip(o, s);    // stage 9 ①: s.ship (돛배·통통배, 먼 섬; optional) + the 먼바다·난바다 spots
+      decodeRide(o, s);    // stage 9 ③: s.bike (자전거), s.sled (썰매 기록), s.bal (열기구·하늘 도감; optional)
+      decodeToys(o, s); decodeQuest(o, s);   // stage 10 ④: s.toy (장난감 보상 횟수), s.quest (계절 챌린지; optional)
+      decodeStage10A(o, s); // stage 10 ①: s.cont (낚시 대회), s.yr (결산 카드), s.farm (농장 간판; optional; after decodeYard)
+      decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
+      // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
+      if (Array.isArray(o.bag)) {
+        s.bag = [];
+        o.bag.forEach(function (e) { if (e && itemInfo(e.id) && num(e.v) && e.v >= 0 && s.bag.length < bagCap(s) + BAG_OVER) s.bag.push({ id: e.id, v: Math.round(e.v) }); });
+      }
       return s;
     } catch (e) { return null; }
   }

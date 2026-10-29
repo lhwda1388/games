@@ -18,13 +18,19 @@
     var big = null, cooked = 0;
     FISH.forEach(function (f) { var d = s.dex.fish[f.id]; if (d && (!big || d.best > big.size)) big = { id: f.id, size: d.best }; });
     Object.keys(s.dex.dish).forEach(function (k) { cooked += s.dex.dish[k]; });
-    return { nick: cleanNick(s.nick), year: farmYear(s, now), fish: big,
+    var st = { nick: cleanNick(s.nick), year: farmYear(s, now), fish: big,
       fdex: fishDexCount(s), cdex: Object.keys(s.dex.crops).length, ddex: Object.keys(s.dex.dish).length,
       rep: s.rep || 0, cooked: cooked, eggs: eggCount(s), house: houseTier(s) };
+    // stage 8: the next 어탁 records after the biggest (only when there are any: one species keeps the old code)
+    var recs = topRecords(s, 1 + SHARE_RECS).slice(1);
+    if (recs.length) st.recs = recs;
+    if (s.farm && s.farm.name) st.farm = { name: cleanFarmName(s.farm.name), sign: s.farm.sign || 0 };   // stage 10 ①: 농장 간판
+    return st;
   }
-  // FF1-<nick>-<year>-<fish>-<size×10>-<fish dex>-<crop dex>-<dish dex>-<rep>-<cooked>-<secrets>-<house>-<check>
+  // FF1-<nick>-<year>-<fish>-<size×10>-<fish dex>-<crop dex>-<dish dex>-<rep>-<cooked>-<secrets>-<house>[-<recs>]-<check>
   // numbers in base 36; nick = each UTF-16 unit as 4 base-36 digits; check = 4 base-36 digits of a hash of the rest
-  var SHARE_TAG = 'FF1';
+  // recs (stage 8, optional): next records as <fish>.<size×10>.<fish>.<size×10>…; codes without it are the stage-4 format
+  var SHARE_TAG = 'FF1', SHARE_RECS = 3;
   var SHARE_MAX = { year: 9999, size: 99999, fdex: 999, cdex: 999, ddex: 999, rep: 9999999, cooked: 9999999, eggs: 99, house: 9 };
   function b36(n) { return Math.max(0, Math.floor(n)).toString(36); }
   function shareCheck(body) { return ('0000' + (strHash(body) % 1679616).toString(36)).slice(-4); }
@@ -32,6 +38,10 @@
     var nick = cleanNick(st.nick).split('').map(function (ch) { return ('0000' + ch.charCodeAt(0).toString(36)).slice(-4); }).join('');
     var f = [nick, b36(st.year), st.fish ? st.fish.id : '', b36(st.fish ? Math.round(st.fish.size * 10) : 0),
       b36(st.fdex), b36(st.cdex), b36(st.ddex), b36(st.rep), b36(st.cooked), b36(st.eggs), b36(st.house)];
+    if (st.recs && st.recs.length) f.push(st.recs.slice(0, SHARE_RECS).map(function (e) { return e.id + '.' + b36(Math.round(e.size * 10)); }).join('.'));
+    // stage 10 ①: farm = n<sign digit><name, 4 base-36 digits per unit>; no dot, so it never looks like recs
+    var fn = st.farm ? cleanFarmName(st.farm.name) : '';
+    if (fn) f.push('n' + b36(st.farm.sign || 0) + fn.split('').map(function (ch) { return ('0000' + ch.charCodeAt(0).toString(36)).slice(-4); }).join(''));
     var body = SHARE_TAG + '-' + f.join('-');
     return body + '-' + shareCheck(body);
   }
@@ -41,10 +51,33 @@
       if (typeof code !== 'string' || code.length > 400) return null;
       var c = code.replace(/\s+/g, '');
       var p = c.split('-');
-      if (p.length !== 13 || p[0].toUpperCase() !== SHARE_TAG) return null;
+      var np = p.length;
+      if (np < 13 || np > 15 || p[0].toUpperCase() !== SHARE_TAG) return null;
       p[0] = SHARE_TAG;
-      for (var k = 1; k < 13; k++) p[k] = p[k].toLowerCase();
-      if (shareCheck(p.slice(0, 12).join('-')) !== p[12]) return null;
+      for (var k = 1; k < np; k++) p[k] = p[k].toLowerCase();
+      if (shareCheck(p.slice(0, np - 1).join('-')) !== p[np - 1]) return null;
+      var recs = null, farm = null, extra = p.slice(12, np - 1);
+      // stage 10 ①: an optional farm part after the optional recs part
+      if (extra.length && extra[extra.length - 1].indexOf('.') < 0) {
+        var fq = extra.pop();
+        if (!/^n[0-9a-z]([0-9a-z]{4}){1,10}$/.test(fq) || parseInt(fq.charAt(1), 36) >= SIGNS.length) return null;
+        var fname = '';
+        for (k = 2; k < fq.length; k += 4) fname += String.fromCharCode(parseInt(fq.slice(k, k + 4), 36));
+        farm = { name: cleanFarmName(fname), sign: parseInt(fq.charAt(1), 36) };
+        if (!farm.name) farm = null;
+      }
+      if (extra.length > 1) return null;
+      if (extra.length) {
+        var rq = extra[0].split('.');
+        if (rq.length % 2 || rq.length > SHARE_RECS * 2) return null;
+        recs = [];
+        for (k = 0; k < rq.length; k += 2) {
+          if (!/^[a-z]{1,20}$/.test(rq[k]) || !/^[0-9a-z]{1,6}$/.test(rq[k + 1])) return null;
+          var rs = parseInt(rq[k + 1], 36);
+          if (!(rs >= 0 && rs <= SHARE_MAX.size)) return null;
+          recs.push({ id: rq[k], size: rs / 10 });
+        }
+      }
       var nickRaw = p[1], fishId = p[3];
       if (!/^[0-9a-z]*$/.test(nickRaw) || nickRaw.length % 4 || nickRaw.length > NICK_MAX * 4) return null;
       if (!/^[a-z]{0,20}$/.test(fishId)) return null;
@@ -59,8 +92,11 @@
         v[keys[k]] = n;
       }
       if (v.year < 1) return null;
-      return { nick: cleanNick(nick), year: v.year, fish: fishId ? { id: fishId, size: v.size / 10 } : null,
+      var out = { nick: cleanNick(nick), year: v.year, fish: fishId ? { id: fishId, size: v.size / 10 } : null,
         fdex: v.fdex, cdex: v.cdex, ddex: v.ddex, rep: v.rep, cooked: v.cooked, eggs: v.eggs, house: v.house };
+      if (recs && recs.length) out.recs = recs;
+      if (farm) out.farm = farm;
+      return out;
     } catch (e) { return null; }
   }
 
@@ -72,7 +108,7 @@
     if (typeof o.nick === 'string') { var nk = cleanNick(o.nick); if (nk) s.nick = nk; }
     if (obj(o.res)) {
       var r = { f: {}, lv: {}, rec: {}, unread: [] };
-      RESIDENTS.forEach(function (d) {
+      RESIDENTS.concat(RES_EXTRA).forEach(function (d) {   // stage 10 ③: residents who moved in later too
         if (obj(o.res.f) && num(o.res.f[d.id]) && o.res.f[d.id] > 0) r.f[d.id] = Math.min(1e6, Math.floor(o.res.f[d.id]));
         if (obj(o.res.lv) && num(o.res.lv[d.id]) && o.res.lv[d.id] > 0) r.lv[d.id] = Math.min(FRIEND_LV.length, Math.floor(o.res.lv[d.id]));
       });

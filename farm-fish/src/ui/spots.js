@@ -119,7 +119,7 @@
   // (in memory only: a reload may say it again). Season-only fish/finds stay quiet: a season lasts a week.
   var noticeSeen = {}, noticeNext = 5000, noticeQuiet = 0;   // first look after the boot messages
   var NOTICE_PHASE = { morning: '아침이에요', day: '한낮이에요', evening: '저녁이에요', night: '밤이 됐어요' };
-  var NOTICE_WX = { rain: '비가 와요', fog: '안개가 꼈어요', snow: '눈이 와요' };
+  var NOTICE_WX = { clear: '날이 맑아요', rain: '비가 와요', fog: '안개가 꼈어요', snow: '눈이 와요' };
   // the short condition behind a fish/find right now: { k, say } or null
   function noticeCause(f, e) {
     if (f.window === 'lunch') return { k: 'lunch', say: '점심시간' };
@@ -173,6 +173,10 @@
       sayKey = key;
       say = c.say + ' · 처음 보는 곤충이 날아올지도';
     });
+    var cn = caveNotice(e, live);   // stage 7: a night gem in the 동굴
+    if (cn && !say && !noticeSeen[cn.k]) { sayKey = cn.k; say = cn.say; }
+    var rn = rideNotice(e, live);   // stage 9 ②: a find only now in 깊은 숲 / 산꼭대기
+    if (rn && !say && !noticeSeen[rn.k]) { sayKey = rn.k; say = rn.say; }
     Object.keys(noticeSeen).forEach(function (k) { if (!live[k]) delete noticeSeen[k]; });
     // never on top of another message: wait out a busy moment, at most one notice per 10 s
     if (!say || toastEl.classList.contains('on') || p < noticeQuiet) return;   // busy: try again next check

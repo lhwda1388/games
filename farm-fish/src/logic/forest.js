@@ -71,6 +71,7 @@
   // 0 = can't grow under env
   // s is optional: with it, a conditional find not picked yet gets the 첫 만남 보정 (FIRST_MUL, as for fish)
   function forageWeight(f, env, s) {
+    if ((f.place || '') !== (env.place || '')) return 0;   // stage 9: 깊은 숲·산꼭대기 finds grow only there
     if (f.season && f.season.indexOf(env.season) < 0) return 0;
     if (f.phase && f.phase.indexOf(env.phase) < 0) return 0;
     if (f.wet && !env.wet) return 0;
@@ -78,6 +79,7 @@
     if (f.cat === 'mush' && env.wet) w *= WET_MUL;
     if (f.peak === env.season) w *= 2;
     if (s && s.forest && forageConditional(f) && !s.forest.dex[f.id]) w *= FIRST_MUL;
+    if (f.rarity !== '흔함' && dayIs(s, 'forage')) w *= DAY_RARE_MUL;   // stage 8: 채집 운 좋은 날
     return w;
   }
   function foragePool(env, s) {
@@ -124,11 +126,12 @@
     if (!p || !p.id) return null;
     var f = forageById(p.id), n = 1;
     if (won) n = f.rarity === '희귀' || f.rarity === '전설' ? (rng() < 0.5 ? 2 : 1) : 2;
+    var boom = boomExtra(s, 'forest', now, n); n += boom;   // stage 8: 대풍년
     var sold = 0;
     for (var j = 0; j < n; j++) sold += bagAdd(s, f.id, f.price);
     forageNote(s, f.id, n);
     s.forest.spots[k] = { at: now + REGROW_MIN + rng() * REGROW_SPAN, id: null };
-    return { id: f.id, n: n, sold: sold, won: !!won };
+    return { id: f.id, n: n, sold: sold, won: !!won, boom: boom };
   }
   function forageDexCount(s) { return s.forest ? Object.keys(s.forest.dex).length : 0; }
   // common, any-season forage already found can be asked for on the order board

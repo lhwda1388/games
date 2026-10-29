@@ -15,7 +15,7 @@
   var bagBtnKey = '';
   function renderBagBtn() {
     if (!quiet()) return;   // don't swap this button's insides under a press
-    var ping = !!(deliverable() || L.potReady(S, now()) || (S.res && S.res.unread.length)), key = S.bag.length + '/' + L.bagCap(S) + ping;
+    var ping = !!(deliverable() || L.potReady(S, now()) || resUnread()), key = S.bag.length + '/' + L.bagCap(S) + ping;
     if (key === bagBtnKey) return;
     bagBtnKey = key;
     bagBtn.innerHTML = '';
@@ -28,7 +28,7 @@
   bagBtn.addEventListener('click', function () { openBag(deliverable() ? 'order' : L.potReady(S, now()) ? 'cook' : null); });
   function bagSignature() {
     var t = now();
-    return [bagTab, S.coins, S.bag.length, S.rep, L.readyPot(S, t), S.res ? S.res.unread.length : 0, S.pot ? S.pot.id + (L.potReady(S, t) ? '!' : Math.ceil((S.pot.until - t) / SPEED / 1000)) : '',
+    return [bagTab, S.coins, S.bag.length, S.rep, L.readyPot(S, t), resUnread(), potsKey(t),
       S.orders.map(function (q) { return q.o ? q.o.id + q.o.n : Math.ceil((q.at - t) / SPEED / 1000); }).join()].join('|');
   }
   function renderBag() {
@@ -38,14 +38,15 @@
     var h = document.createElement('h2'); h.textContent = '바구니';
     var wallet = document.createElement('span'); wallet.className = 'wallet';
     var coin = document.createElement('span'); coin.className = 'coin';
-    wallet.appendChild(coin); wallet.appendChild(document.createTextNode(S.coins.toLocaleString('ko-KR')));
+    var wn = document.createElement('span'); wn.className = 'wnum'; wn.textContent = coinsShown(S.coins).toLocaleString('ko-KR');
+    wallet.appendChild(coin); wallet.appendChild(wn);
     var close = document.createElement('button'); close.type = 'button'; close.textContent = '닫기';
     close.addEventListener('click', function () { bagEl.hidden = true; });
     h.appendChild(wallet); h.appendChild(close); bagEl.appendChild(h);
     var tabs = document.createElement('div'); tabs.className = 'tabs'; tabs.setAttribute('role', 'group');
     var dn = deliverable(), ready = L.potReady(S, now());
-    [['order', '주문' + (dn ? ' ' + dn : '')], ['bag', '바구니 ' + S.bag.length + '/' + L.bagCap(S)], ['cook', '냄비' + (ready ? ' 완성' : S.pot ? ' …' : '')],
-      ['res', '주민' + (S.res && S.res.unread.length ? ' ✉' : '')]].forEach(function (tb) {
+    [['order', '주문' + (dn ? ' ' + dn : '')], ['bag', '바구니 ' + S.bag.length + '/' + L.bagCap(S)], ['cook', '냄비' + (ready ? ' 완성' : potsBusy() ? ' …' : '')],
+      ['res', '주민' + (resUnread() ? ' ✉' : '')]].forEach(function (tb) {
       var b = document.createElement('button'); b.type = 'button'; b.textContent = tb[1];
       b.setAttribute('aria-pressed', String(bagTab === tb[0]));
       b.addEventListener('click', function () { bagTab = tb[0]; renderBag(); });
@@ -84,9 +85,10 @@
       }
       var o = q.o, it = L.itemInfo(o.id), have = L.bagCount(S, o.id);
       var r = upRow(itemIcon(o.id), esc(it.name) + ' ×' + o.n + (o.special ? '<span class="tagx">특별</span>' : ''),
-        L.residentById(L.residentFor(o)).name + ' · 바구니 ' + Math.min(have, o.n) + '/' + o.n + ' · ★+' + o.rep, o.special ? 'sp' : '');
+        L.residentById(L.residentFor(o, S)).name + ' · 바구니 ' + Math.min(have, o.n) + '/' + o.n + ' · ★+' + o.rep, o.special ? 'sp' : '');
       var a = document.createElement('div'); a.className = 'acts';
       a.appendChild(act(o.reward.toLocaleString('ko-KR'), function () { doDeliver(k); }, { off: have < o.n, label: '납품 ' + o.reward + '코인' }));
+      if (L.bikeOk(S)) a.appendChild(act('자전거로', function () { bikeDeliver(k); }, { off: have < o.n, cls: 'bike', label: '자전거로 배달 · 팁 도전' }));   // stage 9 ③
       a.appendChild(act('×', function () { L.discard(S, k, now(), Math.random); toast('주문을 내려놨다 · 곧 새 주문'); refresh(); renderBag(); }, { cls: 'x', label: '이 주문 버리기' }));
       r.appendChild(a);
     });
@@ -97,14 +99,18 @@
   }
   function doDeliver(k) {
     var r = L.deliver(S, k, now(), Math.random);
-    if (!r) return;
+    if (!r) return null;
     floatText('+' + r.coins, 90, 100);
+    fxCoinsDom(bagEl.querySelector('.wallet'));   // stage 8 ④
     var msg = (r.special ? '특별 주문 완료! ' : '납품 완료 · ') + '+' + r.coins + ' · ★+' + r.rep;
+    var stampIt = !!r.unlocked.length;   // stage 8 ④: 해금 lands as a stamp
     if (r.unlocked.length) msg = '★' + S.rep + ' · ' + r.unlocked.map(function (id) { return L.CROPS[id].name; }).join('·') + ' 씨앗이 생겼다';
     var fr = r.friend, up = fr.ups[fr.ups.length - 1];
     if (up) msg = L.residentById(fr.who).name + ' 친밀도 ' + up.lv + '단계 · 편지가 왔다' + (up.gift ? ' · 선물도!' : '');
     toast(msg, 3200);
+    if (stampIt) fxStamp(toastEl);
     refresh(); renderBag();
+    return r;   // stage 9 ③: 자전거 배달 adds a tip on top
   }
   function renderBasket() {
     var cap = L.bagCap(S);
@@ -128,18 +134,18 @@
         if (kept) delete S.keep[id]; else S.keep[id] = true;
         toast(kept ? L.itemInfo(id).name + ' 지키기 풀었다' : L.itemInfo(id).name + ' 지키기 · 꽉 차도 안 팔려요'); save(); renderBag();
       }, { cls: 'max b' + (kept ? ' on' : '') }));
-      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
-      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
+      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
+      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
       r.appendChild(a);
     });
     if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요'; bagEl.appendChild(p); }
     var auto = act('꽉 차면 자동 판매 · ' + (S.noSell ? '끔' : '켬'), function () {
-      S.noSell = !S.noSell;
+      if (S.noSell) delete S.noSell; else S.noSell = true;   // only `true` is ever saved
       toast(S.noSell ? '자동 판매 끔 · 꽉 차면 직접 비워야 해요' : '자동 판매 켬 · 꽉 차면 지키지 않은 것부터 팔려요', 3000); save(); renderBag();
     }, { cls: 'sellAll' });
     auto.setAttribute('aria-pressed', String(!S.noSell));
     bagEl.appendChild(auto);
-    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); refresh(); renderBag(); }, { cls: 'sellAll', off: !S.bag.length });
+    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !S.bag.length });
     bagEl.appendChild(all);
   }
   // order sign, basket and pot at the left edge of the pond side
@@ -165,21 +171,33 @@
     refresh();
     if (!bagEl.hidden) renderBag();
   }
+  function potsBusy() { for (var k = 0; k < L.potCount(S); k++) if (L.potGet(S, k)) return true; return false; }
+  function potsKey(t) {
+    var out = [];
+    for (var k = 0; k < L.potCount(S); k++) { var p = L.potGet(S, k); out.push(p ? p.id + (t >= p.until ? '!' : Math.ceil((p.until - t) / SPEED / 1000)) : ''); }
+    return out.join('/');
+  }
   function renderCook() {
     var h3 = document.createElement('h3'); h3.textContent = '냄비'; bagEl.appendChild(h3);
     var t = now();
-    if (S.pot) {
-      var r = L.recipeById(S.pot.id), ready = t >= S.pot.until;
-      var row = upRow(dishCanvas(r.id), esc(r.name), ready ? '다 됐어요' : fmtGame(S.pot.until - t) + ' 남음');
+    // every pot the house has (stage 3 adds more), each with its own progress bar
+    var n = L.potCount(S), rk = L.readyPot(S, t);
+    if (!potsBusy()) {
+      var p0 = document.createElement('p'); p0.className = 'note'; p0.textContent = '비어 있어요 · 바구니 재료로 요리하면 더 비싸게 팔려요'; bagEl.appendChild(p0);
+    } else for (var k = 0; k < n; k++) {
+      var p = L.potGet(S, k), nm = n > 1 ? '냄비 ' + (k + 1) + ' · ' : '';
+      if (!p) { upRow(dishCanvas('?'), '냄비 ' + (k + 1), '비어 있어요 · 요리하면 빈 냄비에 들어가요', 'idle'); continue; }
+      var r = L.recipeById(p.id), ready = t >= p.until;
+      var row = upRow(dishCanvas(r.id), nm + esc(r.name), ready ? '다 됐어요' : fmtGame(p.until - t) + ' 남음');
       if (!ready) {
         var bar = document.createElement('div'); bar.className = 'potbar';
-        var fill = document.createElement('i'); fill.style.width = Math.round((1 - (S.pot.until - t) / r.time) * 100) + '%';
+        var fill = document.createElement('i'); fill.style.width = Math.max(0, Math.min(100, Math.round((1 - (p.until - t) / r.time) * 100))) + '%';
         bar.appendChild(fill); row.querySelector('.n').appendChild(bar);
-      } else { row.appendChild(act('꺼내기', tapPot)); heatButton(row); }   // stage 5B: optional 불 조절 도전
-    } else {
-      var p = document.createElement('p'); p.className = 'note'; p.textContent = '비어 있어요 · 바구니 재료로 요리하면 더 비싸게 팔려요'; bagEl.appendChild(p);
+      } else {
+        row.appendChild(act('꺼내기', tapPot));
+        if (k === rk) heatButton(row);   // stage 5B: optional 불 조절 도전 (takes the first ready pot, this one)
+      }
     }
-    renderExtraPots();   // stage 3: pots a bigger house adds
     h3 = document.createElement('h3'); h3.textContent = '레시피';
     var b = document.createElement('b'); b.textContent = Object.keys(S.dex.dish).length + ' / ' + L.RECIPES.length; h3.appendChild(b);
     bagEl.appendChild(h3);
@@ -226,13 +244,13 @@
     if (deliverable() && Math.floor(tt * 2) % 2 === 0) { px(15, 100, 5, 7, 4); px(16, 101, 3, 5, 0); px(17, 102, 1, 2, 4); px(17, 105, 1, 1, 4); }
     else if (S.orders.some(function (q) { return q.o; })) { px(16, 103, 3, 1, 4); px(17, 102, 1, 1, 4); }
     // basket: a few dots of produce show how full it is
-    spr(SP.basket, 5, 125);
+    spr(SP.basket, 5, 125 + fxBasketDy());   // stage 8 ④: hops when a fish lands
     var fillN = Math.ceil(S.bag.length / L.bagCap(S) * 6);
     for (var k = 0; k < fillN; k++) px(7 + k, 127 - (k % 2), 1, 1, k % 2 ? 3 : 4);
     if (S.bag.length >= L.bagCap(S)) px(9, 123, 2, 2, 4);
     // pot: embers and steam while cooking, sparkle when done
     spr(SP.pot, 4, 150);
-    if (S.pot) {
+    if (potsBusy()) {
       var t = now();
       if (L.potReady(S, t)) sparkle(17, 148, tt);
       else {

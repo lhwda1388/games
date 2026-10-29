@@ -4,16 +4,16 @@
     var head = dexEl.querySelector('h2');
     if (!head) return;
     var tabs = document.createElement('div'); tabs.className = 'tabs'; tabs.setAttribute('role', 'group');
-    [['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].forEach(function (tb) {
+    [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].forEach(function (tb) {
       var b = document.createElement('button'); b.type = 'button'; b.textContent = tb[1];
       b.setAttribute('aria-pressed', String(dexTab === tb[0]));
       b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); renderSettings(); decorateDex(); dexEl.scrollTop = 0; });
       tabs.appendChild(b);
     });
     head.after(tabs);
-    if (dexTab !== 'rec' && dexTab !== 'friend') return;
+    if (dexTab !== 'rec' && dexTab !== 'friend' && dexTab !== 'guide') return;
     while (tabs.nextSibling) tabs.nextSibling.remove();
-    if (dexTab === 'rec') renderRecords(); else renderShare();   // stage 4: 친구 기록 비교
+    if (dexTab === 'guide') renderGuide(); else if (dexTab === 'rec') renderRecords(); else renderShare();   // stage 4: 친구 기록 비교
   }
   dexBtn.addEventListener('click', decorateDex);
   function recRow(icon, name, sub, val, unk) {
@@ -50,7 +50,10 @@
       var hint = d.night ? '밤에 마당 하늘을 보면…' : d.rainbow ? '비가 그친 직후에…' : d.slot === 'pond' ? '연못가에 가끔' : need ? josa(need.name, '을', '를') + ' 놓으면…' : '마당에 가끔';
       recRow(visitorIcon(d.id), n ? d.name : '???', n ? (d.slot === 'pond' ? '연못' : '마당') + '에 왔던 손님' : hint, n ? n + '번' : '', !n);
     });
+    renderDiary();           // stage 8: 자리 비운 사이 일기
     renderBottleLetters();   // stage 5B: 병 편지 + the 고물 상자
+    renderTreasure();        // stage 8 ③: 보물 지도 + 소문 수첩
+    renderContestRec();      // stage 10 ①: 낚시 대회 트로피·편지, 한 해 결산 카드
     h3 = document.createElement('h3'); h3.textContent = '편지';
     b = document.createElement('b'); b.textContent = y.mail.length + '통'; h3.appendChild(b); dexEl.appendChild(h3);
     var read = y.mail.filter(function (m) { return m.read; });

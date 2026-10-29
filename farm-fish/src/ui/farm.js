@@ -105,8 +105,9 @@
     if (!t) return;
     var wob = scareWob > 0 ? (Math.floor(tt * 12) % 2 ? 1 : -1) : 0;
     spr(SP.scarecrow, 4 + wob, 38);
+    drawScareWear(4 + wob, 38, false);   // stage 10 ②: 허수아비 옷
     if (t >= 2) { px(4 + wob, 44, 1, 3, 0); px(3 + wob, 45, 1, 3, 2); }           // tin can on the arm
-    if (t >= 3) spr(SP.scarecrow, 170 - wob, 38, true);
+    if (t >= 3) { spr(SP.scarecrow, 170 - wob, 38, true); drawScareWear(170 - wob, 38, true); }
   }
 
   // returns true when (x, y) hit a plot, bought or not
@@ -116,7 +117,10 @@
     if (!hv) return;
     var extra = won ? L.premiumHarvest(S, hv) : 0;
     burst(r.x + 22, r.y + 14, won ? 18 : 10, won ? 4 : 3, won ? 80 : 60);
+    fxHarvest(r.x + 22, r.y + 16, iconCanvas(hv.crop), won);   // stage 8 ④: pop, dirt, ×2 ×3
+    if (hv.sold) fxCoins(r.x + 22, r.y + 6, hv.sold + extra);
     floatText(hv.sold ? '+' + (hv.sold + extra) : (won ? '★' : '+') + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
+    if (hv.boom) floatText('대풍년 +' + hv.boom, r.x + 22, r.y - 6);   // stage 8
     if (hv.gold) toast('★ 딸기×수박 교배! 황금 수박 씨앗을 얻었다', 3500);
     else if (won) toast('★ 특상품 ' + L.CROPS[hv.crop].name + ' · 값 두 배' + (hv.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + (hv.sold + extra) : ' · 바구니에'), 2600);
     else if (hv.sold) toast('바구니가 꽉 차서 바로 팔았다 · +' + hv.sold);

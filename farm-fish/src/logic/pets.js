@@ -18,7 +18,7 @@
     while (lv < PET_LV.length && f >= PET_LV[lv]) lv++;
     return lv;
   }
-  function petGiftCap(s) { return petLevel(s) >= 3 ? 3 : 2; }
+  function petGiftCap(s) { return (petLevel(s) >= 3 ? 3 : 2) + (dayIs(s, 'pet') ? 1 : 0); }   // stage 8: 반려동물 신난 날
   // 이름: same letters as the farm nickname (Hangul, latin, digits, space, a few marks), 6 characters
   var PET_NAME_MAX = 6;
   function cleanPetName(str) { return cleanNick(str).slice(0, PET_NAME_MAX).trim(); }

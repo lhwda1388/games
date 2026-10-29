@@ -35,6 +35,8 @@
   if (S && SPEED !== 1 && S.savedAt > base) base = S.savedAt;
   if (!S) S = L.newState(now(), Math.random);
   else L.resume(S, now(), Math.random);
+  // stage 8: the state before offline catch-up (first tick), for the 자리 비운 사이 일기
+  var awayA = fresh ? null : { from: S.savedAt, snap: L.diarySnap(S, now(), -new Date().getTimezoneOffset()) };
   function save() {
     if (saveBlocked) return;
     S.savedAt = now();

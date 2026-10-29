@@ -1,7 +1,7 @@
   // ---------- shop upgrades: tiers, prices, buying ----------
   // Shop. costs[t] is the price of going from tier t to t+1; effect arrays are indexed by current tier.
   var UPG = {
-    rod:   { name: '낚싯대',  costs: [150, 1500, 8000],  tgain: [2.2, 1.5, 1, 0.6] },
+    rod:   { name: '낚싯대',  costs: [150, 1500, 8000],  tgain: [2.2, 1.3, 1, 0.6] },
     bait:  { name: '미끼',    costs: [120, 1200, 6000],  wait: [1, 0.75, 0.6, 0.45], rare: [1, 1.5, 2, 2.6] },
     field: { name: '밭 확장', costs: [500, 6000],       plots: [6, 8, 9] },
     scare: { name: '허수아비', costs: [200, 2000, 7000], chance: [0, 0.35, 0.6, 0.85] },

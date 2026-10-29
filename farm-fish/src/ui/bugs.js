@@ -65,7 +65,7 @@
     if (bug && (bug.place !== view || (bug.flee ? p > bug.flee.t + 900 : p > bug.fl.end))) { bug = null; bugNextAt = p + 20e3 + Math.random() * 40e3; }
     if (bug || p < bugNextAt || !bugPlaceOk(view) || reel) return;
     var id = L.rollBug(view, curEnv(now()), Math.random, S);
-    bugNextAt = p + 15e3 + Math.random() * 20e3;
+    bugNextAt = p + (15e3 + Math.random() * 20e3) * (L.dayIs(S, 'bugs') ? L.DAY_BUG_MUL : 1);   // stage 8: 곤충 잔치
     if (!id) return;
     bug = { id: id, place: view, fl: L.bugFlight(id, p + 200, Math.random) };
   }

@@ -7,6 +7,7 @@
     if (phaseOverride) e.phase = phaseOverride;
     if (seasonOverride) e.season = seasonOverride;
     if (festOverride !== undefined) e.festival = festOverride;   // stage 5B: FF.festival
+    boomEnv(e, t);   // stage 8: e.boom, e.day
     return e;
   }
   // extra sky: 'petals' (spring, the block after rain) or 'leaves' (autumn, clear)
@@ -20,6 +21,7 @@
   function veil(c, a) { ctx.globalAlpha = a; ctx.fillStyle = G[c]; ctx.fillRect(-4, -4, W + 8, H + 8); ctx.globalAlpha = 1; }
   function drawWeather(tt, dt) {
     var t = now(), e = curEnv(t), k, x, y;
+    drawToys(tt);   // stage 10 ④: puddles, footprints, leaf piles
     if (e.weather === 'snow') {
       veil(3, 0.1);                       // a dimmer day so white flakes read on paper
       var depth = 1 + Math.min(1, ((t % L.WEATHER_MS) / L.WEATHER_MS) * 2);

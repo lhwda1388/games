@@ -1,6 +1,6 @@
   // ---------- fishing flow ----------
   function doStrike() {
-    var f = S.fish, res = L.strike(S, now(), Math.random);
+    var f = S.fish, res = L.strike(S, now(), Math.random, curEnv(now()));
     if (!res) return;
     if (res.type === 'scared') {
       // the fish bolts away from the bobber; the wait starts over
@@ -15,11 +15,13 @@
     if (catchJunk(res.roll, f)) return;   // stage 5B: sometimes a common bite is junk (no reel)
     reelRoll = res.roll;
     reel = L.newReel(res.roll, L.tier(S, 'rod'));
-    reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false };
+    reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false, phase: 0, air: 0 };
+    reelIntro(res.roll);   // stage 8: a known fish says how it fights; a legend announces a boss fight
     reelHud.hidden = false;
     dexBtn.disabled = true; shopBtn.disabled = true; bagBtn.disabled = true;
     shake = 2;
     burst(f.x, f.y, 10, 0, 60);
+    fxStrike(f.x, f.y);   // stage 8 ④: hit-stop + splash
   }
   function endReel(res) {
     reelHud.hidden = true; cueEl.hidden = true;
@@ -27,7 +29,9 @@
     var f = L.fishById(reelRoll.id);
     if (res === 'caught') {
       var out = L.landFish(S, reelRoll);
+      contestAfterCatch(reelRoll);   // stage 10 ①: 낚시 대회 + 결산 카드 counts
       burst(reelVis.x, reelVis.y, 14, 0, 80);
+      fxCatch(f, reelVis.x, reelVis.y, out.sold);   // stage 8 ④: rare shake, legend beam, fly to the basket / coins
       floatText(out.sold ? '+' + out.sold : '+' + f.name, ROD_BASE.x, ROD_BASE.y - 16);
       showResult(f, reelRoll, out);
       milestones();
@@ -60,20 +64,32 @@
   }
   function showResult(f, roll, out) {
     resultEl.innerHTML = '';
-    resultEl.appendChild(fishCanvas(f.id));
+    // stage 8 ④: rare+ shows a dark silhouette first, then the fish; a legend waits for its light beam
+    var tier = L.fxTier(f), wait = tier > 1 ? 900 : tier ? 450 : 0;
+    var pic = fishCanvas(f.id, wait > 0);
+    resultEl.appendChild(pic);
     var nm = document.createElement('div'); nm.className = 'nm';
-    nm.textContent = (f.window === 'friday' ? '★ ' : '') + f.name;
+    var name = (f.window === 'friday' ? '★ ' : '') + f.name;
+    nm.textContent = wait ? '…!' : name;
     var sz = document.createElement('div'); sz.className = 'sz';
     sz.textContent = roll.size.toFixed(1) + 'cm · ' + (out.sold ? '+' + out.sold + ' 바로 팔림' : '바구니로');
     resultEl.appendChild(nm); resultEl.appendChild(sz);
+    var tg = null;
     if (out.first || out.newBest) {
-      var tg = document.createElement('div'); tg.className = 'tag';
-      tg.textContent = out.first ? '도감 등록!' : '최고 기록!';
-      resultEl.appendChild(tg);
+      tg = document.createElement('div'); tg.className = 'tag';
+      // stage 8: 신기록 shows the old best and the gain
+      tg.textContent = out.first ? '도감 등록! · ' + (L.isBoss(f.id) ? '보스전 ' + L.temperOf(f.id).length + '단계' : L.temperName(f.id)) : '신기록! +' + out.gain.toFixed(1) + 'cm (전 ' + out.prev.toFixed(1) + 'cm)';
+    }
+    function reveal() {
+      if (pic.parentNode !== resultEl) return;   // the card was reused (junk / bug) meanwhile
+      if (wait) { resultEl.replaceChild(fishCanvas(f.id), pic); nm.textContent = name; }
+      if (tg) { resultEl.appendChild(tg); fxStamp(tg); }
     }
     resultEl.hidden = false;
+    clearTimeout(showResult.r);
+    if (wait) showResult.r = setTimeout(reveal, wait); else reveal();
     clearTimeout(showResult.t);
-    showResult.t = setTimeout(hideResult, 2600);
+    showResult.t = setTimeout(hideResult, (out.record ? 3600 : 2600) + wait);
   }
   function hideResult() { resultEl.hidden = true; }
 
@@ -89,7 +105,7 @@
         if (bagStop()) return true;
         var bx = x, by = y;
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
-        L.cast(S, now(), Math.random, Math.round(bx), Math.round(by));
+        L.cast(S, now(), Math.random, Math.round(bx), Math.round(by), curEnv(now()));
         castAnim = { t: 0 };
         return refresh();
       }
@@ -210,6 +226,8 @@
   function drawWater(tt, dt) {
     if (scene === 'river') drawCurrent(tt);
     else if (scene === 'sea') drawWaves(tt);
+    drawIsleWater(tt);   // stage 7 섬: old boat on the 바다 beach, 섬 waves and palm, lighthouse light at night
+    drawShipWater(tt);   // stage 9 ①: 먼바다·난바다 sliding past the boat
     // water glints: slow, sparse
     for (var k = 0; k < 7 && scene === 'pond'; k++) {
       var ph = (tt * 0.25 + hash(k * 11) * 4) % 4;
@@ -234,17 +252,22 @@
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
-      var pulling = reel.burst > 0, warning = reel.warn > 0;
-      if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, 2.5); }
+      var pulling = reel.burst > 0, warning = reel.warn > 0, ev = reel.ev;
+      var jumping = pulling && ev === 'jump', digging = pulling && ev === 'sound', running = pulling && ev === 'run', turning = running && reel.turn > 0;
+      if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, jumping ? 3 : 2.5); }
+      if (!jumping && reelVis.air > 0.5) burst(reelVis.x, reelVis.y, 12, 0, 70);   // splash back down
+      reelVis.air += ((jumping ? 1 : 0) - reelVis.air) * Math.min(1, dt * 9);
       reelVis.pulling = pulling;
+      if (reel.phase !== reelVis.phase) { reelVis.phase = reel.phase; bossPhaseFx(); }
       // the fish is dragged from where it bit toward the dock as catch grows; bursts yank it away along reel.dir
       var tx = reelVis.sx + (ROD_TIP.x + 10 - reelVis.sx) * reel.catch * 0.85;
       var ty = reelVis.sy + (142 - reelVis.sy) * reel.catch * 0.85;
-      var surge = pulling ? reel.dir * 18 : warning ? -reel.dir * 4 : 0;
+      var surge = running ? (turning ? reel.dir * 6 : reel.dir * 26) : digging ? 0 : pulling ? reel.dir * 18 : warning ? -reel.dir * 4 : 0;
       reelVis.jx += (surge - reelVis.jx) * Math.min(1, dt * (pulling ? 7 : 5));
       if (pulling) reelVis.jy += (Math.random() - 0.5) * 3;
       reelVis.jy *= 0.85;
-      reelVis.x += (tx + reelVis.jx - reelVis.x) * Math.min(1, dt * 8);
+      if (digging) reelVis.jy += (5 - reelVis.jy) * Math.min(1, dt * 4);   // sinks toward the bottom
+      reelVis.x += (tx + reelVis.jx - reelVis.x) * Math.min(1, dt * (running ? 11 : 8));
       reelVis.y += (ty + reelVis.jy - reelVis.y) * Math.min(1, dt * 8);
       inside(reelVis);
       var facing = (pulling || warning) ? reel.dir : (reelVis.x > ROD_TIP.x ? -1 : 1);
@@ -260,11 +283,19 @@
         var wr = 2 + (tt * 14 % 3);
         ring(hx, hy, wr + 3, wr, 4); ring(hx, hy, wr + 6, wr + 1.5, 0);
       } else ring(reelVis.x, reelVis.y, len * 0.6 + (tt * 6 % 3), len * 0.25 + (tt * 3 % 1.5), 3);
-      fishShadow(reelVis.x, reelVis.y + 1, len, facing, flap, warning ? 0.8 : pulling ? 0.7 : 0.55);
+      var lift = Math.round(reelVis.air * 16 * (0.6 + 0.4 * Math.sin(Math.min(1, reel.burst / 0.5) * Math.PI)));
+      if (reelVis.air > 0.15) {
+        // 점프: the fish is in the air above its ring; dark shape, splash dots under it
+        fishShadow(reelVis.x, reelVis.y - lift, len, facing, flap, 0.95);
+        ring(reelVis.x, reelVis.y + 1, len * 0.5, len * 0.2, 0);
+        hy -= lift;
+      } else fishShadow(reelVis.x, reelVis.y + 1, len, facing, flap, digging ? 0.3 : warning ? 0.8 : pulling ? 0.7 : 0.55);
+      if (digging) for (var dd = 0; dd < 3; dd++) px(reelVis.x - 4 + dd * 4, reelVis.y + 3 + ((tt * 6 + dd) % 3), 1, 1, 4);   // mud puffs
       // rod: bends toward the fish with tension, extra when the fish runs
       var ten = Math.min(1, reel.tension), ddx = hx - ROD_TIP.x, ddy = hy - ROD_TIP.y, dl = Math.hypot(ddx, ddy) || 1;
       var bendAmt = 2 + ten * 13 + (pulling ? 4 : 0) + (held ? 2 : 0);
       tip.x = ROD_TIP.x + ddx / dl * bendAmt * 0.55; tip.y = ROD_TIP.y + ddy / dl * bendAmt * 0.4 + bendAmt * 0.55;
+      if (ten > 0.8 && !reduceMotion) { var rj = Math.floor(tt * 30) % 2 ? 1 : -1; tip.x += rj; if (ten > 0.92) tip.y -= rj; }   // stage 8 ④: rod trembles near snapping
       drawLine(tip.x, tip.y, hx, hy - 1, Math.max(0, 9 * (1 - ten) - (held ? 4 : 0) - (pulling ? 4 : 0)), ten > 0.75 || pulling ? 1 : 0);
       drawBobber(Math.round(hx + facing * 2), Math.round(hy - 2), 0, pulling || warning);
       if (warning && Math.floor(tt * 10) % 2 === 0) spr(BANG, hx - 3, hy - 20);
@@ -272,14 +303,16 @@
       tBar.style.width = Math.round(Math.min(1, reel.tension) * 100) + '%';
       cBar.style.width = Math.round(Math.max(0, Math.min(1, reel.catch)) * 100) + '%';
       tWrap.classList.toggle('hot', reel.tension > 0.75);
-      var cue = warning ? '손 떼!' : pulling ? (held ? '줄 끊어져요!' : '버텨…') : held ? '' : (reel.t < 2.5 ? '꾹 눌러 감기' : '감아!');
+      var cue = reelCue(reel, held, warning, pulling), loud = reel.fx > 0 || cue.loud;
+      cue = cue.text;
       cueEl.hidden = !cue;
       if (cue) {
         cueEl.textContent = cue;
-        cueEl.classList.toggle('loud', warning || (pulling && held));
+        cueEl.classList.toggle('loud', loud);
         cueEl.style.left = Math.round(Math.max(40, Math.min(140, hx)) * 2) + 'px';
         cueEl.style.top = (36 + Math.round((hy - (warning ? 34 : 18)) * 2)) + 'px';
       }
+      drawReelFrame(tt);   // stage 8: boss phase change blinks a frame round the screen
       if (rs) endReel(rs);
     } else if (f.phase === 'wait' || f.phase === 'bite') {
       var bx = f.x, byy = f.y, dip = 0, sunk = false;

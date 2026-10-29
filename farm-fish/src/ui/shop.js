@@ -1,7 +1,7 @@
   // ---------- 상점 ----------
   function pct(x) { return Math.round(x * 100) + '%'; }
   var SHOP = {
-    rod:   { what: '줄이 덜 팽팽해진다', eff: function (t) { return t ? '장력 −' + pct(1 - L.UPG.rod.tgain[t]) : '기본 낚싯대'; } },
+    rod:   { what: '줄이 덜 팽팽해진다', eff: function (t) { return t ? '장력 −' + pct(1 - L.UPG.rod.tgain[t] / L.UPG.rod.tgain[0]) : '기본 낚싯대'; } },
     bait:  { what: '입질이 빨라지고 귀한 물고기가 잘 문다',
              eff: function (t) { return t ? '대기 −' + pct(1 - L.UPG.bait.wait[t]) + ' · 희귀 ×' + L.UPG.bait.rare[t] : '맨 바늘'; } },
     field: { what: '밭이 늘어난다', eff: function (t) { return L.UPG.field.plots[t] + '칸'; } },
@@ -48,7 +48,12 @@
     }
     renderYardShop();   // stage 3: 집 · 동물 · 마당 꾸미기 · 가구
     renderPetShop();    // stage 5A: 반려동물
+    renderDonkeyShop(); // stage 9 ②: 당나귀
+    renderStage7BShop(); // stage 7: 곡괭이·만들기·망원경
     renderStage6Shop(); // stage 6A: 잠자리채
+    renderCameraShop(); // stage 7: 사진기
+    renderRideShop();   // stage 9 ③: 자전거
+    renderScareShop();  // stage 10 ②: 허수아비 꾸미기
     function row(id, nameHtml, sub, cost) {
       var r = document.createElement('div'); r.className = 'up';
       var n = document.createElement('div'); n.className = 'n'; n.innerHTML = nameHtml;

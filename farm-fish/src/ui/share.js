@@ -38,7 +38,7 @@
     });
     nick.addEventListener('change', function () { nick.value = S.nick || ''; save(); });
     var p = document.createElement('p'); p.className = 'note';
-    p.textContent = '코드에는 닉네임·년차·가장 큰 물고기·도감 수·★·요리·비밀·집만 들어가요';
+    p.textContent = '코드에는 닉네임·농장 이름·년차·어탁 기록·도감 수·★·요리·비밀·집만 들어가요';
     dexEl.appendChild(p);
 
     h3 = document.createElement('h3'); h3.textContent = '친구 기록과 비교'; dexEl.appendChild(h3);
@@ -70,6 +70,7 @@
     var fishText = function (st) { return st.fish ? (L.fishById(st.fish.id) ? L.fishById(st.fish.id).name : '???') + ' ' + st.fish.size.toFixed(1) + 'cm' : '—'; };
     var rows = [
       ['', me.nick || '나', fr.nick || '친구', null],
+      ['농장 이름', me.farm ? me.farm.name : '—', fr.farm ? fr.farm.name : '—', null],   // stage 10 ①
       ['농장', me.year + '년차', fr.year + '년차', [me.year, fr.year]],
       ['가장 큰 물고기', fishText(me), fishText(fr), [me.fish ? me.fish.size : 0, fr.fish ? fr.fish.size : 0]],
       ['물고기 도감', me.fdex + '종', fr.fdex + '종', [me.fdex, fr.fdex]],
@@ -80,6 +81,12 @@
       ['찾은 비밀', me.eggs + '개', fr.eggs + '개', [me.eggs, fr.eggs]],
       ['집', HOUSE_NAMES[me.house] || '?', HOUSE_NAMES[fr.house] || '?', [me.house, fr.house]]
     ];
+    // stage 8: the next 어탁 records (older codes have none → —)
+    var recText = function (st, k) { var e = st.recs && st.recs[k]; return e ? (L.fishById(e.id) ? L.fishById(e.id).name : '???') + ' ' + e.size.toFixed(1) + 'cm' : '—'; };
+    for (var k = 0; k < 3; k++) {
+      if (!(me.recs && me.recs[k]) && !(fr.recs && fr.recs[k])) break;
+      rows.push(['어탁 ' + (k + 2) + '위', recText(me, k), recText(fr, k), [me.recs && me.recs[k] ? me.recs[k].size : 0, fr.recs && fr.recs[k] ? fr.recs[k].size : 0]]);
+    }
     rows.forEach(function (r, k) {
       var line = document.createElement('div'); line.className = 'cr' + (k ? '' : ' head');
       [r[0], r[1], r[2]].forEach(function (t, j) {

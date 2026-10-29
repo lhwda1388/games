@@ -106,7 +106,7 @@
   function animalTick(s, now) {
     var y = yardOf(s), made = 0;
     ANIMAL_IDS.forEach(function (id) {
-      var heads = s.animals[id], p = y.prod[id], a = ANIMALS[id], cap = heads * ANIMAL_CAP;
+      var heads = s.animals[id] + broodHeads(s, id, now), p = y.prod[id], a = ANIMALS[id], cap = heads * ANIMAL_CAP;   // stage 10 ②: grown kids too
       if (!heads) return;
       if (p.n >= cap) { p.t = now; return; }
       var k = Math.floor((now - p.t) / a.every);
@@ -135,6 +135,7 @@
       }
     });
     dailyBump(s, 'animal', null, got.length);
+    broodCare(s, got);   // stage 10 ②: 친밀도 for 새끼
     return { items: got, sold: sold };
   }
 

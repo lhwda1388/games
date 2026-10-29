@@ -65,12 +65,24 @@
     for (var k = 0; k < str.length; k++) { h ^= str.charCodeAt(k); h = Math.imul(h, 0x01000193); }
     return h >>> 0;
   }
-  function residentById(id) { for (var k = 0; k < RESIDENTS.length; k++) if (RESIDENTS[k].id === id) return RESIDENTS[k]; return null; }
-  // who posted order o (deterministic from the order; special orders are 오 화백's)
-  function residentFor(o) {
+  // stage 10 ③: residents who move in later (logic/town.js fills it; s.town.mv says who has arrived)
+  var RES_EXTRA = [];
+  function resMoved(s, id) { return !!(s && s.town && s.town.mv[id]); }
+  function residentById(id) {
+    for (var k = 0; k < RESIDENTS.length; k++) if (RESIDENTS[k].id === id) return RESIDENTS[k];
+    for (k = 0; k < RES_EXTRA.length; k++) if (RES_EXTRA[k].id === id) return RES_EXTRA[k];
+    return null;
+  }
+  // who posted order o (deterministic from the order; special orders are 오 화백's).
+  // With s, a resident who has moved in takes about a third of the orders of their kinds; the rest stay as before.
+  function residentFor(o, s) {
     if (o.special) return 'painter';
+    if (o.by && residentById(o.by)) return o.by;   // stamped when posted
     var it = itemInfo(o.id), kind = it ? it.kind : 'crop';
+    var nw = RES_EXTRA.filter(function (r) { return resMoved(s, r.id) && r.kinds.indexOf(kind) >= 0; });
+    if (nw.length && strHash('new:' + o.id + ':' + o.n + ':' + o.reward) % 3 === 0) return nw[strHash(o.id + ':' + o.reward) % nw.length].id;
     var c = RESIDENTS.filter(function (r) { return !r.special && r.kinds.indexOf(kind) >= 0; });
+    if (!c.length) c = RESIDENTS.filter(function (r) { return !r.special; });   // a kind nobody asks for yet: anyone will
     return c[strHash(o.id + ':' + o.n + ':' + o.reward) % c.length].id;
   }
   function resOf(s) {
@@ -97,7 +109,7 @@
   }
   // called by deliver(): adds 친밀도 and hands out every level reached → { who, pts, ups: [{ lv, gift, coins }] }
   function befriend(s, o) {
-    var who = residentFor(o), pts = o.special ? 3 : 1;
+    var who = residentFor(o, s), pts = o.special ? 3 : 1;
     return { who: who, pts: pts, ups: befriendPts(s, who, pts) };
   }
   // adds pts of 친밀도 to resident who and hands out every level reached (also used by the 마을) → [{ lv, gift, coins }]
@@ -121,7 +133,7 @@
   }
 
   expose({
-    RESIDENTS: RESIDENTS, FRIEND_LV: FRIEND_LV, RES_STORY: RES_STORY, GIFT_RECIPES: GIFT_RECIPES,
+    RESIDENTS: RESIDENTS, RES_EXTRA: RES_EXTRA, resMoved: resMoved, FRIEND_LV: FRIEND_LV, RES_STORY: RES_STORY, GIFT_RECIPES: GIFT_RECIPES,
     residentById: residentById, residentFor: residentFor, recipeKnown: recipeKnown, friendLevel: friendLevel, friendPoints: friendPoints,
     befriend: befriend, befriendPts: befriendPts, resLetter: resLetter, readResLetters: readResLetters, strHash: strHash
   });

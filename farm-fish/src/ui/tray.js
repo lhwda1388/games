@@ -18,15 +18,21 @@
     ctx = saved;
     return c;
   }
+  function coinsFmt(v) {
+    return v < 100000 ? v.toLocaleString('ko-KR') : v < 1000000 ? (Math.floor(v / 1000) / 10) + '만' : Math.floor(v / 10000).toLocaleString('ko-KR') + '만';
+  }
   function itemIcon(id) {
     var it = L.itemInfo(id), pi = productIcon(id);
     if (pi) return pi;
+    if (it && (it.kind === 'ore' || it.kind === 'gem' || it.kind === 'fossil')) return caveIcon(id);   // stage 7
     if (it && it.kind === 'fish') { var f = fishCanvas(id); f.className = 'wide'; return f; }
     if (it && it.kind === 'dish') return dishCanvas(id);
     if (it && it.kind === 'crop') return iconCanvas(id);
     if (it && it.kind === 'forage') return forageIcon(id);   // stage 5A
     if (it && it.kind === 'fruit') return fruitIcon(id);     // stage 6A
     if (it && it.kind === 'honey') return honeyIcon(id);     // stage 6A
+    if (it && it.kind === 'flat') return flatIcon(id);       // stage 7 갯벌
+    if (it && it.kind === 'isle') return driftIcon(id);      // stage 7 섬
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;
@@ -75,8 +81,7 @@
       t.b.setAttribute('aria-pressed', String(S.sel === id));
     });
     // 6+ digits would push the header buttons off the edge: 123,456 → 12.3만, 1,234,567 → 123만
-    coinsEl.textContent = S.coins < 100000 ? S.coins.toLocaleString('ko-KR')
-      : S.coins < 1000000 ? (Math.floor(S.coins / 1000) / 10) + '만' : Math.floor(S.coins / 10000).toLocaleString('ko-KR') + '만';
+    coinsEl.textContent = coinsFmt(coinsShown(S.coins));   // stage 8 ④: gains roll up
     coinsEl.title = S.coins.toLocaleString('ko-KR');
   }
 

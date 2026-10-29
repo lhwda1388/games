@@ -39,7 +39,7 @@
     return { phase: c.phase, season: c.season, weather: weather || weatherAt(now, tzMin), festival: festivalId(now, tzMin) };
   }
   function fishEnvOk(f, env) {
-    return (!f.phase || f.phase.indexOf(env.phase) >= 0) && (!f.weather || f.weather === env.weather) && (!f.season || f.season === env.season) &&
+    return (!f.phase || f.phase.indexOf(env.phase) >= 0) && (!f.weather || f.weather === env.weather || (f.weather === 'fog' && env.day === 'fogfish') || (f.weather === 'rain' && env.day === 'rainfish')) && (!f.season || f.season === env.season) &&
       (!f.fest || f.fest === env.festival);   // stage 5B: festival-only fish
   }
   // fish that only bite under some game-clock/weather/season condition (the "지금만" list in the calendar)

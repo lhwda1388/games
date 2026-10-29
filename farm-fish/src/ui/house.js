@@ -71,13 +71,8 @@
       px(x + 2, y + 20, 3, 10, 4); px(x + 49, y + 20, 3, 10, 4);
     }
   };
-  // 어탁: the biggest fish ever caught, printed on paper
+  // 어탁: the biggest fish caught, printed on paper (the wall row is drawn by ui/temper.js)
   var etakuCache = {};
-  function biggestFish() {
-    var best = null;
-    L.FISH.forEach(function (f) { var d = S.dex.fish[f.id]; if (d && (!best || d.best > best.size)) best = { f: f, size: d.best }; });
-    return best;
-  }
   function drawRoom(tt, dt) {
     var t = L.houseTier(S), ph = yPhase(), night = ph === 'night', k;
     // walls by house tier
@@ -98,14 +93,7 @@
     if (wx === 'rain') for (k = 0; k < 8; k++) px(WIN[0] + ((k * 5 + tt * 20) % WIN[2]), WIN[1] + ((k * 7 + tt * 40) % (WIN[3] - 2)), 1, 2, 2);
     if (wx === 'snow') for (k = 0; k < 8; k++) px(WIN[0] + ((k * 5 + Math.sin(tt + k) * 2 + 34) % WIN[2]), WIN[1] + ((k * 7 + tt * 6) % (WIN[3] - 1)), 1, 1, night ? 0 : 2);
     px(WIN[0] + WIN[2] / 2, WIN[1], 1, WIN[3], 4); px(WIN[0], WIN[1] + WIN[3] / 2, WIN[2], 1, 4);
-    // 어탁 frame
-    px(ETAKU[0], ETAKU[1], ETAKU[2], ETAKU[3], 4); px(ETAKU[0] + 2, ETAKU[1] + 2, ETAKU[2] - 4, ETAKU[3] - 4, 0);
-    var big = biggestFish();
-    if (big) {
-      var c = etakuCache[big.f.id] || (etakuCache[big.f.id] = fishCanvas(big.f.id));
-      ctx.imageSmoothingEnabled = false; ctx.drawImage(c, ETAKU[0] + 4, ETAKU[1] + 4, 42, 18);
-      px(ETAKU[0] + 38, ETAKU[1] + 21, 8, 1, 3); px(ETAKU[0] + 42, ETAKU[1] + 19, 3, 3, 4);
-    } else dashRect([ETAKU[0] + 6, ETAKU[1] + 6, ETAKU[2] - 12, ETAKU[3] - 12], 2);
+    drawEtakuRow(ETAKU);   // stage 8: the top 월척 records as a row of 어탁 (ui/temper.js)
     // trophy shelf: cups for 도감 counts, medals for found secrets
     px(SHELF[0], SHELF[1], SHELF[2], SHELF[3], 4);
     var dc = L.dexCount(S);
@@ -141,10 +129,7 @@
     var t = L.houseTier(S), k;
     if (tapPick(x, y)) return;
     if (hit(DOOR, x, y, 3)) { goScene('yard'); return; }
-    if (hit(ETAKU, x, y)) {
-      var b = biggestFish();
-      toast(b ? '어탁 · ' + b.f.name + ' ' + b.size.toFixed(1) + 'cm · 지금까지 제일 큰 물고기' : '어탁 자리 · 큰 물고기를 낚으면 걸린다', 3000); return;
-    }
+    if (hit(ETAKU, x, y)) { toast(etakuText(), 4200); return; }
     if (hit([SHELF[0], 18, SHELF[2], 46], x, y)) {
       toast('트로피 · 도감 ' + L.dexCount(S) + '종 (5·10·20·30) · 비밀 ' + L.eggCount(S) + '/' + L.EGGS.length + ' · 도감 기록 탭', 3200); return;
     }
@@ -307,14 +292,3 @@
     r.appendChild(icon); r.appendChild(n); r.appendChild(b); shopEl.appendChild(r);
   }
 
-  // ---------- 냄비 tab: the extra pots a bigger house brings (renderCook calls this) ----------
-  function renderExtraPots() {
-    var t = now();
-    for (var k = 1; k < L.potCount(S); k++) {
-      var p = L.potGet(S, k);
-      if (!p) { upRow(dishCanvas('?'), '냄비 ' + (k + 1), '비어 있어요 · 요리하면 빈 냄비에 들어가요', 'idle'); continue; }
-      var r = L.recipeById(p.id), ready = t >= p.until;
-      var row = upRow(dishCanvas(r.id), '냄비 ' + (k + 1) + ' · ' + esc(r.name), ready ? '다 됐어요' : fmtGame(p.until - t) + ' 남음');
-      if (ready) row.appendChild(act('꺼내기', tapPot));
-    }
-  }

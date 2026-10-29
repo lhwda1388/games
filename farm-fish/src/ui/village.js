@@ -4,7 +4,7 @@
   // house boxes [x, y] (52 × 48): body x+2..x+38, its own touch on the right
   var VHOUSE = { grandma: [4, 34], fisher: [64, 34], chef: [124, 34], kid: [4, 118], teacher: [64, 118], painter: [124, 118] };
   function vilNow() { return now(); }
-  function villageAttention() { return L.villageOk(S) && L.VIL_IDS.some(function (id) { return L.vilAttention(S, id, vilNow(), YTZ); }); }
+  function villageAttention() { return L.villageOk(S) && (L.VIL_IDS.concat(townMovedIds()).some(function (id) { return L.vilAttention(S, id, vilNow(), YTZ); }) || museumAttention()); }
 
   // ---------- pre-rendered street ----------
   var bgVillage = document.createElement('canvas'); bgVillage.width = W; bgVillage.height = H;
@@ -99,6 +99,7 @@
     var t = vilNow(), e = curEnv(t), night = e.phase === 'night', cur = L.storyNow(S);
     ctx.drawImage(bgVillage, 0, 0);
     drawSky(tt, e.phase);
+    drawTownBack(tt);      // stage 10 ③: upper lane, places, 새 주민 cottages
     L.VIL_IDS.forEach(function (id) {
       var p = VHOUSE[id], away = L.residentAway(id, t, YTZ);
       DRAW_HOUSE[id](p[0], p[1], tt);
@@ -109,6 +110,9 @@
       var storyHere = !!(cur && cur.step.at === id);
       if (!away && (storyHere || L.vilAttention(S, id, t, YTZ))) markAbove(p[0] + 20, p[1] - (id === 'chef' ? 8 : 0), storyHere, tt);
     });
+    drawMuseumHouse(tt);   // stage 7 박물관
+    drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
+    drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
       ctx.globalAlpha = night ? 0.34 : 0.12; px(0, 0, W, H, 4); ctx.globalAlpha = 1;
@@ -116,6 +120,9 @@
     }
   }
   function tapVillage(x, y) {
+    if (tapTown(x, y)) return;          // stage 10 ③: people out on the street, 새 주민 cottages
+    if (tapMuseumHouse(x, y)) return;   // stage 7 박물관
+    if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
@@ -260,6 +267,7 @@
         refresh(); renderVil();
       }, '이야기 진행'));
     }
+    if (id === 'fisher') contestVilRow();   // stage 10 ①: 낚시 대회
     // talk
     var talked = !L.canTalk(S, id, t, YTZ) && !away;
     var r1 = sheetRow(faceCanvas(id), '대화', talked ? '오늘은 이야기했어요 · 내일 또' : '하루 한 번 · 친밀도 +' + L.VIL_TALK_PTS);
@@ -267,6 +275,7 @@
       var res = L.vilTalk(S, id, vilNow(), YTZ);
       if (!res.ok) { toast(VWHY[res.why]); return; }
       vilSay = d.name.split(' ').pop() + ': ' + res.text;
+      var rm = rumorAfter('res', id, true); if (rm) vilSay += ' … 그리고 소문인데요, ' + rm.text;   // stage 8 ③
       upsToast(res.ups, res.hint ? '비밀 힌트를 들었다 · 도감 기록' : '친밀도 +' + res.pts);
       refresh(); renderVil();
     }, d.name + '에게 말 걸기'));
@@ -359,10 +368,12 @@
     if (sc === 'village') cv.setAttribute('aria-label', '마을');
     if (sc === 'home' && vilCur) cv.setAttribute('aria-label', L.residentById(vilCur).name + ' 집 안');
     if (sc !== 'home' && sheetKind === 'vil') closeSheet();
+    sceneMuseum(sc);   // stage 7 박물관
     renderVilBar();
   }
   function tickVillageUI(t) {
     renderVilBar();
+    tickTown();   // stage 10 ③: 새 주민 이사
     if (sheetKind === 'vil' && !sheetEl.hidden && quiet() && Math.floor(t / 1000 / SPEED) % 20 === 0) renderVil();
   }
   // one line under the 단골 주민 heading in the 바구니 › 주민 tab

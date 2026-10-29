@@ -7,7 +7,9 @@
   var SCENES = {
     pond:  { cx: 116, cy: 148, rx: 58, ry: 38 },
     river: { cx: 145, cy: 170, rx: 34, ry: 20, ox: 210, oy: 228, mid: 87, half: 35 },
-    sea:   { cx: 152, cy: 178, rx: 34, ry: 22, ox: 240, oy: 250, r: 150 }
+    sea:   { cx: 152, cy: 178, rx: 34, ry: 22, ox: 240, oy: 250, r: 150 },
+    island: { cx: 146, cy: 176, rx: 38, ry: 22, ox: 236, oy: 256, r: 162 },  // stage 7 섬: open sea like 바다, a wider bay
+    offshore: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }, ocean: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }   // stage 9 ① 먼바다·난바다
   };
   var scene = 'pond';
   var ROD_BASE = { x: 57, y: 133 }, ROD_TIP = { x: 74, y: 117 };
@@ -16,7 +18,7 @@
   function wetD(x, y) {
     var sc = SCENES[scene];
     if (scene === 'river') return Math.abs(Math.hypot(x - sc.ox, y - sc.oy) - sc.mid) / sc.half;
-    if (scene === 'sea') return Math.hypot(x - sc.ox, y - sc.oy) / sc.r;
+    if (sc.r) return Math.hypot(x - sc.ox, y - sc.oy) / sc.r;   // 바다, 섬, 먼바다·난바다
     var a = (x - POND.cx) / POND.rx, b = (y - POND.cy) / POND.ry; return a * a + b * b;
   }
   function inWet(x, y, k) { return wetD(x, y) < (k || 1); }
@@ -91,7 +93,7 @@
   }
   // 강·바다: per-pixel water from wetD, with a drawn bank line and a shore of pebbles (강) or sand (바다)
   function paintOpenWater() {
-    var sea = scene === 'sea';
+    var sea = !!SCENES[scene].r;
     for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var d = wetD(x, y), c;
       if (d < 1) {

@@ -5,14 +5,14 @@
   DISH_TOP.naengguk = ['.1.33.1.', '1131111311'];
   DISH_TOP.goguma = ['..4444..', '.43333334.'];
 
-  // 9×9 faces: hair/hat shape tells them apart
+  // 9×9 faces: each has its own silhouette + one prop (grey bun, brimmed hat + beard, chef's toque, side cap, long hair, beret + moustache)
   var FACE = {
-    grandma: ['..444....', '.44444...', '4400044..', '.40404...', '.40004...', '..404....', '.33333...', '3333333..', '3333333..'],
-    fisher:  ['.44444...', '4444444..', '.40004...', '.40404...', '.42224...', '..424....', '.33333...', '3333333..', '3333333..'],
-    chef:    ['.40004...', '.44444...', '.40004...', '.40404...', '.40004...', '..404....', '.00000...', '0000000..', '0000000..'],
-    kid:     ['.4.4.4...', '..444....', '.40004...', '.40404...', '.40004...', '..444....', '..333....', '.33333...', '.33333...'],
-    teacher: ['..444....', '.4444444.', '.40004...', '.44044...', '.40004...', '..404....', '.22222...', '2222222..', '2222222..'],
-    painter: ['444444...', '.4444....', '.40004...', '.40404...', '.40004...', '..444....', '.31313...', '3131313..', '3131313..']
+    grandma: ['...444...', '..42224..', '.4222224.', '.2400042.', '.2404042.', '..40004..', '..34443..', '.3333333.', '333333333'],
+    fisher:  ['..44444..', '..44444..', '444444444', '..40004..', '..40404..', '.4000004.', '..40004..', '.3333333.', '333333333'],
+    chef:    ['..44.44..', '.4004004.', '.4000004.', '..44444..', '..40404..', '..40004..', '...444...', '.4000004.', '.4004004.'],
+    kid:     ['.........', '..3333...', '.33333444', '.40004...', '.40404...', '.40004...', '..444....', '.43334...', '.43334...'],
+    teacher: ['..44444..', '.4444444.', '.4400044.', '.4404044.', '.4400044.', '.4.444.4.', '.4.222.4.', '..22222..', '.2222222.'],
+    painter: ['.....4...', '.444444..', '44444444.', '..40004..', '..40404..', '..44444..', '...404...', '.3131313.', '313131313']
   };
   function faceCanvas(id) {
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
@@ -24,17 +24,17 @@
     var h3 = document.createElement('h3'); h3.textContent = '단골 주민';
     var b = document.createElement('b'); b.textContent = '납품할수록 친해져요'; h3.appendChild(b); bagEl.appendChild(h3);
     renderStoryLine(bagEl);   // stage 6B: 지금 할 일 (이어지는 심부름 이야기)
-    L.RESIDENTS.forEach(function (d) {
-      var lv = L.friendLevel(S, d.id), pts = L.friendPoints(S, d.id), next = L.FRIEND_LV[lv];
-      var unread = S.res ? S.res.unread.filter(function (k) { return k.split(':')[0] === d.id; }).length : 0;
+    L.RESIDENTS.concat(L.RES_EXTRA.filter(function (r) { return L.resMoved(S, r.id); })).forEach(function (d) {   // stage 10 ③: 새 주민 once moved in
+      var lv = L.friendLevel(S, d.id), pts = L.friendPoints(S, d.id), next = L.FRIEND_LV[lv], arrive = L.TOWN_ARRIVE[d.id];
+      var unread = (S.res ? S.res.unread.filter(function (k) { return k.split(':')[0] === d.id; }).length : 0) + (L.townUnread(S).indexOf(d.id) >= 0 ? 1 : 0);
       var r = upRow(faceCanvas(d.id), esc(d.name) + ' <span class="hearts" aria-label="친밀도 ' + lv + '단계">' +
         [0, 1, 2, 3].map(function (k) { return '<i class="' + (k < lv ? 'on' : '') + '"></i>'; }).join('') + '</span>',
         d.who + ' · ' + (next ? '다음 단계까지 ' + (next - pts) + '번' : '가장 친한 사이'), lv ? '' : 'idle');
-      var btn = act(unread ? '편지 ' + unread : lv ? '편지' : '…', function () {
+      var btn = act(unread ? '편지 ' + unread : lv || arrive ? '편지' : '…', function () {
         resOpen = resOpen === d.id ? null : d.id;
-        if (resOpen && L.readResLetters(S, d.id)) refresh();
+        if (resOpen && (L.readResLetters(S, d.id) + (L.townRead(S, d.id) ? 1 : 0))) refresh();
         renderBag();
-      }, { off: !lv, label: d.name + ' 편지 보기', cls: unread ? 'new' : '' });
+      }, { off: !lv && !arrive, label: d.name + ' 편지 보기', cls: unread ? 'new' : '' });
       r.appendChild(btn);
       if (resOpen !== d.id) return;
       for (var k = lv; k >= 1; k--) {
@@ -44,6 +44,12 @@
         top.textContent = d.name + ' · ' + k + '단계' + (g ? ' · 선물: ' + giftName(g) : k === 4 ? ' · 동봉: 500코인' : '');
         var tx = document.createElement('p'); tx.textContent = L.resLetter(d.id, k);
         box.appendChild(top); box.appendChild(tx); bagEl.appendChild(box);
+      }
+      if (arrive) {   // stage 10 ③: the arrival letter comes first, shown last
+        var ab = document.createElement('div'); ab.className = 'letter';
+        var at = document.createElement('div'); at.className = 'lt'; at.textContent = d.name + ' · 이사 인사';
+        var ap = document.createElement('p'); ap.textContent = arrive.letter;
+        ab.appendChild(at); ab.appendChild(ap); bagEl.appendChild(ab);
       }
     });
     var p = document.createElement('p'); p.className = 'note';

@@ -135,7 +135,7 @@
     }
     if (!y.nextVisitAt || y.nextVisitAt > now + (VISIT_MIN + VISIT_SPAN) * sc * 2) y.nextVisitAt = now + 30e3 * sc;
     if (now >= y.nextVisitAt) {
-      y.nextVisitAt = now + (VISIT_MIN + rng() * VISIT_SPAN) * sc;
+      y.nextVisitAt = now + (VISIT_MIN + rng() * VISIT_SPAN) * sc * (dayIs(s, 'cats') ? DAY_VISIT_MUL : 1);   // stage 8: 고양이 잔치
       var d = rollVisitor(s, now, rng, tzMin);
       if (d) { spawnVisitor(s, d, now, rng, sc); ev.push({ type: 'arrive', id: d.id }); }
     }

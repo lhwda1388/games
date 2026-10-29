@@ -32,7 +32,7 @@
     L.FISH.forEach(function (f) {
       var d = S.dex.fish[f.id];
       row(fishCanvas(f.id, !d), d ? (f.window === 'friday' ? '★ ' : '') + f.name : '???',
-        d ? (f.spot ? L.SPOTS[f.spot].name + ' · ' : '') + f.rarity + ' · ' + d.n + '마리' : fishHint(f), d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);
+        d ? (f.spot ? L.SPOTS[f.spot].name + ' · ' : '') + f.rarity + ' · ' + L.temperName(f.id) + ' · ' + d.n + '마리' : fishHint(f), d ? '최고 ' + d.best.toFixed(1) + 'cm' : '', !d);   // stage 8: 성격 after the first catch
     });
     h3 = document.createElement('h3'); h3.textContent = '요리';
     var dc = document.createElement('b'); dc.textContent = Object.keys(S.dex.dish).length + ' / ' + L.RECIPES.length; h3.appendChild(dc);
@@ -42,7 +42,14 @@
       row(ic, n ? r.name : '???', n ? r.sell + '코인 · ' + Math.round(r.time / 60e3) + '분' : r.hidden ? '귀한 재료가 모이면…' : r.gift && !L.recipeKnown(S, r) ? L.residentById(r.gift).name + '의 선물 레시피' : '아직 안 만듦', n ? n + '번' : '', !n);
     });
     renderForageDex(row);   // stage 5A: 채집
+    renderStage7BDex(row);  // stage 7: 광물·화석·별자리
     renderStage6Dex(row);   // stage 6A: 과일 · 꿀 · 곤충
+    renderFlatDex(row); renderAlbumDex(row);   // stage 7: 갯벌 · 앨범
+    renderIsleDex(row);     // stage 7 섬: 표류물 · 야자 열매
+    renderShipDex(row);     // stage 9 ①: 먼 섬 표류물
+    renderRideDex(row);     // stage 9 ③: 하늘 (열기구) + 썰매·자전거 기록
+    renderGardenDex(row);   // stage 10 ②: 꽃
+    renderMuseumDex();      // stage 7 박물관: one progress line
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
       var n = document.createElement('div'); n.className = 'n'; n.textContent = name;
@@ -69,6 +76,6 @@
     fish20: '물고기 20종 · 장식 「어부의 깃발」을 받았다', fish30: '물고기 30종 · 장식 「등대 모형」을 받았다' };
   function milestones() {
     var got = L.checkMilestones(S);
-    if (got.length) setTimeout(function () { toast('★ ' + MS_TOAST[got[got.length - 1]], 4000); }, 1400);
+    if (got.length) setTimeout(function () { toast('★ ' + MS_TOAST[got[got.length - 1]], 4000); fxStamp(toastEl); }, 1400);   // stage 8 ④: stamp
   }
 

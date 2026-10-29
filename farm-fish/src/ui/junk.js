@@ -22,6 +22,7 @@
     var id = L.rollJunk(roll, Math.random);
     if (!id) return false;
     var out = L.landJunk(S, id, Math.random);
+    tmapAfter('junk'); if (id === 'letter') rumorAfter('letter');   // stage 8 ③
     burst(f.x, f.y, 8, 0, 50);
     floatText('+' + L.junkById(id).name, ROD_BASE.x, ROD_BASE.y - 16);
     showJunk(out);

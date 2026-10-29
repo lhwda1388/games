@@ -114,8 +114,10 @@
   function harvest(s, i, now, rng) {
     var p = s.plots[i]; advancePlot(p, now);
     if (!isReady(p)) return null;
-    var crop = p.crop, coins = Math.round(CROPS[crop].sell * p.yieldMul), lost = p.yieldMul < 1;
+    var crop = p.crop, coins = Math.round(CROPS[crop].sell * p.yieldMul * marketMul(s, crop)), lost = p.yieldMul < 1;
     var sold = bagAdd(s, crop, coins);
+    var boom = boomExtra(s, 'farm', now, 1);   // stage 8: 대풍년
+    for (var b = 0; b < boom; b++) sold += bagAdd(s, crop, coins);
     s.dex.crops[crop] = (s.dex.crops[crop] || 0) + 1;
     dailyBump(s, 'harvest'); dailyBump(s, 'crop', crop);
     var gold = false;
@@ -124,11 +126,13 @@
       var q = s.plots[j];
       return (q.crop === partner && isReady(q)) || (q.last && q.last.crop === partner && now - q.last.t <= CROSS_WINDOW);
     })) {
-      if (rng() < CROSS_CHANCE) { s.seeds.gold++; s.dex.goldSeed = true; gold = true; }
+      if (rng() < CROSS_CHANCE * (dayIs(s, 'gold') ? DAY_GOLD_MUL : 1)) { s.seeds.gold++; s.dex.goldSeed = true; gold = true; }
     }
     var e = emptyPlot(); e.last = { crop: crop, t: now };
     s.plots[i] = e;
-    return { crop: crop, coins: coins, sold: sold, gold: gold, lost: lost };
+    var out = { crop: crop, coins: coins, sold: sold, gold: gold, lost: lost };
+    if (boom) out.boom = boom;
+    return out;
   }
 
   function seedUnlocked(s, id) { return BASE_SEEDS.indexOf(id) >= 0 || !!(CROPS[id] && CROPS[id].season) || !!(SEED_UNLOCK[id] && s.seedOk && s.seedOk[id]); }

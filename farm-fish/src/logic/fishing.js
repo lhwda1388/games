@@ -5,8 +5,8 @@
     { id: 'catfish', name: '메기',     rarity: '드묾',    w: 16, min: 30, max: 72,  power: 1.3,  price: 70 },
     { id: 'carp',    name: '비단잉어', rarity: '희귀',    w: 7,  min: 40, max: 90,  power: 1.6,  price: 160 },
     { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.4, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
-    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.2,  price: 1200, window: 'friday', share: 0.2 },
-    { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 2.0,  price: 600, unlock: 'koi' },
+    { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.4,  price: 1200, window: 'friday', share: 0.2 },
+    { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 2.2,  price: 600, unlock: 'koi' },
     // 강 (river). phase = game-clock time of day, weather = weatherAt(), season = game season (stage 4 adds seasonal fish)
     { id: 'dace',      name: '갈겨니',   rarity: '흔함', w: 40, min: 8,  max: 18,  power: 0.9, price: 30,   spot: 'river', hint: '여울에 흔한 작은 물고기' },
     { id: 'chub',      name: '끄리',     rarity: '흔함', w: 30, min: 15, max: 35,  power: 1.1, price: 50,   spot: 'river', hint: '여울을 떼 지어 다닌다' },
@@ -30,8 +30,8 @@
     { id: 'snapper',   name: '참돔',     rarity: '희귀', w: 8,  min: 30, max: 70,  power: 1.7, price: 520,  spot: 'sea', phase: ['morning'], hint: '아침 물때에 붉게… 아니 회색으로 빛난다' },
     { id: 'octopus',   name: '문어',     rarity: '희귀', w: 8,  min: 30, max: 80,  power: 1.6, price: 480,  spot: 'sea', weather: 'rain', hint: '비 오는 날 바위에서 기어 나온다' },
     { id: 'yellowtail', name: '방어',    rarity: '희귀', w: 7,  min: 60, max: 100, power: 1.9, price: 700,  spot: 'sea', hint: '힘센 회유어 · 좋은 낚싯대가 필요하다' },
-    { id: 'ghostray',  name: '안개 가오리', rarity: '전설', w: 3, min: 80, max: 160, power: 2.3, price: 1800, spot: 'sea', weather: 'fog', hint: '안개 속에서 커다란 그림자가 미끄러진다' },
-    { id: 'swordfish', name: '황새치',   rarity: '전설', w: 2,  min: 120, max: 260, power: 2.5, price: 2600, spot: 'sea', phase: ['day'], hint: '한낮 먼바다의 전설 · 장력을 잘 다뤄야' }
+    { id: 'ghostray',  name: '안개 가오리', rarity: '전설', w: 3, min: 80, max: 160, power: 2.15, price: 1800, spot: 'sea', weather: 'fog', hint: '안개 속에서 커다란 그림자가 미끄러진다' },
+    { id: 'swordfish', name: '황새치',   rarity: '전설', w: 2,  min: 120, max: 260, power: 2.35, price: 2600, spot: 'sea', phase: ['day'], hint: '한낮 먼바다의 전설 · 장력을 잘 다뤄야' }
   ];
   var BITE_MS = 2500;
   var WAIT_MIN = 20e3, WAIT_SPAN = 70e3;
@@ -62,8 +62,8 @@
   }
   // weights for a pool. A fish with `share` (점심 붕어, 퇴근 참치) takes that fraction of the pool while it is in,
   // whatever else swims there; better bait raises the odds like any rare fish, capped at POOL_SHARE_MAX.
-  function fishWeights(pool, s) {
-    var rare = s ? UPG.bait.rare[tier(s, 'bait')] : 1, others = 0, shTot = 0;
+  function fishWeights(pool, s, env) {
+    var rare = (s ? UPG.bait.rare[tier(s, 'bait')] : 1) * (stormOn(s, env) ? BOOM_RARE_MUL : 1), others = 0, shTot = 0;   // stage 8: 입질 폭풍
     var wt = pool.map(function (f) {
       if (f.share) return 0;
       var w = f.w * (f.rarity === '흔함' ? 1 : rare);
@@ -83,22 +83,25 @@
   }
   function rollFish(d, rng, s, env) {
     var pool = availableFish(d, s, env), tot = 0, k;
-    var wt = fishWeights(pool, s);
+    var wt = fishWeights(pool, s, env);
     for (k = 0; k < pool.length; k++) tot += wt[k];
     var r = rng() * tot, pick = pool[pool.length - 1];
     for (k = 0; k < pool.length; k++) { r -= wt[k]; if (r < 0) { pick = pool[k]; break; } }
-    var size = Math.round((pick.min + (pick.max - pick.min) * Math.pow(rng(), 1.6)) * 10) / 10;
+    var size = Math.round((pick.min + (pick.max - pick.min) * Math.pow(rng(), dayIs(s, 'bigfish') ? DAY_BIG_POW : 1.6)) * 10) / 10;
     return { id: pick.id, size: size };
   }
   function sizeFrac(roll) {
     var f = fishById(roll.id);
     return Math.max(0, Math.min(1, (roll.size - f.min) / (f.max - f.min)));
   }
-  function waitMs(s, rng) { return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
+  // stage 8: 입질 폭풍 at this spot and 입질 좋은 날 shorten the wait
+  function waitMs(s, rng, env) {
+    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1));
+  }
   function nextNibble(s, from, rng) { return from + Math.round((NIB_MIN + rng() * NIB_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
-  function cast(s, now, rng, x, y) {
+  function cast(s, now, rng, x, y, env) {
     if (s.fish.phase !== 'idle') return false;
-    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng), nibAt: 0, nibEnd: 0 };
+    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng, env), nibAt: 0, nibEnd: 0 };
     s.fish.nibAt = nextNibble(s, now, rng);
     return true;
   }
@@ -134,54 +137,61 @@
     return f.roll;
   }
   // Player jerks the rod. On a real bite this hooks; any earlier it spooks the fish and the wait starts over.
-  function strike(s, now, rng) {
+  function strike(s, now, rng, env) {
     var f = s.fish;
     if (f.phase === 'bite') { var roll = hook(s, now); return roll ? { type: 'hook', roll: roll } : null; }
     if (f.phase !== 'wait') return null;
     var wasNibble = now < f.nibEnd;
-    f.biteAt = now + waitMs(s, rng);
+    f.biteAt = now + waitMs(s, rng, env);
     f.nibAt = nextNibble(s, now, rng);
     f.nibEnd = 0;
     return { type: 'scared', nibble: wasNibble };
   }
   // Reel minigame: holding raises catch and tension; the fish pulls in telegraphed bursts toward r.dir.
+  // Stage 8: the fish's personality (logic/temper.js) picks what each burst is; 순한 fish keep exactly this model.
   function newReel(roll, rodTier) {
     var f = fishById(roll.id);
-    return { tension: 0, catch: 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
-      tgain: UPG.rod.tgain[rodTier || 0], dir: 1, burst: 0, warn: 0, next: 0.9, result: null };
+    return temperReel({ tension: 0, catch: 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
+      tgain: UPG.rod.tgain[rodTier || 0], dir: 1, burst: 0, warn: 0, next: 0.9, result: null }, roll.id);
   }
   function reelStep(r, dt, holding, rng) {
     if (r.result) return r.result;
     r.t += dt;
-    if (r.burst > 0) r.burst = Math.max(0, r.burst - dt);
-    else if (r.warn > 0) { r.warn -= dt; if (r.warn <= 0) { r.warn = 0; r.burst = 0.4 + rng() * 0.45; } }
+    if (r.fx > 0) r.fx = Math.max(0, r.fx - dt);
+    r.hold = holding ? (r.hold || 0) + dt : 0;
+    if (r.burst > 0) { r.burst = Math.max(0, r.burst - dt); if (r.ev === 'run') temperRun(r, dt, rng); }
+    else if (r.warn > 0) { r.warn -= dt; if (r.warn <= 0) { r.warn = 0; temperStart(r, rng); } }
     else {
       r.next -= dt;
-      if (r.next <= 0) { r.warn = WARN; r.dir = rng() < 0.5 ? -1 : 1; r.next = (0.6 + rng() * 1.1) / Math.pow(r.power, 0.35); }
+      if (r.next <= 0) { r.warn = temperPick(r, rng).tell; r.dir = rng() < 0.5 ? -1 : 1; r.next = (0.6 + rng() * 1.1) / Math.pow(r.power, 0.35); }
     }
     var pulling = r.burst > 0;
-    if (holding) {
+    if (pulling && temperPhys(r, dt, holding)) { /* 점프·버팀·질주 handled */ }
+    else if (holding) {
       r.tension += (0.2 + (pulling ? 1.3 * r.power : 0)) * r.tgain * dt;
       if (!pulling) r.catch += 0.3 / Math.pow(r.power, 0.3) * dt;
     } else {
       r.tension = Math.max(0, r.tension - 0.8 * dt);
       r.catch -= (pulling ? 0.04 * r.power : 0.02) * dt;
     }
+    temperPhase(r);
     if (r.tension >= 1) r.result = 'snap';
     else if (r.catch >= 1) r.result = 'caught';
-    else if (r.catch <= 0 || r.t >= REEL_MAX) r.result = 'escaped';
+    else if (r.catch <= 0 || r.t >= (r.tmax || REEL_MAX)) r.result = 'escaped';
     return r.result;
   }
   function landFish(s, roll) {
     var f = fishById(roll.id);
-    var coins = Math.round(f.price * (0.7 + 0.6 * sizeFrac(roll)));
+    var coins = Math.round(f.price * (0.7 + 0.6 * sizeFrac(roll)) * marketMul(s, f.id));   // stage 8: 장날
     var d = s.dex.fish[f.id] || { n: 0, best: 0 };
     var newBest = roll.size > d.best;
     s.dex.fish[f.id] = { n: d.n + 1, best: Math.max(d.best, roll.size) };
     var sold = bagAdd(s, f.id, coins);
     dailyBump(s, 'fish'); dailyBump(s, 'spot', curSpot(s));
     s.fish = { phase: 'idle' };
-    return { coins: coins, sold: sold, newBest: newBest, first: d.n === 0 };
+    // 신기록: a bigger one of a species already in the 도감 (prev = old best, gain rounded to 0.1cm)
+    return { coins: coins, sold: sold, newBest: newBest, first: d.n === 0, record: newBest && d.n > 0,
+      prev: d.best, gain: Math.round((roll.size - d.best) * 10) / 10 };
   }
   function loseFish(s) { s.fish = { phase: 'idle' }; }
 

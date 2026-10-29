@@ -13,7 +13,7 @@
   function openPip() {
     pipArmed = false; pipHint.hidden = true;
     window.documentPictureInPicture.requestWindow({ width: 360, height: 480 }).then(function (pw) {
-      pipWin = pw;
+      pipWin = pw; hideA = null;   // auto-PiP opens just after the tab hides: the player is still here
       var st = pw.document.createElement('style');
       st.textContent = Array.prototype.map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
       pw.document.head.appendChild(st);
