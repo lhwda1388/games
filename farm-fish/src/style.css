@@ -61,7 +61,7 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 #reelCue{position:absolute;transform:translate(-50%,0);font:700 12px var(--font);color:var(--g4);pointer-events:none;white-space:nowrap;
   text-shadow:1px 0 var(--g0),-1px 0 var(--g0),0 1px var(--g0),0 -1px var(--g0),1px 1px var(--g0),-1px -1px var(--g0)}
 #reelCue.loud{font-size:14px;animation:jit .08s steps(2) infinite}
-#result{position:absolute;left:50%;top:150px;transform:translateX(-50%);width:220px;box-sizing:border-box;padding:10px;text-align:center;
+#result{position:absolute;left:50%;top:150px;transform:translateX(-50%);z-index:2;width:220px;box-sizing:border-box;padding:10px;text-align:center;
   background:var(--g0);border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4)}
 #result canvas{width:72px;height:36px;image-rendering:pixelated;display:block;margin:0 auto 4px}
 #result .nm{font:700 15px var(--font)}
@@ -145,7 +145,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 /* stage 8 ④ 이펙트: a stamp lands in three hard steps (pixel feel, no easing blur); coins flying to the wallet in panels */
 #result .tag.stamp{animation:stamp .24s steps(3,end) both}
 #toast.stamp{animation:stampT .24s steps(3,end) both}
-@keyframes stamp{0%{transform:scale(2.2) rotate(-8deg);opacity:0}60%{transform:scale(.92) rotate(-2deg);opacity:1}100%{transform:none}}
+@keyframes stamp{0%{transform:scale(1.4) rotate(-4deg);opacity:0}60%{transform:scale(.92) rotate(-2deg);opacity:1}100%{transform:none}}
 @keyframes stampT{0%{transform:translateX(-50%) scale(1.5)}60%{transform:translateX(-50%) scale(.96)}100%{transform:translateX(-50%)}}
 .coinfly{position:absolute;z-index:8;pointer-events:none;margin:0}
 @media (prefers-reduced-motion: reduce){ #result .tag.stamp,#toast.stamp{animation:none} .coinfly{display:none} }
