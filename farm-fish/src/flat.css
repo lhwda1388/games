@@ -1,0 +1,22 @@
+/* Hallmark · component: 갯벌 tide tag, 사진기 corner button, camera flash · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules) · "on" (a moment to take) · new (dot); instant, no loading/error
+ * stage 7 ①. Only tokens, no new colours. Motion: a 2-step blink while a moment is on, a 0.45 s flash; both off for reduced motion.
+ */
+#tideTag{position:absolute;left:0;right:0;bottom:0;height:44px;box-sizing:border-box;z-index:2;display:flex;flex-direction:column;justify-content:center;
+  padding:0 10px;background:var(--g0);border-top:2px solid var(--g4);pointer-events:none}
+#tideTag[hidden]{display:none}
+#tideTag b{font:700 10px var(--font);color:var(--g3)}
+#tideTag span{font:700 12px/1.25 var(--font);color:var(--g4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#camBtn{position:absolute;right:3px;top:72px;z-index:2;width:32px;height:26px;padding:0;display:flex;align-items:center;justify-content:center}
+#camBtn[hidden]{display:none}
+#camBtn canvas{width:21px;height:15px;image-rendering:pixelated}
+#camBtn.on{animation:camOn 1s steps(2) infinite}
+#camBtn.on canvas{animation:camOnIcon 1s steps(2) infinite}
+@keyframes camOnIcon{50%{filter:invert(1)}}
+#camBtn .dot{position:absolute;right:-4px;top:-4px;width:7px;height:7px;background:var(--g4);border:1px solid var(--g0)}
+#camBtn .dot[hidden]{display:none}
+@keyframes camOn{50%{background:var(--g4)}}
+#camFlash{position:absolute;left:0;top:36px;width:360px;height:400px;background:var(--g0);opacity:0;pointer-events:none;z-index:3}
+#camFlash.go{animation:camFlash .45s var(--ease-out)}
+@keyframes camFlash{0%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){ #camBtn.on,#camBtn.on canvas{animation:none} #camBtn.on{background:var(--g1)} #camFlash.go{animation-duration:.15s} }

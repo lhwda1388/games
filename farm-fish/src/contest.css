@@ -1,0 +1,21 @@
+/* Hallmark · component: 농장 간판 name tag, 간판 모양 picker, 결산 카드 sheet · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules) · pressed (aria-pressed); instant, no loading/error
+ * stage 10 ①. Only tokens, no new colours. Motion: none.
+ */
+#farmSignTx{position:absolute;left:48px;top:242px;width:40px;height:16px;z-index:1;pointer-events:none;
+  font:700 8px/16px var(--font);letter-spacing:-0.3px;color:var(--g4);text-align:center;white-space:nowrap;overflow:hidden}
+#farmSignTx.blank{color:var(--g2)}
+#farmSignTx[hidden]{display:none}
+.signPick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:4px 0}
+.signPick button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;font:700 10px var(--font)}
+.signPick button canvas{width:45px;height:30px;image-rendering:pixelated}
+.signPick button[aria-pressed="true"]{background:var(--g4);color:var(--g0)}
+.signPick button[aria-pressed="true"] canvas{background:var(--g0)}
+.yearCard{display:block;width:270px;height:360px;margin:6px auto;image-rendering:pixelated;border:0}
+.yearSave{display:block;margin:6px auto;width:max-content;padding:5px 14px;border:2px solid var(--g4);background:var(--g0);color:var(--g4);
+  font:700 12px var(--font);text-decoration:none;box-shadow:2px 2px 0 var(--g2)}
+.yearSave:hover{background:var(--g1)}
+.yearSave:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--g2)}
+.yearSave:focus-visible{outline:2px solid var(--g4);outline-offset:2px}
+.yearBtns{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+.yearBtns button{padding:4px 8px}

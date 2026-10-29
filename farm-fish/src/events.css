@@ -1,0 +1,14 @@
+/* Hallmark · component: 입질 폭풍 chip · 오늘의 날 / 일기 card · genre: playful
+ * theme: existing farm-fish grayscale (--g0..--g4) · states: default · hover · focus · active (shared button rules); disabled/loading/error/success n/a (local, instant)
+ * stage 8 ①. Same voice as #festChip and .letter; no motion, so nothing to cut under prefers-reduced-motion.
+ */
+#boomChip{display:flex;align-items:center;gap:3px;padding:2px 5px;font:700 11px var(--mono)}
+#boomChip canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
+#evCard{position:absolute;left:50%;top:70px;transform:translateX(-50%);width:296px;max-width:calc(100% - 24px);z-index:6;
+  display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 12px 7px;box-shadow:3px 3px 0 var(--g4);cursor:pointer}
+#evCard:active{transform:translateX(-50%) translateY(2px);box-shadow:none}
+#evCard[hidden]{display:none}
+#evCard .lt{font:700 11px var(--mono);color:var(--g3)}
+#evCard b{font:700 15px var(--font);margin-bottom:2px}
+#evCard .ln{font:400 13px/1.45 var(--font);color:var(--g4)}
+#evCard small{font:400 11px var(--font);color:var(--g3);margin-top:4px;align-self:flex-end}
