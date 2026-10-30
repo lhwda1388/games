@@ -3,9 +3,9 @@
   var TOY_SCENES = { farm: true, yard: true, forest: true };
   var toySpotCache = {}, toyPiles = {}, toySteps = [], toyFx = [], toyLast = null;
   // ground a toy may sit on, per scene: [x, y, w, h] boxes it must keep clear of
-  // 마당 things that are not on a YSPOT: house (every tier), pots, gift, pen, merchant cart, trophies, corner buttons
+  // 마당 things that are not on a YSPOT: house (every tier), pots, gift, pen, merchant cart, trophies, corner buttons, 공방
   var YARD_TOY_BLOCK = [[52, 14, 76, 73], [126, 70, 46, 18], [96, 82, 14, 10], [3, 113, 100, 84], [100, 136, 52, 30],
-    [132, 28, 14, 38], [147, 148, 12, 30], [0, 0, 16, 34], [156, 0, 24, 18]];
+    [132, 28, 14, 38], [147, 148, 12, 30], [0, 0, 16, 34], [156, 0, 24, 18], [103, 104, 19, 14]];   // last: 가공 공방 (ui/craft.js CFT_AT, defined later in the bundle)
   function toyBlocks(sc) {
     if (sc === 'yard') return L.YSPOTS.filter(function (p) { return p.r; }).map(function (p) { return p.r; }).concat(YARD_TOY_BLOCK);
     if (sc === 'forest') return FSPOTS.map(function (p) { return [p[0] - 12, p[1] - 16, 24, 22]; }).concat([[GATE.x - 8, GATE.y - 8, GATE.w + 16, GATE.h + 16]]);

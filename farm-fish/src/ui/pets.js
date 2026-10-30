@@ -23,9 +23,9 @@
     }
     if (where === 'yard') {
       if (lv < 1) return { x: 92, y: 110, flip: false, mode: 'sit' };
-      if (lv >= 4 && tt % 50 < 14) return { x: 120, y: 110, flip: true, mode: 'sleep' };
+      if (lv >= 4 && tt % 50 < 14) return { x: 88, y: 110, flip: true, mode: 'sleep' };   // clear of the 공방 (craft.js CFT_AT)
       var u = (tt / 14) % 2, w = u < 1 ? u : 2 - u, pause = Math.abs(w - 0.5) > 0.46;
-      return { x: 64 + Math.round(w * 56), y: 110, flip: u >= 1, mode: pause ? 'sit' : 'walk' };
+      return { x: 64 + Math.round(w * 28), y: 110, flip: u >= 1, mode: pause ? 'sit' : 'walk' };
     }
     // 숲: trots from spot to spot (each leg 7 s), sniffing for the last 3 s once 친밀도 allows
     var leg = Math.floor(tt / 7), f = (tt % 7) / 4, a = FSPOTS[leg % FSPOTS.length], b = FSPOTS[(leg + 1) % FSPOTS.length];

@@ -65,6 +65,7 @@
   addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
   addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
   addMysHooks(globalThis.FF);      // 내 가게: FF.myshop() opens the shop sheet, FF.myshop('build') builds it
+  addCftHooks(globalThis.FF);      // 가공 공방: FF.craft() sheet, FF.craft('build' | 'buy', k | 'put', i, id, n | 'done' | 'take')
   addTrnHooks(globalThis.FF);      // 기차 여행: FF.train() station sheet, FF.train('valley') open + ticket + ride, FF.train('pick')
   // stage 4 hooks
   globalThis.FF.daily = function (done) {

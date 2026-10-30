@@ -1,7 +1,7 @@
   // ---------- 마당 scene: house, pots, animals, decorations; scene switch farm ↔ 마당 ↔ 집 안 ----------
   var view = 'farm';
   // 이/가 · 을/를 by the last syllable's final consonant (고양이 → 가, 꽃밭 → 이)
-  function josa(w, a, b) { var c = w.charCodeAt(w.length - 1) - 0xAC00; return w + (c >= 0 && c < 11172 && c % 28 ? a : b); }
+  function josa(w, a, b) { var c = w.charCodeAt(w.length - 1) - 0xAC00; return w + (c >= 0 && c < 11172 && c % 28 && !(a === '으로' && c % 28 === 8) ? a : b); }   // ㄹ받침 + 로
   var YTZ = -new Date().getTimezoneOffset();
   L.yardOf(S);
   // stage 2's curEnv: the shared clock, or FF.weather / FF.phase overrides while testing
@@ -251,6 +251,7 @@
     drawScope(tt);   // stage 7: 망원경
     var cs = decoRect('chime'); if (cs) DRAW_DECO.chime(cs[0], cs[1], tt);
     drawYardPots(tt);
+    cftDraw(tt);   // 가공 공방 (or its 공방 터 sign)
     if (S.yard.gifts.length) {
       var g = GIFT_AT; px(g.x, g.y, 8, 6, 4); px(g.x + 1, g.y + 1, 6, 4, 0); px(g.x + 3, g.y, 2, 6, 3); px(g.x + 1, g.y - 2, 2, 2, 4); px(g.x + 5, g.y - 2, 2, 2, 4);
       sparkle(g.x + 9, g.y - 2, tt);
@@ -331,6 +332,7 @@
     if (cr && hit(cr, x, y, 2)) { tapDeco(L.decoById('chime')); return; }
     var b = houseBox();
     if (hit([b.x, b.y, b.w, b.h], x, y)) { goScene('house'); return; }
+    if (cftTap(x, y)) return;   // 가공 공방
     if (tapBroodYard(x, y)) return;   // stage 10 ②: a baby in the pen
     if (hit([PEN.x, PEN.y, PEN.w, PEN.h], x, y)) { tapPen(); return; }
     var on = standing('deco').filter(function (e) { return hit(e.r, x, y, 2); }).pop();
@@ -636,6 +638,7 @@
     if (L.productsWaiting(S)) n++;
     if (y.gifts.length) n++;
     if (y.mail.some(function (m) { return !m.read; })) n++;
+    if (S.craft && cftReadyN() > 0) n++;   // 가공 공방: something is done
     return n;
   }
   function eggFound(e) {

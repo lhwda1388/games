@@ -28,6 +28,7 @@
     tickRideUI(t);     // stage 9 ②: 깊은 숲·산꼭대기 spots, 도전 cleanup
     tickShipUI(t);     // stage 9 ①: 먼 섬 drift, 배 sheet
     tickGardenUI(t);   // stage 10 ②: 꽃 교배, 새끼
+    tickCraftUI(t);    // 가공 공방 sheet
     tickEventsUI(t);   // stage 8 ①: 오늘의 날 card, boom chip
     tickContestUI(t);  // stage 10 ①: 낚시 대회 week, 결산 카드 year
     tickFest(t);       // stage 5B: festival on/off, header chip
