@@ -480,13 +480,14 @@
   function goScene(sc) {
     if (reel) return;
     if (view === 'dive' && sc !== 'dive' && dv) return endDive();   // stage 12: surfacing toast, dive state cleared
-    if (sc === 'trnback' || sc === 'trnskip') { closeSceneMenu(); trnGo(sc); return; }   // 기차 여행: 「역으로」 / 내리기
-    if (view === 'farm' && sc !== 'farm') trnLeaveFarm(sc);   // 기차 여행: a route's spot is not kept off the trip
+    if (sc === 'trnback' || sc === 'trnskip' || sc === 'trnup') { closeSceneMenu(); trnGo(sc); return; }   // 기차 여행: 「역으로」 / 내리기 / back up from the 물가
+    var co = cmpOutTo(sc); if (co) sc = co;   // 캠핑: 「숲으로」·「계곡으로」·「바다로」, and up from a camp's water
+    if (view === 'farm' && sc !== 'farm') { trnLeaveFarm(sc); cmpLeaveFarm(); }   // 기차 여행·캠핑: a trip's spot is not kept off the trip
     closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
-    trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : sc === 'trnvalley' ? '산골 계곡' : sc === 'trnonsen' ? '온천 마을' : sc === 'trnsnow' ? '설원 고개' : sc === 'trnride' ? '기차 안' : '집 안');
+    trayEl.style.visibility = sc === 'farm' && !SCENES[scene].trip ? '' : 'hidden';   // 기차 여행 물가: no seeds there
+    cv.setAttribute('aria-label', sc === 'farm' ? (SCENES[scene].trip ? trnTripName() + ' 물가' : '농장과 연못') : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : sc === 'trnvalley' ? '산골 계곡' : sc === 'trnonsen' ? '온천 마을' : sc === 'trnsnow' ? '설원 고개' : sc === 'trnride' ? '기차 안' : cmpIsView(sc) ? cmpViewName(sc) : '집 안');
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
@@ -498,12 +499,14 @@
     if (view === 'museum') return ['village']; // stage 7 박물관
     if (view === 'dive') return [diveHome()];  // stage 12 ③: the button surfaces (포구, else 마을)
     if (trnIsView(view)) return trnDests();   // 기차 여행: 「역으로」 / 내리기
+    if (cmpIsView(view)) return cmpDests();   // 캠핑: 「숲으로」·「계곡으로」·「바다로」
+    if (trnTrip()) return trnTripDests();     // 기차 여행 물가: that destination / 「역으로」
     return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak', 'port'].filter(function (sc) { return sc !== view && (sc !== 'port' || L.portShown(S)) && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
   }
   function placeAttention(sc) {
-    if (sc === 'trnback' || sc === 'trnskip') return false;   // 기차 여행
+    if (sc === 'trnback' || sc === 'trnskip' || sc === 'trnup' || cmpOutKey(sc)) return false;   // 기차 여행, 캠핑
     if (boomAttention(sc)) return true;   // stage 8: 입질 폭풍 / 대풍년 here
-    if (sc === 'forest') return !!forestAttention();
+    if (sc === 'forest') return !!forestAttention() || cmpAttention();   // 캠핑: a morning gift or done food
     if (sc === 'cave') return caveAttention();   // stage 7
     if (sc === 'orchard') return !!orchardAttention();   // stage 6A
     if (sc === 'village') return villageAttention();   // stage 6B
@@ -593,11 +596,12 @@
     if (view === 'port') { drawPort(tt, dt); return true; }         // stage 11 ① 옛 포구
     if (view === 'dive') { drawDive(tt, dt); return true; }         // stage 12 ③ 잠수
     if (trnIsView(view)) { trnDrawView(tt); return true; }   // 기차 여행
+    if (cmpIsView(view)) { drawCamp(tt, dt); return true; }   // 캠핑
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
   function tapScene(x, y) {
-    digPress(x, y);                  // stage 8 ③: a long press may dig a 보물 지도 X
+    if (!trnTrip()) digPress(x, y);  // stage 8 ③: a long press may dig a 보물 지도 X (not the 밭's X from a 기차 여행 물가)
     if (tapBug(x, y)) return true;   // stage 6A: an insect on screen
     if (view === 'yard') { if (!pick && tapPet(x, y)) return true; tapYard(x, y); return true; }
     if (view === 'house') { tapRoom(x, y); return true; }
@@ -615,13 +619,15 @@
     if (view === 'port') { tapPort(x, y); return true; }         // stage 11 ① 옛 포구
     if (view === 'dive') { tapDive(x, y); return true; }         // stage 12 ③ 잠수
     if (trnIsView(view)) { trnTapView(x, y); return true; }   // 기차 여행
+    if (cmpIsView(view)) { tapCamp(x, y); return true; }   // 캠핑
     if (S.fish.phase === 'bite') return false;
+    if (trnTrip()) return tapTrnWater(x, y);                      // 기차 여행 물가: only the sign back up; no pet, 간판, visitors, 허수아비
     if (tapIsleWater(x, y)) return true;                          // stage 7 섬: the boat on the 바다 / 섬 shore
     if (tapShipWater(x, y)) return true;                          // stage 9 ①: the boat at 먼바다·난바다
-    if (tapTrnWater(x, y)) return true;                           // 기차 여행: the sign back up to the 계곡
     if (tapPet(x, y)) return true;
     if (view === 'farm' && tapFarmSign(x, y)) return true;      // stage 10 ①: 농장 간판
     if (tapVisitorAt(x, y, 'pond')) return true;
+    if (cmpTapSeaSign(x, y)) return true;                         // 캠핑: the 바닷가 캠핑 sign on the 바다 shore (after the pet and visitors)
     var st = L.tier(S, 'scare');
     if (st && ((x >= 2 && x < 15 && y >= 36 && y < 54) || (st >= 3 && x >= 168 && y >= 36 && y < 54))) {
       var r = L.tapScarecrow(S, now(), SPEED);
@@ -659,7 +665,7 @@
     if (f.phase === 'bite' && view !== 'farm' && !f.yardWarned) { f.yardWarned = true; toast('찌가 쑥! · 오른쪽 위 찌! 를 눌러 챔질', 2600); }
     L.animalTick(S, t);
     L.tickVisitors(S, t, Math.random, YTZ, SPEED).forEach(function (e) {
-      var d = L.visitorById(e.id), here = (d.slot === 'pond') === (view === 'farm');
+      var d = L.visitorById(e.id), here = (d.slot === 'pond') === (view === 'farm' && !trnTrip());
       if (e.type === 'arrive' && booted && performance.now() > visToastAt) {
         visToastAt = performance.now() + 4000;
         toast((here ? '' : d.slot === 'pond' ? '연못에 ' : '마당에 ') + (e.id === 'mailman' ? d.name + ' · 편지가 왔어요' : e.id === 'merchant' ? d.name + ' · 10분만 머문대요' : josa(d.name, '이', '가') + ' 왔다'), 2800);

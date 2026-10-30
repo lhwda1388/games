@@ -169,15 +169,16 @@
   }
 
   function tickFarm(t) {
+    var away = trnTrip();   // 기차 여행 물가: the 밭 is off screen, so its events only toast (no bursts or crows over the destination)
     L.advance(S, t, TZ).forEach(function (ev) {
       var r = plotRect(ev.i);
       toast('까마귀가 쪼아먹었다… 수확량 -30%');
-      burst(r.x + 22, r.y + 8, 6, 4, 60);
+      if (!away) burst(r.x + 22, r.y + 8, 6, 4, 60);
     });
     var e = L.spawnEvent(S, t, Math.random, SPEED);
     if (e && e.type === 'scared') {
       var pr = plotRect(e.i);
-      flyCrows.push({ x: pr.x + 16, y: pr.y + 2, t: 0 });
+      if (!away) flyCrows.push({ x: pr.x + 16, y: pr.y + 2, t: 0 });
       scareWob = 1.5;
       toast('허수아비가 까마귀를 쫓아냈다', 2400);
     } else if (e) toast(e.type === 'crow' ? '까마귀다! 1분 안에 쫓아내자' : '잡초가 났다 · 성장이 멈췄다', 2600);

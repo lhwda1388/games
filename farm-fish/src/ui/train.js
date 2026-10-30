@@ -1,7 +1,7 @@
   // ---------- 기차 여행: 마을 간이역 + 노선 sheet, 포구 기차역 설원행, 기차 타는 장면, 산골 계곡 view, 기념품 art, FF.train ----------
   // Logic: logic/train.js. view 'trnride' = the window of a moving train (TRN_RIDE_MS, tap to skip), views 'trnvalley' /
-  // 'trnonsen' / 'trnsnow' = the destinations. Fishing there is the farm view with the route's spot (like the 섬 pier);
-  // a sign by the water comes back.
+  // 'trnonsen' / 'trnsnow' = the destinations. Fishing there is the farm view with the route's spot, drawn as that place
+  // (trnPaintTrip: no 밭 on screen); a sign by the water and the 이동 list go back up.
   // The scene button reads 「역으로」 at a destination: the ride home ends at the station the line left from.
   var TRN_AT = [97, 87, 36, 21];      // 마을 lane, between the 분교 마당 people and the 나루터 signpost (top below the tree's crown)
   var TRN_TZ = -new Date().getTimezoneOffset();
@@ -251,6 +251,7 @@
   }
   // the scene button at a destination / on the train
   function trnGo(sc) {
+    if (sc === 'trnup') { trnUp(); return; }
     if (sc === 'trnskip' || view === 'trnride') { trnArrive(); return; }
     trnStartRide(trnHome, null, true);
   }
@@ -312,10 +313,7 @@
       px(x, y, 1, 1, c);
     }
     for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
-    [[20, 66], [40, 150], [170, 90], [150, 190], [176, 130], [12, 112], [120, 74]].forEach(function (t) {   // pines
-      for (var j = 0; j < 12; j++) px(t[0] - Math.floor(j / 2), t[1] - 12 + j, 1 + Math.floor(j / 2) * 2, 1, j % 3 ? 3 : 4);
-      px(t[0], t[1], 1, 3, 4);
-    });
+    [[20, 66], [40, 150], [170, 90], [150, 190], [176, 130], [12, 112], [120, 74]].forEach(function (t) { trnPine(t[0], t[1], false); });   // pines
     [[118, 112], [104, 150], [86, 176]].forEach(function (r) {   // boulders in the stream
       var sx = Math.round(trnStreamX(r[1])) - 3;
       px(sx, r[1] - 3, 6, 1, 4); px(sx - 1, r[1] - 2, 8, 3, 4); px(sx, r[1] - 2, 5, 1, 1); px(sx - 2, r[1] + 1, 10, 1, 0);
@@ -358,12 +356,14 @@
       if (ps[j] === 'vsongi') sparkle(sp[0] + 6, sp[1] - 10, tt + j * 0.4);
     });
     drawYardWeather(tt, e.weather);
+    cmpDrawSignAt('valley', tt);   // 캠핑: the 계곡 캠핑 sign
     if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
     if (night) drawStars(tt);
   }
   function trnTapValley(x, y) {
     var t = now();
     if (hit(TRN_VSTN, x, y, 1)) { trnGo('trnback'); return; }
+    if (cmpTapSignAt('valley', x, y)) return;   // 캠핑: up to the 계곡 캠핑
     if (hit(TRN_SHOP, x, y, 1)) { trnOpenShop('valley'); return; }
     if (trnTapPick('valley', TRN_VSPOTS, x, y, t)) return;
     if (trnInStream(x, y, 13)) { trnFish('valley'); return; }
@@ -399,27 +399,135 @@
     toast(TRN_FISH_SAY[route], 2800);
   }
 
-  // ---------- farm view at a route's spot: 계곡 boulders / 온천 steam, and a sign back up to the destination ----------
-  var TRN_FARM_SIGN = [118, 108, 16, 16];   // 계곡: below the fence posts, clear of the 강 bank
-  var TRN_LAKE_SIGN = [20, 170, 16, 16];    // 온천·설원 (the 연못 shape): bottom-left shore, clear of the water and the rod
-  function trnFarmSign() { return scene === 'valley' ? TRN_FARM_SIGN : TRN_LAKE_SIGN; }
+  // ---------- 기차 여행 물가: the farm view at a route's spot shows the destination, not the 밭 ----------
+  // background.js SCENES[spot].trip → paintBg calls trnPaintTrip (once train.js is ready: a save can boot at the spot).
+  // The plots, 울타리, 간판, 허수아비, pet, 주문 게시판, 냄비 and the 낚시터 signpost stay home (the 밭 keeps growing there);
+  // the rod, dock, basket and the fish come along. 계곡 = a brook off the ridge into a deep pool; 온천 = a round milky lake
+  // in a stone rim with steam; 설원 = a wide frozen lake in snowbanks (seasons.js frozen()).
+  var TRN_TRIP_SIGN = [12, 166, 24, 22];   // the 물가 팻말 back up to the destination: bottom-left, clear of the water and the rod
+  var TRN_TRIP_PINES = { valley: [[18, 74], [44, 96], [74, 70], [100, 92], [176, 112], [174, 150], [174, 198], [64, 198], [96, 66]],
+    onsen: [[18, 72], [44, 98], [74, 70], [172, 108], [174, 150], [172, 198], [64, 198]],
+    snow: [[18, 72], [44, 98], [74, 70], [104, 84], [140, 72], [172, 108], [176, 150], [176, 198], [64, 198]] };
+  var trnReady = false;
+  function trnTrip() { return view === 'farm' && !!SCENES[scene].trip; }
+  // the place a trip spot belongs to: the route's destination, or the camp (캠핑 SCENES[spot].camp)
+  function trnTripName() { var c = SCENES[scene].camp; return c ? L.cmpSite(c).name : L.trnRoute(scene).name; }
+  function trnHills(x) { return 52 + Math.round(Math.sin(x / 31) * 6 + Math.sin(x / 11) * 2); }   // the 온천's low hills
+  function trnBrookX(y) { return 148 + Math.sin(y / 13) * 6 + Math.sin(y / 5 + 1) * 2; }
+  function trnPoolD(x, y) { var p = SCENES.valley.pool, a = (x - p[0]) / p[2], b = (y - p[1]) / p[3]; return a * a + b * b; }
+  // 계곡 wetD: the brook (by its width, wider downstream) or the pool (squared, like the 연못), whichever is wetter
+  function trnBrookD(x, y) {
+    var brook = y < 36 ? 99 : Math.abs(x - trnBrookX(y)) / (4 + Math.max(0, y - 60) * 0.03);
+    return Math.min(trnPoolD(x, y), brook);
+  }
+  function trnTripWater(sc, x, y, d) {
+    if (sc === 'valley') {
+      var pd = trnPoolD(x, y);
+      if (pd < 1) return pd < 0.3 ? ((x + y) % 2 ? 3 : 2) : pd < 0.75 ? (x % 4 === 0 && y % 2 === 0 ? 3 : 2) : ((x + y) % 2 ? 2 : 1);   // deep 소
+      return d > 0.75 ? 2 : (y * 2 + x) % 5 === 0 ? 0 : 1;                                                                              // fast, white-flecked
+    }
+    if (sc === 'onsen') return d > 0.86 ? 2 : d > 0.45 ? ((x + y) % 2 ? 2 : 1) : (x * 3 + y) % 5 === 0 ? 0 : 1;   // milky, glowing in the middle
+    return d > 0.92 ? 2 : ((x - y * 3 + 400) % 23 < 2 || (x * 2 + y * 5) % 17 === 0) ? 1 : 0;                      // 설원: ice
+  }
+  function trnTripShore(sc, x, y, d) {
+    if (sc === 'valley') return (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;                         // pebbles
+    var a = Math.atan2((y - POND.cy) / POND.ry, (x - POND.cx) / POND.rx), rr = Math.sqrt(d);
+    if (sc === 'onsen') {                                                                                            // stone rim
+      var seg = ((a / (Math.PI * 2) * 30) % 1 + 1) % 1, k = (rr - 1) / 0.16;
+      if (k > 1) return hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
+      if (seg < 0.12 || k < 0.14 || k > 0.86) return 4;
+      return k < 0.45 && seg > 0.3 && seg < 0.7 ? 1 : 3;
+    }
+    var top = 1.11 + Math.sin(a * 7) * 0.04;                                                                         // snowbank
+    if (rr > top) return hash(x * 131 + y * 7) < 0.03 ? 1 : 0;
+    if (rr < 1.03) return 2;
+    return rr > top - 0.025 && y > POND.cy - 6 ? 2 : (x * 3 + y) % 11 === 0 && y > POND.cy ? 1 : 0;
+  }
+  function trnRock(x, y) {
+    var sx = Math.round(x) - 3;
+    px(sx, y - 3, 6, 1, 4); px(sx - 1, y - 2, 8, 3, 4); px(sx, y - 2, 5, 1, 1); px(sx - 2, y + 1, 10, 1, 0);
+  }
+  // the whole bg for a route's spot (ctx = bg): ridges, ground, water, pines, and that place's own things
+  function trnPaintTrip(sc) {
+    if (SCENES[sc].camp) { cmpPaintTrip(sc); return; }   // 캠핑 물가: ui/camp.js
+    var snow = sc === 'snow', x, y;
+    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+      var r = sc === 'onsen' ? trnHills(x) : trnRidge(x), d = wetD(x, y), c;
+      if (y < r) c = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                    // the destination's ridges
+      else if (d < 1) c = trnTripWater(sc, x, y, d);
+      else if (d < (sc === 'valley' ? 1.3 : 1.36)) c = trnTripShore(sc, x, y, d);
+      else c = hash(x * 131 + y * 7) < (snow ? 0.03 : 0.05) ? 1 : 0;
+      px(x, y, 1, 1, c);
+    }
+    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    TRN_TRIP_PINES[sc].forEach(function (t) { trnPine(t[0], t[1], snow); });
+    if (sc === 'valley') {
+      [[104, 170], [134, 158]].forEach(function (p) { trnRock(p[0], p[1]); });             // boulders in the pool
+      [86, 112, 134, 190].forEach(function (yy) { trnRock(trnBrookX(yy) + (yy % 3 - 1) * 2, yy); });   // and down the brook
+    } else if (sc === 'onsen') {
+      trnPaintBath();
+      var sx = POND.cx + 8, sy = POND.cy - POND.ry - 7;                                      // a bamboo spout pouring hot water in
+      px(sx, sy, 16, 2, 3); for (var k = 0; k < 16; k += 5) px(sx + k, sy, 1, 2, 4);
+      px(sx + 13, sy + 2, 1, 4, 4);
+    }
+  }
   function drawTrnWater(tt) {
-    if (!TRN_VIEW[scene]) return;
-    if (scene === 'valley') [[150, 150], [124, 186], [176, 172]].forEach(function (r) {
-      px(r[0] - 4, r[1] - 3, 8, 1, 4); px(r[0] - 5, r[1] - 2, 10, 3, 4); px(r[0] - 4, r[1] - 2, 6, 1, 1); px(r[0] - 6, r[1] + 1, 12, 1, reduceMotion || Math.floor(tt * 2) % 2 ? 0 : 2);
-    });
-    if (scene === 'onsen' && !reduceMotion) trnSteam(tt, [[POND.cx - 30, POND.cy + 4], [POND.cx + 20, POND.cy - 10], [POND.cx + 34, POND.cy + 16]], 14);
-    var s = trnFarmSign();
-    px(s[0] + 7, s[1] + 5, 1, 11, 4); px(s[0], s[1], 16, 7, 4); px(s[0] + 1, s[1] + 1, 14, 5, 0);
-    for (var k = 0; k < 5; k++) px(s[0] + 3 + k * 2, s[1] + 4 - (k % 3), 2, 1, 3);           // a little ridge
-    px(s[0] - 2, s[1] + 2, 2, 3, 4);                                                        // arrow back
+    if (!SCENES[scene].trip) return;
+    if (SCENES[scene].camp) { cmpDrawTrip(tt); return; }   // 캠핑 물가: ui/camp.js
+    var e = curEnv(now()), mv = !reduceMotion, k, y;
+    drawSky(tt, e.phase);
+    if (scene === 'valley') {
+      var fx = Math.round(trnBrookX(40)), y0 = trnRidge(fx) - 12;                            // the waterfall off the ridge
+      for (k = -3; k <= 3; k++) for (y = y0; y < y0 + 20; y++) px(fx + k, y, 1, 1, (y + (mv ? Math.floor(tt * 14) : 0) + k * 3) % 5 === 0 ? 2 : 0);
+      px(fx - 4, y0, 1, 20, 4); px(fx + 4, y0, 1, 20, 4); px(fx - 5, y0 + 20, 11, 2, 0);
+      for (k = 0; k < 20; k++) {                                                             // rapids running down the brook
+        var yy = 46 + (hash(k * 7 + 3) * 154 + (mv ? tt * 28 : 0)) % 154, xx = trnBrookX(yy) + (hash(k * 5) - 0.5) * 6;
+        if (trnPoolD(xx, yy) < 1.1) continue;
+        px(xx - 1, yy, 3, 1, 0); px(xx, yy + 1, 1, 1, 0);
+      }
+      for (k = 0; k < 2; k++) {                                                              // slow rings on the pool
+        var ph = ((mv ? tt * 0.4 : 0) + k * 0.5) % 1;
+        ring(POND.cx + (k ? 16 : -14), POND.cy + (k ? 4 : -3), 2 + ph * 7, 1 + ph * 3, ph < 0.6 ? 1 : 2);
+      }
+    } else if (scene === 'onsen') {
+      if (mv) trnSteam(tt, [[POND.cx - 22, POND.cy - 4], [POND.cx - 4, POND.cy + 10], [POND.cx + 14, POND.cy - 12], [POND.cx + 22, POND.cy + 8], [POND.cx - 12, POND.cy - 16]], 18);
+      var sx = POND.cx + 21, sy = POND.cy - POND.ry - 1;                                     // the spout's trickle
+      for (k = 0; k < 7; k++) if ((k + (mv ? Math.floor(tt * 10) : 0)) % 3) px(sx, sy + k, 1, 1, 0);
+      px(sx - 2, sy + 7, 5, 1, 0);
+    } else if (Math.floor(tt * 0.7) % 3 === 0) {                                             // 설원: the snowbanks glint now and then
+      sparkle(POND.cx - POND.rx + 4, POND.cy - POND.ry - 2, tt); sparkle(POND.cx + POND.rx - 8, POND.cy + POND.ry + 2, tt + 0.5);
+    }
+    var s = TRN_TRIP_SIGN, x = s[0], y1 = s[1], bob = mv && Math.floor(tt * 2) % 2 ? 1 : 0;   // the 물가 팻말: board, post, ↑, the place's mark
+    px(x + 11, y1 + 12, 2, 10, 4);
+    px(x, y1, 24, 12, 4); px(x + 1, y1 + 1, 22, 10, 0); px(x, y1 + 12, 24, 1, 3);
+    px(x + 5, y1 + 4 - bob, 2, 6, 4); px(x + 3, y1 + 5 - bob, 6, 1, 4); px(x + 4, y1 + 4 - bob, 4, 1, 4); px(x + 5, y1 + 3 - bob, 2, 1, 4);
+    if (scene === 'valley') for (k = 0; k < 5; k++) px(x + 16 - k, y1 + 3 + k, 1 + k * 2, 1, k ? 3 : 4);
+    else if (scene === 'onsen') {
+      for (k = 0; k < 3; k++) { px(x + 13 + k * 3, y1 + 2, 1, 1, 4); px(x + 14 + k * 3, y1 + 3, 1, 1, 4); px(x + 13 + k * 3, y1 + 4, 1, 1, 4); }
+      px(x + 12, y1 + 6, 1, 2, 4); px(x + 21, y1 + 6, 1, 2, 4); px(x + 12, y1 + 8, 10, 1, 4);
+    } else {
+      px(x + 17, y1 + 2, 1, 8, 3); px(x + 13, y1 + 6, 9, 1, 3);
+      for (k = 1; k < 3; k++) { px(x + 17 - k, y1 + 6 - k, 1, 1, 3); px(x + 17 + k, y1 + 6 - k, 1, 1, 3); px(x + 17 - k, y1 + 6 + k, 1, 1, 3); px(x + 17 + k, y1 + 6 + k, 1, 1, 3); }
+    }
   }
   function tapTrnWater(x, y) {
-    if (view !== 'farm' || !TRN_VIEW[scene] || S.fish.phase !== 'idle' || !hit(trnFarmSign(), x, y, 2)) return false;
-    var res = L.trnBoard(S, scene, now(), TRN_TZ);
-    if (!res.ok) { toast(TRN_WHY[res.why] || '탈 수 없어요', 2000); trnSpotBack(); refresh(); return true; }
-    goScene(TRN_VIEW[scene]);
+    if (trnTrip() && SCENES[scene].camp) return cmpTapTrip(x, y);   // 캠핑 물가
+    if (!trnTrip() || S.fish.phase !== 'idle' || !hit(TRN_TRIP_SIGN, x, y, 2)) return false;
+    trnUp();
     return true;
+  }
+  // back up to the route's destination (the 물가 팻말 or the 이동 list); a ticket gone at midnight puts the spot back
+  function trnUp() {
+    var res = L.trnBoard(S, scene, now(), TRN_TZ);
+    if (!res.ok) { toast(TRN_WHY[res.why] || '탈 수 없어요', 2000); trnSpotBack(); refresh(); return; }
+    goScene(TRN_VIEW[scene]);
+  }
+  // the 이동 list on a route's spot: that destination and 「역으로」 (never the 밭 places: you are away)
+  function trnTripDests() {
+    if (SCENES[scene].camp) return cmpTripDests();   // 캠핑 물가: up to that camp
+    var nm = L.trnRoute(scene).name;
+    PLACE.trnup = [nm, josa(nm, '으로', '로') + ' 올라가기'];
+    return ['trnup', 'trnback'];
   }
 
   // ---------- 온천 마을 / 설원 고개 views: same stop (shop, platform) and 특산물 spots, a lake below; the 온천 has a bath house ----------
@@ -441,7 +549,7 @@
     var saved = ctx, snow = route === 'snow', k;
     ctx = c.getContext('2d');
     for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
-      var r = snow ? trnRidge(x) : 52 + Math.round(Math.sin(x / 31) * 6 + Math.sin(x / 11) * 2), d = trnLakeD(x, y), cc;
+      var r = snow ? trnRidge(x) : trnHills(x), d = trnLakeD(x, y), cc;
       if (y < r) cc = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                          // ridges (white caps on the 설원)
       else if (d < 1) cc = snow ? (d > 0.9 ? 2 : (x * 2 + y * 5) % 17 === 0 ? 2 : 1) : (d > 0.9 ? 2 : d < 0.35 ? ((x + y) % 2 ? 2 : 1) : (x % 4 === 0 && y % 2 === 0 ? 2 : 1));
       else if (d < 1.2) cc = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;            // shore stones
@@ -449,30 +557,34 @@
       px(x, y, 1, 1, cc);
     }
     for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
-    [[20, 62], [44, 112], [172, 92], [164, 196], [14, 118], [90, 66]].forEach(function (t) {     // pines (snow on their tiers)
-      for (var j = 0; j < 12; j++) px(t[0] - Math.floor(j / 2), t[1] - 12 + j, 1 + Math.floor(j / 2) * 2, 1, snow && j % 4 === 0 ? 0 : j % 3 ? 3 : 4);
-      px(t[0], t[1], 1, 3, 4);
-    });
+    [[20, 62], [44, 112], [172, 92], [164, 196], [14, 118], [90, 66]].forEach(function (t) { trnPine(t[0], t[1], snow); });   // pines (snow on their tiers)
     if (snow) {
       [[112, 150], [140, 158]].forEach(function (h) { px(h[0] - 3, h[1] - 1, 7, 3, 4); px(h[0] - 4, h[1], 9, 1, 4); px(h[0] - 2, h[1], 5, 1, 3); px(h[0] - 4, h[1] + 2, 9, 1, 2); });   // ice holes
       [[96, 144, 1], [150, 146, -1]].forEach(function (cr) { for (k = 0; k < 10; k++) px(cr[0] + k, cr[1] + Math.round(Math.sin(k) * 1.5) * cr[2], 1, 1, 2); });
-    } else {
-      var b = TRN_BATH, p = TRN_POOL;                                                         // bath house: tiled roof, wall, curtain door, ♨ board
-      for (k = 0; k < 10; k++) px(b[0] + 8 - k, b[1] + k, b[2] - 16 + k * 2, 1, k % 3 === 2 ? 3 : 4);
-      px(b[0] + 3, b[1] + 10, b[2] - 6, 22, 4); px(b[0] + 4, b[1] + 11, b[2] - 8, 21, 1);
-      px(b[0] + 22, b[1] + 16, 12, 16, 4); px(b[0] + 23, b[1] + 17, 10, 5, 2);
-      for (k = 0; k < 4; k++) px(b[0] + 23 + k * 3, b[1] + 22, 1, 10, 3);
-      px(b[0] + 7, b[1] + 15, 10, 8, 4); px(b[0] + 8, b[1] + 16, 8, 6, 0); px(b[0] + 41, b[1] + 15, 8, 8, 4); px(b[0] + 42, b[1] + 16, 6, 6, 0);
-      px(b[0] + 18, b[1] - 6, 20, 7, 4); px(b[0] + 19, b[1] - 5, 18, 5, 0);
-      px(b[0] + 23, b[1] - 3, 10, 1, 4); px(b[0] + 23, b[1] - 2, 1, 1, 4); px(b[0] + 32, b[1] - 2, 1, 1, 4);   // the ♨ bowl
-      for (k = 0; k < 3; k++) { px(b[0] + 25 + k * 3, b[1] - 5, 1, 1, 4); px(b[0] + 26 + k * 3, b[1] - 4, 1, 1, 4); }
-      px(p[0], p[1], p[2], p[3], 3); px(p[0] + 2, p[1] + 2, p[2] - 4, p[3] - 4, 1);              // the outdoor pool: stones, water
-      for (k = 0; k < p[2]; k += 5) px(p[0] + k, p[1], 3, 1, 4);
-      px(p[0] + 4, p[1] + 4, 8, 1, 2); px(p[0] + 30, p[1] + 8, 10, 1, 2);
-    }
+    } else trnPaintBath();
     trnPaintStop(snow ? 0 : 2);
     ctx = saved;
     return c;
+  }
+  // a pine (x = trunk, y = ground); snow = white on its tiers
+  function trnPine(x, y, snow) {
+    for (var j = 0; j < 12; j++) px(x - Math.floor(j / 2), y - 12 + j, 1 + Math.floor(j / 2) * 2, 1, snow && j % 4 === 0 ? 0 : j % 3 ? 3 : 4);
+    px(x, y, 1, 3, 4);
+  }
+  // the 온천 bath house and its outdoor pool
+  function trnPaintBath() {
+    var b = TRN_BATH, p = TRN_POOL, k;                                                      // bath house: tiled roof, wall, curtain door, ♨ board
+    for (k = 0; k < 10; k++) px(b[0] + 8 - k, b[1] + k, b[2] - 16 + k * 2, 1, k % 3 === 2 ? 3 : 4);
+    px(b[0] + 3, b[1] + 10, b[2] - 6, 22, 4); px(b[0] + 4, b[1] + 11, b[2] - 8, 21, 1);
+    px(b[0] + 22, b[1] + 16, 12, 16, 4); px(b[0] + 23, b[1] + 17, 10, 5, 2);
+    for (k = 0; k < 4; k++) px(b[0] + 23 + k * 3, b[1] + 22, 1, 10, 3);
+    px(b[0] + 7, b[1] + 15, 10, 8, 4); px(b[0] + 8, b[1] + 16, 8, 6, 0); px(b[0] + 41, b[1] + 15, 8, 8, 4); px(b[0] + 42, b[1] + 16, 6, 6, 0);
+    px(b[0] + 18, b[1] - 6, 20, 7, 4); px(b[0] + 19, b[1] - 5, 18, 5, 0);
+    px(b[0] + 23, b[1] - 3, 10, 1, 4); px(b[0] + 23, b[1] - 2, 1, 1, 4); px(b[0] + 32, b[1] - 2, 1, 1, 4);   // the ♨ bowl
+    for (k = 0; k < 3; k++) { px(b[0] + 25 + k * 3, b[1] - 5, 1, 1, 4); px(b[0] + 26 + k * 3, b[1] - 4, 1, 1, 4); }
+    px(p[0], p[1], p[2], p[3], 3); px(p[0] + 2, p[1] + 2, p[2] - 4, p[3] - 4, 1);              // the outdoor pool: stones, water
+    for (k = 0; k < p[2]; k += 5) px(p[0] + k, p[1], 3, 1, 4);
+    px(p[0] + 4, p[1] + 4, 8, 1, 2); px(p[0] + 30, p[1] + 8, 10, 1, 2);
   }
   var bgTrnDest = {};
   function trnDrawDest(route, tt) {
@@ -532,6 +644,11 @@
     var left = L.trnBathLeft(S, t);
     trnBathChip.hidden = !left;
     if (left) trnBathLabel.textContent = Math.max(1, Math.ceil(left / SPEED / 60e3)) + '분';
+    if (view === 'farm') {   // 기차 여행 물가: no seed tray, and the canvas says where you are (also after a boot or a spot put back)
+      var trip = trnTrip(), vis = trip ? 'hidden' : '', lb = trip ? trnTripName() + ' 물가' : '농장과 연못';
+      if (trayEl.style.visibility !== vis) trayEl.style.visibility = vis;
+      if (cv.getAttribute('aria-label') !== lb) cv.setAttribute('aria-label', lb);
+    }
   }
 
   // ---------- 기념품 가게 sheet ----------
@@ -604,3 +721,5 @@
       return S.train || null;
     };
   }
+  trnReady = true;
+  if (SCENES[scene].trip) setScene();   // a save that booted at a route's spot: paint it now that the art is here

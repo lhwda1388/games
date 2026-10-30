@@ -8,9 +8,9 @@
     [132, 28, 14, 38], [147, 148, 12, 30], [0, 0, 16, 34], [156, 0, 24, 18], [103, 104, 19, 14]];   // last: 가공 공방 (ui/craft.js CFT_AT, defined later in the bundle)
   function toyBlocks(sc) {
     if (sc === 'yard') return L.YSPOTS.filter(function (p) { return p.r; }).map(function (p) { return p.r; }).concat(YARD_TOY_BLOCK);
-    if (sc === 'forest') return FSPOTS.map(function (p) { return [p[0] - 12, p[1] - 16, 24, 22]; }).concat([[GATE.x - 8, GATE.y - 8, GATE.w + 16, GATE.h + 16]]);
+    if (sc === 'forest') return FSPOTS.map(function (p) { return [p[0] - 12, p[1] - 16, 24, 22]; }).concat([[GATE.x - 8, GATE.y - 8, GATE.w + 16, GATE.h + 16], [158, 150, 18, 22]]);   // last: 캠핑장 sign (ui/camp.js CMP_SIGN, later in the bundle)
     // 밭·연못 side: everything above the fence, the basket corner, the signpost, the farmer + pet
-    return [[0, 0, W, FENCE_Y + 6], [0, 98, 26, 72], [144, 96, 36, 28], [20, 110, 54, 46]];
+    return [[0, 0, W, FENCE_Y + 6], [0, 98, 26, 72], [144, 96, 36, 28], [20, 110, 54, 46]].concat(L.curSpot(S) === 'sea' ? [[70, 168, 18, 22]] : []);   // last: 바닷가 캠핑 sign (ui/camp.js CMP_SIGNS.sea)
   }
   function toyFree(sc, x, y) {
     if (sc === 'farm' && inWet(x, y, 1.35)) return false;

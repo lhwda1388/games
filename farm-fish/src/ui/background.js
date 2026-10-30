@@ -9,8 +9,10 @@
     river: { cx: 145, cy: 170, rx: 34, ry: 20, ox: 210, oy: 228, mid: 87, half: 35 },
     sea:   { cx: 152, cy: 178, rx: 34, ry: 22, ox: 240, oy: 250, r: 150 },
     island: { cx: 146, cy: 176, rx: 38, ry: 22, ox: 236, oy: 256, r: 162 },  // stage 7 섬: open sea like 바다, a wider bay
-    valley: { cx: 140, cy: 172, rx: 30, ry: 18, ox: 210, oy: 228, mid: 87, half: 28 },   // 기차 여행 산골 계곡: a narrower 강
-    onsen: { cx: 116, cy: 148, rx: 58, ry: 38 }, snow: { cx: 116, cy: 148, rx: 58, ry: 38 },   // 온천 호수·설원 얼음 호수: the 연못 shape, stony shore
+    // 기차 여행 spots (trip: drawn as the destination, not the 밭 — ui/train.js trnPaintTrip): 산골 계곡 = a brook falling off the
+    // ridge into a deep pool (소) you cast into; 온천 = a round warm lake in a stone rim; 설원 = a wide frozen lake in snowbanks
+    valley: { cx: 118, cy: 164, rx: 32, ry: 15, pool: [118, 164, 42, 22], trip: true },
+    onsen: { cx: 120, cy: 160, rx: 34, ry: 26, trip: true }, snow: { cx: 112, cy: 162, rx: 54, ry: 24, trip: true },
     offshore: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }, ocean: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }   // stage 9 ① 먼바다·난바다
   };
   var scene = 'pond';
@@ -19,6 +21,8 @@
   // visible water: < 1 is water, a little above 1 is the shore
   function wetD(x, y) {
     var sc = SCENES[scene];
+    if (sc.wet) return sc.wet(x, y);       // 캠핑 물가: ui/camp.js
+    if (sc.pool) return trnBrookD(x, y);   // 산골 계곡: brook + pool
     if (sc.mid) return Math.abs(Math.hypot(x - sc.ox, y - sc.oy) - sc.mid) / sc.half;
     if (sc.r) return Math.hypot(x - sc.ox, y - sc.oy) / sc.r;   // 바다, 섬, 먼바다·난바다
     var a = (x - POND.cx) / POND.rx, b = (y - POND.cy) / POND.ry; return a * a + b * b;
@@ -29,6 +33,7 @@
     scene = L.curSpot(S);
     var sc = SCENES[scene];
     POND.cx = sc.cx; POND.cy = sc.cy; POND.rx = sc.rx; POND.ry = sc.ry;
+    iceCv = null;   // ui/seasons.js: the ice follows the lake's shape (연못 in winter, 설원)
     bg.getContext('2d').clearRect(0, 0, W, H);
     paintBg();
   }
@@ -39,6 +44,20 @@
     var b = bg.getContext('2d');
     var save = ctx; ctx = b;
     // no full-scene fill: the canvas stays transparent so --bg shows through
+    var trip = SCENES[scene].trip, x;
+    if (trip) { if (trnReady) trnPaintTrip(scene); }   // 기차 여행: the destination's land and water, no 밭·울타리
+    else paintFarmBg();
+    // dock
+    px(24, 134, 40, 9, 4);
+    for (x = 25; x < 63; x++) px(x, 135, 1, 7, (x % 5 === 0) ? 3 : 0);
+    for (x = 25; x < 63; x += 1) if ((x * 7) % 11 === 0) px(x, 138, 1, 1, 2);
+    px(30, 143, 3, 6, 4); px(56, 143, 3, 6, 4);
+    // little sign (the 주문 게시판 by the basket)
+    if (!trip) { px(4, 106, 1, 12, 4); px(0, 106, 14, 8, 4); px(1, 107, 12, 6, 0); px(3, 109, 2, 2, 3); px(6, 109, 2, 2, 3); px(9, 109, 2, 2, 3); }
+    ctx = save;
+  }
+  // the 밭 side and the home waters (연못, 강, 바다, 섬, 먼바다)
+  function paintFarmBg() {
     for (var k = 0; k < 260; k++) {           // grass ticks
       var x = Math.floor(hash(k * 7 + 1) * W), y = Math.floor(hash(k * 13 + 5) * H);
       if (inWet(x, y, scene === 'pond' ? 1.25 : 1.15)) continue;
@@ -83,15 +102,6 @@
     if (scene === 'pond') [[170, 128], [173, 132], [167, 133]].forEach(function (r) {
       px(r[0], r[1], 1, 10, 4); px(r[0], r[1] - 3, 1, 3, 4); px(r[0] - 1, r[1] - 2, 3, 2, 3);
     });
-    // dock
-    px(24, 134, 40, 9, 4);
-    for (x = 25; x < 63; x++) px(x, 135, 1, 7, (x % 5 === 0) ? 3 : 0);
-    for (x = 25; x < 63; x += 1) if ((x * 7) % 11 === 0) px(x, 138, 1, 1, 2);
-    px(30, 143, 3, 6, 4); px(56, 143, 3, 6, 4);
-    // little sign
-    px(4, 106, 1, 12, 4); px(0, 106, 14, 8, 4); px(1, 107, 12, 6, 0);
-    px(3, 109, 2, 2, 3); px(6, 109, 2, 2, 3); px(9, 109, 2, 2, 3);
-    ctx = save;
   }
   // 강·바다: per-pixel water from wetD, with a drawn bank line and a shore of pebbles (강) or sand (바다)
   function paintOpenWater() {

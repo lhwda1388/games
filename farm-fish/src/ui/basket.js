@@ -154,9 +154,10 @@
   }
   // order sign, basket and pot at the left edge of the pond side
   function tapCorner(x, y) {
-    if (x < 22 && y >= 102 && y < 120) { openBag('order'); return true; }
+    var trip = trnTrip();   // 기차 여행 물가: only the basket came along (주문 게시판 and 냄비 stay home)
+    if (!trip && x < 22 && y >= 102 && y < 120) { openBag('order'); return true; }
     if (x < 22 && y >= 120 && y < 136) { openBag('bag'); return true; }
-    if (x < 22 && y >= 142 && y < 166) { tapPot(); return true; }
+    if (!trip && x < 22 && y >= 142 && y < 166) { tapPot(); return true; }
     return false;
   }
   // 자동 판매 끔 and full: new catches/harvests wait (they stay in the pond/field/tree)
@@ -244,15 +245,17 @@
   }
 
   function drawBasketCorner(tt) {
+    var trip = trnTrip();   // 기차 여행 물가: just the basket
     // order sign (painted in bg) gets a blinking tag when something can be delivered
-    if (deliverable() && Math.floor(tt * 2) % 2 === 0) { px(15, 100, 5, 7, 4); px(16, 101, 3, 5, 0); px(17, 102, 1, 2, 4); px(17, 105, 1, 1, 4); }
-    else if (S.orders.some(function (q) { return q.o; })) { px(16, 103, 3, 1, 4); px(17, 102, 1, 1, 4); }
+    if (!trip && deliverable() && Math.floor(tt * 2) % 2 === 0) { px(15, 100, 5, 7, 4); px(16, 101, 3, 5, 0); px(17, 102, 1, 2, 4); px(17, 105, 1, 1, 4); }
+    else if (!trip && S.orders.some(function (q) { return q.o; })) { px(16, 103, 3, 1, 4); px(17, 102, 1, 1, 4); }
     // basket: a few dots of produce show how full it is
     spr(SP.basket, 5, 125 + fxBasketDy());   // stage 8 ④: hops when a fish lands
     var fillN = Math.ceil(S.bag.length / L.bagCap(S) * 6);
     for (var k = 0; k < fillN; k++) px(7 + k, 127 - (k % 2), 1, 1, k % 2 ? 3 : 4);
     if (S.bag.length >= L.bagCap(S)) px(9, 123, 2, 2, 4);
     // pot: embers and steam while cooking, sparkle when done
+    if (trip) return;
     spr(SP.pot, 4, 150);
     if (potsBusy()) {
       var t = now();

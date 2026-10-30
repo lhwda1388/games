@@ -114,6 +114,7 @@
         if (f.rarity === '희귀' || f.rarity === '전설') sparkle(sp[0] + 6, sp[1] - 10, tt + k * 0.4);
       } else { px(sp[0] - 1, sp[1] - 1, 1, 1, 2); px(sp[0] + 1, sp[1] - 2, 1, 2, 2); }
     });
+    if (L.forestOk(S)) cmpDrawSign(tt);   // 캠핑: the 캠핑장 sign
     drawPet(tt, dt, 'forest');
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
@@ -152,6 +153,7 @@
       } else toast('숲으로 가는 길이 막혀 있다 · 표지판을 눌러 보자', 2200);
       return;
     }
+    if (cmpTapSign(x, y)) return;   // 캠핑: the 캠핑장 sign
     // a ripe spot wins over the pet (it likes to sit on them); an empty spot lets the pet be petted
     var empty = null;
     for (var k = 0; k < FSPOTS.length; k++) {

@@ -36,6 +36,7 @@
     if (it && it.kind === 'dive') return diveIcon(id);       // stage 12 ③ 잠수
     if (it && it.kind === 'trn') return trnIcon(id);         // 기차 여행 특산물
     if (it && it.kind === 'craft') return cftIcon(id);       // 가공 공방
+    if (it && it.kind === 'camp') return cmpIcon(id);        // 캠핑
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;

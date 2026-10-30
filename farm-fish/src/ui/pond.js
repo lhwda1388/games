@@ -94,7 +94,7 @@
   function hideResult() { resultEl.hidden = true; }
 
   function tapPond(x, y) {
-    if (x >= 148 && x < 172 && y >= 100 && y < 120) { openCal('spot'); return; }    // 낚시터 signpost
+    if (x >= 148 && x < 172 && y >= 100 && y < 120 && !trnTrip()) { openCal('spot'); return; }    // 낚시터 signpost (home only)
     if (!inPond(x, y, 1.0) && inWet(x, y, 1.0) && S.fish.phase === 'idle') {
       // open water outside the castable ellipse: aim at the nearest point inside it
       var a0 = Math.atan2((y - POND.cy) / POND.ry, (x - POND.cx) / POND.rx);
@@ -188,13 +188,15 @@
   }
 
   function drawDecor(tt) {
-    drawSignpost(tt);
+    var trip = trnTrip();   // 기차 여행 물가: the 낚시터 signpost and the boat stay home
+    if (!trip) drawSignpost(tt);
+    cmpDrawSeaSign(tt);   // 캠핑: the 바닷가 캠핑 sign (spot 바다)
     if (L.tier(S, 'bait')) spr(SP.can, 37, 128);
     if (S.ms.lantern) {
       spr(SP.lantern, 50, 160);
       if (Math.floor(tt * 3) % 5) { px(52, 163, 3, 2, 0); } else px(53, 163, 1, 2, 1);
     }
-    if (S.ms.boat) {
+    if (S.ms.boat && !trip) {
       var bb = Math.floor(tt * 1.2) % 2;
       spr(SP.boat, 126, 172 + bb);
       for (var k = 0; k < 8; k++) px(144 + k, 174 + Math.round(k * 0.5) + bb, 1, 1, 3);
@@ -224,11 +226,11 @@
 
 
   function drawWater(tt, dt) {
-    if (scene === 'river' || scene === 'valley') drawCurrent(tt);
+    if (scene === 'river') drawCurrent(tt);
     else if (scene === 'sea') drawWaves(tt);
     drawIsleWater(tt);   // stage 7 섬: old boat on the 바다 beach, 섬 waves and palm, lighthouse light at night
     drawShipWater(tt);   // stage 9 ①: 먼바다·난바다 sliding past the boat
-    drawTrnWater(tt);    // 기차 여행: 계곡 boulders and the sign back up
+    drawTrnWater(tt);    // 기차 여행: waterfall and rapids, steam, glints, and the sign back up
     // water glints: slow, sparse
     for (var k = 0; k < 7 && scene === 'pond'; k++) {
       var ph = (tt * 0.25 + hash(k * 11) * 4) % 4;

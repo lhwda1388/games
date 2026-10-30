@@ -26,9 +26,10 @@
     if (!resultEl.hidden) hideResult();
     if (tapScene(x, y)) return;
     if (S.fish.phase === 'bite') { doStrike(); return; }
-    if (tapPlot(x, y)) return;
+    var trip = trnTrip();   // 기차 여행 물가: no 밭 here, so no plot or toy taps (land taps do nothing, water casts)
+    if (!trip && tapPlot(x, y)) return;
     if (tapCorner(x, y)) return;
-    if (tapToy(x, y)) return;   // stage 10 ④: 날씨 장난감 on dry ground
+    if (!trip && tapToy(x, y)) return;   // stage 10 ④: 날씨 장난감 on dry ground
     tapPond(x, y);
   }
   function refresh() { renderTray(); save(); updateTitle(); }

@@ -214,7 +214,7 @@
   var signKey = '';
   // the name tag follows the scene (other scenes draw themselves and never call drawFarmSign)
   function syncSignTx() {
-    var nm = L.farmName(S), on = view === 'farm';
+    var nm = L.farmName(S), on = view === 'farm' && !trnTrip();   // not on a 기차 여행 물가
     var key = on + '|' + nm;
     if (key === signKey) return;
     signKey = key;
@@ -224,6 +224,7 @@
   }
   function drawFarmSign() {
     syncSignTx();
+    if (trnTrip()) return;
     drawSignArt(SIGN_R.x, SIGN_R.y, SIGN_R.w, SIGN_R.h, (S.farm && S.farm.sign) || 0);
   }
   function tapFarmSign(x, y) {

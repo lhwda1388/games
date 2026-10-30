@@ -160,7 +160,7 @@
       p.textContent = cnt.n >= cnt.m ? '이 전시실은 가득 찼어요' : (can.length ? '' : '지금 기증할 수 있는 게 없어요 · ') + '아직 못 구한 것 ' + left + '개 · 힌트는 도감에';
       sheetEl.appendChild(p);
     });
-    var titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S));
+    var titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S));
     var p2 = document.createElement('p'); p2.className = 'note';
     p2.textContent = (titles.length ? '칭호: ' + titles.join(' · ') + ' · ' : '') + '기증해도 도감 기록은 그대로 · 바구니 물건은 하나만 빠져요';
     sheetEl.appendChild(p2);
@@ -189,7 +189,7 @@
   // ---------- 도감: one progress line ----------
   function renderMuseumDex() {
     if (!L.museumOk(S) && !S.museum) return;
-    var t = L.museumTotal(S), titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S));
+    var t = L.museumTotal(S), titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S));
     dexHead('박물관', t.n, t.m, L.MUSEUM_ROOM_IDS.map(function (r) { var c = L.museumCount(S, r); return L.MUSEUM_ROOMS[r].name + ' ' + c.n + '/' + c.m; }).join(' · ') +
       (titles.length ? ' · 칭호 ' + titles.join('·') : '') + ' (이동 › 마을)');
   }

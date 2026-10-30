@@ -22,9 +22,10 @@
       var dw = sit ? 0 : flap ? -2 : 1;
       px(x - 1, y - 5 + dw, 6, 2, 2); px(x - 1, y + 1 - dw, 6, 2, 2); px(x, y - 4 + dw, 4, 1, 1);
     } else if (k === 'bee') {
-      px(x - 2, y - 3, 5, 3, 4); px(x - 1, y - 3, 1, 3, id === 'firefly' ? 4 : 2); px(x + 1, y - 3, 1, 3, id === 'firefly' ? 4 : 2);
+      px(x - 2, y - 3, 5, 3, 4); px(x - 1, y - 3, 1, 3, id === 'firefly' || id === 'latefly' ? 4 : 2); px(x + 1, y - 3, 1, 3, id === 'firefly' || id === 'latefly' ? 4 : 2);
       if (!sit) { px(x - 2, y - 6 + (flap ? 0 : 1), 2, 2, 1); px(x + 1, y - 6 + (flap ? 0 : 1), 2, 2, 1); }
       if (id === 'firefly' && Math.floor(tt * 3) % 3) { px(x - 3, y - 1, 2, 2, 0); px(x - 4, y - 2, 1, 1, 1); }
+      if (id === 'latefly' && Math.floor(tt * 2) % 4) { px(x - 4, y - 2, 3, 3, 0); px(x - 5, y - 1, 1, 1, 1); px(x - 2, y + 1, 1, 1, 1); }   // 캠핑: a bigger, slower glow
     } else if (k === 'ant') {
       var a = id === 'springtail' ? 3 : 4;
       px(x - 3, y - 2, 2, 2, a); px(x, y - 2, 1, 1, a); px(x + 1, y - 2, 2, 2, a); px(x - 2, y, 1, 1, a); px(x + 1, y, 1, 1, a);
@@ -37,7 +38,7 @@
       if (id === 'mantis') { px(x + 4, y - 7, 1, 4, 4); px(x + 5, y - 7, 2, 1, 4); }
       if (!sit && flap) px(x - 3, y - 6, 4, 2, 1);
     } else {
-      var big = id === 'stagbeetle' || id === 'rhinobeetle';
+      var big = id === 'stagbeetle' || id === 'rhinobeetle' || id === 'flatstag';
       px(x - 3, y - 5, 6, 5, c[0]); px(x - 2, y - 6, 4, 1, c[0]); px(x, y - 5, 1, 5, c[1] === 4 ? 2 : c[1]);
       if (id === 'ladybug') { px(x - 2, y - 4, 1, 1, 0); px(x + 2, y - 2, 1, 1, 0); px(x - 2, y - 2, 1, 1, 0); }
       if (id === 'jewelbeetle') { px(x - 2, y - 4, 1, 3, 1); px(x + 2, y - 4, 1, 3, 2); }
@@ -58,14 +59,14 @@
   // ---------- the one insect on screen ----------
   var bug = null, bugNextAt = performance.now() + 8e3, bugMissTips = 0, bugNetTips = 0, bugPend = null;
   var BUG_VIEWS = { farm: true, yard: true, forest: true, orchard: true };
-  function bugPlaceOk(v) { return BUG_VIEWS[v] && (v !== 'forest' || L.forestOk(S)) && (v !== 'orchard' || L.orchardOk(S)); }
+  function bugPlaceOk(v) { return BUG_VIEWS[v] && (v !== 'forest' || L.forestOk(S)) && (v !== 'orchard' || L.orchardOk(S)) && !(v === 'farm' && trnTrip()); }   // no 밭 insects on a trip's 물가
   function tickBugsUI() {
     var p = performance.now();
     if (bugPend && resultEl.hidden) bugDecide(bugPend.def);   // the card went away without a choice
     if (bug && (bug.place !== view || (bug.flee ? p > bug.flee.t + 900 : p > bug.fl.end))) { bug = null; bugNextAt = p + 20e3 + Math.random() * 40e3; }
     if (bug || p < bugNextAt || !bugPlaceOk(view) || reel) return;
     var id = L.rollBug(view, curEnv(now()), Math.random, S);
-    bugNextAt = p + (15e3 + Math.random() * 20e3) * (L.dayIs(S, 'bugs') ? L.DAY_BUG_MUL : 1);   // stage 8: 곤충 잔치
+    bugNextAt = p + (15e3 + Math.random() * 20e3) * (L.dayIs(S, 'bugs') ? L.DAY_BUG_MUL : 1) * cmpBugMul();   // stage 8: 곤충 잔치; 캠핑 랜턴
     if (!id) return;
     bug = { id: id, place: view, fl: L.bugFlight(id, p + 200, Math.random) };
   }

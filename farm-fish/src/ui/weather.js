@@ -21,22 +21,23 @@
   function veil(c, a) { ctx.globalAlpha = a; ctx.fillStyle = G[c]; ctx.fillRect(-4, -4, W + 8, H + 8); ctx.globalAlpha = 1; }
   function drawWeather(tt, dt) {
     var t = now(), e = curEnv(t), k, x, y;
-    drawToys(tt);   // stage 10 ④: puddles, footprints, leaf piles
+    var trip = trnTrip();   // 기차 여행 물가: no plots, fence or toys on screen
+    if (!trip) drawToys(tt);   // stage 10 ④: puddles, footprints, leaf piles
     if (e.weather === 'snow') {
       veil(3, 0.1);                       // a dimmer day so white flakes read on paper
       var depth = 1 + Math.min(1, ((t % L.WEATHER_MS) / L.WEATHER_MS) * 2);
-      for (var i = 0; i < S.plots.length; i++) {
+      for (var i = 0; i < S.plots.length && !trip; i++) {
         var r = plotRect(i);
         px(r.x, r.y - 1, r.w, depth, 0); px(r.x, r.y - 1 + depth, r.w, 1, 2);
       }
-      for (x = 6; x < 176; x += 10) px(x - 1, FENCE_Y - 4, 4, 1, 0);
+      for (x = 6; x < 176 && !trip; x += 10) px(x - 1, FENCE_Y - 4, 4, 1, 0);
       for (k = 0; k < 46; k++) {
         var sp = 0.6 + hash(k * 5 + 2) * 0.8;
         y = (hash(k * 3 + 1) * (H + 10) + tt * 13 * sp) % (H + 10) - 5;
         x = (hash(k * 7 + 4) * W + Math.sin(tt * 0.9 + k) * 4 + W) % W;
         px(x, y, 2, 2, 0); px(x + 2, y + 1, 1, 1, 2); px(x, y + 2, 2, 1, 2);
       }
-    } else if (e.season === 'winter' && view === 'farm') {
+    } else if (e.season === 'winter' && view === 'farm' && !trip) {
       // winter without snowfall: the snow that's already settled stays on the plot edges
       for (var j = 0; j < S.plots.length; j++) { var pr = plotRect(j); px(pr.x + 1, pr.y - 1, pr.w - 2, 1, 0); px(pr.x + 1, pr.y, pr.w - 2, 1, 2); }
     }

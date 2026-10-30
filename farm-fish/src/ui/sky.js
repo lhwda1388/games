@@ -30,7 +30,8 @@
     openStars(false);
     return true;
   }
-  function openStars(force, peak) {
+  // home = the view to come back to (캠핑: the camp view; rewards there × L.cmpStarMul)
+  function openStars(force, peak, home) {
     var t = now(), e = curEnv(t);
     if (!force && !L.skyOpen(S, t, TZ, e.phase)) {
       var nn = L.nextPhase(t, TZ, 'night');
@@ -39,7 +40,7 @@
     }
     starForce = !!force;
     starG = L.starGame(L.starFor(S, e.season, Math.random, !!peak), Math.random);
-    starHome = peak ? 'peak' : 'yard';
+    starHome = home || (peak ? 'peak' : 'yard');
     goScene('stars');
     var c = L.starById(starG.id), seen = S.sky.seen[c.id];
     toast((seen ? c.name : '처음 보는 별자리') + ' · 깜빡이는 별부터 순서대로 · 오른쪽 위 그림을 따라', 3200);
@@ -92,8 +93,8 @@
     if (r === 'wrong') { toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
     burst(chartX(st.x), chartY(st.y), r === 'done' ? 18 : 4, 0, r === 'done' ? 70 : 24);
     if (r !== 'done') return;
-    var c = L.starById(g.id), rec = L.seeStar(S, g.id, now());
-    toast('★ ' + c.name + (rec && rec.first ? ' · 처음 찾았다! 도감에 기록' : ' · 또 만났다') + (rec ? ' · +' + rec.coins : '') + ' · 누르면 ' + (starHome === 'peak' ? '산꼭대기로' : '마당으로'), 4000);
+    var mul = L.cmpStarMul(S, cmpIsView(starHome)), c = L.starById(g.id), rec = L.seeStar(S, g.id, now(), mul);
+    toast('★ ' + c.name + (rec && rec.first ? ' · 처음 찾았다! 도감에 기록' : ' · 또 만났다') + (rec ? ' · +' + rec.coins + (mul > 1 ? ' (캠프 ×' + mul + ')' : '') : '') + ' · 누르면 ' + (starHome === 'peak' ? '산꼭대기로' : cmpIsView(starHome) ? '캠핑장으로' : '마당으로'), 4000);
     refresh();
   }
 
@@ -121,7 +122,7 @@
     return false;
   }
   function doWish(m) {
-    var r = L.meteorWish(S, now(), Math.random, meteorForce ? undefined : TZ);
+    var r = L.meteorWish(S, now(), Math.random, meteorForce ? undefined : TZ, L.cmpStarMul(S, cmpIsView(view) || (view === 'stars' && cmpIsView(starHome))));   // 캠핑: coin wishes × camp stars
     burst(m.x, m.y, 10, 0, 50);
     if (!r) { toast('반짝… 오늘 밤 소원은 벌써 빌었다', 1800); return; }
     var what = r.kind === 'deco' ? '장식 「' + L.decoById(r.id).name + '」' + (r.stored ? ' · 보관함에' : ' · 마당에 놓았다')
