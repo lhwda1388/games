@@ -90,7 +90,8 @@
     { id: 'dive', name: '잠수', how: '포구 부두의 잠수 표시 · 탭한 쪽으로 헤엄 · 가까이서 탭하면 줍기·관찰 · 산소 ' + DIVE_O2 + '초 (기포에서 채움, 큰 산소통 ' + DIVE_O2_TANK + '초) · 바닥나면 떠오를 뿐 잃는 것 없음', lock: '옛 포구 조선소 복구' },
     { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' },
     // 게임장
-    { id: 'arcade', name: '게임장', how: '마을 아래 박물관 왼쪽 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' }
+    { id: 'arcade', name: '게임장', how: '마을 아래 박물관 왼쪽 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
+    { id: 'myshop', name: '내 가게', how: '마을 윗길 오른쪽 빈 가게 터 · ' + won(MYS_PRICE) + '으로 짓고 바구니·창고 물건을 진열대(' + MYS_SLOTS0 + '~' + MYS_SLOTS_MAX + '칸)에 올리면 손님이 하나씩 사 간다 · 값은 오늘 시세 × 등급 보너스 ×' + MYS_BONUS[0] + '~ · 게임을 꺼 둬도 ' + MYS_CATCHUP / 3600e3 + '시간치까지 팔리고 코인은 금고에 · 꾸미기는 손님을 더 자주, 등급은 값을 더 높게', lock: '★' + VILLAGE_REP + ' 마을이 열리면' }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -117,7 +118,7 @@
   GUIDE_SCENE.port = 'port';         // stage 11 ①
   GUIDE_OPEN.auction = aucOpen; GUIDE_OPEN.trader = traderOpen;   // stage 11 ②
   GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
-  GUIDE_OPEN.arcade = villageOk;   // 게임장
+  GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {

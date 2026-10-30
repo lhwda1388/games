@@ -124,6 +124,7 @@
       decodeMarket(o, s);  // 장터 시세: s.mkt (today's units sold per 종목; optional)
       decodeBank(o, s);    // 은행: s.bank (balance, last interest day; optional)
       decodeArcade(o, s);  // 게임장: s.arcade (오늘 상금 게임 횟수; optional)
+      decodeMyShop(o, s);  // 내 가게: s.mys (진열대·꾸미기·등급·금고; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
