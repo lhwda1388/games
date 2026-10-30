@@ -1,4 +1,4 @@
-// farm-fish/test/stage5a.test.js — stage 5A: 숲 채집, 도전 gauge (채집·수확), 반려동물
+// test/stage5a.test.js — stage 5A: 숲 채집, 도전 gauge (채집·수확), 반려동물
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

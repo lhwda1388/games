@@ -1,4 +1,4 @@
-// farm-fish/test/stage12.test.js — stage 12 lane ③: 잠수 탐험 (24-room map, gear, 해저 도감, 항해일지)
+// test/stage12.test.js — stage 12 lane ③: 잠수 탐험 (24-room map, gear, 해저 도감, 항해일지)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

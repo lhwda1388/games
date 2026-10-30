@@ -1,4 +1,4 @@
-// farm-fish/test/stage9b.test.js — stage 9 ②: 당나귀 (친밀도, 먹이, 이름, 짐 싣기), 깊은 숲·산꼭대기 (채집물, 곤충, 별자리)
+// test/stage9b.test.js — stage 9 ②: 당나귀 (친밀도, 먹이, 이름, 짐 싣기), 깊은 숲·산꼭대기 (채집물, 곤충, 별자리)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

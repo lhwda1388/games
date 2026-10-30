@@ -1,4 +1,4 @@
-// farm-fish/test/stage9a.test.js — stage 9 lane ①: 배 업그레이드 (나룻배 → 돛배 → 통통배), 먼바다·난바다 끌낚시, 먼 섬
+// test/stage9a.test.js — stage 9 lane ①: 배 업그레이드 (나룻배 → 돛배 → 통통배), 먼바다·난바다 끌낚시, 먼 섬
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

@@ -1,4 +1,4 @@
-// farm-fish/test/guide.test.js — 놀거리 수첩: GUIDE table, open/locked from real state, "새" marks, scene tips, save
+// test/guide.test.js — 놀거리 수첩: GUIDE table, open/locked from real state, "새" marks, scene tips, save
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

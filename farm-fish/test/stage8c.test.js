@@ -1,4 +1,4 @@
-// farm-fish/test/stage8c.test.js — stage 8 lane ③: 소문과 보물 지도
+// test/stage8c.test.js — stage 8 lane ③: 소문과 보물 지도
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

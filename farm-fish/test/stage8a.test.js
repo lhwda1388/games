@@ -1,4 +1,4 @@
-// farm-fish/test/stage8a.test.js — stage 8 ①: 입질 폭풍 / 대풍년, 오늘의 날, 자리 비운 사이 일기
+// test/stage8a.test.js — stage 8 ①: 입질 폭풍 / 대풍년, 오늘의 날, 자리 비운 사이 일기
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

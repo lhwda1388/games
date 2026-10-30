@@ -1,4 +1,4 @@
-// farm-fish/test/stage4.test.js — stage 4: 계절, 단골 주민, 수족관, 오늘의 할 일, N년차, 친구 기록 비교
+// test/stage4.test.js — stage 4: 계절, 단골 주민, 수족관, 오늘의 할 일, N년차, 친구 기록 비교
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

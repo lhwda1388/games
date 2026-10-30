@@ -1,4 +1,4 @@
-// farm-fish/test/stage6a.test.js — stage 6A: 과수원, 양봉, 곤충 채집
+// test/stage6a.test.js — stage 6A: 과수원, 양봉, 곤충 채집
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

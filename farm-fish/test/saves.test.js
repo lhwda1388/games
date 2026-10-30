@@ -1,4 +1,4 @@
-// farm-fish/test/saves.test.js — saves written by RELEASED builds must load in the current build with nothing lost.
+// test/saves.test.js — saves written by RELEASED builds must load in the current build with nothing lost.
 // Fixtures in test/fixtures/ were produced by each old build's own logic (encode of a well-played state).
 // Never edit or delete a fixture; when a new version ships, ADD one.
 const { test } = require('node:test');
@@ -21,7 +21,7 @@ const KEEP = [
   'orchard.trees', 'orchard.dex', 'bees.hives', 'bees.dex', 'bugs', 'vil', 'res', 'keep', 'noSell',
   'flat.dex', 'flat.traps', 'cam.album', 'cave.done', 'cave.dex', 'cave.parts', 'sky.seen', 'isle', 'museum', 'guide',
   'day', 'diary', 'tmap', 'rumor', 'donkey', 'ship', 'bike', 'sled', 'bal',
-  'farm', 'garden', 'cont', 'town', 'port', 'trader', 'dive'
+  'farm', 'garden', 'cont', 'town', 'port', 'trader', 'dive', 'shed'
 ];
 const get = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 

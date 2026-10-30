@@ -1,4 +1,4 @@
-// farm-fish/test/stage7b.test.js — stage 7 lane ②: 동굴 (곡괭이, 기력, 광석·보석, 화석) + 별 관측 (망원경, 별자리, 유성우)
+// test/stage7b.test.js — stage 7 lane ②: 동굴 (곡괭이, 기력, 광석·보석, 화석) + 별 관측 (망원경, 별자리, 유성우)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

@@ -3,8 +3,8 @@
 친구에게 주는 건 `index.html` 한 파일. 고칠 때는 `src/`를 고치고 다시 합친다.
 
 ```sh
-node farm-fish/build.js                 # src/ → index.html (같은 소스면 항상 같은 결과)
-node --test farm-fish/test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index.html이 낡았으면 실패
+node build.js                 # src/ → index.html (같은 소스면 항상 같은 결과)
+node --test test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index.html이 낡았으면 실패
 ```
 
 `src/`의 파일 순서는 `build.js`의 목록이 정한다. 새 파일은 목록에 한 줄 추가. `logic/`·`ui/` 파일은 각각 하나의 클로저 조각이라 앞 파일의 이름을 그대로 쓴다. 로직 파일은 공개할 이름을 파일 끝 `expose({...})`에 적는다.

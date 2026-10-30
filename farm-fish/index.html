@@ -1080,9 +1080,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drop.forEach(function (k) { s.bag.splice(k, 1); });
     return true;
   }
+  // kept (지키기) items stay in the basket
   function sellAll(s) {
-    var t = 0; s.bag.forEach(function (e) { t += e.v; });
-    s.bag = []; s.coins += t; return t;
+    var t = 0;
+    s.bag = s.bag.filter(function (e) { if (s.keep && s.keep[e.id]) return true; t += e.v; return false; });
+    s.coins += t; return t;
   }
   // one of id, the cheapest (as bagTake)
   function sellOne(s, id) {
@@ -1154,11 +1156,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng, season); n++; } });
     return n;
   }
-  function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && bagCount(s, q.o.id) >= q.o.n); }
+  // what an order can use: the basket and the 창고 together
+  function haveCount(s, id) { return bagCount(s, id) + shedCount(s, id); }
+  function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && haveCount(s, q.o.id) >= q.o.n); }
   function deliver(s, k, now, rng) {
     if (!canDeliver(s, k)) return null;
-    var o = s.orders[k].o;
-    bagTake(s, o.id, o.n);
+    var o = s.orders[k].o, b = Math.min(bagCount(s, o.id), o.n);
+    bagTake(s, o.id, b); shedUse(s, o.id, o.n - b);   // basket first, the rest from the 창고
     var pay = dayIs(s, 'orders') ? Math.round(o.reward * DAY_ORDER_MUL) : o.reward;   // stage 8: 단골 손님의 날
     s.coins += pay; s.rep += o.rep;
     s.orders[k] = { o: null, at: now + REFILL_MIN + rng() * REFILL_SPAN };
@@ -1204,7 +1208,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     PRODUCTS: PRODUCTS, RECIPES: RECIPES, ORDER_SLOTS: ORDER_SLOTS, REFILL_MIN: REFILL_MIN, REFILL_SPAN: REFILL_SPAN,
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
-    BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
+    BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, haveCount: haveCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
     weatherInSeason: weatherInSeason, orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });
@@ -2065,6 +2069,43 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
 
   expose({ TANK_CAP: TANK_CAP, tankCap: tankCap, tankList: tankList, tankPut: tankPut, tankTake: tankTake });
+  // ---------- 창고: basket items put aside for orders (s.shed, created lazily) ----------
+  // Never sold (sellAll/sellId and the 꽉 차면 자동 판매 only touch s.bag). Orders count the basket and the 창고 together.
+  var SHED_CAP = [10, 20, 30, 50];        // by house tier: 천막 · 오두막 · 기와집 · 2층집
+  function shedCap(s) { return SHED_CAP[houseTier(s)]; }
+  function shedList(s) { return s.shed || []; }
+  function shedCount(s, id) { var n = 0; shedList(s).forEach(function (e) { if (e.id === id) n++; }); return n; }
+  // up to n of id, cheapest first, from one list to another while `room` allows; returns how many moved
+  function shedMove(from, to, id, n, room) {
+    var moved = 0;
+    while (moved < n && room > 0) {
+      var k = -1;
+      from.forEach(function (e, j) { if (e.id === id && (k < 0 || e.v < from[k].v)) k = j; });
+      if (k < 0) break;
+      to.push(from.splice(k, 1)[0]); moved++; room--;
+    }
+    return moved;
+  }
+  function shedPut(s, id, n) {
+    if (!s.shed) s.shed = [];
+    var m = shedMove(s.bag, s.shed, id, n, shedCap(s) - s.shed.length);
+    if (!s.shed.length) delete s.shed;
+    return m;
+  }
+  // back into the basket (stops when the basket is full: nothing is sold or lost)
+  function shedTake(s, id, n) {
+    var m = shedMove(shedList(s), s.bag, id, n, bagCap(s) - s.bag.length);
+    if (s.shed && !s.shed.length) delete s.shed;
+    return m;
+  }
+  // used up by an order: n of id, cheapest first, no basket room needed
+  function shedUse(s, id, n) {
+    var m = shedMove(shedList(s), [], id, n, n);
+    if (s.shed && !s.shed.length) delete s.shed;
+    return m;
+  }
+
+  expose({ SHED_CAP: SHED_CAP, shedCap: shedCap, shedList: shedList, shedCount: shedCount, shedPut: shedPut, shedTake: shedTake });
   // ---------- 오늘의 할 일: three small goals per real calendar day, a reward for all three, no penalty ----------
   // key = the local date 'YYYY-MM-DD' (the UI passes it). Goals depend only on key + what is unlocked,
   // so the same day and progress always give the same list. s.daily = { key, goals: [{ t, x, n, p }], paid }.
@@ -2268,6 +2309,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         if (obj(e) && fishById(e.id) && num(e.v) && e.v >= 0 && tank.length < tankCap(s)) tank.push({ id: e.id, v: Math.round(e.v) });
       });
       if (tank.length) s.tank = tank;
+    }
+    if (Array.isArray(o.shed)) {
+      var shed = [];
+      o.shed.forEach(function (e) {
+        if (obj(e) && itemInfo(e.id) && num(e.v) && e.v >= 0 && shed.length < shedCap(s)) shed.push({ id: e.id, v: Math.round(e.v) });
+      });
+      if (shed.length) s.shed = shed;
     }
     if (obj(o.daily) && typeof o.daily.key === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.daily.key) && Array.isArray(o.daily.goals)) {
       var goals = [];
@@ -7186,6 +7234,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'animals', name: '동물', how: '상점 마당 칸에서 닭·오리·젖소 · 마당에 쌓인 알·우유를 눌러 줍기', lock: '' },
     { id: 'house', name: '집 안', how: '마당에서 집을 누르면 안으로 · 가구 놓기 · 상점에서 집을 키우면 바구니·냄비가 늘어난다', lock: '' },
     { id: 'aquarium', name: '수족관', how: '집 안 수조를 누르고 바구니 물고기를 넣기 · 수조 물고기는 팔리지 않는다', lock: '' },
+    { id: 'shed', name: '창고', how: '바구니 아래 창고 버튼 · 주문에 쓸 것을 넣어 두면 팔리지 않고, 납품할 때 바구니와 함께 쓰인다', lock: '' },
     { id: 'visitors', name: '손님·편지', how: '장식을 놓으면 손님이 찾아온다 · 눌러 보면 선물 · 우체통을 놓으면 편지', lock: '' },
     { id: 'residents', name: '단골 주민', how: '주문을 납품하면 그 주민과 친밀도 · 단계마다 편지와 선물 · 바구니의 주민 탭', lock: '' },
     { id: 'junk', name: '잡동사니·병 편지', how: '낚시하다 가끔 고물·병 편지·보물 상자 · 고물로 장식 만들기 · 상자는 자물쇠 도전', lock: '' },
@@ -7193,6 +7242,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'challenge', name: '도전 (꾹 누르기)', how: '수확·채집·갯벌·동굴에서 꾹 누르면 게이지 · 표시 칸에서 떼면 덤 · 놓쳐도 그대로', lock: '' },
     { id: 'secrets', name: '비밀', how: '숨은 비밀이 있다 · 도감 기록 탭의 힌트를 따라가 보기', lock: '' },
     { id: 'friend', name: '친구 기록', how: '도감 친구 탭 · 내 기록 코드를 복사해 친구 기록과 나란히', lock: '' },
+    { id: 'move', name: '세이브 옮기기', how: '도감 친구 탭 · 세이브를 복사해 카톡·메모장에 두면 백업, 다른 기기에서 붙여 넣고 불러오기 두 번이면 이어 하기', lock: '' },
     { id: 'pip', name: '작게 띄우기·숨기기', how: '작게 버튼이나 P 키로 작은 창 · Esc는 업무 화면으로 숨기', lock: '' },
     { id: 'forest', name: '숲', how: '돋아난 것을 눌러 채집 · 꾹 누르면 도전 · 철마다 다른 것이 돋는다', lock: '★' + FOREST_REP + ' · 숲 표지판에서 ' + won(FOREST_COST) },
     { id: 'pet', name: '반려동물', how: '쓰다듬으면 친밀도 · 하루 몇 번 선물 · 숲에서 킁킁 찾아 준다', lock: '상점 입양 · 강아지 ' + won(PET_KINDS.dog.cost) + ' · 고양이는 ' + PET_CAT_VISITS + '번 놀러 오면' },
@@ -9696,9 +9746,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         upRow(ph, '새 주문 준비 중', '곧 붙어요 · ' + fmtGame(q.at - now()) + ' 뒤', 'idle');
         return;
       }
-      var o = q.o, it = L.itemInfo(o.id), have = L.bagCount(S, o.id);
+      var o = q.o, it = L.itemInfo(o.id), have = L.haveCount(S, o.id);
       var r = upRow(itemIcon(o.id), esc(it.name) + ' ×' + o.n + (o.special ? '<span class="tagx">특별</span>' : ''),
-        L.residentById(L.residentFor(o, S)).name + ' · 바구니 ' + Math.min(have, o.n) + '/' + o.n + ' · ★+' + o.rep, o.special ? 'sp' : '');
+        L.residentById(L.residentFor(o, S)).name + ' · 가진 것 ' + Math.min(have, o.n) + '/' + o.n + ' · ★+' + o.rep, o.special ? 'sp' : '');
       var a = document.createElement('div'); a.className = 'acts';
       a.appendChild(act(o.reward.toLocaleString('ko-KR'), function () { doDeliver(k); }, { off: have < o.n, label: '납품 ' + o.reward + '코인' }));
       if (L.bikeOk(S)) a.appendChild(act('자전거로', function () { bikeDeliver(k); }, { off: have < o.n, cls: 'bike', label: '자전거로 배달 · 팁 도전' }));   // stage 9 ③
@@ -9737,7 +9787,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
     bagEl.appendChild(grid);
     var groups = {}, order = [], total = 0;
-    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; total += e.v; });
+    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; if (!(S.keep && S.keep[e.id])) total += e.v; });
     order.forEach(function (id) {
       var g = groups[id], kept = !!(S.keep && S.keep[id]);
       var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
@@ -9758,7 +9808,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }, { cls: 'sellAll' });
     auto.setAttribute('aria-pressed', String(!S.noSell));
     bagEl.appendChild(auto);
-    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !S.bag.length });
+    bagEl.appendChild(act('창고 · ' + L.shedList(S).length + ' / ' + L.shedCap(S) + '칸', function () { openSheet('shed'); }, { cls: 'sellAll' }));
+    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !total });
     bagEl.appendChild(all);
   }
   // order sign, basket and pot at the left edge of the pond side
@@ -10787,7 +10838,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function openSheet(kind) {
     dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true;
     sheetKind = kind; sheetEl.hidden = false;
-    if (kind === 'merchant') renderMerchant(); else if (kind === 'tank') renderTank(); else renderMail();
+    if (kind === 'merchant') renderMerchant(); else if (kind === 'tank') renderTank(); else if (kind === 'shed') renderShed(); else renderMail();
   }
   var merchantLine = '';
   function renderMerchant() {
@@ -11398,6 +11449,42 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     });
     if (!any) { var q = document.createElement('p'); q.className = 'note'; q.textContent = '바구니에 물고기가 없어요 · 낚아서 다시 와요'; sheetEl.appendChild(q); }
   }
+  // ---------- 창고: put basket items aside for orders (opened from the 바구니 panel), one row per kind ----------
+  function shedGroups(list) {
+    var g = {}, order = [];
+    list.forEach(function (e) { if (!g[e.id]) { g[e.id] = 0; order.push(e.id); } g[e.id]++; });
+    return order.map(function (id) { return { id: id, n: g[id] }; });
+  }
+  function shedActs(r, n, verb, go) {
+    var a = document.createElement('div'); a.className = 'acts';
+    if (n > 1) a.appendChild(act('1개', function () { go(1); }, { cls: 'max b', label: '1개 ' + verb }));
+    a.appendChild(act(n > 1 ? '전부' : verb, function () { go(n); }, { cls: 'max b', label: '전부 ' + verb }));
+    r.appendChild(a);
+  }
+  function renderShed() {
+    sheetHead('창고');
+    var list = L.shedList(S), cap = L.shedCap(S);
+    var h3 = document.createElement('h3'); h3.textContent = '창고 안';
+    var b = document.createElement('b'); b.textContent = list.length + ' / ' + cap + '칸'; h3.appendChild(b); sheetEl.appendChild(h3);
+    if (!list.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '비어 있어요 · 주문에 쓸 것을 넣어 두면 팔리지 않아요'; sheetEl.appendChild(p); }
+    shedGroups(list).forEach(function (g) {
+      var name = L.itemInfo(g.id).name;
+      shedActs(sheetRow(itemIcon(g.id), name + ' ×' + g.n, '주문 납품에 바로 쓰여요'), g.n, '꺼내기', function (n) {
+        if (!L.shedTake(S, g.id, n)) { toast('바구니가 꽉 찼어요'); return; }
+        toast(josa(name, '을', '를') + ' 바구니에 담았다'); refresh(); renderShed();
+      });
+    });
+    h3 = document.createElement('h3'); h3.textContent = '바구니';
+    b = document.createElement('b'); b.textContent = '집이 클수록 창고가 커져요'; h3.appendChild(b); sheetEl.appendChild(h3);
+    if (!S.bag.length) { var q = document.createElement('p'); q.className = 'note'; q.textContent = '바구니가 비었어요'; sheetEl.appendChild(q); }
+    shedGroups(S.bag).forEach(function (g) {
+      var name = L.itemInfo(g.id).name;
+      shedActs(sheetRow(itemIcon(g.id), name + ' ×' + g.n, '창고에 ' + L.shedCount(S, g.id) + '개'), g.n, '넣기', function (n) {
+        if (!L.shedPut(S, g.id, n)) { toast('창고가 꽉 찼어요 · 집을 키우면 커져요'); return; }
+        toast(josa(name, '을', '를') + ' 창고에 넣었다'); refresh(); renderShed();
+      });
+    });
+  }
   // ---------- 오늘의 할 일 (달력 panel, top) + 농장 N년차; the logic tick keeps today's list and pays once ----------
   function todayKey(t) {
     var d = new Date(t), p = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -11498,6 +11585,39 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     go.addEventListener('click', compare);
     paste.addEventListener('keydown', function (e) { if (e.key === 'Enter') compare(); });
     if (friendRaw) compare(); else msg.textContent = '친구가 보낸 코드를 붙여 넣어요';
+    renderMove();
+  }
+  // 세이브 옮기기: the whole save as text, no server. Trust boundary: a pasted save only ever goes through L.decode.
+  function renderMove() {
+    var h3 = document.createElement('h3'); h3.textContent = '세이브 옮기기'; dexEl.appendChild(h3);
+    var outRow = document.createElement('div'); outRow.className = 'shareRow';
+    var out = shareField('', true, '내 세이브');
+    out.placeholder = '복사를 누르면 지금 세이브가 들어가요';
+    var copy = document.createElement('button'); copy.type = 'button'; copy.textContent = '복사';
+    copy.addEventListener('click', function () { save(); out.value = L.encode(S); copyText(out.value, out); });
+    outRow.appendChild(out); outRow.appendChild(copy); dexEl.appendChild(outRow);
+    var inRow = document.createElement('div'); inRow.className = 'shareRow';
+    var paste = shareField('', false, '옮겨 올 세이브', 200000);
+    paste.placeholder = '다른 기기의 세이브 붙여 넣기';
+    var go = document.createElement('button'); go.type = 'button'; go.textContent = '불러오기';
+    inRow.appendChild(paste); inRow.appendChild(go); dexEl.appendChild(inRow);
+    var msg = document.createElement('p'); msg.className = 'note';
+    msg.textContent = '카톡·메모장에 붙여 두면 백업 · 불러오면 지금 세이브는 이 기기에서 덮어써져요';
+    dexEl.appendChild(msg);
+    var armed = '';
+    go.addEventListener('click', function () {
+      var text = paste.value.trim();
+      if (!L.decode(text)) { armed = ''; msg.textContent = '세이브가 맞지 않아요 · 끝까지 다 복사했는지 확인해 주세요'; return; }
+      // two taps: the first only warns, so one stray tap never replaces a farm
+      if (armed !== text) { armed = text; go.textContent = '정말 불러오기'; msg.textContent = '한 번 더 누르면 지금 세이브 대신 이 세이브로 다시 시작해요'; return; }
+      saveBlocked = true;   // the 5 s save must not write the old farm back before the reload
+      try {
+        var cur = localStorage.getItem(SAVE_KEY);
+        if (cur) localStorage.setItem(SAVE_KEY + '.before-import', cur);
+        localStorage.setItem(SAVE_KEY, text);
+      } catch (e) { saveBlocked = false; msg.textContent = '이 브라우저는 저장이 막혀 있어요'; return; }
+      location.reload();
+    });
   }
   function renderCompare(table) {
     var me = L.shareStats(S, now()), fr = friendStats;

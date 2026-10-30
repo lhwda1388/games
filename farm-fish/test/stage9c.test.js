@@ -1,4 +1,4 @@
-// farm-fish/test/stage9c.test.js — stage 9 lane ③: 자전거 배달, 열기구, 겨울 썰매
+// test/stage9c.test.js — stage 9 lane ③: 자전거 배달, 열기구, 겨울 썰매
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

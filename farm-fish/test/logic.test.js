@@ -1,9 +1,9 @@
-// farm-fish/test/logic.test.js
+// test/logic.test.js
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 
-// built in memory from src/, so tests never need `node farm-fish/build.js` first
+// built in memory from src/, so tests never need `node build.js` first
 function loadLogic() {
   const html = require('../build.js').build();
   const m = html.match(/<script id="logic">([\s\S]*?)<\/script>/);
@@ -428,10 +428,12 @@ test('harvest and catch go to the basket; overflow sells at once', () => {
   assert.equal(out.sold, out.coins);
   assert.equal(s.coins, before + out.coins);
   assert.equal(s.bag.length, 12);
-  // sell all empties the basket
+  // sell all skips kept (지키기) items
+  s.bag.push({ id: 'gold', v: 999 }); s.keep = { gold: true };
   const total = L.sellAll(s);
+  assert.deepEqual(s.bag, [{ id: 'gold', v: 999 }]);
+  s.bag = []; delete s.keep;
   assert.equal(total, 30 + 11 * 10);
-  assert.equal(s.bag.length, 0);
   // bigger basket from the shop: 12 → 20 → 30
   s.coins = 10000;
   assert.equal(L.buy(s, 'basket'), true); assert.equal(L.bagCap(s), 20);
@@ -673,4 +675,32 @@ test('basket item ids are unique across every item table (parallel lanes must no
     assert.ok(!seen[id] || seen[id] === t, id + ' is in both ' + seen[id] + ' and ' + t);
     seen[id] = t;
   }
+});
+
+test('창고: put aside, never sold, orders use basket + 창고, cap by house tier', () => {
+  const s = L.newState(0, seq(0.5));
+  s.bag = [{ id: 'radish', v: 30 }, { id: 'radish', v: 40 }, { id: 'radish', v: 50 }, { id: 'minnow', v: 10 }];
+  assert.equal(L.shedPut(s, 'radish', 2), 2);
+  assert.deepEqual(L.shedList(s), [{ id: 'radish', v: 30 }, { id: 'radish', v: 40 }]);   // cheapest first
+  assert.equal(L.sellAll(s), 60);
+  assert.equal(L.shedCount(s, 'radish'), 2);
+  // cap
+  s.bag = Array.from({ length: 20 }, () => ({ id: 'minnow', v: 10 }));
+  assert.equal(L.shedPut(s, 'minnow', 20), L.shedCap(s) - 2);
+  assert.equal(L.shedList(s).length, L.shedCap(s));
+  // take back: only into free basket room
+  s.bag = [];
+  assert.equal(L.shedTake(s, 'radish', 5), 2);
+  assert.equal(L.shedCount(s, 'radish'), 0);
+  // an order of 3 radish: 1 in the basket + 2 in the 창고
+  L.shedPut(s, 'radish', 1);
+  s.shed.push({ id: 'radish', v: 30 });
+  s.orders[0] = { o: { id: 'radish', n: 3, reward: 100, rep: 1 }, at: 0 };
+  assert.equal(L.bagCount(s, 'radish'), 1);
+  assert.equal(L.canDeliver(s, 0), true);
+  assert.ok(L.deliver(s, 0, 0, seq(0.5)));
+  assert.equal(L.haveCount(s, 'radish'), 0);
+  // a save keeps it
+  s.shed = [{ id: 'radish', v: 30 }];
+  assert.deepEqual(L.decode(JSON.stringify(s)).shed, [{ id: 'radish', v: 30 }]);
 });

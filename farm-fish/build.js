@@ -1,5 +1,5 @@
-// farm-fish/build.js — joins src/ into the single self-contained index.html.
-// Usage: node farm-fish/build.js   (no dependencies; same sources always give the same bytes)
+// build.js — joins src/ into the single self-contained index.html.
+// Usage: node build.js   (no dependencies; same sources always give the same bytes)
 // Files are pasted in the order listed. logic/ and ui/ files are fragments of one shared closure each
 // (see src/page.html), so a file can use any name defined in an earlier one. New file = one new line.
 'use strict';
@@ -52,6 +52,7 @@ const LOGIC = [
   // stage 4
   'logic/residents.js', // 단골 주민: who posts orders, 친밀도, letters, gifts, gift recipes
   'logic/aquarium.js',  // 수족관 in the house (s.tank)
+  'logic/shed.js',      // 창고: basket items kept for orders (s.shed)
   'logic/daily.js',     // 오늘의 할 일 (s.daily)
   'logic/share.js',     // 농장 N년차, 친구 기록 비교 code, stage-4 save block
   // stage 5A
@@ -139,6 +140,7 @@ const UI = [
   // stage 4
   'ui/residents.js',    // 주민 tab in the 바구니 panel, gift-recipe dish art
   'ui/aquarium.js',     // 수족관 in the house + its sheet
+  'ui/shed.js',         // 창고 sheet (from the 바구니 panel)
   'ui/daily.js',        // 오늘의 할 일 + 농장 N년차 in the 달력, daily tick
   'ui/share.js',        // 도감 친구 tab: my record code, friend comparison
   // stage 5A
