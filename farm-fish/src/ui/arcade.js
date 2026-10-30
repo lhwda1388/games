@@ -79,7 +79,7 @@
         : L.ARC_DIFFS.map(function (d) { return L.ARC_DIFF_NAME[d] + ' ×' + L.ARC_MUL[d]; }).join(' · '));
       n.appendChild(sm);
       r.appendChild(gameIcon(gm.id)); r.appendChild(n);
-      r.appendChild(arcButton('고르기', function () { openPick(gm.id, arc && arc.diff); }, 'max', gm.name + ' 고르기'));
+      r.appendChild(arcButton('고르기', function () { arcOpenPick(gm.id, arc && arc.diff); }, 'max', gm.name + ' 고르기'));
       arcMenu.appendChild(r);
     });
     arcActs.appendChild(arcButton('닫기', closeArcade));
@@ -93,7 +93,7 @@
     return '공 ' + L.ARC_BALLS + '개 중 ' + t.need + '개 맞히기 · 공이 날아가는 동안 과녁도 움직여요';
   }
   // 난이도 + 내기 for one game
-  function openPick(game, diff) {
+  function arcOpenPick(game, diff) {
     var gm = L.arcGame(game);
     diff = gm.luck ? null : diff || 'normal';
     arc = { kind: 'pick', game: game, diff: diff };
@@ -105,7 +105,7 @@
       var h = document.createElement('h3'); h.textContent = '난이도'; arcMenu.appendChild(h);
       var dr = document.createElement('div'); dr.className = 'pick'; dr.setAttribute('role', 'group'); dr.setAttribute('aria-label', '난이도');
       L.ARC_DIFFS.forEach(function (d) {
-        var b = arcButton(L.ARC_DIFF_NAME[d] + ' ×' + L.ARC_MUL[d], function () { openPick(game, d); }, d === diff ? 'on' : '');
+        var b = arcButton(L.ARC_DIFF_NAME[d] + ' ×' + L.ARC_MUL[d], function () { arcOpenPick(game, d); }, d === diff ? 'on' : '');
         b.setAttribute('aria-pressed', d === diff ? 'true' : 'false');
         dr.appendChild(b);
       });
@@ -139,7 +139,7 @@
   // ---------- a round ----------
   function startRound(game, diff, bet) {
     var r = L.arcStart(S, game, diff, bet, now(), ARC_TZ);
-    if (!r.ok) { toast(ARC_WHY[r.why] || '지금은 못 해요', 2400); if (arc && arc.kind === 'pick') openPick(game, diff); return; }
+    if (!r.ok) { toast(ARC_WHY[r.why] || '지금은 못 해요', 2400); if (arc && arc.kind === 'pick') arcOpenPick(game, diff); return; }
     refresh();   // the bet is paid now: save it
     var g = game === 'mole' ? L.moleLayout(diff, Math.random) : game === 'match' ? L.matchDeal(diff, Math.random)
       : game === 'throw' ? L.throwSetup(diff, Math.random) : null;
@@ -167,8 +167,8 @@
     arcActs.innerHTML = '';
     arcActs.appendChild(arcButton('한 판 더', function () {
       var bet = a.bet && L.arcLeft(S, now(), ARC_TZ) > 0 ? a.bet : 0;
-      if (a.bet && !bet) { toast(ARC_WHY.cap, 2400); openPick(a.game, a.diff); return; }
-      if (!a.bet && L.arcLeft(S, now(), ARC_TZ) > 0) { openPick(a.game, a.diff); return; }   // a new day began: prize plays again
+      if (a.bet && !bet) { toast(ARC_WHY.cap, 2400); arcOpenPick(a.game, a.diff); return; }
+      if (!a.bet && L.arcLeft(S, now(), ARC_TZ) > 0) { arcOpenPick(a.game, a.diff); return; }   // a new day began: prize plays again
       startRound(a.game, a.diff, bet);
     }, 'go'));
     arcActs.appendChild(arcButton('다른 게임', openArcade));
@@ -259,7 +259,7 @@
     for (var j = 0; j < Math.min(n, rows.length); j++) for (var i = 0; i < rows[j].length; i++) if (rows[j][i] !== '.') px(x + i * 2, y + j * 2, 2, 2, +rows[j][i]);
   }
   function iconFor(id) { return arcIcons[id] || (arcIcons[id] = itemIcon(id)); }
-  function drawIcon(id, cx, cy, sc) {
+  function arcIcon(id, cx, cy, sc) {
     if (id === 'seven') { big(SEVEN_SPR, cx - 7, cy - 8, 99); return; }
     var c = iconFor(id);
     ctx.imageSmoothingEnabled = false;
@@ -272,7 +272,7 @@
       px(0, 0, AW, AH, 0);
       var t = arc.done ? arc.lastT || 0 : arcT();
       if (!arc.done) arc.lastT = t;
-      if (arc.game === 'mole') drawMole(t); else if (arc.game === 'match') drawMatch(); else if (arc.game === 'throw') drawThrow(t); else drawSlot(t);
+      if (arc.game === 'mole') drawMole(t); else if (arc.game === 'match') drawMatch(); else if (arc.game === 'throw') drawThrow(t); else drawSlotGame(t);
       arc.fx = arc.fx.filter(function (f) { return t - f.t < 400; });
       arc.fx.forEach(function (f) {
         var u = (t - f.t) / 400, yy = f.y - (reduceMotion ? 0 : u * 6);
@@ -302,14 +302,14 @@
       var b = cardBox(k), x = b[0], y = b[1], open = g.open.indexOf(k) >= 0;
       if (g.gone[k]) { px(x, y, b[2], 1, 2); px(x, y + b[3] - 1, b[2], 1, 2); px(x, y, 1, b[3], 2); px(x + b[2] - 1, y, 1, b[3], 2); drawIconFaded(id, x + b[2] / 2, y + b[3] / 2); return; }
       px(x, y, b[2], b[3], 4);
-      if (open || arc.done) { px(x + 1, y + 1, b[2] - 2, b[3] - 2, 0); drawIcon(id, x + b[2] / 2, y + b[3] / 2, 1); }
+      if (open || arc.done) { px(x + 1, y + 1, b[2] - 2, b[3] - 2, 0); arcIcon(id, x + b[2] / 2, y + b[3] / 2, 1); }
       else {
         px(x + 1, y + 1, b[2] - 2, b[3] - 2, 3);
         for (var j = 0; j < 4; j++) px(x + 4 + (j % 2) * 8, y + 5 + Math.floor(j / 2) * 10, 4, 4, 2);   // card back pattern
       }
     });
   }
-  function drawIconFaded(id, cx, cy) { ctx.globalAlpha = 0.25; drawIcon(id, cx, cy, 1); ctx.globalAlpha = 1; }
+  function drawIconFaded(id, cx, cy) { ctx.globalAlpha = 0.25; arcIcon(id, cx, cy, 1); ctx.globalAlpha = 1; }
   var TY = 26, THROW_Y = 104;
   function drawThrow(t) {
     var g = arc.g, i = Math.min(g.shots.length - (arc.fly ? 1 : 0), g.balls.length - 1);
@@ -331,7 +331,7 @@
       px(L.ARC_AIM - 2, by - 2, 4, 4, 4);
     } else if (!arc.endAt && t >= arc.ballAt && !arc.done) px(L.ARC_AIM - 2, THROW_Y - 4, 4, 4, 4);   // ball in hand
   }
-  function drawSlot(t) {
+  function drawSlotGame(t) {
     px(6, 30, 108, 50, 4); px(8, 32, 104, 46, 1);                                         // the machine face
     for (var r = 0; r < 3; r++) {
       var x = 12 + r * 34, spinning = arc.reels && t < arc.spinAt + SLOT_STOP[r];
@@ -340,10 +340,10 @@
       if (spinning && !reduceMotion) {
         var k = Math.floor((t - arc.spinAt) / 70 + r * 2) % L.ARC_SLOT.length, off = ((t - arc.spinAt) / 70 % 1) * 12;
         ctx.save(); ctx.beginPath(); ctx.rect(x + 1, 37, 26, 36); ctx.clip();
-        drawIcon(L.ARC_SLOT[k].id, x + 14, 55 - 12 + off, 2); drawIcon(L.ARC_SLOT[(k + 1) % L.ARC_SLOT.length].id, x + 14, 55 + 12 + off, 2);
+        arcIcon(L.ARC_SLOT[k].id, x + 14, 55 - 12 + off, 2); arcIcon(L.ARC_SLOT[(k + 1) % L.ARC_SLOT.length].id, x + 14, 55 + 12 + off, 2);
         ctx.restore();
       } else if (spinning) { px(x + 8, 54, 12, 2, 2); }
-      else drawIcon(id, x + 14, 55, 2);
+      else arcIcon(id, x + 14, 55, 2);
     }
     px(116, 40, 2, 20, 4); px(114, 36, 6, 5, arc.reels ? 2 : 4);                          // lever
     px(20, 86, 80, 10, 4); px(21, 87, 78, 8, 0);
