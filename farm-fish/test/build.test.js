@@ -24,3 +24,18 @@ test('every src file is listed in build.js exactly once', () => {
   const listed = ['page.html'].concat(STYLE, BODY, LOGIC, UI);
   assert.deepEqual(listed.slice().sort(), onDisk.sort());
 });
+
+// logic/ and ui/ files each share one scope: a second top-level `function NAME` silently replaces the first
+// (게임장's slot-machine drawSlot once replaced the 마당 empty-spot drawSlot and blanked 마당·숲·갯벌)
+test('no top-level function name is declared twice in the logic or ui block', () => {
+  const html = build();
+  for (const id of ['logic', 'ui']) {
+    const m = html.match(new RegExp('<script id="' + id + '">([\\s\\S]*?)</script>'));
+    assert.ok(m, id + ' block');
+    const seen = {}, dup = [], re = /^ {2}function ([A-Za-z_$][\w$]*)\s*\(/gm;
+    let f;
+    while ((f = re.exec(m[1]))) { if (seen[f[1]]) dup.push(f[1]); seen[f[1]] = true; }
+    assert.ok(Object.keys(seen).length > 100, id + ': the scan sees the functions');
+    assert.deepEqual(dup, [], id);
+  }
+});
