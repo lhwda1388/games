@@ -191,7 +191,7 @@
   ];
   // what a moved item may never cover: house (every tier), pots, gift, pen, the corner buttons, trophies, the merchant's cart
   var YARD_BLOCK = [[52, 14, 76, 73], [126, 70, 46, 18], [96, 82, 14, 10], [3, 113, 100, 84], [0, 0, 16, 34], [156, 0, 24, 18],
-    [132, 28, 14, 38], [147, 148, 12, 30], [100, 136, 52, 30]];
+    [132, 28, 14, 38], [147, 148, 12, 30], [100, 136, 52, 30], [103, 104, 19, 14]];   // last: 가공 공방 (ui/craft.js CFT_AT)
   var ROOM_BLOCK = [[118, 90, 58, 58], [76, 184, 28, 16], [24, 6, 50, 26], [84, 18, 36, 42], [116, 4, 38, 22], [0, 0, 16, 34], [156, 0, 24, 18]];
   function spotsOf(kind) { return kind === 'deco' ? YSPOTS : RSPOTS; }
   function itemsOf(kind) { return kind === 'deco' ? DECOS : FURN; }
@@ -300,6 +300,8 @@
         var k = oldSave ? defSpot(kind, it.id) : qp[it.id], p = spotsOf(kind)[k];
         if (!num(k) || !p || occupant(s, kind, k) || (it.hang || !p.r) && p.def !== it.id) return;
         if (kind === 'deco' && decoCount(s) >= decoSlots(s)) return;
+        // off its own spot it must keep clear of the blocked areas (a save from before the 공방 may have it there): 보관함
+        if (kind === 'deco' && p.def !== it.id && YARD_BLOCK.some(function (b) { return overlaps(itemRect(kind, it.id, k), b); })) return;
         y.place[kind][it.id] = k;
       });
     });

@@ -36,6 +36,7 @@
     var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
     var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
     var tn = trnItem(id); if (tn) return { id: id, kind: 'trn', name: tn.name, price: tn.price };   // 기차 여행 특산물
+    var cf = cftItem(id); if (cf) return { id: id, kind: 'craft', name: cf.name, price: cf.price };   // 가공 공방 (each unit keeps its own v)
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -53,6 +54,7 @@
     if (flatById(id)) return flatOk(s);   // stage 7 갯벌
     if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
     if (trnItem(id)) return trnOk(s, trnItem(id).route);   // 기차 여행
+    if (cftByOut(id)) return cftCanMake(s, cftByOut(id).k);   // 가공 공방
     return false;
   }
 
@@ -130,6 +132,7 @@
     farOrders(s, out);      // stage 9 ①: 먼 섬 finds
     orchardOrders(s, out);  // stage 6A: 잡화꿀
     flatOrders(s, out);     // stage 7: common 갯벌 finds
+    cftOrders(s, out);      // 가공 공방: a crafted good once its machine stands
     festPool(s, out);   // stage 5B: festival items while a festival is on
     return out;
   }
