@@ -109,6 +109,7 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 .up button{min-width:58px;font-family:var(--mono)}
 .up button.max{font-family:var(--font)}
 .up button.b{min-width:0;padding-left:6px;padding-right:6px}
+.up .mktv{flex:none;font:700 12px var(--mono);white-space:nowrap}
 .ms{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--g2);font:700 12px var(--font)}
 .ms .box{width:10px;height:10px;border:2px solid var(--g4);flex:none;box-sizing:border-box}
 .ms.done .box{background:var(--g4);box-shadow:inset 0 0 0 2px var(--g0)}

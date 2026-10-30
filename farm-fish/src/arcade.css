@@ -1,0 +1,19 @@
+/* Hallmark · component: 게임장 overlay (게임 고르기 · 난이도·내기 · 120×120 board) · genre: playful
+ * theme: existing farm-fish tokens (--g0..--g4, --font, --mono). Follows #ride: only tokens, no new colours. Motion: none (stamp/coins from fx).
+ * states: default · hover/active/focus-visible from shared button · disabled (can't bet: shared) · pressed (난이도 .on + aria-pressed) */
+#arcade{z-index:7;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 16px}
+#arcade h2{width:100%;margin:0}
+#arcade h2 .wallet{font:700 12px var(--mono)}
+#arcade > canvas{width:240px;height:240px;image-rendering:pixelated;border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);flex:none;touch-action:none;cursor:pointer}
+#arcade > canvas[hidden]{display:none}
+#arcade .tip{margin:0;font:700 13px/1.4 var(--font);text-align:center;min-height:18px}
+#arcade .menu{width:100%}
+#arcade .menu[hidden]{display:none}
+#arcade .menu h3{width:100%}
+#arcade .menu h3 b{font:700 10px var(--font);color:var(--g3)}
+#arcade .menu .note{margin:8px 0;font:400 11px/1.4 var(--font);color:var(--g3)}
+#arcade .pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px;margin:6px 0}
+#arcade .pick button{min-width:0;font-family:var(--mono)}
+#arcade .pick button.on{background:var(--g4);color:var(--g0)}
+#arcade .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:auto}
+#arcade .menu > button.go{width:100%;background:var(--g4);color:var(--g0)}

@@ -121,6 +121,9 @@
       decodePort(o, s);    // stage 11 ①: s.port got/done (옛 포구 꾸러미·복구; optional)
       decodeAuction(o, s); // stage 11 ②: s.port.auc (어판장 경매), s.trader (기차 상인; optional; after decodePort)
       decodeDive(o, s);    // stage 12 ③: s.dive (잠수: 밝힌 방, 해저 도감, 장비, 항해일지, 상자; optional)
+      decodeMarket(o, s);  // 장터 시세: s.mkt (today's units sold per 종목; optional)
+      decodeBank(o, s);    // 은행: s.bank (balance, last interest day; optional)
+      decodeArcade(o, s);  // 게임장: s.arcade (오늘 상금 게임 횟수; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {

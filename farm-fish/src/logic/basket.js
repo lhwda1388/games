@@ -80,22 +80,24 @@
     drop.forEach(function (k) { s.bag.splice(k, 1); });
     return true;
   }
-  // kept (지키기) items stay in the basket
-  function sellAll(s) {
-    var t = 0;
-    s.bag = s.bag.filter(function (e) { if (s.keep && s.keep[e.id]) return true; t += e.v; return false; });
+  // kept (지키기) items stay in the basket. With now/tzMin the 장터 시세 prices apply (market.js); orders don't come here.
+  function sellAll(s, now, tzMin) {
+    var out = [];
+    s.bag = s.bag.filter(function (e) { if (s.keep && s.keep[e.id]) return true; out.push(e); return false; });
+    var t = mktRun(s, out, now, tzMin, true);
     s.coins += t; return t;
   }
   // one of id, the cheapest (as bagTake)
-  function sellOne(s, id) {
+  function sellOne(s, id, now, tzMin) {
     var k = -1;
     s.bag.forEach(function (e, j) { if (e.id === id && (k < 0 || e.v < s.bag[k].v)) k = j; });
     if (k < 0) return 0;
-    var v = s.bag.splice(k, 1)[0].v; s.coins += v; return v;
+    var v = mktRun(s, s.bag.splice(k, 1), now, tzMin, true); s.coins += v; return v;
   }
-  function sellId(s, id) {
-    var t = 0;
-    s.bag = s.bag.filter(function (e) { if (e.id !== id) return true; t += e.v; return false; });
+  function sellId(s, id, now, tzMin) {
+    var out = [];
+    s.bag = s.bag.filter(function (e) { if (e.id !== id) return true; out.push(e); return false; });
+    var t = mktRun(s, out, now, tzMin, true);
     s.coins += t; return t;
   }
 
