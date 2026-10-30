@@ -51,6 +51,7 @@
       holdSpace = true;
       if (miniOn()) { miniTap(); return; }   // stage 5B: 도전 overlay takes the tap
       if (rideOn()) { rideTap(); return; }   // stage 9 ③: 자전거·썰매·열기구
+      if (!arcEl.hidden) { if (arcOn()) arcKey(); return; }   // 게임장: throw / spin, never a cast behind it
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();

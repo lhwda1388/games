@@ -44,6 +44,7 @@
     var tt = performance.now() / 1000;
     tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     tickRide(dt);      // stage 9 ③: 자전거·썰매·열기구
+    tickArcade(dt);    // 게임장: the round on its own board
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);

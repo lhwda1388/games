@@ -123,19 +123,20 @@
       grid.appendChild(c);
     }
     bagEl.appendChild(grid);
-    var groups = {}, order = [], total = 0;
-    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; if (!(S.keep && S.keep[e.id])) total += e.v; });
+    var groups = {}, order = [], unkept = [], t = now();
+    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, list: [] }; order.push(e.id); } groups[e.id].n++; groups[e.id].list.push(e); if (!(S.keep && S.keep[e.id])) unkept.push(e); });
+    var total = L.mktValue(S, unkept, t, TZ);   // 장터 시세 prices (market.js)
     order.forEach(function (id) {
       var g = groups[id], kept = !!(S.keep && S.keep[id]);
-      var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
+      var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + L.mktValue(S, g.list, t, TZ).toLocaleString('ko-KR') + '코인');
       var a = document.createElement('div'); a.className = 'acts';
       a.appendChild(act(kept ? '풀기' : '지키기', function () {
         S.keep = S.keep || {};
         if (kept) delete S.keep[id]; else S.keep[id] = true;
         toast(kept ? L.itemInfo(id).name + ' 지키기 풀었다' : L.itemInfo(id).name + ' 지키기 · 꽉 차도 안 팔려요'); save(); renderBag();
       }, { cls: 'max b' + (kept ? ' on' : '') }));
-      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
-      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
+      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id, now(), TZ); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
+      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id, now(), TZ); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
       r.appendChild(a);
     });
     if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요'; bagEl.appendChild(p); }
@@ -146,7 +147,9 @@
     auto.setAttribute('aria-pressed', String(!S.noSell));
     bagEl.appendChild(auto);
     bagEl.appendChild(act('창고 · ' + L.shedList(S).length + ' / ' + L.shedCap(S) + '칸', function () { openSheet('shed'); }, { cls: 'sellAll' }));
-    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !total });
+    bagEl.appendChild(act('장터 시세판 · 오늘 값 보기', openMarket, { cls: 'sellAll' }));
+    bagEl.appendChild(act('은행 · 통장 ' + L.bankPeek(S, now(), TZ).toLocaleString('ko-KR') + '코인', openBank, { cls: 'sellAll' }));
+    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S, now(), TZ); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !total });
     bagEl.appendChild(all);
   }
   // order sign, basket and pot at the left edge of the pond side

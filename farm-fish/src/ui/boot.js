@@ -61,6 +61,9 @@
   addPortHooks(globalThis.FF);     // stage 11 ①: FF.port.go(), FF.port.fill(bldgId), FF.port.build()
   addAuctionHooks(globalThis.FF);  // stage 11 ②: FF.auction.open(), .trader(), .sell(id), .train()
   addDiveHooks(globalThis.FF);     // stage 12 ③: FF.dive.go(room), .o2(n), .gear(id), .sheet(), .state()
+  addMarketHooks(globalThis.FF);   // 장터 시세: FF.market() opens the 시세판 and lists today's board
+  addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
+  addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

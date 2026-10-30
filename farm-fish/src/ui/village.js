@@ -16,9 +16,9 @@
     px(0, 92, W, 16, 1); for (var x = 2; x < W; x += 9) px(x, 99, 4, 1, 2);
     px(0, 92, W, 1, 2); px(0, 107, W, 1, 2);
     px(84, 168, 12, 32, 1); px(84, 168, 1, 32, 2); px(95, 168, 1, 32, 2);
-    // a well in the middle of the lane, small trees between the houses
+    // a well in the middle of the lane, small trees between the houses (the one at [120, 172] made way for the 게임장)
     px(56, 172, 14, 8, 2); px(57, 171, 12, 1, 4); px(56, 180, 14, 1, 4); px(58, 164, 1, 8, 4); px(67, 164, 1, 8, 4); px(57, 163, 12, 2, 4);
-    [[60, 88], [120, 88], [60, 172], [120, 172], [174, 100]].forEach(function (t, i) {
+    [[60, 88], [120, 88], [60, 172], [174, 100]].forEach(function (t, i) {
       px(t[0], t[1] - 4, 2, 5, 4);
       px(t[0] - 3, t[1] - 10, 8, 6, 3); px(t[0] - 2, t[1] - 12, 6, 2, 3); px(t[0] - 1, t[1] - 9, 2, 1, i % 2 ? 2 : 4);
     });
@@ -113,6 +113,7 @@
     drawMuseumHouse(tt);   // stage 7 박물관
     drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
     drawPortSign(tt);      // stage 11 ①: 「끊긴 다리」 → 옛 포구
+    drawArcade(tt);        // 게임장
     drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
@@ -125,6 +126,7 @@
     if (tapMuseumHouse(x, y)) return;   // stage 7 박물관
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
+    if (tapArcade(x, y)) return;        // 게임장
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
