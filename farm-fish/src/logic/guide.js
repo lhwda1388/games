@@ -95,7 +95,9 @@
     // 기차 여행
     { id: 'train', name: '기차 여행', how: '마을 길 가운데 간이역 · 노선마다 개통비 한 번, 타는 날마다 기차표 한 장(그날은 몇 번이든) · 산골 계곡(물고기 ' + TRN_VALLEY_FISH.length + '종·산나물·송이버섯) → ★' + TRN_REP.onsen + ' 온천 마을(물고기 ' + TRN_ONSEN_FISH.length + '종·온천 달걀·유자·하루 한 번 온천욕: 1시간 입질 빠르게) → 고친 포구 기차역에서 설원 고개(얼음낚시 ' + TRN_SNOW_FISH.length + '종·얼음 결정·눈꽃) · 곳마다 기념품 가게 · 「역으로」 버튼으로 돌아오기', lock: '★' + TRN_REP.valley + ' · 간이역에서 산골 계곡 개통 ' + won(TRN_OPEN.valley) },
     // 가공 공방
-    { id: 'craft', name: '가공 공방', how: '마당 집 오른쪽 아래 공방 터 · ' + won(CFT_PRICE) + '으로 짓고 ' + CFT_M.map(function (d) { return d.name + '(' + d.what + ' → ' + d.outName + ' ' + d.time / 3600e3 + '시간 ×' + d.mul + ')'; }).join(' · ') + ' · 기계마다 같은 재료 ' + CFT_CAP + '개까지, 나오는 값은 넣은 값 × 기계 배수(넣은 값 ' + won(CFT_VCAP) + '까지만 늘어남) · 게임을 꺼 둬도 익는다 · 같은 기계는 ' + CFT_MAX + '대까지', lock: '★' + CFT_REP + ' · 마당 공방 터에서 ' + won(CFT_PRICE) }
+    { id: 'craft', name: '가공 공방', how: '마당 집 오른쪽 아래 공방 터 · ' + won(CFT_PRICE) + '으로 짓고 ' + CFT_M.map(function (d) { return d.name + '(' + d.what + ' → ' + d.outName + ' ' + d.time / 3600e3 + '시간 ×' + d.mul + ')'; }).join(' · ') + ' · 기계마다 같은 재료 ' + CFT_CAP + '개까지, 나오는 값은 넣은 값 × 기계 배수(넣은 값 ' + won(CFT_VCAP) + '까지만 늘어남) · 게임을 꺼 둬도 익는다 · 같은 기계는 ' + CFT_MAX + '대까지', lock: '★' + CFT_REP + ' · 마당 공방 터에서 ' + won(CFT_PRICE) },
+    // 캠핑
+    { id: 'camp', name: '캠핑', how: '숲 오른쪽 아래 캠핑장 팻말 · 저녁·밤에 솔방울 하나로 모닥불(그 밤 내내) · 석쇠에 캠핑 요리 ' + CMP_RECIPES.length + '가지(1~3분, 오래 두면 탄다) · 불 곁에 가끔 주민·반려동물이 앉아 이야기 · 밤에 텐트를 누르면 자고, 아침이 오면(꺼 둬도) 텐트 앞에 선물(현실 하루 ' + CMP_GIFT_DAY + '번) · 잔 밤마다 도장 수첩에 계절·날씨 도장 · 텐트 ' + CMP_TENTS.length + '단계·장비 ' + CMP_EQ.length + '가지 · 밤에만 오는 캠핑장 곤충 · 계곡 캠핑(산골 계곡 팻말, 그날 계곡 표)·바닷가 캠핑(바다 물가 팻말)에선 저녁·밤에 물을 누르면 밤 낚시(곳마다 ' + CMP_FISH.filter(function (f) { return f.spot === 'cmpbrook'; }).length + '종) · 비 오는 밤엔 빗소리 유리병, 눈 오는 밤엔 꼬마 눈사람 · 망원경이 있으면 캠프 밤하늘에서 별 잇기·유성우 소원 ×' + CMP_STAR_MUL + '(망원경 받침이면 더)', lock: '★' + CMP_REP + ' · 숲 캠핑장 팻말에서 캠핑 세트 ' + won(CMP_PRICE) }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -125,6 +127,7 @@
   GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
   GUIDE_OPEN.train = function (s) { return villageOk(s) && trnStatus(s, 'valley') !== 'rep'; }; GUIDE_SCENE.trnvalley = 'train'; GUIDE_SCENE.trnonsen = 'train'; GUIDE_SCENE.trnsnow = 'train';   // 기차 여행
   GUIDE_OPEN.craft = function (s) { return !!s.craft || s.rep >= CFT_REP; };   // 가공 공방
+  GUIDE_OPEN.camp = function (s) { return !!s.camp || (forestOk(s) && s.rep >= CMP_REP); }; GUIDE_SCENE.cmpforest = 'camp'; GUIDE_SCENE.cmpvalley = 'camp'; GUIDE_SCENE.cmpsea = 'camp';   // 캠핑
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {

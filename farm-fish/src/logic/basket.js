@@ -37,6 +37,7 @@
     var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
     var tn = trnItem(id); if (tn) return { id: id, kind: 'trn', name: tn.name, price: tn.price };   // 기차 여행 특산물
     var cf = cftItem(id); if (cf) return { id: id, kind: 'craft', name: cf.name, price: cf.price };   // 가공 공방 (each unit keeps its own v)
+    var cm = cmpItem(id); if (cm) return { id: id, kind: 'camp', name: cm.name, price: cm.price };   // 캠핑 요리·아침 이슬·탄 음식
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -55,6 +56,7 @@
     if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
     if (trnItem(id)) return trnOk(s, trnItem(id).route);   // 기차 여행
     if (cftByOut(id)) return cftCanMake(s, cftByOut(id).k);   // 가공 공방
+    if (cmpItem(id)) return cmpObtainable(s, id);   // 캠핑
     return false;
   }
 

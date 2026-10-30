@@ -20,7 +20,7 @@
     { id: 'mine', name: '광물' }
   ];
   var MKT_KIND = { crop: 'crop', isle: 'sea', dive: 'sea', forage: 'wild', flat: 'wild', fruit: 'farm', honey: 'farm', product: 'farm',
-    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine', trn: 'wild', craft: 'dish' };
+    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine', trn: 'wild', craft: 'dish', camp: 'dish' };
 
   function mktDay(now, tzMin) { return toyDay(now, tzMin); }
   // item id → 종목 id, or null (no 종목: always ×1)

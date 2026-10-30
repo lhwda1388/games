@@ -15,7 +15,7 @@
     if (s.fish.phase === 'reel') s.fish = { phase: 'idle' };
   }
 
-  function encode(s) { return JSON.stringify(s); }
+  function encode(s) { cmpSpotsSync(s); return JSON.stringify(s); }   // 캠핑 낚시터 열림은 다른 것에서 따라오는 값: 저장 전에 맞춰 두어야 불러와도 같은 세이브
   function num(x) { return typeof x === 'number' && isFinite(x); }
   function decode(str) {
     try {
@@ -127,6 +127,7 @@
       decodeMyShop(o, s);  // 내 가게: s.mys (진열대·꾸미기·등급·금고; optional)
       decodeCraft(o, s);   // 가공 공방: s.craft (기계·가공 중인 것·도감; optional)
       decodeTrain(o, s);   // 기차 여행: s.train (개통·기차표·특산물 자리; optional) + the route spots
+      decodeCamp(o, s);    // 캠핑: s.camp (세트·텐트·장비·불·석쇠·잠·아침 선물·도장; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {

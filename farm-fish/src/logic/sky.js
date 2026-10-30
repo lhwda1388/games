@@ -89,13 +89,13 @@
     g.stars.forEach(function (st, k) { var d = Math.hypot(st.x - x, st.y - y); if (d <= bd) { bd = d; best = k; } });
     return best;
   }
-  // a joined constellation goes in the record; the first time pays more
-  function seeStar(s, id, now) {
+  // a joined constellation goes in the record; the first time pays more. mul = coins × this (캠핑: cmpStarMul)
+  function seeStar(s, id, now, mul) {
     if (!skyOk(s) || !starById(id)) return null;
     var sk = s.sky, first = !sk.seen[id];
     if (first) sk.seen[id] = now;
     sk.n = Math.min(1e9, (sk.n || 0) + 1);
-    var coins = first ? STAR_FIRST : STAR_AGAIN;
+    var coins = Math.round((first ? STAR_FIRST : STAR_AGAIN) * (mul > 0 ? mul : 1));
     s.coins += coins;
     return { first: first, coins: coins };
   }
@@ -127,7 +127,8 @@
   // one wish per 유성우 night (tzMin given: only while one is on). Returns the reward or null.
   // tonight's wish already made (meteor taps then fall through to the stars)
   function wishUsed(s, now) { return !!s.sky && s.sky.wish === Math.floor(now / HOUR_MS); }
-  function meteorWish(s, now, rng, tzMin) {   // (visitors.js has its own wish)
+  // mul = a coin wish × this (캠핑: cmpStarMul); the seed and the decorations stay as they are
+  function meteorWish(s, now, rng, tzMin, mul) {   // (visitors.js has its own wish)
     if (tzMin !== undefined && !meteorNight(now, tzMin)) return null;
     var sk = skyOf(s), key = Math.floor(now / HOUR_MS);
     if (sk.wish === key) return null;
@@ -140,7 +141,7 @@
       s.seeds.gold++; s.dex.goldSeed = true;
       return { kind: 'seed', n: 1 };
     }
-    var c = Math.round((200 + rng() * 400) / 10) * 10;
+    var c = Math.round((200 + rng() * 400) * (mul > 0 ? mul : 1) / 10) * 10;
     s.coins += c;
     return { kind: 'coins', coins: c };
   }
