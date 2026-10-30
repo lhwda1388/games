@@ -29,7 +29,7 @@ test('building: needs the 마을 and the coins; no s.mys before', () => {
   assert.equal(s.mys.sl, L.MYS_SLOTS0);
   assert.equal(s.mys.it.length, L.MYS_SLOTS0);
   assert.deepEqual(L.mysBuild(s, T0), { ok: false, why: 'built' });
-  assert.equal(L.MYS_PRICE, 30000);
+  assert.equal(L.MYS_PRICE, 25000);
 });
 
 test('진열대 expands one slot at a time with rising cost up to the cap', () => {

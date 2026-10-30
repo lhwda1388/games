@@ -318,8 +318,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
  * theme: existing farm-fish grayscale (--g0..--g4) · states: default · hover · focus · active (shared button rules); disabled/loading/error/success n/a (local, instant)
  * stage 8 ①. Same voice as #festChip and .letter; no motion, so nothing to cut under prefers-reduced-motion.
  */
-#boomChip{display:flex;align-items:center;gap:3px;padding:2px 5px;font:700 11px var(--mono)}
-#boomChip canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
+#boomChip,#trnBathChip{display:flex;align-items:center;gap:3px;padding:2px 5px;font:700 11px var(--mono)}
+#boomChip canvas,#trnBathChip canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
 #evCard{position:absolute;left:50%;top:70px;transform:translateX(-50%);width:296px;max-width:calc(100% - 24px);z-index:6;
   display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 12px 7px;box-shadow:3px 3px 0 var(--g4);cursor:pointer}
 #evCard:active{transform:translateX(-50%) translateY(2px);box-shadow:none}
@@ -803,14 +803,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var f = fishById(roll.id);
     return Math.max(0, Math.min(1, (roll.size - f.min) / (f.max - f.min)));
   }
-  // stage 8: 입질 폭풍 at this spot and 입질 좋은 날 shorten the wait
-  function waitMs(s, rng, env) {
-    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1));
+  // stage 8: 입질 폭풍 at this spot and 입질 좋은 날 shorten the wait; so does an 온천욕 within its hour (train.js)
+  function waitMs(s, rng, env, now) {
+    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1) * trnBathMul(s, now));
   }
   function nextNibble(s, from, rng) { return from + Math.round((NIB_MIN + rng() * NIB_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
   function cast(s, now, rng, x, y, env) {
     if (s.fish.phase !== 'idle') return false;
-    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng, env), nibAt: 0, nibEnd: 0 };
+    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng, env, now), nibAt: 0, nibEnd: 0 };
     s.fish.nibAt = nextNibble(s, now, rng);
     return true;
   }
@@ -851,7 +851,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (f.phase === 'bite') { var roll = hook(s, now); return roll ? { type: 'hook', roll: roll } : null; }
     if (f.phase !== 'wait') return null;
     var wasNibble = now < f.nibEnd;
-    f.biteAt = now + waitMs(s, rng, env);
+    f.biteAt = now + waitMs(s, rng, env, now);
     f.nibAt = nextNibble(s, now, rng);
     f.nibEnd = 0;
     return { type: 'scared', nibble: wasNibble };
@@ -1055,6 +1055,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var hn = honeyById(id); if (hn) return { id: id, kind: 'honey', name: hn.name, price: hn.price };   // stage 6A
     var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
     var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
+    var tn = trnItem(id); if (tn) return { id: id, kind: 'trn', name: tn.name, price: tn.price };   // 기차 여행 특산물
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -1071,6 +1072,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (honeyById(id)) return !!(s.bees && s.bees.hives.length && (id === 'wildhoney' || s.bees.dex[id]));   // stage 6A
     if (flatById(id)) return flatOk(s);   // stage 7 갯벌
     if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
+    if (trnItem(id)) return trnOk(s, trnItem(id).route);   // 기차 여행
     return false;
   }
 
@@ -2150,14 +2152,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'mine', name: '광물' }
   ];
   var MKT_KIND = { crop: 'crop', isle: 'sea', dive: 'sea', forage: 'wild', flat: 'wild', fruit: 'farm', honey: 'farm', product: 'farm',
-    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine' };
+    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine', trn: 'wild' };
 
   function mktDay(now, tzMin) { return toyDay(now, tzMin); }
   // item id → 종목 id, or null (no 종목: always ×1)
   function mktStock(id) {
     var it = itemInfo(id);
     if (!it) return null;
-    if (it.kind === 'fish') { var sp = fishById(id).spot; return !sp || sp === 'pond' || sp === 'river' ? 'fresh' : 'sea'; }
+    if (it.kind === 'fish') { var sp = fishById(id).spot; return !sp || sp === 'pond' || sp === 'river' || (SPOTS[sp] && SPOTS[sp].fresh) ? 'fresh' : 'sea'; }
     return MKT_KIND[it.kind] || null;
   }
   // one day's nudge for 종목 k: −1..1, a pure hash of (day, 종목)
@@ -7397,10 +7399,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var ARC_SLOT_PAY = { seven: 20, three: 5, two: 1.5 };
 
   function arcGame(id) { for (var k = 0; k < ARC_GAMES.length; k++) if (ARC_GAMES[k].id === id) return ARC_GAMES[k]; return null; }
-  // same local day number as the 날씨 장난감 (toys.js); only a later day resets it, so a clock set back can't
+  // same local day number as the 날씨 장난감 (toys.js); only a later day resets it, so a clock set back can't.
+  // A stored day more than 1 day ahead was counted under a wrong clock: it counts as a fresh day.
+  function arcFresh(q, d) { return !q || d > q.d || q.d - d > 1; }
   function arcLeft(s, now, tzMin) {
     var q = s.arcade;
-    return !q || toyDay(now, tzMin) > q.d ? ARC_DAY_CAP : Math.max(0, ARC_DAY_CAP - q.n);
+    return arcFresh(q, toyDay(now, tzMin)) ? ARC_DAY_CAP : Math.max(0, ARC_DAY_CAP - q.n);
   }
   // → { ok, play } or { ok: false, why }. bet 0 = 그냥 놀기, only once today's prize plays are used up.
   // play = { game, diff, bet, mul } is handed back to arcPay when the round ends.
@@ -7415,7 +7419,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (left <= 0) return { ok: false, why: 'cap' };
     if (s.coins < bet) return { ok: false, why: 'coins' };
     var d = toyDay(now, tzMin);
-    if (!s.arcade || d > s.arcade.d) s.arcade = { d: d, n: 0 };
+    if (arcFresh(s.arcade, d)) s.arcade = { d: d, n: 0 };
     s.arcade.n++;
     s.coins -= bet;
     return { ok: true, play: { game: game, diff: g.luck ? null : diff, bet: bet, mul: g.luck ? 0 : ARC_MUL[diff] } };
@@ -7721,6 +7725,227 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     mysCollect: mysCollect, mysBuild: mysBuild, mysSlotCost: mysSlotCost, mysAddSlot: mysAddSlot, mysBuyDeco: mysBuyDeco,
     mysLevelCost: mysLevelCost, mysLevelUp: mysLevelUp, mysPut: mysPut, mysTake: mysTake, decodeMyShop: decodeMyShop
   });
+  // ---------- 기차 여행: 마을 간이역·포구 기차역 노선, 개통비와 하루 기차표, 산골 계곡 (s.train, made on the first 개통) ----------
+  // A route is opened once (개통비). Riding needs that day's 기차표: one ticket covers its real (local) day, any number
+  // of trips. A ticket bought on day d stays good while the clock reads d or up to TRN_FUTURE day earlier (a clock set back
+  // never charges for the same day twice), and a new one is needed only when the day moves forward. A ticket more than TRN_FUTURE days
+  // ahead was bought under a wrong clock: it no longer counts and a fresh one is sold for today.
+  // s.train = { ok: { route: true }, tk: { route: local day }, pick: { route: [{ at, id }] }, dex: { item: n },
+  //             bath?: { d: local day, until: ms } }  (bath: made by the first 온천욕)
+  // tools/BALANCE.md 「기차 여행」 has the first values and 「기차 여행 조정」 says why they are what they are now.
+  var TRN_REP = { valley: 8, onsen: 20 };                       // ★ to open
+  var TRN_OPEN = { valley: 5000, onsen: 20000, snow: 50000 };   // 개통비, once
+  var TRN_FARE = { valley: 500, onsen: 1000, snow: 2000 };      // 기차표, per real day
+  var TRN_FUTURE = 1;                                           // days a ticket may lie ahead of the clock and still count
+  // from = the station it leaves from; after = the route that must be open first; station = needs the 포구 기차역 repaired
+  var TRN_ROUTES = [
+    { id: 'valley', name: '산골 계곡', from: 'village', rep: TRN_REP.valley },
+    { id: 'onsen', name: '온천 마을', from: 'village', rep: TRN_REP.onsen, after: 'valley' },
+    { id: 'snow', name: '설원 고개', from: 'port', station: true, after: 'onsen' }
+  ];
+
+  // 산골 계곡 낚시터: opened by the route (rep Infinity: never bought at the signpost); fresh = 민물고기 on the 시세판
+  SPOTS.valley = { id: 'valley', name: '산골 계곡', rep: Infinity, cost: 0, fresh: true };
+  var TRN_VALLEY_FISH = [
+    { id: 'beodeulchi', name: '버들치',   rarity: '흔함', w: 40, min: 6,  max: 15, power: 0.9, price: 70,   spot: 'valley', hint: '맑은 계곡 어디에나 · 떼로 몰려다닌다' },
+    { id: 'kkeokji',    name: '꺽지',     rarity: '흔함', w: 30, min: 10, max: 22, power: 1.1, price: 120,  spot: 'valley', hint: '바위 밑에 숨었다가 덥석' },
+    { id: 'eoreumchi',  name: '어름치',   rarity: '드묾', w: 18, min: 20, max: 40, power: 1.3, price: 380,  spot: 'valley', season: 'spring', hint: '봄 계곡 · 자갈로 알 탑을 쌓는다' },
+    { id: 'dukjunggae', name: '둑중개',   rarity: '드묾', w: 18, min: 8,  max: 16, power: 1.0, price: 340,  spot: 'valley', phase: ['night'], hint: '밤이면 돌 틈에서 나온다 · 차가운 물만 좋아한다' },
+    { id: 'molchi',     name: '금강모치', rarity: '희귀', w: 8,  min: 6,  max: 10, power: 1.4, price: 750,  spot: 'valley', phase: ['morning'], weather: 'clear', hint: '맑은 아침 · 계곡 가장 위 여울에' },
+    { id: 'goldmandarin', name: '황쏘가리', rarity: '전설', w: 3, min: 30, max: 60, power: 2.15, price: 2400, spot: 'valley', weather: 'fog', hint: '안개 낀 계곡 깊은 소 · 금빛 비늘의 천연기념물' }
+  ];
+  // 온천 마을: a warm lake below the bath houses / 설원 고개: a frozen lake, fished through an ice hole
+  SPOTS.onsen = { id: 'onsen', name: '온천 호수', rep: Infinity, cost: 0, fresh: true };
+  SPOTS.snow = { id: 'snow', name: '설원 얼음 호수', rep: Infinity, cost: 0, fresh: true };
+  var TRN_ONSEN_FISH = [
+    { id: 'gaksi',      name: '각시붕어',   rarity: '흔함', w: 40, min: 4,  max: 8,  power: 0.8, price: 110,  spot: 'onsen', hint: '따뜻한 호수 어디에나 · 무지갯빛 혼인색' },
+    { id: 'tteokbung',  name: '떡붕어',     rarity: '흔함', w: 30, min: 15, max: 35, power: 1.1, price: 160,  spot: 'onsen', hint: '김 오르는 물가 · 넉넉하게 큰다' },
+    { id: 'dongjagae',  name: '동자개',     rarity: '드묾', w: 18, min: 12, max: 26, power: 1.2, price: 440,  spot: 'onsen', phase: ['evening', 'night'], hint: '해 지면 바닥에서 빠각빠각 운다' },
+    { id: 'moraemuji',  name: '모래무지',   rarity: '드묾', w: 18, min: 10, max: 22, power: 1.0, price: 460,  spot: 'onsen', season: 'winter', hint: '겨울 · 따뜻한 모래 바닥에 숨는다' },
+    { id: 'beodeulmae', name: '버들매치',   rarity: '희귀', w: 8,  min: 6,  max: 12, power: 1.3, price: 880,  spot: 'onsen', weather: 'rain', hint: '비 오는 날 · 온천물 흘러드는 어귀' },
+    { id: 'mistcarp',   name: '물안개 잉어', rarity: '전설', w: 3, min: 50, max: 90, power: 2.0, price: 3200, spot: 'onsen', phase: ['morning'], weather: 'fog', hint: '안개 낀 아침 · 김과 안개 사이로 하얀 잉어가' }
+  ];
+  var TRN_SNOW_FISH = [
+    { id: 'gondeul',     name: '곤들매기',   rarity: '흔함', w: 40, min: 12, max: 28, power: 1.1, price: 210,  spot: 'snow', hint: '얼음 밑 찬물 어디에나' },
+    { id: 'stickleback', name: '가시고기',   rarity: '흔함', w: 30, min: 4,  max: 8,  power: 0.9, price: 180,  spot: 'snow', hint: '얼음 구멍 가까이 · 등가시를 세운다' },
+    { id: 'rainbowtrout', name: '무지개송어', rarity: '드묾', w: 18, min: 25, max: 50, power: 1.5, price: 640, spot: 'snow', phase: ['morning'], hint: '아침 얼음 호수 · 옆구리에 분홍 띠' },
+    { id: 'lamprey',     name: '칠성장어',   rarity: '드묾', w: 18, min: 30, max: 55, power: 1.4, price: 700,  spot: 'snow', phase: ['night'], hint: '밤 · 일곱 개 아가미 구멍' },
+    { id: 'yeonjun',     name: '연준모치',   rarity: '희귀', w: 8,  min: 5,  max: 9,  power: 1.3, price: 1200, spot: 'snow', weather: 'snow', hint: '눈 오는 날 · 아주 차고 맑은 물에만' },
+    { id: 'jachi',       name: '자치',       rarity: '전설', w: 3,  min: 70, max: 130, power: 2.0, price: 4200, spot: 'snow', phase: ['night'], weather: 'clear', hint: '맑은 밤 얼음 호수 · 커다란 연어과의 왕' }
+  ];
+  // 황쏘가리 gets a set 성격: the one temperOf() rolls from its id (버팀 → 질주) is far below the other legends at any 힘 ≥ 2
+  TEMPER.goldmandarin = [D, ['run', 'jump']];
+  TRN_VALLEY_FISH.concat(TRN_ONSEN_FISH, TRN_SNOW_FISH).forEach(function (f) { FISH.push(f); MUSEUM_ROOMS.fish.ids.push(f.id); });   // after museum.js: the fish room has every fish
+
+  // 특산물: pick spots that regrow by real time (like the 숲); what grows next is rolled when a spot is picked
+  var TRN_PICKS = [
+    { id: 'vnamul', name: '산나물',   route: 'valley', w: 85, price: 70,  hint: '계곡 비탈 · 한 줌씩 다시 돋는다' },
+    { id: 'vsongi', name: '송이버섯', route: 'valley', w: 15, price: 600, hint: '계곡 솔숲 · 가끔 귀하게' },
+    { id: 'onegg',  name: '온천 달걀', route: 'onsen', w: 80, price: 120, hint: '온천 바위 틈 · 김에 익어 간다' },
+    { id: 'oyuja',  name: '유자',     route: 'onsen', w: 20, price: 450, hint: '온천 마을 유자나무 · 가끔 노랗게' },
+    { id: 'sice',   name: '얼음 결정', route: 'snow', w: 75, price: 160, hint: '설원 바위 · 밤새 다시 언다' },
+    { id: 'sflake', name: '눈꽃',     route: 'snow', w: 25, price: 700, hint: '설원 가지 끝 · 녹기 전에' }
+  ];
+  var TRN_PICK_N = { valley: 3, onsen: 3, snow: 3 };                               // pick spots per route
+  var TRN_REGROW_MIN = 20 * 60e3, TRN_REGROW_SPAN = 20 * 60e3;
+  // 기념품: yard decorations, each bought once at that route's shop
+  var TRN_SOUVENIRS = [
+    { id: 'jangseung', name: '나무 장승', route: 'valley', cost: 8000,  sz: [10, 24] },
+    { id: 'sotdae',    name: '솟대',     route: 'valley', cost: 6000,  sz: [9, 28] },
+    { id: 'mulle',     name: '물레방아', route: 'valley', cost: 15000, sz: [22, 20] },
+    { id: 'seokdeung', name: '돌 석등',   route: 'onsen', cost: 18000, sz: [12, 22] },
+    { id: 'namutub',   name: '나무 욕조', route: 'onsen', cost: 30000, sz: [22, 14] },
+    { id: 'igloo',     name: '이글루',    route: 'snow', cost: 45000, sz: [24, 16] },
+    { id: 'icebear',   name: '얼음 곰',   route: 'snow', cost: 36000, sz: [16, 18] }
+  ];
+  // 온천욕: once per local day at the 온천 마을; for TRN_BATH_MS every bite wait (fishing.js waitMs) is × TRN_BATH_MUL
+  var TRN_BATH_MS = 3600e3, TRN_BATH_MUL = 0.7;
+  TRN_SOUVENIRS.forEach(function (d) { DECOS.push({ id: d.id, name: d.name, cost: d.cost, merchant: true, from: 'train', sz: d.sz }); });
+
+  function trnRoute(id) { for (var k = 0; k < TRN_ROUTES.length; k++) if (TRN_ROUTES[k].id === id) return TRN_ROUTES[k]; return null; }
+  function trnItem(id) { for (var k = 0; k < TRN_PICKS.length; k++) if (TRN_PICKS[k].id === id) return TRN_PICKS[k]; return null; }
+  function trnSouvenir(id) { for (var k = 0; k < TRN_SOUVENIRS.length; k++) if (TRN_SOUVENIRS[k].id === id) return TRN_SOUVENIRS[k]; return null; }
+  function trnOf(s) { if (!s.train) s.train = { ok: {}, tk: {}, pick: {}, dex: {} }; return s.train; }
+  function trnOk(s, id) { return !!(s.train && s.train.ok[id]); }
+  // 'owned' | 'rep' (★ short) | 'after' (the route before is not open) | 'station' (포구 기차역 not repaired) | 'coins' | 'ok'
+  function trnStatus(s, id) {
+    var r = trnRoute(id);
+    if (!r) return 'none';
+    if (trnOk(s, id)) return 'owned';
+    if (r.rep && s.rep < r.rep) return 'rep';
+    if (r.station && !portDone(s, 'station')) return 'station';
+    if (r.after && !trnOk(s, r.after)) return 'after';
+    return s.coins < TRN_OPEN[id] ? 'coins' : 'ok';
+  }
+  function trnPickSpots(s, id, now) {
+    var t = trnOf(s), n = TRN_PICK_N[id] || 0, first = TRN_PICKS.filter(function (p) { return p.route === id; })[0];
+    if (!n || !first || t.pick[id]) return;
+    t.pick[id] = [];
+    for (var k = 0; k < n; k++) t.pick[id].push({ at: now, id: first.id });
+  }
+  function trnOpen(s, id, now) {
+    var st = trnStatus(s, id);
+    if (st !== 'ok') return { ok: false, why: st };
+    s.coins -= TRN_OPEN[id];
+    trnOf(s).ok[id] = true;
+    if (SPOTS[id]) { s.spotOk = s.spotOk || {}; s.spotOk[id] = true; }   // the route's own fishing spot
+    trnPickSpots(s, id, now);
+    return { ok: true };
+  }
+  // today's ticket for route id?
+  function trnTicket(s, id, now, tzMin) {
+    var d = toyDay(now, tzMin), t = s.train ? s.train.tk[id] : undefined;
+    return typeof t === 'number' && d <= t && t - d <= TRN_FUTURE;
+  }
+  function trnBuyTicket(s, id, now, tzMin) {
+    if (!trnRoute(id)) return { ok: false, why: 'none' };
+    if (!trnOk(s, id)) return { ok: false, why: 'open' };
+    if (trnTicket(s, id, now, tzMin)) return { ok: false, why: 'have' };
+    if (s.coins < TRN_FARE[id]) return { ok: false, why: 'coins' };
+    s.coins -= TRN_FARE[id];
+    s.train.tk[id] = toyDay(now, tzMin);
+    return { ok: true };
+  }
+  // may the player get on now? → { ok } | { ok: false, why: 'open' | 'ticket' }
+  function trnBoard(s, id, now, tzMin) {
+    if (!trnOk(s, id)) return { ok: false, why: 'open' };
+    return trnTicket(s, id, now, tzMin) ? { ok: true } : { ok: false, why: 'ticket' };
+  }
+
+  // ---------- 특산물 ----------
+  function trnRoll(id, rng) { return pick(TRN_PICKS.filter(function (p) { return p.route === id; }), rng).id; }
+  // a spot regrowing further ahead than one full regrow was picked under a wrong (forward) clock: it counts as ready
+  function trnGrown(p, now) { return now >= p.at || p.at - now > TRN_REGROW_MIN + TRN_REGROW_SPAN; }
+  // what stands on each spot now (null = still regrowing)
+  function trnPicksNow(s, id, now) {
+    var ps = s.train && s.train.pick[id];
+    return ps ? ps.map(function (p) { return p.id && trnGrown(p, now) ? p.id : null; }) : [];
+  }
+  function trnPickNext(s, id, now) {
+    var t = null, ps = s.train && s.train.pick[id];
+    if (ps) ps.forEach(function (p) { if (!trnGrown(p, now) && (t === null || p.at < t)) t = p.at; });
+    return t;
+  }
+  // needs today's ticket for that route (you have to be there)
+  function trnPick(s, id, k, now, rng, tzMin) {
+    var p = trnOk(s, id) && trnTicket(s, id, now, tzMin) && s.train.pick[id] && s.train.pick[id][k];
+    if (!p || !p.id || !trnGrown(p, now)) return null;
+    var it = trnItem(p.id), d = s.train.dex, out = { id: it.id, first: !d[it.id] };
+    out.sold = bagAdd(s, it.id, it.price);
+    d[it.id] = Math.min(1e6, (d[it.id] || 0) + 1);
+    s.train.pick[id][k] = { at: now + TRN_REGROW_MIN + rng() * TRN_REGROW_SPAN, id: trnRoll(id, rng) };
+    return out;
+  }
+
+  // ---------- 온천욕: s.train.bath = { d: local day of the last bath, until: ms it wears off } ----------
+  // A new bath needs a later day than the last one, so a clock set back never gives a second one the same day; a bath
+  // more than TRN_FUTURE days ahead was taken under a wrong clock and blocks nothing.
+  function trnBath(s, now, tzMin) {
+    if (!trnOk(s, 'onsen')) return { ok: false, why: 'open' };
+    if (!trnTicket(s, 'onsen', now, tzMin)) return { ok: false, why: 'ticket' };
+    var d = toyDay(now, tzMin), b = s.train.bath;
+    if (b && d <= b.d && b.d - d <= TRN_FUTURE) return { ok: false, why: 'bath' };
+    s.train.bath = { d: d, until: now + TRN_BATH_MS };
+    return { ok: true, until: s.train.bath.until };
+  }
+  // ms of quicker bites left (0 = off); a clock set back never stretches it past one hour
+  function trnBathLeft(s, now) {
+    var b = s && s.train && s.train.bath;
+    if (!b || typeof now !== 'number' || now >= b.until || b.until - now > TRN_BATH_MS) return 0;
+    return b.until - now;
+  }
+  function trnBathMul(s, now) { return trnBathLeft(s, now) > 0 ? TRN_BATH_MUL : 1; }
+
+  // ---------- 기념품 ----------
+  // sold at the route's own shop: needs today's ticket for that route
+  function trnBuySouvenir(s, id, now, tzMin) {
+    var w = trnSouvenir(id);
+    if (!w) return { ok: false, why: 'none' };
+    if (!trnOk(s, w.route)) return { ok: false, why: 'open' };
+    if (s.yard && s.yard.deco[id]) return { ok: false, why: 'owned' };
+    if (!trnTicket(s, w.route, now, tzMin)) return { ok: false, why: 'ticket' };
+    if (s.coins < w.cost) return { ok: false, why: 'coins' };
+    s.coins -= w.cost;
+    return { ok: true, stored: !!grantDeco(s, id).stored };
+  }
+
+  // ---------- save: called by decode() (absent in older saves). A bad field loses that field, never the opened routes ----------
+  function decodeTrain(o, s) {
+    var q = o.train;
+    function obj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+    function num(x) { return typeof x === 'number' && isFinite(x); }
+    if (!obj(q)) return;
+    var t = { ok: {}, tk: {}, pick: {}, dex: {} };
+    if (obj(q.ok)) TRN_ROUTES.forEach(function (r) { if (q.ok[r.id] === true) t.ok[r.id] = true; });
+    if (obj(q.tk)) TRN_ROUTES.forEach(function (r) { if (num(q.tk[r.id])) t.tk[r.id] = Math.floor(q.tk[r.id]); });
+    if (obj(q.dex)) TRN_PICKS.forEach(function (p) { if (num(q.dex[p.id]) && q.dex[p.id] > 0) t.dex[p.id] = Math.min(1e6, Math.floor(q.dex[p.id])); });
+    if (obj(q.bath) && num(q.bath.d) && num(q.bath.until)) t.bath = { d: Math.floor(q.bath.d), until: q.bath.until };
+    s.train = t;
+    Object.keys(t.ok).forEach(function (id) {
+      var ps = obj(q.pick) && Array.isArray(q.pick[id]) ? q.pick[id] : null;
+      var at0 = num(o.savedAt) ? o.savedAt : 0;
+      trnPickSpots(s, id, at0);
+      if (ps && t.pick[id]) t.pick[id].forEach(function (p, k) {
+        var e = ps[k], it = e && obj(e) && trnItem(e.id);
+        // regrowing further past the save than one full regrow: picked under a wrong clock, ready again
+        var at = num(e && e.at) ? (at0 > 0 && e.at - at0 > TRN_REGROW_MIN + TRN_REGROW_SPAN ? at0 : e.at) : p.at;
+        if (obj(e)) t.pick[id][k] = { at: at, id: it && it.route === id ? it.id : p.id };
+      });
+      if (SPOTS[id]) { s.spotOk = s.spotOk || {}; s.spotOk[id] = true; }
+    });
+    // a route's spot is only fished while there on that day's ticket: a reload starts back at the 연못
+    if (trnRoute(s.spot)) { delete s.spot; s.fish = { phase: 'idle' }; }
+  }
+
+  expose({
+    TRN_REP: TRN_REP, TRN_OPEN: TRN_OPEN, TRN_FARE: TRN_FARE, TRN_FUTURE: TRN_FUTURE, TRN_ROUTES: TRN_ROUTES,
+    TRN_VALLEY_FISH: TRN_VALLEY_FISH, TRN_PICKS: TRN_PICKS, TRN_PICK_N: TRN_PICK_N, TRN_REGROW_MIN: TRN_REGROW_MIN, TRN_REGROW_SPAN: TRN_REGROW_SPAN,
+    TRN_ONSEN_FISH: TRN_ONSEN_FISH, TRN_SNOW_FISH: TRN_SNOW_FISH, TRN_SOUVENIRS: TRN_SOUVENIRS, TRN_BATH_MS: TRN_BATH_MS, TRN_BATH_MUL: TRN_BATH_MUL,
+    trnBath: trnBath, trnBathLeft: trnBathLeft, trnBathMul: trnBathMul,
+    trnRoute: trnRoute, trnItem: trnItem, trnSouvenir: trnSouvenir, trnOf: trnOf, trnOk: trnOk, trnStatus: trnStatus, trnOpen: trnOpen,
+    trnTicket: trnTicket, trnBuyTicket: trnBuyTicket, trnBoard: trnBoard,
+    trnPicksNow: trnPicksNow, trnPickNext: trnPickNext, trnPick: trnPick, trnBuySouvenir: trnBuySouvenir, decodeTrain: decodeTrain
+  });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -7850,7 +8075,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' },
     // 게임장
     { id: 'arcade', name: '게임장', how: '마을 아래 박물관 왼쪽 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
-    { id: 'myshop', name: '내 가게', how: '마을 윗길 오른쪽 빈 가게 터 · ' + won(MYS_PRICE) + '으로 짓고 바구니·창고 물건을 진열대(' + MYS_SLOTS0 + '~' + MYS_SLOTS_MAX + '칸)에 올리면 손님이 하나씩 사 간다 · 값은 오늘 시세 × 등급 보너스 ×' + MYS_BONUS[0] + '~ · 게임을 꺼 둬도 ' + MYS_CATCHUP / 3600e3 + '시간치까지 팔리고 코인은 금고에 · 꾸미기는 손님을 더 자주, 등급은 값을 더 높게', lock: '★' + VILLAGE_REP + ' 마을이 열리면' }
+    { id: 'myshop', name: '내 가게', how: '마을 윗길 오른쪽 빈 가게 터 · ' + won(MYS_PRICE) + '으로 짓고 바구니·창고 물건을 진열대(' + MYS_SLOTS0 + '~' + MYS_SLOTS_MAX + '칸)에 올리면 손님이 하나씩 사 간다 · 값은 오늘 시세 × 등급 보너스 ×' + MYS_BONUS[0] + '~ · 게임을 꺼 둬도 ' + MYS_CATCHUP / 3600e3 + '시간치까지 팔리고 코인은 금고에 · 꾸미기는 손님을 더 자주, 등급은 값을 더 높게', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
+    // 기차 여행
+    { id: 'train', name: '기차 여행', how: '마을 길 가운데 간이역 · 노선마다 개통비 한 번, 타는 날마다 기차표 한 장(그날은 몇 번이든) · 산골 계곡(물고기 ' + TRN_VALLEY_FISH.length + '종·산나물·송이버섯) → ★' + TRN_REP.onsen + ' 온천 마을(물고기 ' + TRN_ONSEN_FISH.length + '종·온천 달걀·유자·하루 한 번 온천욕: 1시간 입질 빠르게) → 고친 포구 기차역에서 설원 고개(얼음낚시 ' + TRN_SNOW_FISH.length + '종·얼음 결정·눈꽃) · 곳마다 기념품 가게 · 「역으로」 버튼으로 돌아오기', lock: '★' + TRN_REP.valley + ' · 간이역에서 산골 계곡 개통 ' + won(TRN_OPEN.valley) }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -7878,6 +8105,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   GUIDE_OPEN.auction = aucOpen; GUIDE_OPEN.trader = traderOpen;   // stage 11 ②
   GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
   GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
+  GUIDE_OPEN.train = function (s) { return villageOk(s) && trnStatus(s, 'valley') !== 'rep'; }; GUIDE_SCENE.trnvalley = 'train'; GUIDE_SCENE.trnonsen = 'train'; GUIDE_SCENE.trnsnow = 'train';   // 기차 여행
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {
@@ -8085,6 +8313,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       decodeBank(o, s);    // 은행: s.bank (balance, last interest day; optional)
       decodeArcade(o, s);  // 게임장: s.arcade (오늘 상금 게임 횟수; optional)
       decodeMyShop(o, s);  // 내 가게: s.mys (진열대·꾸미기·등급·금고; optional)
+      decodeTrain(o, s);   // 기차 여행: s.train (개통·기차표·특산물 자리; optional) + the route spots
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -8286,6 +8515,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     river: { cx: 145, cy: 170, rx: 34, ry: 20, ox: 210, oy: 228, mid: 87, half: 35 },
     sea:   { cx: 152, cy: 178, rx: 34, ry: 22, ox: 240, oy: 250, r: 150 },
     island: { cx: 146, cy: 176, rx: 38, ry: 22, ox: 236, oy: 256, r: 162 },  // stage 7 섬: open sea like 바다, a wider bay
+    valley: { cx: 140, cy: 172, rx: 30, ry: 18, ox: 210, oy: 228, mid: 87, half: 28 },   // 기차 여행 산골 계곡: a narrower 강
+    onsen: { cx: 116, cy: 148, rx: 58, ry: 38 }, snow: { cx: 116, cy: 148, rx: 58, ry: 38 },   // 온천 호수·설원 얼음 호수: the 연못 shape, stony shore
     offshore: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }, ocean: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }   // stage 9 ① 먼바다·난바다
   };
   var scene = 'pond';
@@ -8294,7 +8525,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // visible water: < 1 is water, a little above 1 is the shore
   function wetD(x, y) {
     var sc = SCENES[scene];
-    if (scene === 'river') return Math.abs(Math.hypot(x - sc.ox, y - sc.oy) - sc.mid) / sc.half;
+    if (sc.mid) return Math.abs(Math.hypot(x - sc.ox, y - sc.oy) - sc.mid) / sc.half;
     if (sc.r) return Math.hypot(x - sc.ox, y - sc.oy) / sc.r;   // 바다, 섬, 먼바다·난바다
     var a = (x - POND.cx) / POND.rx, b = (y - POND.cy) / POND.ry; return a * a + b * b;
   }
@@ -8622,6 +8853,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (it && it.kind === 'flat') return flatIcon(id);       // stage 7 갯벌
     if (it && it.kind === 'isle') return driftIcon(id);      // stage 7 섬
     if (it && it.kind === 'dive') return diveIcon(id);       // stage 12 ③ 잠수
+    if (it && it.kind === 'trn') return trnIcon(id);         // 기차 여행 특산물
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;
@@ -9190,10 +9422,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
 
   function drawWater(tt, dt) {
-    if (scene === 'river') drawCurrent(tt);
+    if (scene === 'river' || scene === 'valley') drawCurrent(tt);
     else if (scene === 'sea') drawWaves(tt);
     drawIsleWater(tt);   // stage 7 섬: old boat on the 바다 beach, 섬 waves and palm, lighthouse light at night
     drawShipWater(tt);   // stage 9 ①: 먼바다·난바다 sliding past the boat
+    drawTrnWater(tt);    // 기차 여행: 계곡 boulders and the sign back up
     // water glints: slow, sparse
     for (var k = 0; k < 7 && scene === 'pond'; k++) {
       var ph = (tt * 0.25 + hash(k * 11) * 4) % 4;
@@ -9369,7 +9602,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   // 강: streaks carried along the bend; 바다: wave lines rolling onto the sand
   function drawCurrent(tt) {
-    var sc = SCENES.river;
+    var sc = SCENES[scene].mid ? SCENES[scene] : SCENES.river;
     for (var k = 0; k < 22; k++) {
       var r = sc.mid - sc.half * 0.85 + hash(k * 7 + 3) * sc.half * 1.7;
       var th = Math.PI + ((hash(k * 13 + 1) + tt * 2.2 / r) % 1) * Math.PI * 0.62 - 0.06;
@@ -9689,7 +9922,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     });
     ctx = saved;
   }
-  function frozen() { return scene === 'pond' && seasonNow() === 'winter'; }
+  function frozen() { return (scene === 'pond' && seasonNow() === 'winter') || scene === 'snow'; }   // 설원 얼음 호수: frozen all year
   function drawIce(tt) {
     if (!frozen()) return;
     if (!iceCv) paintIce();
@@ -10968,11 +11201,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function goScene(sc) {
     if (reel) return;
     if (view === 'dive' && sc !== 'dive' && dv) return endDive();   // stage 12: surfacing toast, dive state cleared
+    if (sc === 'trnback' || sc === 'trnskip') { closeSceneMenu(); trnGo(sc); return; }   // 기차 여행: 「역으로」 / 내리기
+    if (view === 'farm' && sc !== 'farm') trnLeaveFarm(sc);   // 기차 여행: a route's spot is not kept off the trip
     closeSceneMenu();
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' ? '' : 'hidden';
-    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : '집 안');
+    cv.setAttribute('aria-label', sc === 'farm' ? '농장과 연못' : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : sc === 'trnvalley' ? '산골 계곡' : sc === 'trnonsen' ? '온천 마을' : sc === 'trnsnow' ? '설원 고개' : sc === 'trnride' ? '기차 안' : '집 안');
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
@@ -10983,9 +11218,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (view === 'stars') return [starHome];   // stage 7: out of the 별 잇기 view (stage 9: back to the 산꼭대기 too)
     if (view === 'museum') return ['village']; // stage 7 박물관
     if (view === 'dive') return [diveHome()];  // stage 12 ③: the button surfaces (포구, else 마을)
+    if (trnIsView(view)) return trnDests();   // 기차 여행: 「역으로」 / 내리기
     return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak', 'port'].filter(function (sc) { return sc !== view && (sc !== 'port' || L.portShown(S)) && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
   }
   function placeAttention(sc) {
+    if (sc === 'trnback' || sc === 'trnskip') return false;   // 기차 여행
     if (boomAttention(sc)) return true;   // stage 8: 입질 폭풍 / 대풍년 here
     if (sc === 'forest') return !!forestAttention();
     if (sc === 'cave') return caveAttention();   // stage 7
@@ -11076,6 +11313,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (view === 'farisle') { drawFarIsle(tt); return true; }       // stage 9 ① 먼 섬
     if (view === 'port') { drawPort(tt, dt); return true; }         // stage 11 ① 옛 포구
     if (view === 'dive') { drawDive(tt, dt); return true; }         // stage 12 ③ 잠수
+    if (trnIsView(view)) { trnDrawView(tt); return true; }   // 기차 여행
     return false;
   }
   // first look at every tap: the 마당/집 take all of theirs; on the farm only visitors and the scarecrow
@@ -11097,9 +11335,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (view === 'farisle') { tapFarIsle(x, y); return true; }   // stage 9 ① 먼 섬
     if (view === 'port') { tapPort(x, y); return true; }         // stage 11 ① 옛 포구
     if (view === 'dive') { tapDive(x, y); return true; }         // stage 12 ③ 잠수
+    if (trnIsView(view)) { trnTapView(x, y); return true; }   // 기차 여행
     if (S.fish.phase === 'bite') return false;
     if (tapIsleWater(x, y)) return true;                          // stage 7 섬: the boat on the 바다 / 섬 shore
     if (tapShipWater(x, y)) return true;                          // stage 9 ①: the boat at 먼바다·난바다
+    if (tapTrnWater(x, y)) return true;                           // 기차 여행: the sign back up to the 계곡
     if (tapPet(x, y)) return true;
     if (view === 'farm' && tapFarmSign(x, y)) return true;      // stage 10 ①: 농장 간판
     if (tapVisitorAt(x, y, 'pond')) return true;
@@ -13970,6 +14210,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
     drawPortSign(tt);      // stage 11 ①: 「끊긴 다리」 → 옛 포구
     drawArcade(tt);        // 게임장
+    trnDraw(tt);           // 기차 여행: 마을 간이역
     drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
@@ -13983,6 +14224,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
     if (tapArcade(x, y)) return;        // 게임장
+    if (trnTap(x, y)) return;           // 기차 여행: 마을 간이역
     if (!hit([139, 15, 11, 12], x, y) && mysTap(x, y)) return;   // 내 가게, except the 식당 attention mark drawn over its window
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
@@ -18551,6 +18793,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function tapPort(x, y) {
     if (typeof tapPortExtra_auction === 'function' && tapPortExtra_auction(x, y)) return;   // stage 11 ②
     if (typeof tapPortExtra_dive === 'function' && tapPortExtra_dive(x, y)) return;         // stage 12
+    if (typeof tapPortExtra_train === 'function' && tapPortExtra_train(x, y)) return;       // 기차 여행: 설원행
     if (hit(PORT_AT.granny, x, y, 4)) { portSay = L.grannyLine(S, Math.random); toast(portSay + ' · ' + L.portHint(S), 3800); return; }
     if (hit(PORT_AT.bridge, x, y, 2)) { openPortSheet('bridge'); return; }
     var ids = ['shipyard', 'market', 'station'];
@@ -19870,6 +20113,612 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       return S.mys || null;
     };
   }
+  // ---------- 기차 여행: 마을 간이역 + 노선 sheet, 포구 기차역 설원행, 기차 타는 장면, 산골 계곡 view, 기념품 art, FF.train ----------
+  // Logic: logic/train.js. view 'trnride' = the window of a moving train (TRN_RIDE_MS, tap to skip), views 'trnvalley' /
+  // 'trnonsen' / 'trnsnow' = the destinations. Fishing there is the farm view with the route's spot (like the 섬 pier);
+  // a sign by the water comes back.
+  // The scene button reads 「역으로」 at a destination: the ride home ends at the station the line left from.
+  var TRN_AT = [97, 87, 36, 21];      // 마을 lane, between the 분교 마당 people and the 나루터 signpost (top below the tree's crown)
+  var TRN_TZ = -new Date().getTimezoneOffset();
+  var TRN_VIEW = { valley: 'trnvalley', onsen: 'trnonsen', snow: 'trnsnow' };   // route → destination view; a route without one shows 「준비 중」
+  var TRN_RIDE_MS = 2000;
+  var TRN_WHY = { rep: '★이 모자라요', after: '앞 노선을 먼저 열어요', station: '포구 기차역을 먼저 고쳐요', coins: '코인이 모자라요',
+    owned: '이미 열었어요', open: '노선을 먼저 열어요', have: '오늘 표가 이미 있어요', ticket: '오늘 기차표가 없어요',
+    bath: '온천욕은 하루 한 번 · 내일 또 와요' };
+  var TRN_ICON = ['............', '..444444....', '..400004....', '..400004.44.', '.4444444444.', '.4222222224.',
+    '.4222222224.', '.4444444444.', '..44....44..', '.4..4..4..4.', '..44....44..', '............'];
+  var TRN_WINDOW = [16, 40, 148, 96];
+  var trnRide = null;          // { to: view, route, t0, back }
+  var trnHome = 'village';     // where 「역으로」 goes (the snow line goes back to the 포구)
+  var trnPrevSpot = null;      // the spot before fishing at the 계곡, put back on the way home
+  var trnFrom = 'village';     // which station's sheet is open
+  var trnLast = 'valley';      // the route last ridden: the ride home shows its scenery
+  function trnIsView(v) { return v === 'trnride' || v === 'trnvalley' || v === 'trnonsen' || v === 'trnsnow'; }
+  PLACE.trnback = ['역으로', '기차 타고 역으로 돌아가기'];
+  PLACE.trnskip = ['내리기', '기차에서 바로 내리기'];
+
+  function trnIcon12() {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(TRN_ICON, 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  function trnWon(n) { return n.toLocaleString('ko-KR') + '코인'; }
+
+  // ---------- 특산물 art (x = centre, y = ground), shared with the basket icon ----------
+  function trnPickArt(id, x, y) {
+    if (id === 'onegg') {   // a steamed egg on a stone
+      px(x - 4, y - 1, 9, 1, 3);
+      px(x - 2, y - 7, 4, 1, 4); px(x - 3, y - 6, 1, 5, 4); px(x + 2, y - 6, 1, 5, 4); px(x - 2, y - 1, 4, 1, 4);
+      px(x - 2, y - 6, 4, 5, 1); px(x - 1, y - 5, 1, 2, 0);
+      px(x - 1, y - 10, 1, 2, 2); px(x, y - 12, 1, 2, 2);
+      return;
+    }
+    if (id === 'oyuja') {   // a round 유자 with a leaf
+      px(x - 2, y - 7, 5, 1, 4); px(x - 3, y - 6, 1, 5, 4); px(x + 3, y - 6, 1, 5, 4); px(x - 2, y - 1, 5, 1, 4);
+      px(x - 2, y - 6, 5, 5, 1); px(x - 1, y - 5, 1, 1, 0); px(x + 1, y - 3, 1, 1, 2); px(x - 1, y - 2, 1, 1, 2);
+      px(x, y - 9, 1, 2, 4); px(x + 1, y - 10, 3, 2, 3);
+      return;
+    }
+    if (id === 'sice') {    // a clear crystal standing in the snow
+      px(x, y - 9, 1, 1, 4); px(x - 1, y - 8, 3, 1, 4); px(x - 2, y - 7, 1, 6, 4); px(x + 2, y - 7, 1, 6, 4); px(x - 1, y - 1, 3, 1, 4);
+      px(x - 1, y - 7, 3, 6, 1); px(x, y - 7, 1, 4, 0); px(x + 3, y - 4, 1, 3, 3); px(x - 3, y - 3, 1, 2, 3);
+      return;
+    }
+    if (id === 'sflake') {  // six arms
+      px(x, y - 11, 1, 11, 3); px(x - 4, y - 6, 9, 1, 3);
+      for (var k = 1; k < 4; k++) { px(x - k, y - 6 - k, 1, 1, 3); px(x + k, y - 6 - k, 1, 1, 3); px(x - k, y - 6 + k, 1, 1, 3); px(x + k, y - 6 + k, 1, 1, 3); }
+      px(x, y - 6, 1, 1, 0); px(x - 1, y - 11, 3, 1, 2); px(x - 1, y - 1, 3, 1, 2);
+      return;
+    }
+    if (id === 'vsongi') {
+      px(x - 1, y - 5, 3, 5, 0); px(x - 2, y - 5, 1, 5, 4); px(x + 2, y - 5, 1, 5, 4);
+      px(x - 3, y - 8, 7, 3, 2); px(x - 2, y - 9, 5, 1, 4); px(x - 4, y - 6, 9, 1, 4); px(x - 3, y - 7, 1, 1, 4); px(x + 3, y - 7, 1, 1, 4);
+      return;
+    }
+    px(x - 3, y - 4, 2, 4, 3); px(x - 1, y - 7, 2, 7, 3); px(x + 1, y - 5, 2, 5, 3); px(x + 3, y - 3, 1, 3, 3);
+    px(x, y - 6, 1, 4, 4); px(x - 3, y - 1, 7, 1, 4);
+  }
+  function trnIcon(id) {
+    var c = document.createElement('canvas'); c.width = 14; c.height = 14;
+    var saved = ctx; ctx = c.getContext('2d');
+    try { trnPickArt(id, 7, 13); } finally { ctx = saved; }
+    return c;
+  }
+
+  // ---------- 기념품 art (yard decorations; x, y = top-left of sz) ----------
+  DRAW_DECO.jangseung = function (x, y) {
+    px(x + 1, y, 8, 3, 4); px(x + 2, y + 1, 6, 1, 3);                                   // hat
+    px(x + 2, y + 3, 6, 19, 4); px(x + 3, y + 3, 4, 19, 1);                             // post
+    px(x + 3, y + 5, 2, 1, 4); px(x + 6, y + 5, 2, 1, 4); px(x + 3, y + 6, 1, 1, 0); px(x + 6, y + 6, 1, 1, 0);   // brows, eyes
+    px(x + 4, y + 8, 2, 1, 4); px(x + 3, y + 10, 4, 1, 4); px(x + 4, y + 10, 1, 1, 0);   // nose, grin
+    for (var k = 0; k < 4; k++) px(x + 4, y + 13 + k * 2, 2, 1, 3);                     // carved letters
+    px(x, y + 22, 10, 2, 3);
+  };
+  DRAW_DECO.sotdae = function (x, y, tt) {
+    var b = Math.floor((tt || 0) * 0.8) % 4 === 0 ? 1 : 0;
+    px(x + 4, y + 6, 1, 20, 4);
+    px(x + 1, y + 3 - b, 6, 3, 4); px(x + 2, y + 4 - b, 4, 1, 1);                       // the wooden bird
+    px(x + 6, y + 1 - b, 2, 2, 4); px(x + 8, y + 2 - b, 1, 1, 4); px(x, y + 2 - b, 2, 2, 4);
+    px(x + 2, y + 26, 5, 2, 3);
+  };
+  DRAW_DECO.mulle = function (x, y, tt) {
+    var cx = x + 9, cy = y + 10, a0 = (tt || 0) * 1.2, k;
+    px(x + 13, y, 9, 2, 4); px(x + 14, y, 7, 1, 2);                                     // trough
+    if (Math.floor((tt || 0) * 4) % 2) px(x + 14, y + 2, 1, 2, 1); else px(x + 15, y + 3, 1, 2, 1);
+    for (k = 0; k < 24; k++) { var a = k / 24 * Math.PI * 2; px(cx + Math.cos(a) * 8, cy + Math.sin(a) * 8, 1, 1, 4); }
+    for (k = 0; k < 4; k++) {
+      var s = a0 + k * Math.PI / 4;
+      for (var r = 1; r < 8; r++) { px(cx + Math.cos(s) * r, cy + Math.sin(s) * r, 1, 1, 3); px(cx - Math.cos(s) * r, cy - Math.sin(s) * r, 1, 1, 3); }
+    }
+    px(cx - 1, cy - 1, 3, 3, 4);
+    px(x, y + 18, 20, 2, 3);
+  };
+
+  DRAW_DECO.seokdeung = function (x, y, tt, night) {
+    px(x + 1, y + 2, 10, 2, 4); px(x + 3, y, 6, 2, 4); px(x + 5, y - 1, 2, 1, 4);           // roof stone
+    px(x + 2, y + 4, 8, 7, 4); px(x + 3, y + 5, 6, 5, 2);                                  // fire box
+    px(x + 4, y + 6, 4, 3, night || Math.floor((tt || 0) * 3) % 4 ? 0 : 1);                // the light
+    px(x + 3, y + 11, 6, 2, 4); px(x + 4, y + 13, 4, 6, 4); px(x + 5, y + 13, 2, 6, 3);    // post
+    px(x + 1, y + 19, 10, 3, 4); px(x + 2, y + 19, 8, 1, 3);
+  };
+  DRAW_DECO.namutub = function (x, y, tt) {
+    var k, w = Math.floor((tt || 0) * 1.5);
+    px(x, y + 4, 22, 1, 4); px(x + 1, y + 5, 20, 8, 3); px(x + 1, y + 13, 20, 1, 4);       // rim, staves, bottom
+    for (k = 3; k < 21; k += 3) px(x + k, y + 5, 1, 8, 4);
+    px(x + 1, y + 7, 20, 1, 4); px(x + 1, y + 11, 20, 1, 4);                               // hoops
+    px(x + 2, y + 5, 18, 1, 1);                                                             // hot water
+    for (k = 0; k < 3; k++) { var sx = x + 5 + k * 6, sy = y + 2 - ((w + k) % 3); px(sx, sy, 1, 2, 1); px(sx + 1, sy - 2, 1, 2, 1); }   // steam
+  };
+  DRAW_DECO.igloo = function (x, y) {
+    for (var j = 0; j < 14; j++) {                                                          // the dome, row by row
+      var hw = Math.round(Math.sqrt(1 - Math.pow((13 - j) / 14, 2)) * 12);
+      px(x + 12 - hw, y + j, hw * 2, 1, 0); px(x + 12 - hw, y + j, 1, 1, 3); px(x + 11 + hw, y + j, 1, 1, 3);
+      if (j % 4 === 3) px(x + 12 - hw, y + j, hw * 2, 1, 2);                                // block courses
+    }
+    for (j = 0; j < 4; j++) px(x + 4 + j * 5 + (j % 2) * 2, y + 4 + j * 2, 1, 2, 2);
+    px(x + 9, y + 8, 6, 6, 3); px(x + 10, y + 9, 4, 5, 4);                                 // door
+    px(x, y + 14, 24, 2, 1);
+  };
+  DRAW_DECO.icebear = function (x, y) {
+    px(x + 1, y + 4, 4, 4, 3); px(x + 2, y + 5, 2, 2, 1);                                   // head
+    px(x + 1, y + 3, 1, 1, 3); px(x + 4, y + 3, 1, 1, 3); px(x, y + 6, 1, 1, 4);             // ears, nose
+    px(x + 4, y + 6, 11, 6, 3); px(x + 5, y + 7, 9, 4, 1); px(x + 7, y + 7, 3, 1, 0);       // body
+    px(x + 5, y + 12, 2, 4, 3); px(x + 12, y + 12, 2, 4, 3);                                // legs
+    px(x + 1, y + 16, 15, 2, 2); px(x + 2, y + 16, 13, 1, 0);                               // the ice slab
+  };
+
+  // ---------- 마을 간이역 on the street ----------
+  function trnDraw(tt) {
+    var x = TRN_AT[0], y = TRN_AT[1], k, e = curEnv(now()), dark = e.phase === 'night' || e.phase === 'evening';
+    var any = L.TRN_ROUTES.some(function (r) { return L.trnTicket(S, r.id, now(), TRN_TZ); });
+    px(x, y + 18, 36, 1, 3); for (k = 0; k < 36; k += 4) px(x + k, y + 19, 2, 1, 2);        // rails + sleepers
+    px(x, y + 14, 22, 3, 2); px(x, y + 14, 22, 1, 4);                                      // platform
+    px(x + 5, y, 12, 3, 4); px(x + 6, y + 1, 10, 1, 0); px(x + 8, y + 1, 1, 1, 4); px(x + 12, y + 1, 2, 1, 4);   // name board
+    px(x, y + 3, 22, 2, 4); px(x + 1, y + 3, 20, 1, 3);                                    // roof
+    px(x + 2, y + 5, 1, 9, 4); px(x + 19, y + 5, 1, 9, 4);                                 // posts
+    px(x + 6, y + 10, 10, 1, 3); px(x + 7, y + 11, 1, 3, 4); px(x + 14, y + 11, 1, 3, 4); // bench
+    px(x + 30, y + 5, 1, 13, 4); px(x + 28, y + 3, 5, 3, 4);                               // signal post: lit while a ticket is good today
+    px(x + 29, y + 4, 3, 1, any ? (dark || Math.floor(tt * 2) % 2 ? 0 : 1) : 3);
+  }
+  function trnTap(x, y) {
+    if (!hit(TRN_AT, x, y, 1)) return false;
+    trnOpenSheet('village');
+    return true;
+  }
+  // 포구 기차역 (port.js): once repaired, the station building opens the 설원행 sheet
+  function tapPortExtra_train(x, y) {
+    if (!L.portDone(S, 'station') || !hit(PORT_AT.station, x, y, 1)) return false;
+    trnOpenSheet('port');
+    return true;
+  }
+
+  // ---------- the station sheet: every route of this station (and where the others leave from) ----------
+  function trnOpenSheet(from) {
+    if (reel) return;
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    trnFrom = from; sheetKind = 'train'; sheetEl.hidden = false;
+    trnRender();
+  }
+  function trnBtn(r, text, fn, label, off) {
+    var a = r.querySelector('.acts');
+    if (!a) { a = document.createElement('div'); a.className = 'acts'; r.appendChild(a); }
+    a.appendChild(act(text, fn, { cls: 'max b', label: label || text, off: off }));
+  }
+  function trnRender() {
+    var t = now(), keep = sheetEl.scrollTop;
+    sheetHead(trnFrom === 'port' ? '포구 기차역' : '마을 간이역');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = trnFrom === 'port' ? '역무원: 고친 역에서 다시 기차가 떠나요. 고개 너머 설원까지 가요.' : '역무원: 어디로 가세요? 표 한 장이면 오늘 하루 몇 번이든 오가요.';
+    sheetEl.appendChild(say);
+    var h3 = document.createElement('h3'); h3.textContent = '노선';
+    var hb = document.createElement('b'); hb.textContent = '표는 자정까지'; h3.appendChild(hb);
+    sheetEl.appendChild(h3);
+    L.TRN_ROUTES.forEach(function (r) {
+      var here = r.from === trnFrom, st = L.trnStatus(S, r.id);
+      if (!here && trnFrom === 'port') return;
+      if (!here) {   // the 설원행 leaves from the 포구
+        sheetRow(trnIcon12(), r.name, '포구 기차역에서 출발 · ' + (st === 'owned' ? '개통했어요' : st === 'station' ? '포구 기차역을 고치면' : TRN_WHY[st] || ''), 'idle');
+        return;
+      }
+      var open = L.TRN_OPEN[r.id], fare = L.TRN_FARE[r.id], row;
+      if (st === 'rep') { row = sheetRow(trnIcon12(), r.name, '★' + r.rep + '이 되면 열 수 있어요 · 지금 ★' + S.rep, 'idle'); trnBtn(row, '잠김', function () {}, r.name + ' 잠김', true); return; }
+      if (st === 'after' || st === 'station') {
+        row = sheetRow(trnIcon12(), r.name, st === 'after' ? L.trnRoute(r.after).name + ' 노선을 먼저 열어요' : '포구 기차역을 고치면 열려요', 'idle');
+        trnBtn(row, '잠김', function () {}, r.name + ' 잠김', true); return;
+      }
+      if (st !== 'owned') {
+        row = sheetRow(trnIcon12(), r.name, '개통비 ' + trnWon(open) + ' · 한 번만 · 그 뒤로는 기차표 ' + trnWon(fare));
+        trnBtn(row, open.toLocaleString('ko-KR'), function () {
+          var res = L.trnOpen(S, r.id, now());
+          if (!res.ok) { toast(TRN_WHY[res.why] || '열 수 없어요'); return; }
+          toast('★ ' + r.name + ' 노선 개통! · 기차표를 사서 타요', 3000); burst(TRN_AT[0] + 10, TRN_AT[1] + 8, 14, 0, 50);
+          refresh(); trnRender();
+        }, r.name + ' 개통 ' + open + '코인', S.coins < open);
+        return;
+      }
+      var tk = L.trnTicket(S, r.id, t, TRN_TZ), ready = !!TRN_VIEW[r.id];
+      row = sheetRow(trnIcon12(), r.name, tk ? '오늘 표 있음 · 오늘은 몇 번이든' : '기차표 ' + trnWon(fare) + ' · 오늘 하루');
+      if (!tk) trnBtn(row, '표 ' + fare.toLocaleString('ko-KR'), function () {
+        var res = L.trnBuyTicket(S, r.id, now(), TRN_TZ);
+        if (!res.ok) { toast(TRN_WHY[res.why] || '살 수 없어요'); return; }
+        toast(r.name + '행 기차표 · 오늘 하루 몇 번이든', 2400);
+        refresh(); trnRender();
+      }, r.name + ' 기차표 사기 ' + fare + '코인', S.coins < fare);
+      trnBtn(row, ready ? '타기' : '준비 중', function () { trnGetOn(r.id); }, r.name + (ready ? ' 타기' : ' 준비 중'), !tk || !ready);
+    });
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '개통은 한 번 · 기차표는 산 날(현실 날짜) 하루 동안 몇 번이든 · 날이 바뀌면 새 표 · 시계를 되돌려도 같은 날 표를 두 번 사지 않아요';
+    sheetEl.appendChild(p);
+    sheetEl.scrollTop = keep;
+  }
+  function trnGetOn(id) {
+    var res = L.trnBoard(S, id, now(), TRN_TZ);
+    if (!res.ok) { toast(TRN_WHY[res.why] || '탈 수 없어요'); return; }
+    if (!TRN_VIEW[id]) { toast('준비 중이에요'); return; }
+    trnHome = L.trnRoute(id).from; trnLast = id;
+    trnStartRide(TRN_VIEW[id], id, false);
+  }
+
+  // ---------- the ride: scenery sliding past the window ----------
+  function trnStartRide(to, route, back) {
+    closeSheet();
+    trnRide = { to: to, route: route, t0: performance.now(), back: back };
+    goScene('trnride');
+  }
+  // off a route's spot: back to the spot before it (or the 연못), with goSpot's cleanup; a line in the water is lost
+  function trnSpotBack() {
+    if (!TRN_VIEW[L.curSpot(S)]) return;
+    if (S.fish.phase === 'bite') S.fish = { phase: 'idle' };
+    if (!L.setSpot(S, trnPrevSpot && L.spotUnlocked(S, trnPrevSpot) ? trnPrevSpot : 'pond')) return;
+    castAnim = null; scareFx = null; swimmers = []; nextSwim = 1;
+    setScene();
+  }
+  // goScene: leaving the farm view for anywhere but the spot's own destination puts the spot back
+  function trnLeaveFarm(sc) { var sp = L.curSpot(S); if (TRN_VIEW[sp] && sc !== TRN_VIEW[sp]) trnSpotBack(); }
+  function trnArrive() {
+    var r = trnRide;
+    trnRide = null;
+    if (!r) { goScene(trnHome); return; }
+    if (r.back) trnSpotBack();
+    goScene(r.to);
+    toast(r.back ? (r.to === 'port' ? '포구 기차역' : '마을 간이역') + '에 내렸다' : L.trnRoute(r.route).name + '에 도착 · 「역으로」 버튼으로 돌아가요', 2400);
+    refresh();
+  }
+  // the scene button at a destination / on the train
+  function trnGo(sc) {
+    if (sc === 'trnskip' || view === 'trnride') { trnArrive(); return; }
+    trnStartRide(trnHome, null, true);
+  }
+  function trnDests() { return view === 'trnride' ? ['trnskip'] : ['trnback']; }
+  // the window: 계곡 = high ridges, 온천 = low hills with steam rising, 설원 = white ridges, snow fields, snowfall
+  function trnDrawRide(tt) {
+    var r = trnRide, el = r ? (performance.now() - r.t0) / 1000 : 9, w = TRN_WINDOW, off = el * 110, bob = reduceMotion ? 0 : Math.floor(el * 7) % 2, k, x;
+    var kind = (r && r.route) || trnLast, hill = kind === 'onsen' ? 0.5 : 1, snowy = kind === 'snow';
+    if (r && el * 1000 >= TRN_RIDE_MS) { trnArrive(); return; }
+    px(0, 0, W, H, 3);
+    for (k = 0; k < W; k += 6) px(k, 0, 3, H, 2);                                           // wall boards
+    ctx.save(); ctx.beginPath(); ctx.rect(w[0], w[1] + bob, w[2], w[3]); ctx.clip();
+    px(w[0], w[1], w[2], w[3] + 2, 0);
+    for (x = 0; x < w[2]; x++) {                                                              // far ridge, slow
+      var u = x + off * 0.15, h = Math.round((22 + Math.sin(u / 19) * 9 + Math.sin(u / 7) * 3) * hill);
+      px(w[0] + x, w[1] + w[3] - 26 - h, 1, h + 26, (u | 0) % 3 ? 2 : 1);
+      if (snowy) { px(w[0] + x, w[1] + w[3] - 26 - h, 1, 1, 3); px(w[0] + x, w[1] + w[3] - 25 - h, 1, 3 + ((u | 0) % 4 === 0 ? 1 : 0), 0); }   // white caps under a dark edge
+    }
+    if (kind === 'onsen') for (k = 0; k < 5; k++) {                                         // steam from the hot springs
+      var sx = w[0] + ((k * 47 + 20 - off * 0.15) % 240 + 240) % 240 - 30, rise = (tt * 6 + k * 5) % 18;
+      for (var q = 0; q < 4; q++) px(sx + Math.round(Math.sin(tt * 2 + q + k) * 2), w[1] + w[3] - 34 - q * 4 - rise, 3, 2, 0);
+    }
+    px(w[0], w[1] + w[3] - 18, w[2], 20, snowy ? 0 : 1);                                    // fields (snow on the 설원 line)
+    for (k = 0; k < 14; k++) {                                                               // near trees, fast
+      var tx = w[0] + ((hash(k * 7 + 1) * 300 - off * 1.1) % 300 + 300) % 300 - 20, ty = w[1] + w[3] - 10;
+      px(tx, ty - 10, 6, 10, 4); px(tx + 1, ty - 14, 4, 4, 4); px(tx + 2, ty, 2, 4, 4);
+      if (snowy) { px(tx + 1, ty - 14, 4, 1, 0); px(tx, ty - 10, 6, 1, 0); }
+    }
+    if (snowy && !reduceMotion) for (k = 0; k < 30; k++) px(w[0] + ((hash(k * 3) * w[2] - off * 0.6) % w[2] + w[2]) % w[2], w[1] + (hash(k * 5 + 1) * w[3] + el * 30) % w[3], 1, 1, 0);
+    for (k = 0; k < 4; k++) {                                                                // poles and the wire between
+      var pxx = w[0] + ((k * 60 - off * 1.6) % 240 + 240) % 240 - 30;
+      px(pxx, w[1] + 8, 2, w[3], 4); px(pxx - 3, w[1] + 10, 8, 1, 4);
+    }
+    px(w[0], w[1] + 11, w[2], 1, 4);
+    ctx.restore();
+    px(w[0] - 3, w[1] - 3 + bob, w[2] + 6, 3, 4); px(w[0] - 3, w[1] + w[3] + bob, w[2] + 6, 4, 4);   // frame
+    px(w[0] - 3, w[1] + bob, 3, w[3], 4); px(w[0] + w[2], w[1] + bob, 3, w[3], 4); px(w[0] + w[2] / 2 - 1, w[1] + bob, 2, w[3], 4);
+    for (k = 0; k < 2; k++) { px(20 + k * 76, 150, 64, 30, 4); px(22 + k * 76, 152, 60, 26, 1); px(22 + k * 76, 158, 60, 1, 2); }   // seat backs
+    var p = Math.min(1, el * 1000 / TRN_RIDE_MS);                                            // how far along
+    px(30, 190, 120, 3, 4); px(31, 191, Math.round(118 * p), 1, 0);
+  }
+
+  // ---------- 산골 계곡 view ----------
+  var TRN_SHOP = [8, 64, 40, 36];
+  var TRN_VSTN = [4, 168, 48, 30];
+  var TRN_VSPOTS = [[64, 128], [96, 100], [158, 150]];
+  function trnStreamX(y) { return 150 - (y - 60) * 0.45 + Math.sin(y / 18) * 8; }
+  function trnInStream(x, y, k) { return y >= 58 && Math.abs(x - trnStreamX(y)) < (k || 10); }
+  function trnRidge(x) { return 44 + Math.round(Math.sin(x / 23) * 10 + Math.sin(x / 9 + 1) * 6); }
+  var bgTrnValley = document.createElement('canvas'); bgTrnValley.width = W; bgTrnValley.height = H;
+  (function paintValley() {
+    var saved = ctx; ctx = bgTrnValley.getContext('2d');
+    for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
+      var d = Math.abs(x - trnStreamX(y)), c;
+      if (y < trnRidge(x)) c = (x + y) % 3 === 0 ? 3 : 2;                                           // mountains
+      else if (y >= 58 && d < 10) c = d < 4 ? ((x + y) % 2 ? 2 : 1) : d > 8 ? 2 : ((x % 4 === 0 && y % 2 === 0) ? 2 : 1);   // stream
+      else if (y >= 58 && d < 13) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;    // pebbles
+      else c = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
+      px(x, y, 1, 1, c);
+    }
+    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    [[20, 66], [40, 150], [170, 90], [150, 190], [176, 130], [12, 112], [120, 74]].forEach(function (t) {   // pines
+      for (var j = 0; j < 12; j++) px(t[0] - Math.floor(j / 2), t[1] - 12 + j, 1 + Math.floor(j / 2) * 2, 1, j % 3 ? 3 : 4);
+      px(t[0], t[1], 1, 3, 4);
+    });
+    [[118, 112], [104, 150], [86, 176]].forEach(function (r) {   // boulders in the stream
+      var sx = Math.round(trnStreamX(r[1])) - 3;
+      px(sx, r[1] - 3, 6, 1, 4); px(sx - 1, r[1] - 2, 8, 3, 4); px(sx, r[1] - 2, 5, 1, 1); px(sx - 2, r[1] + 1, 10, 1, 0);
+    });
+    trnPaintStop(2);
+    ctx = saved;
+  })();
+  // 기념품 가게 (thatched roof, wall, window of goods, door, a board) and the platform you got off at; roof = its shade
+  function trnPaintStop(roof) {
+    var s = TRN_SHOP, k;
+    for (k = 0; k < 12; k++) px(s[0] + 20 - (8 + k * 1.6), s[1] + k, 16 + k * 3.2, 1, k % 2 ? 3 : roof);
+    px(s[0] + 1, s[1] + 12, 38, 22, 4); px(s[0] + 2, s[1] + 13, 36, 21, 1);
+    px(s[0] + 5, s[1] + 16, 14, 9, 4); px(s[0] + 6, s[1] + 17, 12, 7, 0);
+    px(s[0] + 8, s[1] + 19, 2, 5, 4); px(s[0] + 12, s[1] + 18, 1, 6, 3); px(s[0] + 15, s[1] + 21, 3, 3, 4);
+    px(s[0] + 24, s[1] + 18, 9, 16, 4); px(s[0] + 25, s[1] + 19, 7, 15, 3); px(s[0] + 30, s[1] + 26, 1, 1, 0);
+    px(s[0] + 10, s[1] - 1, 20, 5, 4); px(s[0] + 11, s[1], 18, 3, 0); px(s[0] + 13, s[1] + 1, 14, 1, 2);
+    // the platform you got off at: slab, shelter, rails
+    var p = TRN_VSTN;
+    px(0, p[1] + 25, 64, 1, 3); for (k = 0; k < 64; k += 4) px(k, p[1] + 26, 2, 1, 2);
+    px(p[0], p[1] + 18, p[2], 4, 2); px(p[0], p[1] + 18, p[2], 1, 4);
+    px(p[0] + 4, p[1] + 2, 30, 3, 4); px(p[0] + 5, p[1] + 3, 28, 1, 3); px(p[0] + 6, p[1] + 5, 1, 13, 4); px(p[0] + 31, p[1] + 5, 1, 13, 4);
+    px(p[0] + 10, p[1] - 3, 18, 5, 4); px(p[0] + 11, p[1] - 2, 16, 3, 0); px(p[0] + 13, p[1] - 1, 4, 1, 4); px(p[0] + 20, p[1] - 1, 5, 1, 4);
+    px(p[0] + 38, p[1] + 6, 1, 12, 4); px(p[0] + 36, p[1] + 4, 5, 3, 4);
+  }
+  function trnDrawValley(tt) {
+    var t = now(), e = curEnv(t), night = e.phase === 'night', k;
+    ctx.drawImage(bgTrnValley, 0, 0);
+    drawSky(tt, e.phase);
+    var fx = Math.round(trnStreamX(58)), top = trnRidge(fx);                                    // the waterfall feeding the stream
+    for (k = -5; k <= 5; k++) for (var y = top; y < 60; y++) if ((y + Math.floor(tt * 14) + k * 3) % 5 === 0) px(fx + k, y, 1, 2, 0); else if (k === -5 || k === 5) px(fx + k, y, 1, 1, 2);
+    if (!reduceMotion) for (k = 0; k < 16; k++) {                                              // ripples running down
+      var yy = 60 + ((hash(k * 7 + 3) * 140 + tt * 18) % 140), xx = trnStreamX(yy) + (hash(k * 5) - 0.5) * 10;
+      px(xx, yy, 2, 1, 0);
+    }
+    var ps = L.trnPicksNow(S, 'valley', t);
+    TRN_VSPOTS.forEach(function (sp, j) {
+      px(sp[0] - 5, sp[1] + 1, 11, 1, 2);
+      if (!ps[j]) { px(sp[0] - 1, sp[1] - 1, 1, 1, 3); px(sp[0] + 2, sp[1], 1, 1, 3); return; }
+      trnPickArt(ps[j], sp[0], sp[1]);
+      if (ps[j] === 'vsongi') sparkle(sp[0] + 6, sp[1] - 10, tt + j * 0.4);
+    });
+    drawYardWeather(tt, e.weather);
+    if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
+    if (night) drawStars(tt);
+  }
+  function trnTapValley(x, y) {
+    var t = now();
+    if (hit(TRN_VSTN, x, y, 1)) { trnGo('trnback'); return; }
+    if (hit(TRN_SHOP, x, y, 1)) { trnOpenShop('valley'); return; }
+    if (trnTapPick('valley', TRN_VSPOTS, x, y, t)) return;
+    if (trnInStream(x, y, 13)) { trnFish('valley'); return; }
+    var nx = L.trnPickNext(S, 'valley', t);
+    toast('산골 계곡 · 계곡물을 누르면 낚시 · 산나물·송이버섯 줍기 · 기념품 가게 · 승강장이나 「역으로」로 돌아가기' + (nx !== null && !L.trnPicksNow(S, 'valley', t).some(Boolean) ? ' · 다음 특산물 ' + fmtLeft(Math.max(0, nx - t)) : ''), 3000);
+  }
+  // a 특산물 spot under the tap? picks it (or says when it regrows) → true
+  function trnTapPick(route, spots, x, y, t) {
+    for (var k = 0; k < spots.length; k++) {
+      var sp = spots[k];
+      if (!hit([sp[0] - 7, sp[1] - 11, 14, 14], x, y, 2)) continue;
+      var p = S.train.pick[route][k];
+      if (!L.trnPicksNow(S, route, t)[k]) { toast('다시 돋는 중 · ' + fmtLeft(Math.max(0, p.at - t)), 1800); return true; }
+      if (bagStop()) return true;
+      var r = L.trnPick(S, route, k, t, Math.random, TRN_TZ);
+      if (!r) return true;
+      var it = L.trnItem(r.id), rare = it.w < 50;
+      burst(sp[0], sp[1] - 4, rare ? 12 : 6, 0, 50);
+      floatText('+' + it.name, sp[0], sp[1] - 12);
+      toast((r.first ? '★ 처음 · ' : '') + it.name + (r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에'), 2200);
+      refresh(); return true;
+    }
+    return false;
+  }
+  var TRN_FISH_SAY = { valley: '계곡 낚시 · 물을 눌러 던지기 · 물가 팻말을 누르면 계곡 마을로',
+    onsen: '온천 호수 낚시 · 물을 눌러 던지기 · 물가 팻말을 누르면 온천 마을로',
+    snow: '얼음낚시 · 얼음을 눌러 구멍에 던지기 · 물가 팻말을 누르면 설원 고개로' };
+  function trnFish(route) {
+    var was = L.curSpot(S);
+    if (was !== route && !goSpot(route)) { toast('줄을 걷고 나서 옮길 수 있어요', 2000); return; }
+    if (was !== route && !TRN_VIEW[was]) trnPrevSpot = was;
+    goScene('farm');
+    toast(TRN_FISH_SAY[route], 2800);
+  }
+
+  // ---------- farm view at a route's spot: 계곡 boulders / 온천 steam, and a sign back up to the destination ----------
+  var TRN_FARM_SIGN = [118, 108, 16, 16];   // 계곡: below the fence posts, clear of the 강 bank
+  var TRN_LAKE_SIGN = [20, 170, 16, 16];    // 온천·설원 (the 연못 shape): bottom-left shore, clear of the water and the rod
+  function trnFarmSign() { return scene === 'valley' ? TRN_FARM_SIGN : TRN_LAKE_SIGN; }
+  function drawTrnWater(tt) {
+    if (!TRN_VIEW[scene]) return;
+    if (scene === 'valley') [[150, 150], [124, 186], [176, 172]].forEach(function (r) {
+      px(r[0] - 4, r[1] - 3, 8, 1, 4); px(r[0] - 5, r[1] - 2, 10, 3, 4); px(r[0] - 4, r[1] - 2, 6, 1, 1); px(r[0] - 6, r[1] + 1, 12, 1, reduceMotion || Math.floor(tt * 2) % 2 ? 0 : 2);
+    });
+    if (scene === 'onsen' && !reduceMotion) trnSteam(tt, [[POND.cx - 30, POND.cy + 4], [POND.cx + 20, POND.cy - 10], [POND.cx + 34, POND.cy + 16]], 14);
+    var s = trnFarmSign();
+    px(s[0] + 7, s[1] + 5, 1, 11, 4); px(s[0], s[1], 16, 7, 4); px(s[0] + 1, s[1] + 1, 14, 5, 0);
+    for (var k = 0; k < 5; k++) px(s[0] + 3 + k * 2, s[1] + 4 - (k % 3), 2, 1, 3);           // a little ridge
+    px(s[0] - 2, s[1] + 2, 2, 3, 4);                                                        // arrow back
+  }
+  function tapTrnWater(x, y) {
+    if (view !== 'farm' || !TRN_VIEW[scene] || S.fish.phase !== 'idle' || !hit(trnFarmSign(), x, y, 2)) return false;
+    var res = L.trnBoard(S, scene, now(), TRN_TZ);
+    if (!res.ok) { toast(TRN_WHY[res.why] || '탈 수 없어요', 2000); trnSpotBack(); refresh(); return true; }
+    goScene(TRN_VIEW[scene]);
+    return true;
+  }
+
+  // ---------- 온천 마을 / 설원 고개 views: same stop (shop, platform) and 특산물 spots, a lake below; the 온천 has a bath house ----------
+  var TRN_LAKE = { cx: 128, cy: 152, rx: 42, ry: 22 };
+  var TRN_DSPOTS = [[62, 122], [74, 158], [118, 192]];
+  var TRN_BATH = [98, 56, 56, 42], TRN_POOL = [100, 100, 52, 14];
+  function trnLakeD(x, y) { var a = (x - TRN_LAKE.cx) / TRN_LAKE.rx, b = (y - TRN_LAKE.cy) / TRN_LAKE.ry; return a * a + b * b; }
+  // steam: little puffs drifting up from each source (x, y), h px high
+  function trnSteam(tt, at, h) {
+    at.forEach(function (p, j) {
+      for (var q = 0; q < 3; q++) {
+        var rise = (tt * 5 + j * 4 + q * h / 3) % h;
+        px(p[0] + Math.round(Math.sin(tt * 1.6 + q + j) * 2), p[1] - rise, 2, 1, 0);
+      }
+    });
+  }
+  function trnPaintDest(route) {
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var saved = ctx, snow = route === 'snow', k;
+    ctx = c.getContext('2d');
+    for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
+      var r = snow ? trnRidge(x) : 52 + Math.round(Math.sin(x / 31) * 6 + Math.sin(x / 11) * 2), d = trnLakeD(x, y), cc;
+      if (y < r) cc = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                          // ridges (white caps on the 설원)
+      else if (d < 1) cc = snow ? (d > 0.9 ? 2 : (x * 2 + y * 5) % 17 === 0 ? 2 : 1) : (d > 0.9 ? 2 : d < 0.35 ? ((x + y) % 2 ? 2 : 1) : (x % 4 === 0 && y % 2 === 0 ? 2 : 1));
+      else if (d < 1.2) cc = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;            // shore stones
+      else cc = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
+      px(x, y, 1, 1, cc);
+    }
+    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    [[20, 62], [44, 112], [172, 92], [164, 196], [14, 118], [90, 66]].forEach(function (t) {     // pines (snow on their tiers)
+      for (var j = 0; j < 12; j++) px(t[0] - Math.floor(j / 2), t[1] - 12 + j, 1 + Math.floor(j / 2) * 2, 1, snow && j % 4 === 0 ? 0 : j % 3 ? 3 : 4);
+      px(t[0], t[1], 1, 3, 4);
+    });
+    if (snow) {
+      [[112, 150], [140, 158]].forEach(function (h) { px(h[0] - 3, h[1] - 1, 7, 3, 4); px(h[0] - 4, h[1], 9, 1, 4); px(h[0] - 2, h[1], 5, 1, 3); px(h[0] - 4, h[1] + 2, 9, 1, 2); });   // ice holes
+      [[96, 144, 1], [150, 146, -1]].forEach(function (cr) { for (k = 0; k < 10; k++) px(cr[0] + k, cr[1] + Math.round(Math.sin(k) * 1.5) * cr[2], 1, 1, 2); });
+    } else {
+      var b = TRN_BATH, p = TRN_POOL;                                                         // bath house: tiled roof, wall, curtain door, ♨ board
+      for (k = 0; k < 10; k++) px(b[0] + 8 - k, b[1] + k, b[2] - 16 + k * 2, 1, k % 3 === 2 ? 3 : 4);
+      px(b[0] + 3, b[1] + 10, b[2] - 6, 22, 4); px(b[0] + 4, b[1] + 11, b[2] - 8, 21, 1);
+      px(b[0] + 22, b[1] + 16, 12, 16, 4); px(b[0] + 23, b[1] + 17, 10, 5, 2);
+      for (k = 0; k < 4; k++) px(b[0] + 23 + k * 3, b[1] + 22, 1, 10, 3);
+      px(b[0] + 7, b[1] + 15, 10, 8, 4); px(b[0] + 8, b[1] + 16, 8, 6, 0); px(b[0] + 41, b[1] + 15, 8, 8, 4); px(b[0] + 42, b[1] + 16, 6, 6, 0);
+      px(b[0] + 18, b[1] - 6, 20, 7, 4); px(b[0] + 19, b[1] - 5, 18, 5, 0);
+      px(b[0] + 23, b[1] - 3, 10, 1, 4); px(b[0] + 23, b[1] - 2, 1, 1, 4); px(b[0] + 32, b[1] - 2, 1, 1, 4);   // the ♨ bowl
+      for (k = 0; k < 3; k++) { px(b[0] + 25 + k * 3, b[1] - 5, 1, 1, 4); px(b[0] + 26 + k * 3, b[1] - 4, 1, 1, 4); }
+      px(p[0], p[1], p[2], p[3], 3); px(p[0] + 2, p[1] + 2, p[2] - 4, p[3] - 4, 1);              // the outdoor pool: stones, water
+      for (k = 0; k < p[2]; k += 5) px(p[0] + k, p[1], 3, 1, 4);
+      px(p[0] + 4, p[1] + 4, 8, 1, 2); px(p[0] + 30, p[1] + 8, 10, 1, 2);
+    }
+    trnPaintStop(snow ? 0 : 2);
+    ctx = saved;
+    return c;
+  }
+  var bgTrnDest = {};
+  function trnDrawDest(route, tt) {
+    var t = now(), e = curEnv(t), night = e.phase === 'night', k;
+    if (!bgTrnDest[route]) bgTrnDest[route] = trnPaintDest(route);
+    ctx.drawImage(bgTrnDest[route], 0, 0);
+    drawSky(tt, e.phase);
+    var ps = L.trnPicksNow(S, route, t);
+    TRN_DSPOTS.forEach(function (sp, j) {
+      px(sp[0] - 5, sp[1] + 1, 11, 1, 2);
+      if (!ps[j]) { px(sp[0] - 1, sp[1] - 1, 1, 1, 3); px(sp[0] + 2, sp[1], 1, 1, 3); return; }
+      trnPickArt(ps[j], sp[0], sp[1]);
+      if (L.trnItem(ps[j]).w < 50) sparkle(sp[0] + 6, sp[1] - 10, tt + j * 0.4);
+    });
+    if (route === 'onsen') {
+      if (!reduceMotion) trnSteam(tt, [[TRN_POOL[0] + 10, TRN_POOL[1] + 2], [TRN_POOL[0] + 26, TRN_POOL[1] + 2], [TRN_POOL[0] + 42, TRN_POOL[1] + 2],
+        [TRN_LAKE.cx - 20, TRN_LAKE.cy - 4], [TRN_LAKE.cx + 16, TRN_LAKE.cy + 6]], 16);
+      if (L.trnBathLeft(S, t)) for (k = 0; k < 2; k++) sparkle(TRN_POOL[0] + 14 + k * 24, TRN_POOL[1] - 4, tt + k * 0.5);   // bathed: it glints
+    }
+    drawYardWeather(tt, route === 'snow' && e.weather === 'rain' ? 'snow' : e.weather);   // rain falls as snow up on the pass
+    if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
+    if (night) drawStars(tt);
+  }
+  function trnTapDest(route, x, y) {
+    var t = now();
+    if (hit(TRN_VSTN, x, y, 1)) { trnGo('trnback'); return; }
+    if (hit(TRN_SHOP, x, y, 1)) { trnOpenShop(route); return; }
+    if (route === 'onsen' && (hit(TRN_BATH, x, y, 1) || hit(TRN_POOL, x, y, 1))) { trnTakeBath(); return; }
+    if (trnTapPick(route, TRN_DSPOTS, x, y, t)) return;
+    if (trnLakeD(x, y) < 1.15) { trnFish(route); return; }
+    var nx = L.trnPickNext(S, route, t), names = L.TRN_PICKS.filter(function (p) { return p.route === route; }).map(function (p) { return p.name; }).join('·');
+    toast(L.trnRoute(route).name + ' · ' + (route === 'snow' ? '얼음 호수를 누르면 얼음낚시' : '호수를 누르면 낚시 · 온천장을 누르면 하루 한 번 온천욕') + ' · ' + names + ' 줍기 · 기념품 가게 · 승강장이나 「역으로」로 돌아가기' +
+      (nx !== null && !L.trnPicksNow(S, route, t).some(Boolean) ? ' · 다음 특산물 ' + fmtLeft(Math.max(0, nx - t)) : ''), 3000);
+  }
+
+  // ---------- 온천욕 and its header chip (minutes of quicker bites left) ----------
+  function trnTakeBath() {
+    var t = now(), res = L.trnBath(S, t, TRN_TZ), left = L.trnBathLeft(S, t);
+    if (!res.ok) { toast((TRN_WHY[res.why] || '지금은 못 해요') + (left ? ' · 입질 빠르게 ' + Math.ceil(left / SPEED / 60e3) + '분 남음' : ''), 2400); return; }
+    burst(TRN_POOL[0] + 26, TRN_POOL[1] + 4, 14, 0, 40);
+    toast('♨ 온천욕 · 한 시간 동안 어디서 낚든 입질이 빨라져요', 3200);
+    refresh();
+  }
+  var trnBathChip = document.createElement('button');
+  trnBathChip.type = 'button'; trnBathChip.id = 'trnBathChip'; trnBathChip.hidden = true;
+  trnBathChip.title = '온천욕 · 입질이 빨라진다'; trnBathChip.setAttribute('aria-label', '온천욕 남은 시간 자세히');
+  var trnBathIcon = document.createElement('canvas'); trnBathIcon.width = 7; trnBathIcon.height = 7;
+  spr(['.4.4.4.', '4.4.4..', '.4.4.4.', '.......', '4.....4', '4.....4', '.44444.'], 0, 0, false, trnBathIcon.getContext('2d'));
+  var trnBathLabel = document.createElement('span');
+  trnBathChip.appendChild(trnBathIcon); trnBathChip.appendChild(trnBathLabel);
+  coinsEl.after(trnBathChip);
+  trnBathChip.addEventListener('click', function () {
+    var left = L.trnBathLeft(S, now());
+    if (left) toast('♨ 온천욕 · 입질 대기 ×' + L.TRN_BATH_MUL + ' · ' + fmtReal(left) + ' 남음', 3000);
+  });
+  function trnTick(t) {
+    var left = L.trnBathLeft(S, t);
+    trnBathChip.hidden = !left;
+    if (left) trnBathLabel.textContent = Math.max(1, Math.ceil(left / SPEED / 60e3)) + '분';
+  }
+
+  // ---------- 기념품 가게 sheet ----------
+  var trnShopRoute = 'valley';
+  function trnOpenShop(route) {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    trnShopRoute = route; sheetKind = 'trnshop'; sheetEl.hidden = false;
+    trnRenderShop();
+  }
+  function trnRenderShop() {
+    sheetHead(L.trnRoute(trnShopRoute).name + ' 기념품 가게');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = '주인: 여기서만 파는 거예요. 마당에 두면 여행 생각이 날 거예요.';
+    sheetEl.appendChild(say);
+    L.TRN_SOUVENIRS.filter(function (w) { return w.route === trnShopRoute; }).forEach(function (w) {
+      var have = !!(S.yard && S.yard.deco[w.id]);
+      var r = sheetRow(decoIcon(w.id), w.name, have ? '샀어요 · 마당 꾸미기에서 옮기기' : '마당 장식 · 하나만 살 수 있어요', have ? 'idle' : '');
+      trnBtn(r, have ? '있음' : w.cost.toLocaleString('ko-KR'), function () {
+        var res = L.trnBuySouvenir(S, w.id, now(), TRN_TZ);
+        if (!res.ok) { toast(TRN_WHY[res.why] || (res.why === 'owned' ? '이미 샀어요' : '살 수 없어요')); return; }
+        toast(w.name + (res.stored ? ' · 보관함에' : ' · 마당에 놓았다'), 2400);
+        refresh(); trnRenderShop();
+      }, w.name + ' 사기 ' + w.cost + '코인', have || S.coins < w.cost);
+    });
+  }
+
+  // ---------- views (yard.js drawScene/tapScene) ----------
+  function trnDrawView(tt) { if (view === 'trnride') trnDrawRide(tt); else if (view === 'trnvalley') trnDrawValley(tt); else trnDrawDest(view === 'trnonsen' ? 'onsen' : 'snow', tt); }
+  function trnTapView(x, y) { if (view === 'trnride') trnArrive(); else if (view === 'trnvalley') trnTapValley(x, y); else trnTapDest(view === 'trnonsen' ? 'onsen' : 'snow', x, y); }
+
+  // ---------- console hooks ----------
+  function addTrnHooks(FF) {
+    function openRoute(id) {
+      var r = L.trnRoute(id);
+      if (!L.villageOk(S)) S.rep = Math.max(S.rep, L.VILLAGE_REP);
+      if (!L.trnOk(S, id)) {
+        if (r.rep) S.rep = Math.max(S.rep, r.rep);
+        if (r.after) openRoute(r.after);
+        if (r.station) { S.port = S.port || { got: {}, done: {} }; S.port.done.station = true; }
+        S.coins += L.TRN_OPEN[id];
+        L.trnOpen(S, id, now());
+      }
+      if (!L.trnTicket(S, id, now(), TRN_TZ)) { S.coins += L.TRN_FARE[id]; L.trnBuyTicket(S, id, now(), TRN_TZ); }   // today's ticket: picks and 기념품 need it
+    }
+    // FF.train() opens the 마을 간이역; FF.train('valley' | 'onsen' | 'snow') opens the route (and the ones before it),
+    // buys today's ticket and rides; FF.train('pick', route = 'valley') makes every 특산물 spot ready and goes there;
+    // FF.train('souvenir') gives the coins for every 기념품, buys them and shows the 마당; FF.train('bath') opens the 온천,
+    // forgets today's 온천욕 and takes one → s.train
+    FF.train = function (cmd, arg) {
+      if (cmd === 'souvenir') {
+        L.TRN_SOUVENIRS.forEach(function (w) { openRoute(w.route); if (!(S.yard && S.yard.deco[w.id])) { S.coins += w.cost; L.trnBuySouvenir(S, w.id, now(), TRN_TZ); } });
+        closeSheet(); goScene('yard'); refresh();
+      } else if (cmd === 'pick') {
+        var to = TRN_VIEW[arg] ? arg : 'valley';
+        openRoute(to);
+        Object.keys(S.train.pick).forEach(function (id) { S.train.pick[id].forEach(function (p) { p.at = 0; }); });
+        closeSheet(); goScene(TRN_VIEW[to]); refresh();
+      } else if (cmd === 'bath') {
+        openRoute('onsen');
+        delete S.train.bath;
+        closeSheet(); goScene('trnonsen'); trnTakeBath();
+      } else if (L.trnRoute(cmd)) {
+        openRoute(cmd);
+        refresh();
+        if (TRN_VIEW[cmd]) trnGetOn(cmd); else trnOpenSheet(L.trnRoute(cmd).from);
+      } else {
+        if (!L.villageOk(S)) S.rep = Math.max(S.rep, L.VILLAGE_REP);
+        goScene('village'); trnOpenSheet('village');
+      }
+      return S.train || null;
+    };
+  }
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -19904,6 +20753,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     tickContestUI(t);  // stage 10 ①: 낚시 대회 week, 결산 카드 year
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
+    trnTick(t);        // 기차 여행: 온천욕 chip
     renderTray();
     updateTitle();
   }
@@ -20142,6 +20992,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
   addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
   addMysHooks(globalThis.FF);      // 내 가게: FF.myshop() opens the shop sheet, FF.myshop('build') builds it
+  addTrnHooks(globalThis.FF);      // 기차 여행: FF.train() station sheet, FF.train('valley') open + ticket + ride, FF.train('pick')
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

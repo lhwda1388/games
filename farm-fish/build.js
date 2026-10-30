@@ -114,6 +114,8 @@ const LOGIC = [
   'logic/arcade.js',    // 게임장: bets, daily prize cap, 두더지·짝 맞추기·공 던지기·슬롯 rules (s.arcade); after toys/village, before guide.js
   // 내 가게
   'logic/myshop.js',    // 내 가게: shelves, lazy customers by real time, decorations, 등급, 금고 (s.mys); after market/arcade, before guide.js
+  // 기차 여행
+  'logic/train.js',     // 기차 여행: routes, 개통비·하루 기차표, 산골 계곡 fish/picks/기념품 (s.train); after port/junk/yard, before guide.js and dex.js
   // stage 8 ④ 이펙트
   'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
   'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
@@ -206,6 +208,8 @@ const UI = [
   'ui/arcade.js',       // 게임장 building on the 마을 street, game overlay (고르기·내기·4 games), FF.arcade
   // 내 가게
   'ui/myshop.js',       // 내 가게 building on the 마을 upper lane (빈 가게 터 sign first), shop sheet, FF.myshop
+  // 기차 여행
+  'ui/train.js',        // 마을 간이역 + station sheet, 포구 기차역 ride entry, ride scene, 산골 계곡 view, souvenir art, FF.train
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold

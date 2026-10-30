@@ -103,7 +103,7 @@ test('seasonal crops: one per season, plantable only in season, keep growing aft
 });
 
 test('seasonal fish: 2–3 per season across spots, only in their season, with hints', () => {
-  const sf = L.FISH.filter((f) => f.season && f.id !== 'snakehead' && !['island', 'offshore', 'ocean'].includes(f.spot));   // stage 7 섬 fish: stage7c.test.js
+  const sf = L.FISH.filter((f) => f.season && f.id !== 'snakehead' && !['island', 'offshore', 'ocean', 'valley', 'onsen', 'snow'].includes(f.spot));   // stage 7 섬 fish: stage7c.test.js
   for (const se of L.SEASONS) {
     const n = sf.filter((f) => f.season === se).length;
     assert.ok(n >= 2 && n <= 3, se + n);

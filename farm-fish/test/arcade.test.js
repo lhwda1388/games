@@ -74,6 +74,16 @@ test('arcade: prize plays are capped per real local day; then only free play; th
   assert.equal(L.arcLeft(z, 1000 * DAY + 15.5 * H, 540), L.ARC_DAY_CAP, 'midnight passed at +9');
 });
 
+test('arcade: a day counted under a clock set far ahead does not cap the real day', () => {
+  const s = town(1e6);
+  for (let k = 0; k < L.ARC_DAY_CAP; k++) assert.ok(L.arcStart(s, 'slot', null, 100, T + 30 * DAY, 0).ok);
+  assert.equal(L.arcLeft(s, T + 30 * DAY, 0), 0);
+  assert.equal(L.arcLeft(s, T + 29 * DAY, 0), 0, 'one day back is still the same cap');
+  assert.equal(L.arcLeft(s, T, 0), L.ARC_DAY_CAP, 'clock corrected: a fresh day');
+  assert.ok(L.arcStart(s, 'slot', null, 100, T, 0).ok);
+  assert.deepEqual(s.arcade, { d: 1000, n: 1 });
+});
+
 test('arcade: 두더지 — layout fits the time, hits count, 고슴도치 costs, need rises with difficulty', () => {
   const e = L.ARC_MOLE.easy, n = L.ARC_MOLE.normal, h = L.ARC_MOLE.hard;
   assert.ok(e.need < n.need && n.need < h.need, 'higher target');
