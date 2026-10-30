@@ -20,14 +20,14 @@
     { id: 'mine', name: '광물' }
   ];
   var MKT_KIND = { crop: 'crop', isle: 'sea', dive: 'sea', forage: 'wild', flat: 'wild', fruit: 'farm', honey: 'farm', product: 'farm',
-    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine' };
+    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine', trn: 'wild' };
 
   function mktDay(now, tzMin) { return toyDay(now, tzMin); }
   // item id → 종목 id, or null (no 종목: always ×1)
   function mktStock(id) {
     var it = itemInfo(id);
     if (!it) return null;
-    if (it.kind === 'fish') { var sp = fishById(id).spot; return !sp || sp === 'pond' || sp === 'river' ? 'fresh' : 'sea'; }
+    if (it.kind === 'fish') { var sp = fishById(id).spot; return !sp || sp === 'pond' || sp === 'river' || (SPOTS[sp] && SPOTS[sp].fresh) ? 'fresh' : 'sea'; }
     return MKT_KIND[it.kind] || null;
   }
   // one day's nudge for 종목 k: −1..1, a pure hash of (day, 종목)

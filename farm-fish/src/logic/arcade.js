@@ -42,10 +42,12 @@
   var ARC_SLOT_PAY = { seven: 20, three: 5, two: 1.5 };
 
   function arcGame(id) { for (var k = 0; k < ARC_GAMES.length; k++) if (ARC_GAMES[k].id === id) return ARC_GAMES[k]; return null; }
-  // same local day number as the 날씨 장난감 (toys.js); only a later day resets it, so a clock set back can't
+  // same local day number as the 날씨 장난감 (toys.js); only a later day resets it, so a clock set back can't.
+  // A stored day more than 1 day ahead was counted under a wrong clock: it counts as a fresh day.
+  function arcFresh(q, d) { return !q || d > q.d || q.d - d > 1; }
   function arcLeft(s, now, tzMin) {
     var q = s.arcade;
-    return !q || toyDay(now, tzMin) > q.d ? ARC_DAY_CAP : Math.max(0, ARC_DAY_CAP - q.n);
+    return arcFresh(q, toyDay(now, tzMin)) ? ARC_DAY_CAP : Math.max(0, ARC_DAY_CAP - q.n);
   }
   // → { ok, play } or { ok: false, why }. bet 0 = 그냥 놀기, only once today's prize plays are used up.
   // play = { game, diff, bet, mul } is handed back to arcPay when the round ends.
@@ -60,7 +62,7 @@
     if (left <= 0) return { ok: false, why: 'cap' };
     if (s.coins < bet) return { ok: false, why: 'coins' };
     var d = toyDay(now, tzMin);
-    if (!s.arcade || d > s.arcade.d) s.arcade = { d: d, n: 0 };
+    if (arcFresh(s.arcade, d)) s.arcade = { d: d, n: 0 };
     s.arcade.n++;
     s.coins -= bet;
     return { ok: true, play: { game: game, diff: g.luck ? null : diff, bet: bet, mul: g.luck ? 0 : ARC_MUL[diff] } };

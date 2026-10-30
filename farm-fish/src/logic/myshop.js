@@ -8,7 +8,7 @@
   // s.mys = { sl: slots, it: [{ id, v: [values] } | null], lv: 등급 index, dec: { id: true }, t: ms settled up to,
   //   till: coins waiting, tn: units sold into the till, n: units sold ever } is made when the shop is built.
   // Every number here is a tuning knob; why each is what it is: tools/BALANCE.md 「내 가게 조정」.
-  var MYS_PRICE = 30000;                                  // building the shop
+  var MYS_PRICE = 25000;                                  // building the shop
   var MYS_SLOTS0 = 3, MYS_SLOTS_MAX = 8;
   var MYS_SLOT_COST = [4000, 7000, 11000, 16000, 22000];  // the 4th … 8th slot
   var MYS_STACK = 10;                                     // units of one item per slot
@@ -164,7 +164,7 @@
     var q = o.mys;
     function ok(x) { return typeof x === 'number' && isFinite(x) && x >= 0; }
     if (!q || typeof q !== 'object') return;
-    if (!Array.isArray(q.it)) q = Object.assign({}, q, { it: [] });   // a bad field loses that field, never the 30,000-coin shop
+    if (!Array.isArray(q.it)) q = Object.assign({}, q, { it: [] });   // a bad field loses that field, never the 25,000-coin shop
     var sl = ok(q.sl) ? Math.min(MYS_SLOTS_MAX, Math.max(MYS_SLOTS0, Math.floor(q.sl))) : MYS_SLOTS0, it = [], dec = {};
     for (var k = 0; k < sl; k++) {
       var e = q.it[k], v = e && typeof e === 'object' && itemInfo(e.id) && Array.isArray(e.v) ? e.v.filter(ok).slice(0, MYS_STACK).map(Math.round) : [];

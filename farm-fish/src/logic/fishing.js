@@ -94,14 +94,14 @@
     var f = fishById(roll.id);
     return Math.max(0, Math.min(1, (roll.size - f.min) / (f.max - f.min)));
   }
-  // stage 8: 입질 폭풍 at this spot and 입질 좋은 날 shorten the wait
-  function waitMs(s, rng, env) {
-    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1));
+  // stage 8: 입질 폭풍 at this spot and 입질 좋은 날 shorten the wait; so does an 온천욕 within its hour (train.js)
+  function waitMs(s, rng, env, now) {
+    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1) * trnBathMul(s, now));
   }
   function nextNibble(s, from, rng) { return from + Math.round((NIB_MIN + rng() * NIB_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
   function cast(s, now, rng, x, y, env) {
     if (s.fish.phase !== 'idle') return false;
-    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng, env), nibAt: 0, nibEnd: 0 };
+    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng, env, now), nibAt: 0, nibEnd: 0 };
     s.fish.nibAt = nextNibble(s, now, rng);
     return true;
   }
@@ -142,7 +142,7 @@
     if (f.phase === 'bite') { var roll = hook(s, now); return roll ? { type: 'hook', roll: roll } : null; }
     if (f.phase !== 'wait') return null;
     var wasNibble = now < f.nibEnd;
-    f.biteAt = now + waitMs(s, rng, env);
+    f.biteAt = now + waitMs(s, rng, env, now);
     f.nibAt = nextNibble(s, now, rng);
     f.nibEnd = 0;
     return { type: 'scared', nibble: wasNibble };

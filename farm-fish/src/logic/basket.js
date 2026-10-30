@@ -35,6 +35,7 @@
     var hn = honeyById(id); if (hn) return { id: id, kind: 'honey', name: hn.name, price: hn.price };   // stage 6A
     var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
     var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
+    var tn = trnItem(id); if (tn) return { id: id, kind: 'trn', name: tn.name, price: tn.price };   // 기차 여행 특산물
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -51,6 +52,7 @@
     if (honeyById(id)) return !!(s.bees && s.bees.hives.length && (id === 'wildhoney' || s.bees.dex[id]));   // stage 6A
     if (flatById(id)) return flatOk(s);   // stage 7 갯벌
     if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
+    if (trnItem(id)) return trnOk(s, trnItem(id).route);   // 기차 여행
     return false;
   }
 
