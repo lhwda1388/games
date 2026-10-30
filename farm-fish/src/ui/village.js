@@ -115,6 +115,7 @@
     drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
     drawPortSign(tt);      // stage 11 ①: 「끊긴 다리」 → 옛 포구
     drawArcade(tt);        // 게임장
+    trnDraw(tt);           // 기차 여행: 마을 간이역
     drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
@@ -128,6 +129,7 @@
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
     if (tapArcade(x, y)) return;        // 게임장
+    if (trnTap(x, y)) return;           // 기차 여행: 마을 간이역
     if (!hit([139, 15, 11, 12], x, y) && mysTap(x, y)) return;   // 내 가게, except the 식당 attention mark drawn over its window
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });

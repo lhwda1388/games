@@ -40,7 +40,7 @@
 
   // 강: streaks carried along the bend; 바다: wave lines rolling onto the sand
   function drawCurrent(tt) {
-    var sc = SCENES.river;
+    var sc = SCENES[scene].mid ? SCENES[scene] : SCENES.river;
     for (var k = 0; k < 22; k++) {
       var r = sc.mid - sc.half * 0.85 + hash(k * 7 + 3) * sc.half * 1.7;
       var th = Math.PI + ((hash(k * 13 + 1) + tt * 2.2 / r) % 1) * Math.PI * 0.62 - 0.06;

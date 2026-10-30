@@ -9,6 +9,8 @@
     river: { cx: 145, cy: 170, rx: 34, ry: 20, ox: 210, oy: 228, mid: 87, half: 35 },
     sea:   { cx: 152, cy: 178, rx: 34, ry: 22, ox: 240, oy: 250, r: 150 },
     island: { cx: 146, cy: 176, rx: 38, ry: 22, ox: 236, oy: 256, r: 162 },  // stage 7 섬: open sea like 바다, a wider bay
+    valley: { cx: 140, cy: 172, rx: 30, ry: 18, ox: 210, oy: 228, mid: 87, half: 28 },   // 기차 여행 산골 계곡: a narrower 강
+    onsen: { cx: 116, cy: 148, rx: 58, ry: 38 }, snow: { cx: 116, cy: 148, rx: 58, ry: 38 },   // 온천 호수·설원 얼음 호수: the 연못 shape, stony shore
     offshore: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }, ocean: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }   // stage 9 ① 먼바다·난바다
   };
   var scene = 'pond';
@@ -17,7 +19,7 @@
   // visible water: < 1 is water, a little above 1 is the shore
   function wetD(x, y) {
     var sc = SCENES[scene];
-    if (scene === 'river') return Math.abs(Math.hypot(x - sc.ox, y - sc.oy) - sc.mid) / sc.half;
+    if (sc.mid) return Math.abs(Math.hypot(x - sc.ox, y - sc.oy) - sc.mid) / sc.half;
     if (sc.r) return Math.hypot(x - sc.ox, y - sc.oy) / sc.r;   // 바다, 섬, 먼바다·난바다
     var a = (x - POND.cx) / POND.rx, b = (y - POND.cy) / POND.ry; return a * a + b * b;
   }

@@ -170,6 +170,7 @@
   function tapPort(x, y) {
     if (typeof tapPortExtra_auction === 'function' && tapPortExtra_auction(x, y)) return;   // stage 11 ②
     if (typeof tapPortExtra_dive === 'function' && tapPortExtra_dive(x, y)) return;         // stage 12
+    if (typeof tapPortExtra_train === 'function' && tapPortExtra_train(x, y)) return;       // 기차 여행: 설원행
     if (hit(PORT_AT.granny, x, y, 4)) { portSay = L.grannyLine(S, Math.random); toast(portSay + ' · ' + L.portHint(S), 3800); return; }
     if (hit(PORT_AT.bridge, x, y, 2)) { openPortSheet('bridge'); return; }
     var ids = ['shipyard', 'market', 'station'];

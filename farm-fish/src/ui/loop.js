@@ -32,6 +32,7 @@
     tickContestUI(t);  // stage 10 ①: 낚시 대회 week, 결산 카드 year
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
+    trnTick(t);        // 기차 여행: 온천욕 chip
     renderTray();
     updateTitle();
   }

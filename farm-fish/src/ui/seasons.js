@@ -175,7 +175,7 @@
     });
     ctx = saved;
   }
-  function frozen() { return scene === 'pond' && seasonNow() === 'winter'; }
+  function frozen() { return (scene === 'pond' && seasonNow() === 'winter') || scene === 'snow'; }   // 설원 얼음 호수: frozen all year
   function drawIce(tt) {
     if (!frozen()) return;
     if (!iceCv) paintIce();

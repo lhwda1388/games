@@ -224,10 +224,11 @@
 
 
   function drawWater(tt, dt) {
-    if (scene === 'river') drawCurrent(tt);
+    if (scene === 'river' || scene === 'valley') drawCurrent(tt);
     else if (scene === 'sea') drawWaves(tt);
     drawIsleWater(tt);   // stage 7 섬: old boat on the 바다 beach, 섬 waves and palm, lighthouse light at night
     drawShipWater(tt);   // stage 9 ①: 먼바다·난바다 sliding past the boat
+    drawTrnWater(tt);    // 기차 여행: 계곡 boulders and the sign back up
     // water glints: slow, sparse
     for (var k = 0; k < 7 && scene === 'pond'; k++) {
       var ph = (tt * 0.25 + hash(k * 11) * 4) % 4;
