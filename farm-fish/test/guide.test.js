@@ -93,9 +93,9 @@ test('guideNew lists open unseen entries; guideSee clears them', () => {
   L.guideSee(s, n0);
   assert.deepEqual(L.guideNew(s), []);
   s.rep = 5;
-  assert.deepEqual(L.guideNew(s), ['village', 'story', 'balloon', 'sled', 'townday', 'arcade']);   // 열기구·썰매 live on the 마을 언덕; stage 10 ③ 주민들의 하루; 게임장
+  assert.deepEqual(L.guideNew(s), ['village', 'story', 'balloon', 'sled', 'townday', 'arcade', 'myshop']);   // 열기구·썰매 live on the 마을 언덕; stage 10 ③ 주민들의 하루; 게임장, 내 가게
   L.guideSee(s, ['village', 'bogus']);
-  assert.deepEqual(L.guideNew(s), ['story', 'balloon', 'sled', 'townday', 'arcade']);
+  assert.deepEqual(L.guideNew(s), ['story', 'balloon', 'sled', 'townday', 'arcade', 'myshop']);
   assert.equal(s.guide.seen.bogus, undefined);
 });
 

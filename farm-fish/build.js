@@ -112,6 +112,8 @@ const LOGIC = [
   'logic/dive.js',      // 잠수: gates, gear, 해저 도감, 항해일지, 난파선 상자 (s.dive); after divemap.js, before guide.js
   // 게임장
   'logic/arcade.js',    // 게임장: bets, daily prize cap, 두더지·짝 맞추기·공 던지기·슬롯 rules (s.arcade); after toys/village, before guide.js
+  // 내 가게
+  'logic/myshop.js',    // 내 가게: shelves, lazy customers by real time, decorations, 등급, 금고 (s.mys); after market/arcade, before guide.js
   // stage 8 ④ 이펙트
   'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
   'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
@@ -202,6 +204,8 @@ const UI = [
   'ui/divemap.js',      // minimap overlay, 해저 도감 rows, dive thing art and basket icons
   // 게임장
   'ui/arcade.js',       // 게임장 building on the 마을 street, game overlay (고르기·내기·4 games), FF.arcade
+  // 내 가게
+  'ui/myshop.js',       // 내 가게 building on the 마을 upper lane (빈 가게 터 sign first), shop sheet, FF.myshop
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold

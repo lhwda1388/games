@@ -7537,6 +7537,190 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     throwSetup: throwSetup, throwX: throwX, throwShot: throwShot, throwHits: throwHits,
     slotSpin: slotSpin, slotMul: slotMul, decodeArcade: decodeArcade
   });
+  // ---------- 내 가게: a shop on the 마을 upper lane that sells what the player puts on its 진열대 ----------
+  // Customers are worked out lazily from real time (the game may be closed): one every mysGap ms, each buys one unit.
+  // Gaps missed while away count only for the last MYS_CATCHUP ms. s.mys.t only moves forward, so a clock set back
+  // sells nothing and the same stretch of time never sells twice.
+  // Price = item value × that sale day's 장터 시세 for its 종목 (market.js mktPrice) × the 가게 등급 bonus.
+  // No slippage: customers are not the 장터 (s.mkt is never touched); the customer gap already caps how much sells.
+  // Coins go to the 금고 (s.mys.till); the UI empties it into the wallet when the shop is opened.
+  // s.mys = { sl: slots, it: [{ id, v: [values] } | null], lv: 등급 index, dec: { id: true }, t: ms settled up to,
+  //   till: coins waiting, tn: units sold into the till, n: units sold ever } is made when the shop is built.
+  // Every number here is a tuning knob; why each is what it is: tools/BALANCE.md 「내 가게 조정」.
+  var MYS_PRICE = 25000;                                  // building the shop
+  var MYS_SLOTS0 = 3, MYS_SLOTS_MAX = 8;
+  var MYS_SLOT_COST = [4000, 7000, 11000, 16000, 22000];  // the 4th … 8th slot
+  var MYS_STACK = 10;                                     // units of one item per slot
+  var MYS_GAP = 15 * 60e3;                                // ms between customers before decorations
+  var MYS_GAP_FLOOR = 0.5;                                // decorations never cut the gap below this share
+  var MYS_CATCHUP = 12 * 3600e3;                          // most time away that still brings customers
+  var MYS_BONUS = [1.2, 1.25, 1.3, 1.4, 1.5];             // price × this, by 가게 등급 (level 1 … 5)
+  var MYS_LV_COST = [0, 20000, 45000, 90000, 160000];     // coins to reach that 등급
+  var MYS_DECO = [                                        // cut = share taken off the customer gap
+    { id: 'sign', name: '간판', price: 5000, cut: 0.1 },
+    { id: 'pot', name: '화분', price: 3000, cut: 0.05 },
+    { id: 'lamp', name: '조명', price: 8000, cut: 0.1 },
+    { id: 'bell', name: '풍경', price: 4000, cut: 0.05 },
+    { id: 'flag', name: '깃발', price: 6000, cut: 0.1 }
+  ];
+
+  function mysDeco(id) { for (var k = 0; k < MYS_DECO.length; k++) if (MYS_DECO[k].id === id) return MYS_DECO[k]; return null; }
+  // ms between customers now
+  function mysGap(s) {
+    var cut = 0, d = s.mys ? s.mys.dec : {};
+    MYS_DECO.forEach(function (x) { if (d[x.id]) cut += x.cut; });
+    return Math.round(MYS_GAP * Math.max(MYS_GAP_FLOOR, 1 - cut));
+  }
+  function mysBonus(s) { return MYS_BONUS[s.mys ? s.mys.lv : 0]; }
+  // one unit of id worth v, sold on local day d
+  function mysUnitPrice(id, v, d, bonus) {
+    var k = mktStock(id);
+    return Math.round(v * (k ? mktPrice(k, d) : 1) * bonus);
+  }
+  var MYS_FUTURE = 86400e3;   // q.t further ahead than this is a clock that was wrong, not a real wait
+  function mysUnits(q) { var n = 0; q.it.forEach(function (e) { if (e) n += e.v.length; }); return n; }
+  // the slot the next customer buys from: round-robin over the filled slots, -1 when the shelves are empty
+  function mysNext(q) {
+    for (var j = 0; j < q.sl; j++) { var k = (q.n + j) % q.sl; if (q.it[k]) return k; }
+    return -1;
+  }
+  // runs customers on q (a s.mys) up to now
+  function mysRun(q, gap, bonus, now, tzMin) {
+    if (q.t > now + MYS_FUTURE) { q.t = now; return; }    // a clock once set far ahead, now put right: open again, no sales for it
+    if (!(now > q.t)) return;                             // same moment or a clock set back: nothing
+    var t = Math.max(q.t, now - MYS_CATCHUP);
+    while (t + gap <= now) {
+      var k = mysNext(q);
+      if (k < 0) { t = now; break; }                      // nobody waits at empty shelves
+      t += gap;
+      var e = q.it[k];
+      q.till += mysUnitPrice(e.id, e.v.shift(), toyDay(t, tzMin), bonus);
+      q.tn++; q.n++;
+      if (!e.v.length) q.it[k] = null;
+    }
+    if (mysNext(q) < 0) t = now;
+    q.t = t;
+  }
+  // brings sales up to now into the 금고; returns units sold just now
+  function mysSettle(s, now, tzMin) {
+    var q = s.mys;
+    if (!q) return 0;
+    var was = q.tn;
+    mysRun(q, mysGap(s), mysBonus(s), now, tzMin);
+    return q.tn - was;
+  }
+  // what the 금고 would hold now, nothing changed → { n, c }
+  function mysPeek(s, now, tzMin) {
+    if (!s.mys) return { n: 0, c: 0 };
+    var q = JSON.parse(JSON.stringify(s.mys));
+    mysRun(q, mysGap(s), mysBonus(s), now, tzMin);
+    return { n: q.tn, c: q.till };
+  }
+  // empties the 금고 into the wallet → { n: units, c: coins }
+  function mysCollect(s, now, tzMin) {
+    if (!s.mys) return { n: 0, c: 0 };
+    mysSettle(s, now, tzMin);
+    var q = s.mys, got = { n: q.tn, c: q.till };
+    s.coins += q.till; q.till = 0; q.tn = 0;
+    return got;
+  }
+  function mysBuild(s, now) {
+    if (s.mys) return { ok: false, why: 'built' };
+    if (!villageOk(s)) return { ok: false, why: 'village' };
+    if (s.coins < MYS_PRICE) return { ok: false, why: 'coins' };
+    s.coins -= MYS_PRICE;
+    var it = [];
+    for (var k = 0; k < MYS_SLOTS0; k++) it.push(null);
+    s.mys = { sl: MYS_SLOTS0, it: it, lv: 0, dec: {}, t: now, till: 0, tn: 0, n: 0 };
+    return { ok: true };
+  }
+  // the next slot's price, or 0 when full
+  function mysSlotCost(s) { return s.mys && s.mys.sl < MYS_SLOTS_MAX ? MYS_SLOT_COST[s.mys.sl - MYS_SLOTS0] : 0; }
+  function mysAddSlot(s, now, tzMin) {
+    if (!s.mys) return { ok: false, why: 'shop' };
+    var c = mysSlotCost(s);
+    if (!c) return { ok: false, why: 'max' };
+    if (s.coins < c) return { ok: false, why: 'coins' };
+    mysSettle(s, now, tzMin);
+    s.coins -= c; s.mys.sl++; s.mys.it.push(null);
+    return { ok: true };
+  }
+  function mysBuyDeco(s, id, now, tzMin) {
+    var d = mysDeco(id);
+    if (!s.mys) return { ok: false, why: 'shop' };
+    if (!d) return { ok: false, why: 'deco' };
+    if (s.mys.dec[id]) return { ok: false, why: 'have' };
+    if (s.coins < d.price) return { ok: false, why: 'coins' };
+    mysSettle(s, now, tzMin);                             // the old gap up to now, the new one after
+    s.coins -= d.price; s.mys.dec[id] = true;
+    return { ok: true };
+  }
+  // the next 등급's price, or 0 at the top
+  function mysLevelCost(s) { return s.mys && s.mys.lv < MYS_BONUS.length - 1 ? MYS_LV_COST[s.mys.lv + 1] : 0; }
+  function mysLevelUp(s, now, tzMin) {
+    if (!s.mys) return { ok: false, why: 'shop' };
+    var c = mysLevelCost(s);
+    if (!c) return { ok: false, why: 'max' };
+    if (s.coins < c) return { ok: false, why: 'coins' };
+    mysSettle(s, now, tzMin);                             // sales so far at the old bonus
+    s.coins -= c; s.mys.lv++;
+    return { ok: true };
+  }
+  // up to n of id from the basket ('bag') or the 창고 ('shed') onto the shelves, dearest first; any item may go up,
+  // 지키기 ones too (putting one there is the player's own choice). Returns how many moved.
+  function mysPut(s, id, n, from, now, tzMin) {
+    var q = s.mys;
+    if (!q || !itemInfo(id)) return 0;
+    var list = from === 'shed' ? shedList(s) : s.bag;
+    mysSettle(s, now, tzMin);
+    var empty = mysNext(q) < 0, moved = 0;
+    while (moved < n) {
+      var j = -1;
+      list.forEach(function (e, i) { if (e.id === id && (j < 0 || e.v > list[j].v)) j = i; });
+      if (j < 0) break;
+      var k = -1;
+      for (var a = 0; a < q.sl; a++) if (q.it[a] && q.it[a].id === id && q.it[a].v.length < MYS_STACK) { k = a; break; }
+      if (k < 0) for (var b = 0; b < q.sl; b++) if (!q.it[b]) { k = b; q.it[b] = { id: id, v: [] }; break; }
+      if (k < 0) break;
+      q.it[k].v.push(list.splice(j, 1)[0].v); moved++;
+    }
+    if (from === 'shed' && s.shed && !s.shed.length) delete s.shed;
+    if (moved && empty) q.t = Math.max(q.t, now);         // the wait for a customer starts now
+    return moved;
+  }
+  // slot k back into the basket, as many as fit; returns how many came back
+  function mysTake(s, k, now, tzMin) {
+    var q = s.mys;
+    if (!q || !q.it[k]) return 0;
+    mysSettle(s, now, tzMin);
+    var e = q.it[k], moved = 0;
+    if (!e) return 0;
+    while (e.v.length && s.bag.length < bagCap(s)) { s.bag.push({ id: e.id, v: e.v.pop() }); moved++; }
+    if (!e.v.length) q.it[k] = null;
+    return moved;
+  }
+  function decodeMyShop(o, s) {
+    var q = o.mys;
+    function ok(x) { return typeof x === 'number' && isFinite(x) && x >= 0; }
+    if (!q || typeof q !== 'object') return;
+    if (!Array.isArray(q.it)) q = Object.assign({}, q, { it: [] });   // a bad field loses that field, never the 25,000-coin shop
+    var sl = ok(q.sl) ? Math.min(MYS_SLOTS_MAX, Math.max(MYS_SLOTS0, Math.floor(q.sl))) : MYS_SLOTS0, it = [], dec = {};
+    for (var k = 0; k < sl; k++) {
+      var e = q.it[k], v = e && typeof e === 'object' && itemInfo(e.id) && Array.isArray(e.v) ? e.v.filter(ok).slice(0, MYS_STACK).map(Math.round) : [];
+      it.push(v.length ? { id: e.id, v: v } : null);
+    }
+    if (q.dec && typeof q.dec === 'object') MYS_DECO.forEach(function (d) { if (q.dec[d.id] === true) dec[d.id] = true; });
+    s.mys = { sl: sl, it: it, lv: ok(q.lv) ? Math.min(MYS_BONUS.length - 1, Math.floor(q.lv)) : 0, dec: dec, t: ok(q.t) ? q.t : ok(o.savedAt) ? o.savedAt : 0,
+      till: ok(q.till) ? Math.floor(q.till) : 0, tn: ok(q.tn) ? Math.floor(q.tn) : 0, n: ok(q.n) ? Math.floor(q.n) : 0 };
+  }
+
+  expose({
+    MYS_PRICE: MYS_PRICE, MYS_SLOTS0: MYS_SLOTS0, MYS_SLOTS_MAX: MYS_SLOTS_MAX, MYS_SLOT_COST: MYS_SLOT_COST, MYS_STACK: MYS_STACK,
+    MYS_GAP: MYS_GAP, MYS_GAP_FLOOR: MYS_GAP_FLOOR, MYS_CATCHUP: MYS_CATCHUP, MYS_BONUS: MYS_BONUS, MYS_LV_COST: MYS_LV_COST, MYS_DECO: MYS_DECO,
+    mysGap: mysGap, mysBonus: mysBonus, mysUnitPrice: mysUnitPrice, mysUnits: mysUnits, mysSettle: mysSettle, mysPeek: mysPeek,
+    mysCollect: mysCollect, mysBuild: mysBuild, mysSlotCost: mysSlotCost, mysAddSlot: mysAddSlot, mysBuyDeco: mysBuyDeco,
+    mysLevelCost: mysLevelCost, mysLevelUp: mysLevelUp, mysPut: mysPut, mysTake: mysTake, decodeMyShop: decodeMyShop
+  });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -7665,7 +7849,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'dive', name: '잠수', how: '포구 부두의 잠수 표시 · 탭한 쪽으로 헤엄 · 가까이서 탭하면 줍기·관찰 · 산소 ' + DIVE_O2 + '초 (기포에서 채움, 큰 산소통 ' + DIVE_O2_TANK + '초) · 바닥나면 떠오를 뿐 잃는 것 없음', lock: '옛 포구 조선소 복구' },
     { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' },
     // 게임장
-    { id: 'arcade', name: '게임장', how: '마을 아래 박물관 왼쪽 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' }
+    { id: 'arcade', name: '게임장', how: '마을 아래 박물관 왼쪽 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
+    { id: 'myshop', name: '내 가게', how: '마을 윗길 오른쪽 빈 가게 터 · ' + won(MYS_PRICE) + '으로 짓고 바구니·창고 물건을 진열대(' + MYS_SLOTS0 + '~' + MYS_SLOTS_MAX + '칸)에 올리면 손님이 하나씩 사 간다 · 값은 오늘 시세 × 등급 보너스 ×' + MYS_BONUS[0] + '~ · 게임을 꺼 둬도 ' + MYS_CATCHUP / 3600e3 + '시간치까지 팔리고 코인은 금고에 · 꾸미기는 손님을 더 자주, 등급은 값을 더 높게', lock: '★' + VILLAGE_REP + ' 마을이 열리면' }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -7692,7 +7877,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   GUIDE_SCENE.port = 'port';         // stage 11 ①
   GUIDE_OPEN.auction = aucOpen; GUIDE_OPEN.trader = traderOpen;   // stage 11 ②
   GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
-  GUIDE_OPEN.arcade = villageOk;   // 게임장
+  GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {
@@ -7899,6 +8084,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       decodeMarket(o, s);  // 장터 시세: s.mkt (today's units sold per 종목; optional)
       decodeBank(o, s);    // 은행: s.bank (balance, last interest day; optional)
       decodeArcade(o, s);  // 게임장: s.arcade (오늘 상금 게임 횟수; optional)
+      decodeMyShop(o, s);  // 내 가게: s.mys (진열대·꾸미기·등급·금고; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -13769,6 +13955,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     ctx.drawImage(bgVillage, 0, 0);
     drawSky(tt, e.phase);
     drawTownBack(tt);      // stage 10 ③: upper lane, places, 새 주민 cottages
+    mysDraw(tt);           // 내 가게 (or its 빈 가게 터 sign), behind the houses' marks
     L.VIL_IDS.forEach(function (id) {
       var p = VHOUSE[id], away = L.residentAway(id, t, YTZ);
       DRAW_HOUSE[id](p[0], p[1], tt);
@@ -13796,6 +13983,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
     if (tapArcade(x, y)) return;        // 게임장
+    if (!hit([139, 15, 11, 12], x, y) && mysTap(x, y)) return;   // 내 가게, except the 식당 attention mark drawn over its window
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
@@ -19489,6 +19677,199 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     };
     FF.arcadeTap = function (x, y) { if (arcOn()) arcTap(x, y); return FF.arcadeState(); };
   }
+  // ---------- 내 가게 (마을 upper lane, right end): 빈 가게 터 sign → the shop; its sheet holds 진열대·금고·꾸미기·등급 ----------
+  // Logic: logic/myshop.js. Sales are worked out lazily; opening the sheet empties the 금고 into the wallet.
+  // The spot sits right of the upper lane, left of the 이동 button; the 식당's '!' mark may draw over its foot.
+  var MYS_AT = [134, 1, 26, 25];
+  var MYS_WHY = { coins: '코인이 모자라요', village: '마을이 열리면 지을 수 있어요', built: '이미 가게가 있어요', max: '더는 안 돼요',
+    have: '이미 달았어요', shop: '가게를 먼저 지어요', deco: '없는 꾸미기예요' };
+  // 12×12 marks for the sheet rows ('4' ink, '3' dark, '2' mid, '0' paper)
+  var MYS_ICON = {
+    shop: ['............', '.4444444444.', '.4040404044.', '.4444444444.', '..42222224..', '..40004334..', '..40004334..',
+      '..44444334..', '..40000334..', '..44444444..', '............', '............'],
+    slot: ['............', '............', '............', '............', '............', '.4444444444.',
+      '.4........4.', '.4........4.', '.4444444444.', '..4......4..', '............', '............'],
+    till: ['............', '..44444444..', '..40000004..', '..40044004..', '..40000004..', '.4444444444.', '.4222222224.',
+      '.4224422224.', '.4222222224.', '.4444444444.', '............', '............'],
+    up: ['............', '.....44.....', '....4224....', '...422224...', '..44422444..', '....4224....', '....4224....',
+      '....4224....', '....4444....', '............', '............', '............'],
+    sign: ['............', '.4444444444.', '.4000000004.', '.4044040404.', '.4000000004.', '.4444444444.', '...4....4...',
+      '...4....4...', '............', '............', '............', '............'],
+    pot: ['............', '....3..3....', '...333333...', '....3333....', '.....33.....', '...444444...', '...422224...',
+      '....4224....', '....4444....', '............', '............', '............'],
+    lamp: ['.....44.....', '.....44.....', '....4444....', '...400004...', '...400004...', '...444444...', '.....00.....',
+      '....0..0....', '............', '............', '............', '............'],
+    bell: ['.....44.....', '....4444....', '...422224...', '...422224...', '..44444444..', '.....4......', '.....3......',
+      '....333.....', '....333.....', '............', '............', '............'],
+    flag: ['...4........', '...4444444..', '...4000004..', '...4044004..', '...4444444..', '...4........', '...4........',
+      '...4........', '...4........', '..444.......', '............', '............']
+  };
+  var mysPend = { at: -1e9, n: 0 };   // throttled 금고 peek for the coin mark on the building
+
+  function mysIcon(id) {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(MYS_ICON[id], 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  function mysPeekN() {
+    var t = performance.now();
+    if (t - mysPend.at > 1000) { mysPend.at = t; mysPend.n = S.mys ? L.mysPeek(S, now(), TZ).n : 0; }
+    return mysPend.n;
+  }
+
+  // ---------- on the street ----------
+  function mysDraw(tt) {
+    var x = MYS_AT[0], y = MYS_AT[1], q = S.mys, k;
+    if (!q) {   // 빈 가게 터: two posts, a board with a coin and a price line
+      px(x + 6, y + 14, 1, 11, 3); px(x + 19, y + 14, 1, 11, 3);
+      px(x + 3, y + 8, 20, 8, 3); px(x + 4, y + 9, 18, 6, 0);
+      px(x + 6, y + 10, 4, 4, 4); px(x + 7, y + 11, 2, 2, 2);
+      px(x + 12, y + 10, 8, 1, 3); px(x + 12, y + 12, 6, 1, 3);
+      px(x + 2, y + 24, 22, 1, 2);
+      return;
+    }
+    var e = curEnv(now()), dark = e.phase === 'night' || e.phase === 'evening', blink = reduceMotion ? 0 : Math.floor(tt * 2) % 2;
+    if (q.dec.sign) {   // 간판: board on the roof, one dot per 등급
+      px(x + 5, y, 16, 6, 4); px(x + 6, y + 1, 14, 4, 0);
+      for (k = 0; k <= q.lv; k++) px(x + 8 + k * 2, y + 2, 1, 2, 4);
+    }
+    if (q.dec.flag) { var fw = reduceMotion ? 0 : Math.floor(tt * 3) % 2; px(x + 24, y, 1, 7, 4); px(x + 20, y + fw, 4, 3, 4); px(x + 21, y + 1 + fw, 2, 1, 0); }
+    px(x, y + 6, 26, 1, 4);                                                                        // awning
+    for (k = 0; k < 26; k += 3) px(x + k, y + 7, Math.min(3, 26 - k), 4, (k / 3) % 2 ? 0 : 2);
+    px(x, y + 10, 26, 1, 4);
+    px(x + 1, y + 11, 24, 14, 4); px(x + 2, y + 11, 22, 13, 1);                                    // wall
+    px(x + 3, y + 13, 12, 9, 4); px(x + 4, y + 14, 10, 7, 0);                                      // shop window = 진열대
+    px(x + 4, y + 17, 10, 1, 2); px(x + 4, y + 20, 10, 1, 2);
+    for (k = 0; k < q.sl; k++) if (q.it[k]) px(x + 5 + (k % 4) * 2, y + 15 + (k >= 4 ? 3 : 0), 1, 2, 4);
+    px(x + 16, y + 14, 7, 11, 4); px(x + 17, y + 15, 5, 10, 3); px(x + 20, y + 20, 1, 1, 0);       // door
+    px(x, y + 24, 26, 1, 4);                                                                       // step
+    if (q.dec.lamp) { [1, 23].forEach(function (lx) { px(x + lx, y + 11, 1, 1, 4); px(x + lx - 1, y + 12, 3, 2, dark ? 0 : 2); }); }
+    if (q.dec.pot) { [-4, 26].forEach(function (ox) { px(x + ox, y + 21, 3, 4, 4); px(x + ox + 1, y + 21, 1, 3, 2); px(x + ox, y + 18, 1, 2, 3); px(x + ox + 2, y + 17, 1, 3, 3); px(x + ox + 1, y + 16, 1, 2, 3); }); }   // pots either side
+    if (q.dec.bell) { var sw = reduceMotion ? 0 : Math.round(Math.sin(tt * 2)); px(x + 15, y + 11, 1, 1, 4); px(x + 14 + sw, y + 12, 3, 2, 3); }
+    if (mysPeekN() > 0) { px(x + 18, y + 16, 3, 1, 4); px(x + 17, y + 17, 5, 3, 4); px(x + 18, y + 20, 3, 1, 4); px(x + 18, y + 17, 3, 3, blink ? 0 : 2); px(x + 19, y + 18, 1, 1, 4); }   // a coin on the door: the 금고 has sales
+  }
+  // the shop sells while the game stays open too: settle once a minute so the 12-hour cap only cuts time away
+  var mysTickAt = 0;
+  function mysTick() {
+    var t = performance.now();
+    if (!S.mys || t - mysTickAt < 60e3) return;
+    mysTickAt = t; L.mysSettle(S, now(), TZ);
+  }
+  function mysTap(x, y) {
+    if (!hit(MYS_AT, x, y, 1)) return false;
+    mysOpen();
+    return true;
+  }
+
+  // ---------- the sheet ----------
+  function mysOpen() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'myshop'; sheetEl.hidden = false;
+    var got = L.mysCollect(S, now(), TZ);
+    if (got.c) { toast('자리 비운 사이 ' + got.n + '개 팔림 · +' + got.c.toLocaleString('ko-KR') + '코인', 3200); refresh(); save(); }
+    mysPend.at = -1e9;
+    mysRender();
+    if (got.c) fxCoinsDom(sheetEl.querySelector('.wallet'));
+  }
+  function mysWhy(res) { toast(MYS_WHY[res.why] || '안 돼요'); }
+  function mysDone(text) { if (text) toast(text); mysPend.at = -1e9; refresh(); save(); mysRender(); }
+  function mysBtn(r, text, fn, label, off) {
+    var a = r.querySelector('.acts');
+    if (!a) { a = document.createElement('div'); a.className = 'acts'; r.appendChild(a); }
+    a.appendChild(act(text, fn, { cls: 'max b', label: label || text, off: off }));
+  }
+  function mysH3(text, sub) {
+    var h3 = document.createElement('h3'); h3.textContent = text;
+    var b = document.createElement('b'); b.textContent = sub; h3.appendChild(b); sheetEl.appendChild(h3);
+  }
+  function mysNote(text) { var p = document.createElement('p'); p.className = 'note'; p.textContent = text; sheetEl.appendChild(p); }
+  function mysMin(ms) { return Math.round(ms / 60e3) + '분'; }
+  function mysRender() {
+    var q = S.mys, t = now(), d = L.mktDay(t, TZ), k;
+    if (!q) {
+      sheetHead('빈 가게 터');
+      var say0 = document.createElement('p'); say0.className = 'say';
+      say0.textContent = '팻말: 가게 자리 팝니다. 진열대에 물건을 올려 두면 손님이 와서 사 가요.';
+      sheetEl.appendChild(say0);
+      var r0 = sheetRow(mysIcon('shop'), '가게 짓기', L.MYS_PRICE.toLocaleString('ko-KR') + '코인 · 진열대 ' + L.MYS_SLOTS0 + '칸으로 시작');
+      mysBtn(r0, L.MYS_PRICE.toLocaleString('ko-KR'), function () {
+        var res = L.mysBuild(S, now());
+        if (!res.ok) { mysWhy(res); return; }
+        mysDone('내 가게를 열었다!');
+      }, '가게 짓기 ' + L.MYS_PRICE + '코인', S.coins < L.MYS_PRICE || !L.villageOk(S));
+      return;
+    }
+    var bonus = L.mysBonus(S);
+    sheetHead('내 가게');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = L.mysUnits(q) ? '손님이 약 ' + mysMin(L.mysGap(S)) + '마다 한 명씩 와서 하나씩 사 가요.' : '진열대가 비었어요. 아래에서 물건을 올려 주세요.';
+    sheetEl.appendChild(say);
+    // 금고: sales since the sheet opened
+    var pk = L.mysPeek(S, t, TZ);
+    var rt = sheetRow(mysIcon('till'), '금고', pk.c ? pk.n + '개 팔림 · ' + pk.c.toLocaleString('ko-KR') + '코인' : '비었어요 · 열 때마다 지갑으로');
+    mysBtn(rt, '받기', function () { var g = L.mysCollect(S, now(), TZ); if (g.c) fxCoinsDom(sheetEl.querySelector('.wallet')); mysDone(g.c ? '+' + g.c.toLocaleString('ko-KR') + '코인' : ''); }, '금고 받기', !pk.c);
+    // 진열대
+    var used = 0; q.it.forEach(function (e) { if (e) used++; });
+    mysH3('진열대', used + ' / ' + q.sl + '칸 · 칸마다 ' + L.MYS_STACK + '개까지');
+    q.it.forEach(function (e, i) {
+      if (!e) { sheetRow(mysIcon('slot'), '빈 칸', '아래 바구니·창고에서 올리기', 'off'); return; }
+      var name = L.itemInfo(e.id).name, each = L.mysUnitPrice(e.id, e.v[0], d, bonus);
+      var r = sheetRow(itemIcon(e.id), name + ' ×' + e.v.length, '다음 하나 약 ' + each.toLocaleString('ko-KR') + '코인 · 오늘 시세 × 등급 ×' + bonus);
+      mysBtn(r, '내리기', function () {
+        var n = L.mysTake(S, i, now(), TZ);
+        if (!n) { toast('바구니가 꽉 찼어요'); mysRender(); return; }
+        mysDone(josa(name, '을', '를') + ' 바구니에 담았다');
+      }, name + ' 내리기');
+    });
+    var sc = L.mysSlotCost(S);
+    if (sc) {
+      var rs = sheetRow(mysIcon('slot'), '진열대 늘리기', q.sl + '칸 → ' + (q.sl + 1) + '칸 · 최대 ' + L.MYS_SLOTS_MAX + '칸');
+      mysBtn(rs, sc.toLocaleString('ko-KR'), function () { var res = L.mysAddSlot(S, now(), TZ); if (!res.ok) { mysWhy(res); return; } mysDone('진열대가 한 칸 늘었다'); }, '진열대 늘리기 ' + sc + '코인', S.coins < sc);
+    }
+    // what can go up: basket, then 창고
+    [['bag', '바구니', S.bag], ['shed', '창고', L.shedList(S)]].forEach(function (src) {
+      if (src[0] === 'shed' && !src[2].length) return;
+      mysH3(src[1] + '에서 올리기', src[0] === 'bag' ? '비싼 것부터 올라가요' : '주문용으로 둔 것');
+      if (!src[2].length) { mysNote('바구니가 비었어요'); return; }
+      shedGroups(src[2]).forEach(function (g) {
+        var name = L.itemInfo(g.id).name, kept = src[0] === 'bag' && S.keep && S.keep[g.id];
+        var r = sheetRow(itemIcon(g.id), name + ' ×' + g.n, (kept ? '지키기 중 · ' : '') + '진열대에 ' + q.it.reduce(function (n, e) { return n + (e && e.id === g.id ? e.v.length : 0); }, 0) + '개');
+        function up(n) {
+          var m = L.mysPut(S, g.id, n, src[0], now(), TZ);
+          if (!m) { toast('진열대에 자리가 없어요'); return; }
+          mysDone(josa(name, '을', '를') + ' ' + m + '개 올렸다');
+        }
+        if (g.n > 1) mysBtn(r, '1개', function () { up(1); }, name + ' 1개 올리기');
+        mysBtn(r, g.n > 1 ? '전부' : '올리기', function () { up(g.n); }, name + ' 전부 올리기');
+      });
+    });
+    // 꾸미기
+    mysH3('꾸미기', '손님이 더 자주 와요');
+    L.MYS_DECO.forEach(function (x) {
+      var have = !!q.dec[x.id];
+      var r = sheetRow(mysIcon(x.id), x.name, have ? '달았어요 · 손님 간격 −' + Math.round(x.cut * 100) + '%' : '손님 간격 −' + Math.round(x.cut * 100) + '%');
+      mysBtn(r, have ? '있음' : x.price.toLocaleString('ko-KR'), function () {
+        var res = L.mysBuyDeco(S, x.id, now(), TZ);
+        if (!res.ok) { mysWhy(res); return; }
+        mysDone(josa(x.name, '을', '를') + ' 달았다');
+      }, x.name + ' 사기', have || S.coins < x.price);
+    });
+    // 가게 등급
+    var lc = L.mysLevelCost(S);
+    mysH3('가게 등급', (q.lv + 1) + '등급 · 값 ×' + bonus);
+    var rl = sheetRow(mysIcon('up'), lc ? (q.lv + 2) + '등급으로' : '최고 등급', lc ? '값 ×' + bonus + ' → ×' + L.MYS_BONUS[q.lv + 1] : '더 올릴 수 없어요');
+    if (lc) mysBtn(rl, lc.toLocaleString('ko-KR'), function () { var res = L.mysLevelUp(S, now(), TZ); if (!res.ok) { mysWhy(res); return; } mysDone('가게 등급이 올랐다'); }, '가게 등급 올리기 ' + lc + '코인', S.coins < lc);
+    mysNote('값 = 물건 값 × 그날 장터 시세 × 등급 보너스 (많이 팔아도 시세는 안 내려가요) · 게임을 꺼 둬도 ' +
+      L.MYS_CATCHUP / 3600e3 + '시간치까지 손님이 와요 · 지키기 물건도 직접 올리면 팔려요 · 지금까지 ' + q.n + '개 팔았어요');
+  }
+  // console hooks: FF.myshop() opens the shop sheet → s.mys; FF.myshop('build') gives the coins and builds it
+  function addMysHooks(FF) {
+    FF.myshop = function (cmd) {
+      if (cmd === 'build' && !S.mys) { S.coins += L.MYS_PRICE; L.mysBuild(S, now()); }
+      mysOpen();
+      return S.mys || null;
+    };
+  }
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -19536,6 +19917,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     tickRide(dt);      // stage 9 ③: 자전거·썰매·열기구
     tickArcade(dt);    // 게임장: the round on its own board
+    mysTick();         // 내 가게: customers while the game is open
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);
@@ -19759,6 +20141,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   addMarketHooks(globalThis.FF);   // 장터 시세: FF.market() opens the 시세판 and lists today's board
   addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
   addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
+  addMysHooks(globalThis.FF);      // 내 가게: FF.myshop() opens the shop sheet, FF.myshop('build') builds it
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });
