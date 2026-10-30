@@ -1,5 +1,5 @@
-// tools/balance-sim.js — headless 2-week economy simulation (not part of the build).
-// Usage: node tools/balance-sim.js [seeds=5] [days=14] [--nomini]
+// farm-fish/tools/balance-sim.js — headless 2-week economy simulation (not part of the build).
+// Usage: node farm-fish/tools/balance-sim.js [seeds=5] [days=14] [--nomini]
 // --nomini: nobody tries the optional 도전 minigames (to measure what they add)
 // Loads the pure logic block exactly like test/logic.test.js and plays three player archetypes over
 // 14 real days with the real game clock, weather, seasons, crows/weeds, orders, cooking, animals and reel minigame,

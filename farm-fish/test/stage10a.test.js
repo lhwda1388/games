@@ -1,4 +1,4 @@
-// test/stage10a.test.js — stage 10 lane ①: 박 영감 낚시 대회, 한 해 결산 카드, 농장 간판
+// farm-fish/test/stage10a.test.js — stage 10 lane ①: 박 영감 낚시 대회, 한 해 결산 카드, 농장 간판
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

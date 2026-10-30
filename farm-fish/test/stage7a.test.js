@@ -1,4 +1,4 @@
-// test/stage7a.test.js — stage 7 lane ①: 갯벌 (tides, digging) + 사진기 (album)
+// farm-fish/test/stage7a.test.js — stage 7 lane ①: 갯벌 (tides, digging) + 사진기 (album)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

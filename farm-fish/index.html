@@ -117,6 +117,7 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 .up button{min-width:58px;font-family:var(--mono)}
 .up button.max{font-family:var(--font)}
 .up button.b{min-width:0;padding-left:6px;padding-right:6px}
+.up .mktv{flex:none;font:700 12px var(--mono);white-space:nowrap}
 .ms{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--g2);font:700 12px var(--font)}
 .ms .box{width:10px;height:10px;border:2px solid var(--g4);flex:none;box-sizing:border-box}
 .ms.done .box{background:var(--g4);box-shadow:inset 0 0 0 2px var(--g0)}
@@ -359,6 +360,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 .yearSave:focus-visible{outline:2px solid var(--g4);outline-offset:2px}
 .yearBtns{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
 .yearBtns button{padding:4px 8px}
+/* Hallmark · component: 게임장 overlay (게임 고르기 · 난이도·내기 · 120×120 board) · genre: playful
+ * theme: existing farm-fish tokens (--g0..--g4, --font, --mono). Follows #ride: only tokens, no new colours. Motion: none (stamp/coins from fx).
+ * states: default · hover/active/focus-visible from shared button · disabled (can't bet: shared) · pressed (난이도 .on + aria-pressed) */
+#arcade{z-index:7;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 16px}
+#arcade h2{width:100%;margin:0}
+#arcade h2 .wallet{font:700 12px var(--mono)}
+#arcade > canvas{width:240px;height:240px;image-rendering:pixelated;border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);flex:none;touch-action:none;cursor:pointer}
+#arcade > canvas[hidden]{display:none}
+#arcade .tip{margin:0;font:700 13px/1.4 var(--font);text-align:center;min-height:18px}
+#arcade .menu{width:100%}
+#arcade .menu[hidden]{display:none}
+#arcade .menu h3{width:100%}
+#arcade .menu h3 b{font:700 10px var(--font);color:var(--g3)}
+#arcade .menu .note{margin:8px 0;font:400 11px/1.4 var(--font);color:var(--g3)}
+#arcade .pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px;margin:6px 0}
+#arcade .pick button{min-width:0;font-family:var(--mono)}
+#arcade .pick button.on{background:var(--g4);color:var(--g0)}
+#arcade .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:auto}
+#arcade .menu > button.go{width:100%;background:var(--g4);color:var(--g0)}
 </style>
 </head>
 <body>
@@ -1080,22 +1100,24 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drop.forEach(function (k) { s.bag.splice(k, 1); });
     return true;
   }
-  // kept (지키기) items stay in the basket
-  function sellAll(s) {
-    var t = 0;
-    s.bag = s.bag.filter(function (e) { if (s.keep && s.keep[e.id]) return true; t += e.v; return false; });
+  // kept (지키기) items stay in the basket. With now/tzMin the 장터 시세 prices apply (market.js); orders don't come here.
+  function sellAll(s, now, tzMin) {
+    var out = [];
+    s.bag = s.bag.filter(function (e) { if (s.keep && s.keep[e.id]) return true; out.push(e); return false; });
+    var t = mktRun(s, out, now, tzMin, true);
     s.coins += t; return t;
   }
   // one of id, the cheapest (as bagTake)
-  function sellOne(s, id) {
+  function sellOne(s, id, now, tzMin) {
     var k = -1;
     s.bag.forEach(function (e, j) { if (e.id === id && (k < 0 || e.v < s.bag[k].v)) k = j; });
     if (k < 0) return 0;
-    var v = s.bag.splice(k, 1)[0].v; s.coins += v; return v;
+    var v = mktRun(s, s.bag.splice(k, 1), now, tzMin, true); s.coins += v; return v;
   }
-  function sellId(s, id) {
-    var t = 0;
-    s.bag = s.bag.filter(function (e) { if (e.id !== id) return true; t += e.v; return false; });
+  function sellId(s, id, now, tzMin) {
+    var out = [];
+    s.bag = s.bag.filter(function (e) { if (e.id !== id) return true; out.push(e); return false; });
+    var t = mktRun(s, out, now, tzMin, true);
     s.coins += t; return t;
   }
 
@@ -2106,6 +2128,157 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
 
   expose({ SHED_CAP: SHED_CAP, shedCap: shedCap, shedList: shedList, shedCount: shedCount, shedPut: shedPut, shedTake: shedTake });
+  // ---------- 장터 시세: a stock-like price per 종목, new every real (local) day ----------
+  // Only the basket's own selling (팔기 · 1개 · 전부 · 다 팔기) uses it. Orders, 경매, 대회 and the 꽉 차면 자동 판매
+  // keep their own prices. Same day + same timezone → same board for everyone (no rng, no save needed for the price).
+  // The price walks: each day's level is a decaying sum of the last MKT_MEM daily nudges, so today is mostly
+  // yesterday plus one new nudge (trends last a few days, then fade back toward ×1).
+  // Slippage: past MKT_FREE units of one 종목 sold in a day, each more unit takes MKT_SLIP off, but never below
+  // ×1 (or below the day's price when it is already under ×1). s.mkt = { d: local day, n: { 종목: sold } } is
+  // made on the first market sale; older saves have none.
+  var MKT_MIN = 0.5, MKT_MAX = 2;                 // price bounds (×)
+  var MKT_MEM = 12, MKT_DECAY = 0.8, MKT_STEP = 0.25;   // walk memory (days), fade per day, size of one day's nudge
+  var MKT_FREE = 25, MKT_SLIP = 0.03;             // units per 종목 per day at the full price, then −3% each
+  var MKT_HIST = 7;                               // days on the 시세판 sparkline (today included)
+  var MKT = [
+    { id: 'crop', name: '작물' },
+    { id: 'fresh', name: '민물고기' },
+    { id: 'sea', name: '바닷고기' },
+    { id: 'wild', name: '숲·갯벌' },
+    { id: 'farm', name: '과일·꿀·산물' },
+    { id: 'dish', name: '요리' },
+    { id: 'mine', name: '광물' }
+  ];
+  var MKT_KIND = { crop: 'crop', isle: 'sea', dive: 'sea', forage: 'wild', flat: 'wild', fruit: 'farm', honey: 'farm', product: 'farm',
+    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine' };
+
+  function mktDay(now, tzMin) { return toyDay(now, tzMin); }
+  // item id → 종목 id, or null (no 종목: always ×1)
+  function mktStock(id) {
+    var it = itemInfo(id);
+    if (!it) return null;
+    if (it.kind === 'fish') { var sp = fishById(id).spot; return !sp || sp === 'pond' || sp === 'river' ? 'fresh' : 'sea'; }
+    return MKT_KIND[it.kind] || null;
+  }
+  // one day's nudge for 종목 k: −1..1, a pure hash of (day, 종목)
+  function mktNudge(d, k) {
+    var h = Math.imul(d ^ 0x2f6b9d1, 0x9e3779b1) ^ Math.imul(k + 1, 0x85ebca6b);
+    h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15; h = Math.imul(h, 0x846ca68b); h ^= h >>> 16;
+    return (h >>> 0) / 2147483648 - 1;
+  }
+  // 종목 id → that day's price (two decimals)
+  function mktPrice(id, d) {
+    var k = -1, j, x = 0, w = 1;
+    for (j = 0; j < MKT.length; j++) if (MKT[j].id === id) k = j;
+    if (k < 0) return 1;
+    for (j = 0; j < MKT_MEM; j++) { x += w * MKT_STEP * mktNudge(d - j, k); w *= MKT_DECAY; }
+    return Math.round(Math.min(MKT_MAX, Math.max(MKT_MIN, Math.exp(x))) * 100) / 100;
+  }
+  // the price after n units of that 종목 were already sold today
+  function mktEff(m, n) {
+    if (n < MKT_FREE) return m;
+    return Math.max(Math.min(m, 1), Math.round((m - MKT_SLIP * (n - MKT_FREE + 1)) * 100) / 100);
+  }
+  function mktSold(s, d) { return s.mkt && s.mkt.d === d ? s.mkt.n : {}; }
+  // coins for selling `list` (basket entries) in order; commit = count the units into today's s.mkt.
+  // Without a time (old callers, tests) it is the plain basket value.
+  function mktRun(s, list, now, tzMin, commit) {
+    var t = 0;
+    if (typeof now !== 'number') { list.forEach(function (e) { t += e.v; }); return t; }
+    var d = mktDay(now, tzMin), was = mktSold(s, d), n = {}, used = false;
+    Object.keys(was).forEach(function (k) { n[k] = was[k]; });
+    list.forEach(function (e) {
+      var k = mktStock(e.id);
+      if (!k) { t += e.v; return; }
+      t += Math.round(e.v * mktEff(mktPrice(k, d), n[k] || 0));
+      n[k] = (n[k] || 0) + 1; used = true;
+    });
+    if (commit && used) s.mkt = { d: d, n: n };
+    return t;
+  }
+  // what selling `list` would give now (nothing changes)
+  function mktValue(s, list, now, tzMin) { return mktRun(s, list, now, tzMin, false); }
+  // the 시세판: per 종목 today's price, the price left after today's sales, yesterday, and the last MKT_HIST days
+  function mktBoard(s, now, tzMin) {
+    var d = mktDay(now, tzMin), sold = mktSold(s, d);
+    return MKT.map(function (q) {
+      var hist = [];
+      for (var j = MKT_HIST - 1; j >= 0; j--) hist.push(mktPrice(q.id, d - j));
+      var m = hist[hist.length - 1];
+      return { id: q.id, name: q.name, m: m, prev: hist[hist.length - 2], now: mktEff(m, sold[q.id] || 0), sold: sold[q.id] || 0, hist: hist };
+    });
+  }
+  function decodeMarket(o, s) {
+    var q = o.mkt;
+    if (!q || typeof q !== 'object' || typeof q.d !== 'number' || !isFinite(q.d) || !q.n || typeof q.n !== 'object') return;
+    var n = {};
+    MKT.forEach(function (m) { var v = q.n[m.id]; if (typeof v === 'number' && isFinite(v) && v > 0) n[m.id] = Math.min(1e4, Math.floor(v)); });
+    s.mkt = { d: Math.floor(q.d), n: n };
+  }
+
+  expose({
+    MKT: MKT, MKT_MIN: MKT_MIN, MKT_MAX: MKT_MAX, MKT_FREE: MKT_FREE, MKT_SLIP: MKT_SLIP, MKT_HIST: MKT_HIST,
+    mktDay: mktDay, mktStock: mktStock, mktPrice: mktPrice, mktEff: mktEff, mktValue: mktValue, mktBoard: mktBoard, decodeMarket: decodeMarket
+  });
+  // ---------- 은행: put coins away, interest every real (local) day ----------
+  // Interest is credited lazily (opening the 은행, putting in, taking out): one step per local midnight passed
+  // since s.bank.d, each step floor(balance × BANK_RATE), compounding. Away longer than BANK_CATCHUP days
+  // still pays only BANK_CATCHUP days, so leaving the game alone is not the best plan. The balance never
+  // goes over BANK_CAP (putting in stops there, and interest stops there too). A clock set back pays nothing.
+  // s.bank = { c: balance, d: local day last settled, i: interest earned so far } is made on the first deposit.
+  var BANK_RATE = 0.02;       // per real day
+  var BANK_CAP = 300000;      // most coins the bank holds (6,000 a day at most: about a tenth of a day's play)
+  var BANK_CATCHUP = 7;       // most days of interest paid at once
+
+  function bankBal(s) { return s.bank ? s.bank.c : 0; }
+  // interest for `days` steps on balance c, under the cap
+  function bankGrow(c, days) {
+    for (var k = 0; k < Math.min(days, BANK_CATCHUP); k++) c = Math.min(BANK_CAP, c + Math.floor(c * BANK_RATE));
+    return c;
+  }
+  // the balance with interest up to today, without changing anything (for buttons)
+  function bankPeek(s, now, tzMin) {
+    if (!s.bank) return 0;
+    return bankGrow(s.bank.c, toyDay(now, tzMin) - s.bank.d);
+  }
+  // credits interest up to today; returns the interest paid now
+  function bankSettle(s, now, tzMin) {
+    if (!s.bank) return 0;
+    var d = toyDay(now, tzMin), c = bankGrow(s.bank.c, d - s.bank.d), got = c - s.bank.c;
+    s.bank.c = c; s.bank.i += got; s.bank.d = Math.max(d, s.bank.d);   // never back: no day pays twice
+    return got;
+  }
+  // put n coins in → { ok, n } or { ok: false, why: 'n' | 'coins' | 'cap' }
+  function bankPut(s, n, now, tzMin) {
+    n = Math.floor(n);
+    if (!(n > 0)) return { ok: false, why: 'n' };
+    if (n > s.coins) return { ok: false, why: 'coins' };
+    bankSettle(s, now, tzMin);
+    if (bankBal(s) + n > BANK_CAP) return { ok: false, why: 'cap' };
+    if (!s.bank) s.bank = { c: 0, d: toyDay(now, tzMin), i: 0 };
+    s.bank.c += n; s.coins -= n;
+    return { ok: true, n: n };
+  }
+  // take n coins out → { ok, n } or { ok: false, why: 'n' | 'bal' }
+  function bankTake(s, n, now, tzMin) {
+    n = Math.floor(n);
+    if (!(n > 0)) return { ok: false, why: 'n' };
+    bankSettle(s, now, tzMin);
+    if (n > bankBal(s)) return { ok: false, why: 'bal' };
+    s.bank.c -= n; s.coins += n;
+    return { ok: true, n: n };
+  }
+  function decodeBank(o, s) {
+    var q = o.bank;
+    function ok(x) { return typeof x === 'number' && isFinite(x) && x >= 0; }
+    if (!q || typeof q !== 'object' || !ok(q.c) || typeof q.d !== 'number' || !isFinite(q.d)) return;
+    s.bank = { c: Math.min(BANK_CAP, Math.floor(q.c)), d: Math.floor(q.d), i: ok(q.i) ? Math.floor(q.i) : 0 };
+  }
+
+  expose({
+    BANK_RATE: BANK_RATE, BANK_CAP: BANK_CAP, BANK_CATCHUP: BANK_CATCHUP,
+    bankBal: bankBal, bankPeek: bankPeek, bankSettle: bankSettle, bankPut: bankPut, bankTake: bankTake, decodeBank: decodeBank
+  });
   // ---------- 오늘의 할 일: three small goals per real calendar day, a reward for all three, no penalty ----------
   // key = the local date 'YYYY-MM-DD' (the UI passes it). Goals depend only on key + what is unlocked,
   // so the same day and progress always give the same list. s.daily = { key, goals: [{ t, x, n, p }], paid }.
@@ -7180,6 +7353,190 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     diveBuy: diveBuy, diveLogCount: diveLogCount, diveLogDone: diveLogDone, diveTitles: diveTitles, diveDexCount: diveDexCount,
     decodeDive: decodeDive
   });
+  // ---------- 게임장 (마을 장터 옆): 코인을 걸고 하는 작은 게임 4종 ----------
+  // The bet is paid up front. A skill game won pays bet × ARC_MUL[난이도]; lost, the bet is gone. 슬롯머신 is luck only.
+  // Prize plays are capped per real (local) day like the 날씨 장난감; after that a game is just for fun (no bet, no prize).
+  // s.arcade = { d: local day number, n: prize plays started that day } is made on the first bet; older saves have none.
+  // Round times are the UI's real milliseconds since the round began (performance.now), so ?speed never changes the feel.
+  // Everything here is a tuning knob: keep the numbers in these tables.
+  var ARC_BETS = [100, 300, 500, 1000];                  // small on purpose: a skilled hand wins 어려움 often (tools/BALANCE.md)
+  var ARC_DAY_CAP = 10;                                    // prize plays per real day
+  var ARC_DIFFS = ['easy', 'normal', 'hard'];
+  var ARC_DIFF_NAME = { easy: '쉬움', normal: '보통', hard: '어려움' };
+  var ARC_MUL = { easy: 1.5, normal: 2, hard: 3 };         // skill game won → bet × this
+  var ARC_GAMES = [
+    { id: 'mole', name: '두더지 잡기' }, { id: 'match', name: '짝 맞추기' },
+    { id: 'throw', name: '공 던지기' }, { id: 'slot', name: '슬롯머신', luck: true }
+  ];
+  // 두더지 잡기: ARC_MOLE_HOLES holes for ARC_MOLE_TIME ms. up = ms a mole stays up, gap = ms between pops (±30%),
+  // need = moles to reach, hog = share of pops that are 고슴도치 (tapping one takes ARC_HOG_COST off)
+  var ARC_MOLE_TIME = 30e3, ARC_MOLE_HOLES = 9, ARC_HOG_COST = 2;
+  var ARC_MOLE = {
+    easy:   { up: 740, gap: 600, need: 41, hog: 0 },
+    normal: { up: 560, gap: 480, need: 42, hog: 0.1 },
+    hard:   { up: 500, gap: 440, need: 44, hog: 0.15 }
+  };
+  // 짝 맞추기: pairs of cards, tries = pairs of cards you may turn (a perfect memory wins hard ~9 times in 10, a real one far less)
+  var ARC_MATCH = { easy: { pairs: 6, tries: 11 }, normal: { pairs: 8, tries: 14 }, hard: { pairs: 10, tries: 16 } };
+  var ARC_CARDS = ['radish', 'berry', 'melon', 'potato', 'pepper', 'corn', 'crucian', 'eel', 'squid', 'octopus'];
+  // 공 던지기: ARC_BALLS balls at a target sliding across ARC_LANE (px on the 120-wide board) and back.
+  // w = target width, period = ms for one sweep there and back (each ball picks one in the range), flight = ms the ball
+  // takes to reach the target line (aim ahead!), need = hits to win. A hit = ball centre within w/2 + ARC_BALL_R of it.
+  var ARC_BALLS = 5, ARC_LANE = [10, 110], ARC_AIM = 60, ARC_BALL_R = 2;
+  var ARC_THROW = {
+    easy:   { w: 14, period: [1900, 2300], flight: 400, need: 4 },
+    normal: { w: 10, period: [1300, 1600], flight: 450, need: 4 },
+    hard:   { w: 7,  period: [1000, 1300], flight: 500, need: 4 }
+  };
+  // 슬롯머신: reel symbols and weights (each reel the same). 777 ×20, three alike ×5, two alike ×1.5.
+  // These weights return about 0.91 of the bet on average (test/arcade.test.js works it out exactly).
+  var ARC_SLOT = [
+    { id: 'seven', w: 2 }, { id: 'radish', w: 8 }, { id: 'berry', w: 6 },
+    { id: 'crucian', w: 5 }, { id: 'melon', w: 4 }, { id: 'octopus', w: 3 }
+  ];
+  var ARC_SLOT_PAY = { seven: 20, three: 5, two: 1.5 };
+
+  function arcGame(id) { for (var k = 0; k < ARC_GAMES.length; k++) if (ARC_GAMES[k].id === id) return ARC_GAMES[k]; return null; }
+  // same local day number as the 날씨 장난감 (toys.js); only a later day resets it, so a clock set back can't
+  function arcLeft(s, now, tzMin) {
+    var q = s.arcade;
+    return !q || toyDay(now, tzMin) > q.d ? ARC_DAY_CAP : Math.max(0, ARC_DAY_CAP - q.n);
+  }
+  // → { ok, play } or { ok: false, why }. bet 0 = 그냥 놀기, only once today's prize plays are used up.
+  // play = { game, diff, bet, mul } is handed back to arcPay when the round ends.
+  function arcStart(s, game, diff, bet, now, tzMin) {
+    if (!villageOk(s)) return { ok: false, why: 'village' };
+    var g = arcGame(game);
+    if (!g) return { ok: false, why: 'game' };
+    if (!g.luck && !ARC_MUL.hasOwnProperty(diff)) return { ok: false, why: 'diff' };
+    var left = arcLeft(s, now, tzMin);
+    if (bet === 0) return left > 0 ? { ok: false, why: 'bet' } : { ok: true, play: { game: game, diff: g.luck ? null : diff, bet: 0, mul: 0 } };
+    if (ARC_BETS.indexOf(bet) < 0) return { ok: false, why: 'bet' };
+    if (left <= 0) return { ok: false, why: 'cap' };
+    if (s.coins < bet) return { ok: false, why: 'coins' };
+    var d = toyDay(now, tzMin);
+    if (!s.arcade || d > s.arcade.d) s.arcade = { d: d, n: 0 };
+    s.arcade.n++;
+    s.coins -= bet;
+    return { ok: true, play: { game: game, diff: g.luck ? null : diff, bet: bet, mul: g.luck ? 0 : ARC_MUL[diff] } };
+  }
+  // win: true/false for a skill game, the slotMul number for 슬롯. → coins paid (0 for a loss or a fun play; once per play)
+  function arcPay(s, play, win) {
+    if (!play || !play.bet || play.paid) return 0;
+    play.paid = true;
+    var mul = typeof win === 'number' ? win : win ? play.mul : 0;
+    var c = Math.round(play.bet * mul);
+    s.coins += c;
+    return c;
+  }
+
+  // ---------- 두더지 잡기 ----------
+  function moleLayout(diff, rng) {
+    var c = ARC_MOLE[diff], pops = [], t = 500;
+    while (t + c.up <= ARC_MOLE_TIME) {
+      var free = [];
+      for (var h = 0; h < ARC_MOLE_HOLES; h++) if (!pops.some(function (p) { return p.hole === h && p.t + c.up > t; })) free.push(h);
+      pops.push({ t: Math.round(t), hole: free[Math.floor(rng() * free.length)], hog: rng() < c.hog });
+      t += c.gap * (0.7 + rng() * 0.6);
+    }
+    return { up: c.up, need: c.need, pops: pops, hit: {}, score: 0 };
+  }
+  // the pops up at ms t that nobody has hit yet (index into g.pops)
+  function moleUp(g, t) {
+    var out = [];
+    g.pops.forEach(function (p, k) { if (!g.hit[k] && t >= p.t && t < p.t + g.up) out.push(k); });
+    return out;
+  }
+  // a tap on `hole` at ms t → 'mole' | 'hog' | null (nothing up there)
+  function moleTap(g, t, hole) {
+    var up = moleUp(g, t);
+    for (var j = 0; j < up.length; j++) {
+      var p = g.pops[up[j]];
+      if (p.hole !== hole) continue;
+      g.hit[up[j]] = true;
+      if (p.hog) { g.score = Math.max(0, g.score - ARC_HOG_COST); return 'hog'; }
+      g.score++;
+      return 'mole';
+    }
+    return null;
+  }
+  function moleOver(g, t) { return t >= ARC_MOLE_TIME; }
+
+  // ---------- 짝 맞추기 ----------
+  function matchDeal(diff, rng) {
+    var c = ARC_MATCH[diff], cards = [];
+    ARC_CARDS.slice(0, c.pairs).forEach(function (id) { cards.push(id, id); });
+    for (var k = cards.length - 1; k > 0; k--) { var j = Math.floor(rng() * (k + 1)), x = cards[k]; cards[k] = cards[j]; cards[j] = x; }
+    return { cards: cards, open: [], gone: {}, tries: c.tries, used: 0 };
+  }
+  function matchLeft(g) { return g.cards.length / 2 - Object.keys(g.gone).length / 2; }
+  function matchWon(g) { return matchLeft(g) === 0; }
+  function matchOver(g) { return matchWon(g) || g.used >= g.tries; }
+  // turn card k → 'first' | 'pair' | 'miss' | null (not now). After 'miss' both stay open until matchHide.
+  function matchFlip(g, k) {
+    if (k < 0 || k >= g.cards.length || g.gone[k] || g.open.length >= 2 || g.open.indexOf(k) >= 0 || matchOver(g)) return null;
+    g.open.push(k);
+    if (g.open.length === 1) return 'first';
+    g.used++;
+    var a = g.open[0];
+    if (g.cards[a] === g.cards[k]) { g.gone[a] = g.gone[k] = true; g.open = []; return 'pair'; }
+    return 'miss';
+  }
+  function matchHide(g) { g.open = []; }
+
+  // ---------- 공 던지기 ----------
+  function throwSetup(diff, rng) {
+    var c = ARC_THROW[diff], balls = [];
+    for (var k = 0; k < ARC_BALLS; k++) balls.push({ period: Math.round(c.period[0] + rng() * (c.period[1] - c.period[0])), phase: rng() });
+    return { w: c.w, flight: c.flight, need: c.need, balls: balls, shots: [] };
+  }
+  // target centre x, u ms after ball i came up
+  function throwX(g, i, u) {
+    var b = g.balls[Math.min(i, g.balls.length - 1)], f = ((u / b.period + b.phase) % 1 + 1) % 1;
+    return ARC_LANE[0] + (ARC_LANE[1] - ARC_LANE[0]) * (f < 0.5 ? f * 2 : 2 - f * 2);
+  }
+  // throw the next ball u ms after it came up → hit? (null when all balls are gone)
+  function throwShot(g, u) {
+    var i = g.shots.length;
+    if (i >= g.balls.length) return null;
+    var x = throwX(g, i, u + g.flight), hit = Math.abs(x - ARC_AIM) <= g.w / 2 + ARC_BALL_R;
+    g.shots.push({ u: u, x: x, hit: hit });
+    return hit;
+  }
+  function throwHits(g) { return g.shots.filter(function (s) { return s.hit; }).length; }
+
+  // ---------- 슬롯머신 ----------
+  function slotSpin(rng) {
+    var tot = ARC_SLOT.reduce(function (a, x) { return a + x.w; }, 0), out = [];
+    for (var r = 0; r < 3; r++) {
+      var v = rng() * tot, k = 0;
+      while (k < ARC_SLOT.length - 1 && v >= ARC_SLOT[k].w) { v -= ARC_SLOT[k].w; k++; }
+      out.push(ARC_SLOT[k].id);
+    }
+    return out;
+  }
+  function slotMul(r) {
+    if (r[0] === r[1] && r[1] === r[2]) return r[0] === 'seven' ? ARC_SLOT_PAY.seven : ARC_SLOT_PAY.three;
+    return r[0] === r[1] || r[1] === r[2] || r[0] === r[2] ? ARC_SLOT_PAY.two : 0;
+  }
+
+  function decodeArcade(o, s) {
+    var q = o.arcade;
+    if (!q || typeof q !== 'object' || typeof q.d !== 'number' || !isFinite(q.d) || typeof q.n !== 'number' || !isFinite(q.n) || q.n < 0) return;
+    s.arcade = { d: Math.floor(q.d), n: Math.min(ARC_DAY_CAP, Math.floor(q.n)) };
+  }
+
+  expose({
+    ARC_BETS: ARC_BETS, ARC_DAY_CAP: ARC_DAY_CAP, ARC_DIFFS: ARC_DIFFS, ARC_DIFF_NAME: ARC_DIFF_NAME, ARC_MUL: ARC_MUL, ARC_GAMES: ARC_GAMES,
+    ARC_MOLE_TIME: ARC_MOLE_TIME, ARC_MOLE_HOLES: ARC_MOLE_HOLES, ARC_HOG_COST: ARC_HOG_COST, ARC_MOLE: ARC_MOLE,
+    ARC_MATCH: ARC_MATCH, ARC_CARDS: ARC_CARDS, ARC_BALLS: ARC_BALLS, ARC_LANE: ARC_LANE, ARC_AIM: ARC_AIM, ARC_BALL_R: ARC_BALL_R,
+    ARC_THROW: ARC_THROW, ARC_SLOT: ARC_SLOT, ARC_SLOT_PAY: ARC_SLOT_PAY,
+    arcGame: arcGame, arcLeft: arcLeft, arcStart: arcStart, arcPay: arcPay,
+    moleLayout: moleLayout, moleUp: moleUp, moleTap: moleTap, moleOver: moleOver,
+    matchDeal: matchDeal, matchLeft: matchLeft, matchWon: matchWon, matchOver: matchOver, matchFlip: matchFlip, matchHide: matchHide,
+    throwSetup: throwSetup, throwX: throwX, throwShot: throwShot, throwHits: throwHits,
+    slotSpin: slotSpin, slotMul: slotMul, decodeArcade: decodeArcade
+  });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -7235,6 +7592,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'house', name: '집 안', how: '마당에서 집을 누르면 안으로 · 가구 놓기 · 상점에서 집을 키우면 바구니·냄비가 늘어난다', lock: '' },
     { id: 'aquarium', name: '수족관', how: '집 안 수조를 누르고 바구니 물고기를 넣기 · 수조 물고기는 팔리지 않는다', lock: '' },
     { id: 'shed', name: '창고', how: '바구니 아래 창고 버튼 · 주문에 쓸 것을 넣어 두면 팔리지 않고, 납품할 때 바구니와 함께 쓰인다', lock: '' },
+    { id: 'market', name: '장터 시세', how: '바구니 아래 시세판 · 작물·물고기·요리… ' + MKT.length + '종목 값이 현실 하루마다 ×' + MKT_MIN + '~×' + MKT_MAX + ' 사이로 오르내린다 · 쌀 땐 창고에 두었다가 비싼 날 팔기 · 한 종목 하루 ' + MKT_FREE + '개 넘게 팔면 값이 내려간다 · 주문·경매 값은 그대로', lock: '' },
+    { id: 'bank', name: '은행', how: '바구니 아래 은행 버튼 · 코인을 맡기면 현실 하루(자정)마다 이자 ' + Math.round(BANK_RATE * 100) + '% · ' + won(BANK_CAP) + '까지 · 오래 비워도 이자는 ' + BANK_CATCHUP + '일치까지 · 언제든 찾기', lock: '' },
     { id: 'visitors', name: '손님·편지', how: '장식을 놓으면 손님이 찾아온다 · 눌러 보면 선물 · 우체통을 놓으면 편지', lock: '' },
     { id: 'residents', name: '단골 주민', how: '주문을 납품하면 그 주민과 친밀도 · 단계마다 편지와 선물 · 바구니의 주민 탭', lock: '' },
     { id: 'junk', name: '잡동사니·병 편지', how: '낚시하다 가끔 고물·병 편지·보물 상자 · 고물로 장식 만들기 · 상자는 자물쇠 도전', lock: '' },
@@ -7304,7 +7663,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'trader', name: '기차 떠돌이 상인', how: '현실 하루 한 번 기차로 온다 · 황금 수박 씨앗과 포구 장식 ' + TRADER_DECOS.length + '가지 중 오늘의 ' + TRADER_N + '개에서 하나 고르기', lock: '옛 포구 기차역 복구' },
     // stage 12 ③
     { id: 'dive', name: '잠수', how: '포구 부두의 잠수 표시 · 탭한 쪽으로 헤엄 · 가까이서 탭하면 줍기·관찰 · 산소 ' + DIVE_O2 + '초 (기포에서 채움, 큰 산소통 ' + DIVE_O2_TANK + '초) · 바닥나면 떠오를 뿐 잃는 것 없음', lock: '옛 포구 조선소 복구' },
-    { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' }
+    { id: 'divemap', name: '해저 지도', how: '방 ' + DIVE_ROOMS.length + '개 · 얕은 여 → 난파선(열쇠) → 심해 동굴(손전등) · 구석 지도 버튼 · 해저 도감 ' + DIVE_DEX.length + '종 · 항해일지 ' + DIVE_LOG.length + '조각 · 다 밝히면 지도 액자', lock: '옛 포구 조선소 복구' },
+    // 게임장
+    { id: 'arcade', name: '게임장', how: '마을 아래 장터 옆 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -7331,6 +7692,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   GUIDE_SCENE.port = 'port';         // stage 11 ①
   GUIDE_OPEN.auction = aucOpen; GUIDE_OPEN.trader = traderOpen;   // stage 11 ②
   GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
+  GUIDE_OPEN.arcade = villageOk;   // 게임장
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {
@@ -7534,6 +7896,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       decodePort(o, s);    // stage 11 ①: s.port got/done (옛 포구 꾸러미·복구; optional)
       decodeAuction(o, s); // stage 11 ②: s.port.auc (어판장 경매), s.trader (기차 상인; optional; after decodePort)
       decodeDive(o, s);    // stage 12 ③: s.dive (잠수: 밝힌 방, 해저 도감, 장비, 항해일지, 상자; optional)
+      decodeMarket(o, s);  // 장터 시세: s.mkt (today's units sold per 종목; optional)
+      decodeBank(o, s);    // 은행: s.bank (balance, last interest day; optional)
+      decodeArcade(o, s);  // 게임장: s.arcade (오늘 상금 게임 횟수; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -8176,6 +8541,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       holdSpace = true;
       if (miniOn()) { miniTap(); return; }   // stage 5B: 도전 overlay takes the tap
       if (rideOn()) { rideTap(); return; }   // stage 9 ③: 자전거·썰매·열기구
+      if (!arcEl.hidden) { if (arcOn()) arcKey(); return; }   // 게임장: throw / spin, never a cast behind it
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
@@ -9786,19 +10152,20 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       grid.appendChild(c);
     }
     bagEl.appendChild(grid);
-    var groups = {}, order = [], total = 0;
-    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; if (!(S.keep && S.keep[e.id])) total += e.v; });
+    var groups = {}, order = [], unkept = [], t = now();
+    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, list: [] }; order.push(e.id); } groups[e.id].n++; groups[e.id].list.push(e); if (!(S.keep && S.keep[e.id])) unkept.push(e); });
+    var total = L.mktValue(S, unkept, t, TZ);   // 장터 시세 prices (market.js)
     order.forEach(function (id) {
       var g = groups[id], kept = !!(S.keep && S.keep[id]);
-      var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
+      var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + L.mktValue(S, g.list, t, TZ).toLocaleString('ko-KR') + '코인');
       var a = document.createElement('div'); a.className = 'acts';
       a.appendChild(act(kept ? '풀기' : '지키기', function () {
         S.keep = S.keep || {};
         if (kept) delete S.keep[id]; else S.keep[id] = true;
         toast(kept ? L.itemInfo(id).name + ' 지키기 풀었다' : L.itemInfo(id).name + ' 지키기 · 꽉 차도 안 팔려요'); save(); renderBag();
       }, { cls: 'max b' + (kept ? ' on' : '') }));
-      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
-      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
+      if (g.n > 1) a.appendChild(act('1개', function () { var v = L.sellOne(S, id, now(), TZ); toast(L.itemInfo(id).name + ' 1개 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 1개 팔기' }));
+      a.appendChild(act(g.n > 1 ? '전부' : '팔기', function () { var v = L.sellId(S, id, now(), TZ); toast(L.itemInfo(id).name + ' 팔았다 · +' + v); fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'max b', label: L.itemInfo(id).name + ' 전부 팔기' }));
       r.appendChild(a);
     });
     if (!S.bag.length) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '수확하고 낚은 것이 여기 담겨요'; bagEl.appendChild(p); }
@@ -9809,7 +10176,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     auto.setAttribute('aria-pressed', String(!S.noSell));
     bagEl.appendChild(auto);
     bagEl.appendChild(act('창고 · ' + L.shedList(S).length + ' / ' + L.shedCap(S) + '칸', function () { openSheet('shed'); }, { cls: 'sellAll' }));
-    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !total });
+    bagEl.appendChild(act('장터 시세판 · 오늘 값 보기', openMarket, { cls: 'sellAll' }));
+    bagEl.appendChild(act('은행 · 통장 ' + L.bankPeek(S, now(), TZ).toLocaleString('ko-KR') + '코인', openBank, { cls: 'sellAll' }));
+    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S, now(), TZ); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !total });
     bagEl.appendChild(all);
   }
   // order sign, basket and pot at the left edge of the pond side
@@ -11484,6 +11853,121 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         toast(josa(name, '을', '를') + ' 창고에 넣었다'); refresh(); renderShed();
       });
     });
+  }
+  // ---------- 장터 시세판 (opened from the 바구니 tab): today's price per 종목, ▲▼ vs yesterday, last days in pixels ----------
+  // 16×8 sparkline: one point every 2px, scaled to these days' own low..high (like a stock ticker),
+  // dotted ×1 line when it is in range, today's point as a 2×2 dot
+  function mktSpark(hist) {
+    var c = document.createElement('canvas'); c.width = 16; c.height = 8; c.className = 'wide';
+    var g = c.getContext('2d'), lo = Math.min.apply(null, hist), hi = Math.max.apply(null, hist);
+    if (hi - lo < 0.12) { var mid = (hi + lo) / 2; lo = mid - 0.06; hi = mid + 0.06; }
+    function y(m) { return Math.round((1 - (m - lo) / (hi - lo)) * 6); }
+    g.fillStyle = G[2];
+    if (lo <= 1 && hi >= 1) for (var x = 0; x < 16; x += 2) g.fillRect(x, y(1), 1, 1);
+    g.fillStyle = G[4];
+    var px0 = -1, py0 = -1;
+    hist.forEach(function (m, i) {
+      var px1 = 1 + i * 2, py1 = y(m);
+      if (px0 >= 0) {   // join to the last point: half the climb on each column
+        var mid = Math.round((py0 + py1) / 2);
+        g.fillRect(px0 + 1, Math.min(py0, mid), 1, Math.abs(mid - py0) + 1);
+        g.fillRect(px1, Math.min(mid, py1), 1, Math.abs(py1 - mid) + 1);
+      }
+      g.fillRect(px1, py1, 1, 1);
+      px0 = px1; py0 = py1;
+    });
+    g.fillRect(px0 - 1, py0, 2, 2);
+    return c;
+  }
+  function mktArrow(m, prev) { return m > prev ? '▲' : m < prev ? '▼' : '–'; }
+  function openMarket() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'market'; sheetEl.hidden = false;
+    renderMarket();
+  }
+  function renderMarket() {
+    sheetHead('장터 시세');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = '장터 아저씨: 오늘 값은 이래요. 값은 매일 자정에 바뀌고, 오르면 며칠 오르기도 해요.';
+    sheetEl.appendChild(say);
+    var h3 = document.createElement('h3'); h3.textContent = '오늘의 시세';
+    var b = document.createElement('b'); b.textContent = '최근 ' + L.MKT_HIST + '일'; h3.appendChild(b); sheetEl.appendChild(h3);
+    L.mktBoard(S, now(), TZ).forEach(function (q) {
+      var sub = '어제 ×' + q.prev.toFixed(2) + (q.sold ? ' · 오늘 ' + q.sold + '개 팔았어요' : '') +
+        (q.now < q.m ? ' · 많이 팔아 지금 ×' + q.now.toFixed(2) : '');
+      var r = sheetRow(mktSpark(q.hist), q.name, sub, q.now < q.m ? 'idle' : '');
+      var v = document.createElement('span'); v.className = 'mktv';
+      v.textContent = mktArrow(q.m, q.prev) + ' ×' + q.now.toFixed(2);
+      v.setAttribute('aria-label', q.name + ' 오늘 ' + q.now.toFixed(2) + '배, 어제보다 ' + (q.m > q.prev ? '올랐어요' : q.m < q.prev ? '내렸어요' : '같아요'));
+      r.appendChild(v);
+    });
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '바구니에서 팔 때만 이 값 · 쌀 땐 창고에 넣어 두고 비싼 날 꺼내 팔기 · 한 종목을 하루 ' + L.MKT_FREE +
+      '개 넘게 팔면 하나마다 ' + Math.round(L.MKT_SLIP * 100) + '%씩 내려가요 (×1 아래로는 안 내려감) · 주문·경매·자동 판매 값은 그대로';
+    sheetEl.appendChild(p);
+  }
+  // console hooks: FF.market() → today's board
+  function addMarketHooks(FF) {
+    FF.market = function () { openMarket(); return L.mktBoard(S, now(), TZ).map(function (q) { return q.name + ' ×' + q.now + ' (' + q.hist.join(' ') + ')'; }); };
+  }
+  // ---------- 은행 (opened from the 바구니 tab): put coins in, take them out, interest per real day ----------
+  var BANK_WHY = { coins: '코인이 모자라요', cap: '통장엔 ' + L.BANK_CAP.toLocaleString('ko-KR') + '코인까지만 맡아요', bal: '통장에 그만큼 없어요', n: '맡길 돈이 없어요' };
+  // a little pixel coin stack for the rows
+  var BANK_ICON = ['............', '...444444...', '..40000004..', '..44444444..', '..40000004..', '..44444444..',
+    '..40000004..', '..44444444..', '..40022004..', '..44444444..', '............', '............'];
+  function bankIcon() {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(BANK_ICON, 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  function openBank() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'bank'; sheetEl.hidden = false;
+    var got = L.bankSettle(S, now(), TZ);
+    if (got) { toast('통장에 이자가 붙었다 · +' + got.toLocaleString('ko-KR'), 3000); save(); }
+    renderBank();
+  }
+  function bankRow(name, sub, amounts, go) {
+    var r = sheetRow(bankIcon(), name, sub);
+    var a = document.createElement('div'); a.className = 'acts';
+    amounts.forEach(function (q) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'max b'; b.textContent = q[0];
+      b.setAttribute('aria-label', name + ' ' + q[0]);
+      if (!(q[1] > 0)) b.disabled = true;
+      b.addEventListener('click', function () { go(q[1]); });
+      a.appendChild(b);
+    });
+    r.appendChild(a);
+  }
+  function renderBank() {
+    var bal = L.bankBal(S), room = L.BANK_CAP - bal, rate = Math.round(L.BANK_RATE * 100);
+    sheetHead('은행');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = '은행원: 맡긴 돈엔 자정마다 ' + rate + '%씩 이자가 붙어요. 찾을 땐 언제든지요.';
+    sheetEl.appendChild(say);
+    var h3 = document.createElement('h3'); h3.textContent = '통장';
+    var b = document.createElement('b'); b.textContent = bal.toLocaleString('ko-KR') + ' / ' + L.BANK_CAP.toLocaleString('ko-KR') + '코인'; h3.appendChild(b); sheetEl.appendChild(h3);
+    var put = Math.min(S.coins, room);
+    bankRow('맡기기', '지갑 ' + S.coins.toLocaleString('ko-KR') + '코인' + (room <= 0 ? ' · 통장이 꽉 찼어요' : ''),
+      [['100', put >= 100 ? 100 : 0], ['1,000', put >= 1000 ? 1000 : 0], ['전부', put]], function (n) {
+        var res = L.bankPut(S, n, now(), TZ);
+        if (!res.ok) { toast(BANK_WHY[res.why]); renderBank(); return; }
+        toast(res.n.toLocaleString('ko-KR') + '코인 맡겼다'); refresh(); save(); renderBank();
+      });
+    bankRow('찾기', '지금까지 이자 ' + (S.bank ? S.bank.i : 0).toLocaleString('ko-KR') + '코인 · 내일 +' + Math.min(room, Math.floor(bal * L.BANK_RATE)).toLocaleString('ko-KR'),
+      [['100', bal >= 100 ? 100 : 0], ['1,000', bal >= 1000 ? 1000 : 0], ['전부', bal]], function (n) {
+        var res = L.bankTake(S, n, now(), TZ);
+        if (!res.ok) { toast(BANK_WHY[res.why]); renderBank(); return; }
+        toast(res.n.toLocaleString('ko-KR') + '코인 찾았다'); fxCoinsDom(sheetEl.querySelector('.wallet')); refresh(); save(); renderBank();
+      });
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '현실 하루(자정)마다 이자 ' + rate + '% (소수점 버림) · ' + L.BANK_CAP.toLocaleString('ko-KR') + '코인까지 · 오래 비워도 이자는 ' +
+      L.BANK_CATCHUP + '일치까지만 · 통장 돈으로는 살 수 없으니 쓸 땐 찾기';
+    sheetEl.appendChild(p);
+  }
+  // console hooks: FF.bank() → the 통장 (opens the 은행)
+  function addBankHooks(FF) {
+    FF.bank = function () { openBank(); return S.bank || null; };
   }
   // ---------- 오늘의 할 일 (달력 panel, top) + 농장 N년차; the logic tick keeps today's list and pays once ----------
   function todayKey(t) {
@@ -13201,9 +13685,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     px(0, 92, W, 16, 1); for (var x = 2; x < W; x += 9) px(x, 99, 4, 1, 2);
     px(0, 92, W, 1, 2); px(0, 107, W, 1, 2);
     px(84, 168, 12, 32, 1); px(84, 168, 1, 32, 2); px(95, 168, 1, 32, 2);
-    // a well in the middle of the lane, small trees between the houses
+    // a well in the middle of the lane, small trees between the houses (the one at [120, 172] made way for the 게임장)
     px(56, 172, 14, 8, 2); px(57, 171, 12, 1, 4); px(56, 180, 14, 1, 4); px(58, 164, 1, 8, 4); px(67, 164, 1, 8, 4); px(57, 163, 12, 2, 4);
-    [[60, 88], [120, 88], [60, 172], [120, 172], [174, 100]].forEach(function (t, i) {
+    [[60, 88], [120, 88], [60, 172], [174, 100]].forEach(function (t, i) {
       px(t[0], t[1] - 4, 2, 5, 4);
       px(t[0] - 3, t[1] - 10, 8, 6, 3); px(t[0] - 2, t[1] - 12, 6, 2, 3); px(t[0] - 1, t[1] - 9, 2, 1, i % 2 ? 2 : 4);
     });
@@ -13298,6 +13782,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drawMuseumHouse(tt);   // stage 7 박물관
     drawHill(tt);          // stage 9 ③: 마을 언덕 (열기구·썰매)
     drawPortSign(tt);      // stage 11 ①: 「끊긴 다리」 → 옛 포구
+    drawArcade(tt);        // 게임장
     drawTown(tt);          // stage 10 ③: people out on the street, 새 주민 cottages
     drawYardWeather(tt, e.weather);
     if (night || e.phase === 'evening') {
@@ -13310,6 +13795,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (tapMuseumHouse(x, y)) return;   // stage 7 박물관
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
+    if (tapArcade(x, y)) return;        // 게임장
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
@@ -18626,6 +19112,383 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     px(x + 6, y + 4, 1, 1, 4); px(x + 10, y + 4, 1, 1, 4); px(x + 4, y + 5, 1, 2, 4);
     px(x + 6, y + 12, 1, 2, 4); px(x + 9, y + 12, 1, 2, 4);
   };
+  // ---------- 게임장 (마을 아래, 장터 가는 길 옆): the building, one overlay for 고르기·내기 and the round ----------
+  // Logic: logic/arcade.js. The overlay (#arcade) shows the game list, then 난이도·내기, then a 120×120 board.
+  // Round time = performance.now() since the round began, minus time behind the boss key, so ?speed never changes it.
+  var ARC_AT = [98, 166, 28, 32];   // between the path down and the 박물관 (the tree that stood here is gone)
+  var AW = 120, AH = 120;
+  var ARC_TZ = -new Date().getTimezoneOffset();
+  var ARC_WHY = { village: '마을이 열리면 문을 열어요', cap: '오늘 상금 게임은 다 했어요 · 그냥 놀기만 돼요', coins: '코인이 부족해요',
+    bet: '걸 수 없는 금액이에요', game: '없는 게임이에요', diff: '난이도를 골라 주세요' };
+  var ARC_HOW = { mole: '채소 도둑 두더지를 눌러 잡기', match: '두 장씩 뒤집어 같은 그림 맞추기', throw: '움직이는 과녁에 공 던지기 (탭)', slot: '탭 한 번 · 운에 맡기기' };
+  var arcEl = document.createElement('section');
+  arcEl.className = 'overlay'; arcEl.id = 'arcade'; arcEl.hidden = true; arcEl.setAttribute('aria-label', '게임장');
+  app.appendChild(arcEl);
+  var arcHead = document.createElement('h2'), arcTitle = document.createElement('span'), arcWallet = document.createElement('span');
+  var arcCv = document.createElement('canvas'), arcTip = document.createElement('p'), arcMenu = document.createElement('div'), arcActs = document.createElement('div');
+  arcWallet.className = 'wallet'; arcHead.appendChild(arcTitle); arcHead.appendChild(arcWallet);
+  arcCv.width = AW; arcCv.height = AH; arcTip.className = 'tip'; arcMenu.className = 'menu'; arcActs.className = 'acts';
+  [arcHead, arcCv, arcTip, arcMenu, arcActs].forEach(function (el) { arcEl.appendChild(el); });
+  var arc = null;   // { kind: 'menu' | 'pick' | 'round', game, diff, bet, play, g, t0, paused, bossAt, done, … }
+  var arcIcons = {};
+  function arcOn() { return !!arc && arc.kind === 'round' && !arc.done; }
+  function arcT() { return performance.now() - arc.t0 - arc.paused; }
+
+  // ---------- the building on the 마을 street ----------
+  function drawArcade(tt) {
+    var x = ARC_AT[0], y = ARC_AT[1], blink = reduceMotion ? 0 : Math.floor(tt * 2) % 2;
+    px(x + 3, y, 22, 6, 4); px(x + 4, y + 1, 20, 4, 0);                                     // sign board
+    for (var s = 0; s < 3; s++) { px(x + 7 + s * 5, y + 2, 3, 1, 4); px(x + 9 + s * 5, y + 3, 1, 1, 4); px(x + 8 + s * 5, y + 4, 1, 1, 4); }   // 777
+    for (var b = 0; b < 6; b++) px(x + 4 + b * 4, y - 1, 1, 1, (b + blink) % 2 ? 4 : 2);  // bulbs along the top
+    px(x + 13, y + 6, 1, 2, 4); px(x + 6, y + 6, 1, 2, 4); px(x + 21, y + 6, 1, 2, 4);
+    px(x, y + 7, 28, 6, 4);                                                                 // striped awning
+    for (var k = 0; k < 7; k++) px(x + k * 4 + (k ? 0 : 1), y + 8, k && k < 6 ? 4 : 3, 4, k % 2 ? 0 : 2);
+    px(x + 1, y + 13, 26, 16, 4); px(x + 2, y + 13, 24, 15, 1);                            // wall
+    px(x + 10, y + 17, 8, 11, 4); px(x + 11, y + 18, 6, 10, 3); px(x + 15, y + 23, 1, 1, 0);   // door
+    px(x + 3, y + 16, 6, 7, 4); px(x + 4, y + 17, 4, 5, blink ? 2 : 0); px(x + 5, y + 18, 2, 2, 4);   // window: a ball on a claw
+    px(x + 19, y + 16, 6, 7, 4); px(x + 20, y + 17, 4, 5, blink ? 0 : 2); px(x + 21, y + 19, 2, 1, 4); px(x + 21, y + 21, 2, 1, 4);   // window: a slot face
+    px(x, y + 29, 28, 2, 4); px(x + 2, y + 31, 24, 1, 3);                                  // step
+  }
+  function tapArcade(x, y) {
+    if (!hit(ARC_AT, x, y, 1)) return false;
+    openArcade();
+    return true;
+  }
+
+  // ---------- overlay screens ----------
+  function arcButton(text, fn, cls, label) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = text;
+    if (cls) b.className = cls;
+    if (label) b.setAttribute('aria-label', label);
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function arcHeader(title) {
+    arcTitle.textContent = title;
+    arcWallet.textContent = S.coins.toLocaleString('ko-KR') + '코인';
+  }
+  function arcShow(round) {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true; sheetEl.hidden = true;
+    arcEl.hidden = false;
+    arcCv.hidden = !round; arcMenu.hidden = !!round;
+  }
+  function closeArcade() {
+    if (arcOn()) arcEnd(null);   // closing mid-round = giving up
+    arc = null; arcEl.hidden = true;
+  }
+  function leftText() {
+    var n = L.arcLeft(S, now(), ARC_TZ);
+    return n > 0 ? '오늘 상금 게임 ' + n + '/' + L.ARC_DAY_CAP + '판 남음' : '오늘 상금 게임은 끝 · 내일까지는 그냥 놀기만';
+  }
+  function openArcade() {
+    arc = { kind: 'menu' };
+    arcHeader('게임장');
+    arcTip.textContent = leftText();
+    arcMenu.innerHTML = ''; arcActs.innerHTML = '';
+    L.ARC_GAMES.forEach(function (gm) {
+      var r = document.createElement('div'); r.className = 'up';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = gm.name;
+      var sm = document.createElement('small');
+      sm.textContent = ARC_HOW[gm.id] + ' · ' + (gm.luck ? '777 ×' + L.ARC_SLOT_PAY.seven + ' · 셋 ×' + L.ARC_SLOT_PAY.three + ' · 둘 ×' + L.ARC_SLOT_PAY.two
+        : L.ARC_DIFFS.map(function (d) { return L.ARC_DIFF_NAME[d] + ' ×' + L.ARC_MUL[d]; }).join(' · '));
+      n.appendChild(sm);
+      r.appendChild(gameIcon(gm.id)); r.appendChild(n);
+      r.appendChild(arcButton('고르기', function () { openPick(gm.id, arc && arc.diff); }, 'max', gm.name + ' 고르기'));
+      arcMenu.appendChild(r);
+    });
+    arcActs.appendChild(arcButton('닫기', closeArcade));
+    arcShow(false);
+  }
+  function ruleText(game, diff) {
+    if (game === 'slot') return '777 ×' + L.ARC_SLOT_PAY.seven + ' · 셋 같으면 ×' + L.ARC_SLOT_PAY.three + ' · 둘 같으면 ×' + L.ARC_SLOT_PAY.two + ' · 나머지는 꽝';
+    if (game === 'mole') { var m = L.ARC_MOLE[diff]; return (L.ARC_MOLE_TIME / 1000) + '초 안에 두더지 ' + m.need + '마리' + (m.hog ? ' · 고슴도치를 누르면 −' + L.ARC_HOG_COST : ''); }
+    if (game === 'match') { var c = L.ARC_MATCH[diff]; return c.pairs + '쌍을 ' + c.tries + '번 안에 다 맞추기'; }
+    var t = L.ARC_THROW[diff];
+    return '공 ' + L.ARC_BALLS + '개 중 ' + t.need + '개 맞히기 · 공이 날아가는 동안 과녁도 움직여요';
+  }
+  // 난이도 + 내기 for one game
+  function openPick(game, diff) {
+    var gm = L.arcGame(game);
+    diff = gm.luck ? null : diff || 'normal';
+    arc = { kind: 'pick', game: game, diff: diff };
+    arcHeader(gm.name);
+    var left = L.arcLeft(S, now(), ARC_TZ);
+    arcTip.textContent = ruleText(game, diff);
+    arcMenu.innerHTML = ''; arcActs.innerHTML = '';
+    if (!gm.luck) {
+      var h = document.createElement('h3'); h.textContent = '난이도'; arcMenu.appendChild(h);
+      var dr = document.createElement('div'); dr.className = 'pick'; dr.setAttribute('role', 'group'); dr.setAttribute('aria-label', '난이도');
+      L.ARC_DIFFS.forEach(function (d) {
+        var b = arcButton(L.ARC_DIFF_NAME[d] + ' ×' + L.ARC_MUL[d], function () { openPick(game, d); }, d === diff ? 'on' : '');
+        b.setAttribute('aria-pressed', d === diff ? 'true' : 'false');
+        dr.appendChild(b);
+      });
+      arcMenu.appendChild(dr);
+    }
+    var h2 = document.createElement('h3'); h2.textContent = '걸기';
+    var hb = document.createElement('b'); hb.textContent = leftText(); h2.appendChild(hb);
+    arcMenu.appendChild(h2);
+    var br = document.createElement('div'); br.className = 'pick'; br.setAttribute('role', 'group'); br.setAttribute('aria-label', '걸 코인');
+    L.ARC_BETS.forEach(function (bet) {
+      var b = arcButton(bet.toLocaleString('ko-KR'), function () { startRound(game, diff, bet); }, '', bet + '코인 걸고 시작');
+      if (left <= 0 || S.coins < bet) b.disabled = true;
+      br.appendChild(b);
+    });
+    arcMenu.appendChild(br);
+    var p = document.createElement('p'); p.className = 'note';
+    if (left > 0) p.textContent = gm.luck ? '건 코인은 먼저 내요 · 맞으면 건 코인 × 배수를 받아요'
+      : '건 코인은 먼저 내요 · 이기면 ' + (diff ? '×' + L.ARC_MUL[diff] : '배수') + '로 돌려받고, 지면 잃어요 · 그만두면 진 거예요';
+    else {
+      p.textContent = '상금 게임은 내일 다시 · 지금은 걸지 않고 그냥 놀 수 있어요';
+      arcMenu.appendChild(p);
+      p = null;
+      arcMenu.appendChild(arcButton('그냥 놀기', function () { startRound(game, diff, 0); }, 'go'));
+    }
+    if (p) arcMenu.appendChild(p);
+    arcActs.appendChild(arcButton('다른 게임', openArcade));
+    arcActs.appendChild(arcButton('닫기', closeArcade));
+    arcShow(false);
+  }
+
+  // ---------- a round ----------
+  function startRound(game, diff, bet) {
+    var r = L.arcStart(S, game, diff, bet, now(), ARC_TZ);
+    if (!r.ok) { toast(ARC_WHY[r.why] || '지금은 못 해요', 2400); if (arc && arc.kind === 'pick') openPick(game, diff); return; }
+    refresh();   // the bet is paid now: save it
+    var g = game === 'mole' ? L.moleLayout(diff, Math.random) : game === 'match' ? L.matchDeal(diff, Math.random)
+      : game === 'throw' ? L.throwSetup(diff, Math.random) : null;
+    arc = { kind: 'round', game: game, diff: diff, bet: bet, play: r.play, g: g, t0: performance.now(), paused: 0, bossAt: 0,
+      done: false, fx: [], hideAt: 0, endAt: 0, ballAt: 0, fly: null, reels: null, spinAt: 0, tipKey: '' };
+    arcHeader(L.arcGame(game).name + (diff ? ' · ' + L.ARC_DIFF_NAME[diff] : ''));
+    arcActs.innerHTML = '';
+    arcActs.appendChild(arcButton(bet ? '그만하기 (건 코인은 잃어요)' : '그만하기', function () { if (arcOn()) arcEnd(null); }));
+    arcShow(true);
+    tickArcade(0);
+  }
+  // win: true/false (skill), the slot multiplier, or null = gave up
+  function arcEnd(win) {
+    var a = arc, pay = win === null ? 0 : L.arcPay(S, a.play, win), msg;
+    a.done = true;
+    var ok = typeof win === 'number' ? win > 0 : !!win;
+    if (win === null) msg = a.bet ? '그만했다 · ' + a.bet.toLocaleString('ko-KR') + '코인은 게임장 몫' : '그만했다';
+    else if (a.game === 'slot') msg = ok ? '×' + win + '!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : '') : '꽝' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
+    else msg = ok ? '이겼다!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : ' (그냥 놀기)') : '아쉽다' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
+    arcTip.textContent = msg;
+    arcHeader(arcTitle.textContent);
+    if (pay) { fxCoinsDom(arcWallet); fxStamp(arcTip); }
+    refresh();
+    if (!arc || arc !== a || arcEl.hidden) return;
+    arcActs.innerHTML = '';
+    arcActs.appendChild(arcButton('한 판 더', function () {
+      var bet = a.bet && L.arcLeft(S, now(), ARC_TZ) > 0 ? a.bet : 0;
+      if (a.bet && !bet) { toast(ARC_WHY.cap, 2400); openPick(a.game, a.diff); return; }
+      if (!a.bet && L.arcLeft(S, now(), ARC_TZ) > 0) { openPick(a.game, a.diff); return; }   // a new day began: prize plays again
+      startRound(a.game, a.diff, bet);
+    }, 'go'));
+    arcActs.appendChild(arcButton('다른 게임', openArcade));
+    arcActs.appendChild(arcButton('닫기', closeArcade));
+    drawBoard();
+  }
+  // board coordinates from a pointer
+  arcCv.addEventListener('pointerdown', function (e) {
+    if (!arcOn() || boss) return;
+    e.preventDefault();
+    var r = arcCv.getBoundingClientRect();
+    arcTap((e.clientX - r.left) * AW / r.width, (e.clientY - r.top) * AH / r.height);
+  });
+  // Space: throw / spin (the games without a place to aim)
+  function arcKey() { if (arcOn() && !boss && (arc.game === 'throw' || arc.game === 'slot')) arcTap(AW / 2, AH / 2); }
+
+  var MOLE_HX = [22, 60, 98], MOLE_HY = [44, 74, 104];
+  function holeAt(h) { return [MOLE_HX[h % 3], MOLE_HY[Math.floor(h / 3)]]; }
+  function cardBox(k) {
+    var n = arc.g.cards.length, cols = n > 16 ? 5 : 4, rows = n / cols, cw = 20, ch = 24, gap = 3;
+    var x0 = Math.round((AW - cols * cw - (cols - 1) * gap) / 2), y0 = Math.round((AH - rows * ch - (rows - 1) * gap) / 2) + 4;
+    return [x0 + (k % cols) * (cw + gap), y0 + Math.floor(k / cols) * (ch + gap), cw, ch];
+  }
+  function arcTap(x, y) {
+    var a = arc, g = a.g, t = arcT();
+    if (a.game === 'mole') {
+      for (var h = 0; h < L.ARC_MOLE_HOLES; h++) {
+        var p = holeAt(h);
+        if (Math.abs(x - p[0]) > 17 || y < p[1] - 24 || y > p[1] + 5) continue;
+        var r = L.moleTap(g, t, h);
+        if (r) a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t });
+        return;
+      }
+    } else if (a.game === 'match') {
+      if (a.hideAt) return;
+      for (var k = 0; k < g.cards.length; k++) {
+        if (!hit(cardBox(k), x, y, 1)) continue;
+        var f = L.matchFlip(g, k);
+        if (f === 'miss') a.hideAt = t + 700;
+        if (f === 'pair' && L.matchOver(g)) a.endAt = t + 400;
+        return;
+      }
+    } else if (a.game === 'throw') {
+      if (a.fly || a.endAt || t < a.ballAt) return;
+      var hitIt = L.throwShot(g, t - a.ballAt);
+      if (hitIt !== null) a.fly = { t: t, hit: hitIt };
+    } else if (!a.reels) {
+      a.reels = L.slotSpin(Math.random); a.spinAt = t;
+    }
+  }
+
+  // ---------- tick (frame loop) ----------
+  var SLOT_STOP = [700, 1100, 1500];
+  function tickArcade(dt) {
+    if (!arcOn()) return;
+    if (boss) { if (!arc.bossAt) arc.bossAt = performance.now(); return; }
+    if (arc.bossAt) { arc.paused += performance.now() - arc.bossAt; arc.bossAt = 0; }
+    var a = arc, g = a.g, t = arcT(), tip;
+    if (a.game === 'mole') {
+      if (L.moleOver(g, t)) { arcEnd(g.score >= g.need); return; }
+      tip = '잡은 두더지 ' + g.score + ' / ' + g.need + ' · ' + Math.ceil((L.ARC_MOLE_TIME - t) / 1000) + '초';
+    } else if (a.game === 'match') {
+      if (a.hideAt && t >= a.hideAt) { L.matchHide(g); a.hideAt = 0; if (L.matchOver(g)) a.endAt = t; }
+      if (a.endAt && t >= a.endAt) { arcEnd(L.matchWon(g)); return; }
+      tip = '맞춘 짝 ' + (g.cards.length / 2 - L.matchLeft(g)) + ' / ' + g.cards.length / 2 + ' · 남은 기회 ' + (g.tries - g.used);
+    } else if (a.game === 'throw') {
+      if (a.fly && t >= a.fly.t + g.flight) {
+        a.fx.push({ k: a.fly.hit ? 'hit' : 'miss', x: L.ARC_AIM, y: 26, t: t });
+        a.fly = null;
+        if (g.shots.length >= g.balls.length) a.endAt = t + 600; else a.ballAt = t + 400;
+      }
+      if (a.endAt && t >= a.endAt) { arcEnd(L.throwHits(g) >= g.need); return; }
+      tip = '맞힌 공 ' + L.throwHits(g) + ' / ' + g.need + ' · 남은 공 ' + (g.balls.length - g.shots.length) + ' · 탭 = 던지기';
+    } else {
+      if (a.reels && t >= a.spinAt + SLOT_STOP[2] + 300) { arcEnd(L.slotMul(a.reels)); return; }
+      tip = a.reels ? '돌아가는 중…' : '탭해서 돌리기' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인' : '');
+    }
+    if (tip !== a.tipKey) { a.tipKey = tip; arcTip.textContent = tip; }
+    drawBoard();
+  }
+
+  // ---------- drawing ----------
+  var MOLE_SPR = ['...44444...', '..4333334..', '.444444444.', '.440444044.', '.433343334.', '.433444334.', '..4333334..', '.443333344.', '4.4333334.4'];
+  var HOG_SPR = ['..4.4.4.4..', '.444444444.', '44444444444', '.442222244.', '4420222024.', '.422242224.', '..4222224..', '...44444...'];
+  var SEVEN_SPR = ['4444444', '4444444', '.....44', '....44.', '...44..', '...44..', '..44...', '..44...'];
+  // a sprite at 2×, only its top `n` rows (a mole coming out of the hole)
+  function big(rows, x, y, n) {
+    for (var j = 0; j < Math.min(n, rows.length); j++) for (var i = 0; i < rows[j].length; i++) if (rows[j][i] !== '.') px(x + i * 2, y + j * 2, 2, 2, +rows[j][i]);
+  }
+  function iconFor(id) { return arcIcons[id] || (arcIcons[id] = itemIcon(id)); }
+  function drawIcon(id, cx, cy, sc) {
+    if (id === 'seven') { big(SEVEN_SPR, cx - 7, cy - 8, 99); return; }
+    var c = iconFor(id);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(c, Math.round(cx - c.width * sc / 2), Math.round(cy - c.height * sc / 2), c.width * sc, c.height * sc);
+  }
+  function drawBoard() {
+    if (!arc || arc.kind !== 'round') return;
+    var saved = ctx; ctx = arcCv.getContext('2d');
+    try {
+      px(0, 0, AW, AH, 0);
+      var t = arc.done ? arc.lastT || 0 : arcT();
+      if (!arc.done) arc.lastT = t;
+      if (arc.game === 'mole') drawMole(t); else if (arc.game === 'match') drawMatch(); else if (arc.game === 'throw') drawThrow(t); else drawSlot(t);
+      arc.fx = arc.fx.filter(function (f) { return t - f.t < 400; });
+      arc.fx.forEach(function (f) {
+        var u = (t - f.t) / 400, yy = f.y - (reduceMotion ? 0 : u * 6);
+        if (f.k === 'mole' || f.k === 'hit') { px(f.x - 1, yy - 4, 2, 8, 4); px(f.x - 4, yy - 1, 8, 2, 4); px(f.x - 3, yy - 3, 1, 1, 4); px(f.x + 2, yy + 2, 1, 1, 4); }   // bonk star
+        else { px(f.x - 4, yy, 8, 2, 4); if (f.k === 'hog') { px(f.x + 6, yy - 3, 2, 8, 4); px(f.x + 9, yy - 3, 2, 8, 4); } }                                      // − (hog: −2 drawn as − ‖)
+      });
+    } finally { ctx = saved; }
+  }
+  function drawMole(t) {
+    var g = arc.g, left = Math.max(0, 1 - t / L.ARC_MOLE_TIME), up = {};
+    px(0, 0, Math.round(AW * left), 3, 4);                                               // time left
+    L.moleUp(g, t).forEach(function (k) { up[g.pops[k].hole] = k; });
+    for (var h = 0; h < L.ARC_MOLE_HOLES; h++) {
+      var p = holeAt(h), k = up[h];
+      px(p[0] - 13, p[1] - 2, 26, 6, 4); px(p[0] - 11, p[1] - 3, 22, 1, 4);              // the hole
+      if (k !== undefined) {
+        var pop = g.pops[k], age = t - pop.t, rem = g.up - age, rows = pop.hog ? HOG_SPR : MOLE_SPR;
+        var n = reduceMotion ? rows.length : Math.max(1, Math.min(rows.length, Math.ceil(rows.length * Math.min(age, rem) / 90)));
+        big(rows, p[0] - 11, p[1] - n * 2 + 2, n);
+      }
+      px(p[0] - 14, p[1] + 3, 28, 2, 2); px(p[0] - 12, p[1] + 5, 24, 1, 3);              // front lip of earth
+    }
+  }
+  function drawMatch() {
+    var g = arc.g;
+    g.cards.forEach(function (id, k) {
+      var b = cardBox(k), x = b[0], y = b[1], open = g.open.indexOf(k) >= 0;
+      if (g.gone[k]) { px(x, y, b[2], 1, 2); px(x, y + b[3] - 1, b[2], 1, 2); px(x, y, 1, b[3], 2); px(x + b[2] - 1, y, 1, b[3], 2); drawIconFaded(id, x + b[2] / 2, y + b[3] / 2); return; }
+      px(x, y, b[2], b[3], 4);
+      if (open || arc.done) { px(x + 1, y + 1, b[2] - 2, b[3] - 2, 0); drawIcon(id, x + b[2] / 2, y + b[3] / 2, 1); }
+      else {
+        px(x + 1, y + 1, b[2] - 2, b[3] - 2, 3);
+        for (var j = 0; j < 4; j++) px(x + 4 + (j % 2) * 8, y + 5 + Math.floor(j / 2) * 10, 4, 4, 2);   // card back pattern
+      }
+    });
+  }
+  function drawIconFaded(id, cx, cy) { ctx.globalAlpha = 0.25; drawIcon(id, cx, cy, 1); ctx.globalAlpha = 1; }
+  var TY = 26, THROW_Y = 104;
+  function drawThrow(t) {
+    var g = arc.g, i = Math.min(g.shots.length - (arc.fly ? 1 : 0), g.balls.length - 1);
+    // shots so far: filled = hit, cross = miss, open = to come
+    for (var s = 0; s < g.balls.length; s++) {
+      var sx = 6 + s * 9, sh = g.shots[s], landed = sh && !(arc.fly && s === g.shots.length - 1);
+      if (!landed) { px(sx, 4, 6, 6, 4); px(sx + 1, 5, 4, 4, 0); }
+      else if (sh.hit) px(sx, 4, 6, 6, 4);
+      else { for (var q = 0; q < 6; q++) { px(sx + q, 4 + q, 1, 1, 4); px(sx + 5 - q, 4 + q, 1, 1, 4); } }
+    }
+    px(L.ARC_LANE[0] - 4, TY + 5, L.ARC_LANE[1] - L.ARC_LANE[0] + 8, 1, 2);             // the rail the target slides on
+    var u = arc.fly ? t - arc.ballAt : Math.max(0, t - arc.ballAt);
+    var tx = L.throwX(g, i, u), hw = g.w / 2;
+    px(tx - hw, TY - 4, g.w, 8, 4); px(tx - hw + 1, TY - 3, g.w - 2, 6, 0); px(tx - 1, TY - 3, 2, 6, 4);   // target board, bull line
+    for (var y = TY + 10; y < THROW_Y - 8; y += 6) px(L.ARC_AIM, y, 1, 2, 1);           // where the ball goes
+    px(L.ARC_AIM - 4, THROW_Y + 4, 8, 10, 3); px(L.ARC_AIM - 2, THROW_Y, 4, 4, 4);       // thrower
+    if (arc.fly) {
+      var f = Math.min(1, (t - arc.fly.t) / g.flight), by = THROW_Y - 2 - (THROW_Y - 2 - TY) * f;
+      px(L.ARC_AIM - 2, by - 2, 4, 4, 4);
+    } else if (!arc.endAt && t >= arc.ballAt && !arc.done) px(L.ARC_AIM - 2, THROW_Y - 4, 4, 4, 4);   // ball in hand
+  }
+  function drawSlot(t) {
+    px(6, 30, 108, 50, 4); px(8, 32, 104, 46, 1);                                         // the machine face
+    for (var r = 0; r < 3; r++) {
+      var x = 12 + r * 34, spinning = arc.reels && t < arc.spinAt + SLOT_STOP[r];
+      px(x, 36, 28, 38, 4); px(x + 1, 37, 26, 36, 0);
+      var id = arc.reels ? arc.reels[r] : L.ARC_SLOT[(r * 2 + 1) % L.ARC_SLOT.length].id;
+      if (spinning && !reduceMotion) {
+        var k = Math.floor((t - arc.spinAt) / 70 + r * 2) % L.ARC_SLOT.length, off = ((t - arc.spinAt) / 70 % 1) * 12;
+        ctx.save(); ctx.beginPath(); ctx.rect(x + 1, 37, 26, 36); ctx.clip();
+        drawIcon(L.ARC_SLOT[k].id, x + 14, 55 - 12 + off, 2); drawIcon(L.ARC_SLOT[(k + 1) % L.ARC_SLOT.length].id, x + 14, 55 + 12 + off, 2);
+        ctx.restore();
+      } else if (spinning) { px(x + 8, 54, 12, 2, 2); }
+      else drawIcon(id, x + 14, 55, 2);
+    }
+    px(116, 40, 2, 20, 4); px(114, 36, 6, 5, arc.reels ? 2 : 4);                          // lever
+    px(20, 86, 80, 10, 4); px(21, 87, 78, 8, 0);
+    var mul = arc.done && arc.reels ? L.slotMul(arc.reels) : 0;
+    for (var b = 0; b < 8; b++) px(24 + b * 10, 90, 6, 2, mul ? 4 : 2);                  // win lights: lit on a win
+  }
+  // little canvas icons for the game rows
+  function gameIcon(id) {
+    return iconOf(function () {
+      if (id === 'mole') { px(1, 11, 14, 3, 4); spr(MOLE_SPR.slice(0, 6), 2, 5); }
+      else if (id === 'match') { px(1, 2, 7, 10, 4); px(2, 3, 5, 8, 3); px(8, 4, 7, 10, 4); px(9, 5, 5, 8, 0); px(10, 8, 3, 2, 4); }
+      else if (id === 'throw') { px(3, 2, 10, 4, 4); px(4, 3, 8, 2, 0); px(7, 3, 2, 2, 4); px(7, 11, 3, 3, 4); px(8, 7, 1, 3, 2); }
+      else spr(SEVEN_SPR, 4, 4);
+    }, 16, 16);
+  }
+
+  // ---------- console hooks ----------
+  function addArcadeHooks(FF) {
+    // FF.arcade() opens it; FF.arcade(game, diff, bet) starts a round (bet 0 = 그냥 놀기 once the day's prize plays are used)
+    FF.arcade = function (game, diff, bet) {
+      if (!L.villageOk(S)) S.rep = Math.max(S.rep, L.VILLAGE_REP);
+      if (!game) { openArcade(); return L.arcLeft(S, now(), ARC_TZ); }
+      startRound(game, diff || null, bet === undefined ? L.ARC_BETS[0] : bet);
+      return FF.arcadeState();
+    };
+    FF.arcadeState = function () {
+      return arc && { kind: arc.kind, game: arc.game, diff: arc.diff, bet: arc.bet, done: arc.done, t: arc.kind === 'round' ? Math.round(arc.done ? arc.lastT : arcT()) : 0,
+        g: arc.g, reels: arc.reels, ballAt: arc.ballAt, fly: !!arc.fly, left: L.arcLeft(S, now(), ARC_TZ), coins: S.coins };
+    };
+    FF.arcadeTap = function (x, y) { if (arcOn()) arcTap(x, y); return FF.arcadeState(); };
+  }
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -18672,6 +19535,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var tt = performance.now() / 1000;
     tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     tickRide(dt);      // stage 9 ③: 자전거·썰매·열기구
+    tickArcade(dt);    // 게임장: the round on its own board
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);
@@ -18892,6 +19756,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   addPortHooks(globalThis.FF);     // stage 11 ①: FF.port.go(), FF.port.fill(bldgId), FF.port.build()
   addAuctionHooks(globalThis.FF);  // stage 11 ②: FF.auction.open(), .trader(), .sell(id), .train()
   addDiveHooks(globalThis.FF);     // stage 12 ③: FF.dive.go(room), .o2(n), .gear(id), .sheet(), .state()
+  addMarketHooks(globalThis.FF);   // 장터 시세: FF.market() opens the 시세판 and lists today's board
+  addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
+  addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

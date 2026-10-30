@@ -1,4 +1,4 @@
-// test/stage10c.test.js — stage 10 lane ③: 주민들의 하루 (places by game time) + 새 주민 이사
+// farm-fish/test/stage10c.test.js — stage 10 lane ③: 주민들의 하루 (places by game time) + 새 주민 이사
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

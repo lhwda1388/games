@@ -1,4 +1,4 @@
-// test/stage10b.test.js — stage 10 lane ②: 꽃 교배, 동물 새끼, 허수아비 꾸미기
+// farm-fish/test/stage10b.test.js — stage 10 lane ②: 꽃 교배, 동물 새끼, 허수아비 꾸미기
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

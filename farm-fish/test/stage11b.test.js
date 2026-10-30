@@ -1,4 +1,4 @@
-// test/stage11b.test.js — stage 11 lane ②: 어판장 경매, 떠돌이 상인 (기차)
+// farm-fish/test/stage11b.test.js — stage 11 lane ②: 어판장 경매, 떠돌이 상인 (기차)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

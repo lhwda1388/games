@@ -1,5 +1,5 @@
-// build.js — joins src/ into the single self-contained index.html.
-// Usage: node build.js   (no dependencies; same sources always give the same bytes)
+// farm-fish/build.js — joins src/ into the single self-contained index.html.
+// Usage: node farm-fish/build.js   (no dependencies; same sources always give the same bytes)
 // Files are pasted in the order listed. logic/ and ui/ files are fragments of one shared closure each
 // (see src/page.html), so a file can use any name defined in an earlier one. New file = one new line.
 'use strict';
@@ -28,7 +28,9 @@ const STYLE = [
   // stage 9 ③ 자전거·열기구·썰매
   'ride.css',           // ride overlay, 마을 언덕 menu, 「자전거로」 button
   // stage 10 ① 낚시 대회·결산 카드·간판
-  'contest.css'         // 농장 간판 name tag, 간판 모양 picker, 결산 카드 sheet
+  'contest.css',        // 농장 간판 name tag, 간판 모양 picker, 결산 카드 sheet
+  // 게임장
+  'arcade.css'          // 게임장 overlay: board canvas, game rows, 난이도·내기 buttons
 ];
 
 const BODY = [
@@ -53,6 +55,8 @@ const LOGIC = [
   'logic/residents.js', // 단골 주민: who posts orders, 친밀도, letters, gifts, gift recipes
   'logic/aquarium.js',  // 수족관 in the house (s.tank)
   'logic/shed.js',      // 창고: basket items kept for orders (s.shed)
+  'logic/market.js',    // 장터 시세: daily price per 종목 for basket selling, slippage (s.mkt)
+  'logic/bank.js',      // 은행: deposit/withdraw, daily interest with a cap and a catch-up limit (s.bank)
   'logic/daily.js',     // 오늘의 할 일 (s.daily)
   'logic/share.js',     // 농장 N년차, 친구 기록 비교 code, stage-4 save block
   // stage 5A
@@ -106,6 +110,8 @@ const LOGIC = [
   // stage 12 ③ 잠수 탐험
   'logic/divemap.js',   // 24-room dive map data (rooms, exits, gates, bubbles, things)
   'logic/dive.js',      // 잠수: gates, gear, 해저 도감, 항해일지, 난파선 상자 (s.dive); after divemap.js, before guide.js
+  // 게임장
+  'logic/arcade.js',    // 게임장: bets, daily prize cap, 두더지·짝 맞추기·공 던지기·슬롯 rules (s.arcade); after toys/village, before guide.js
   // stage 8 ④ 이펙트
   'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
   'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
@@ -141,6 +147,8 @@ const UI = [
   'ui/residents.js',    // 주민 tab in the 바구니 panel, gift-recipe dish art
   'ui/aquarium.js',     // 수족관 in the house + its sheet
   'ui/shed.js',         // 창고 sheet (from the 바구니 panel)
+  'ui/market.js',       // 장터 시세판 sheet (from the 바구니 panel): ▲▼, sparkline
+  'ui/bank.js',         // 은행 sheet (from the 바구니 panel)
   'ui/daily.js',        // 오늘의 할 일 + 농장 N년차 in the 달력, daily tick
   'ui/share.js',        // 도감 친구 tab: my record code, friend comparison
   // stage 5A
@@ -192,6 +200,8 @@ const UI = [
   // stage 12 ③ 잠수 탐험
   'ui/dive.js',         // dive scene: swim by tap, rooms, oxygen, take/see things, 포구 marker + 잠수 sheet, FF.dive
   'ui/divemap.js',      // minimap overlay, 해저 도감 rows, dive thing art and basket icons
+  // 게임장
+  'ui/arcade.js',       // 게임장 building on the 마을 street, game overlay (고르기·내기·4 games), FF.arcade
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold

@@ -1,4 +1,4 @@
-// test/spots.test.js — stage 2: fishing spots, time of day, weather, new fish, new milestones
+// farm-fish/test/spots.test.js — stage 2: fishing spots, time of day, weather, new fish, new milestones
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

@@ -1,4 +1,4 @@
-// test/fx.test.js — stage 8 ④ 이펙트: pure timing helpers (easing, count-up, caps, stale drop, streaks)
+// farm-fish/test/fx.test.js — stage 8 ④ 이펙트: pure timing helpers (easing, count-up, caps, stale drop, streaks)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');

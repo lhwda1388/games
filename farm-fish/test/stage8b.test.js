@@ -1,4 +1,4 @@
-// test/stage8b.test.js — stage 8 ② 손맛: fish personalities in the reel, boss phases, 월척 records, 어탁, share code
+// farm-fish/test/stage8b.test.js — stage 8 ② 손맛: fish personalities in the reel, boss phases, 월척 records, 어탁, share code
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

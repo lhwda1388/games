@@ -1,4 +1,4 @@
-// test/stage11a.test.js — stage 11 lane ①: 옛 포구 (꾸러미 채우기, 건물 복구, 할머니)
+// farm-fish/test/stage11a.test.js — stage 11 lane ①: 옛 포구 (꾸러미 채우기, 건물 복구, 할머니)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

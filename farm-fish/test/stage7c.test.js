@@ -1,4 +1,4 @@
-// test/stage7c.test.js — stage 7 lane ③: 섬 (낡은 배 수리, 섬 낚시터, 표류물, 야자수, 등대 이야기)
+// farm-fish/test/stage7c.test.js — stage 7 lane ③: 섬 (낡은 배 수리, 섬 낚시터, 표류물, 야자수, 등대 이야기)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

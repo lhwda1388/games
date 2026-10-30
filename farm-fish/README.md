@@ -3,8 +3,8 @@
 친구에게 주는 건 `index.html` 한 파일. 고칠 때는 `src/`를 고치고 다시 합친다.
 
 ```sh
-node build.js                 # src/ → index.html (같은 소스면 항상 같은 결과)
-node --test test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index.html이 낡았으면 실패
+node farm-fish/build.js                 # src/ → index.html (같은 소스면 항상 같은 결과)
+node --test farm-fish/test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index.html이 낡았으면 실패
 ```
 
 `src/`의 파일 순서는 `build.js`의 목록이 정한다. 새 파일은 목록에 한 줄 추가. `logic/`·`ui/` 파일은 각각 하나의 클로저 조각이라 앞 파일의 이름을 그대로 쓴다. 로직 파일은 공개할 이름을 파일 끝 `expose({...})`에 적는다.
@@ -50,6 +50,9 @@ node --test test/*.test.js    # 빌드 없이 src/에서 바로 테스트, index
 | `logic/town.js`, `ui/town.js` | 10단계 ③ 주민들의 하루·새 주민: 주민이 집에 없는 시간대엔 마을 길 자리(`TOWN_PLACES`: 정자·텃밭·분교 마당·나루터 길·우물가·언덕·장터 가는 길·박물관 앞)에 서 있고 누르면 그 자리 대사(하루 한 번 친밀도 +1, `townMeet`), 큰 목표(화석 완성·등대 점등·박물관 절반)로 새 주민 3명 이사(`RES_EXTRA`, `s.town`: 이사 편지·만난 날), 윗길 새 집·방·얼굴, `FF.town` |
 | `logic/port.js`, `ui/port.js` | 11단계 ① 옛 포구: 마을 바닷가 끝 「끊긴 다리」 표지 → `port` 장면, 다리→조선소→어판장→기차역을 꾸러미(바구니 `bagTake`·고물 `s.junk`·기록 확인)와 코인으로 차례로 복구(`s.port` got/done), 포구지기 할머니 대사·다음 건물 힌트, 고친 건물마다 배경 인물, 칭호 「포구를 되살린 사람」, 부두 → 바다 낚시터, `PORT_AT` 배치(레인 ②③의 `drawPortExtra_*`/`tapPortExtra_*`가 읽음), `FF.port` |
 | `logic/auction.js`, `ui/auction.js` | 11단계 ②: 어판장 경매(현실 주마다 도감 강·바다·섬 물고기 3종, 바구니의 제일 큰 것 ×1.5~×3, 종마다 주 1회, 결과는 우체통 편지 `a:` 키, `s.port.auc`), 기차 떠돌이 상인(현실 하루 3개 중 하나, 황금 씨앗·포구 장식 5종, `s.trader`), 포구 장면 위 `drawPortExtra_auction`/`tapPortExtra_auction`, 달력 경매 줄, `FF.auction` |
+| `logic/market.js`, `ui/market.js` | 장터 시세: 종목(작물·민물고기·바닷고기·숲·갯벌·과일·꿀·산물·요리·광물)마다 현실 하루 값 ×0.5~×2(날 번호로 정해지는 걷기, 저장 없음), 바구니 팔기에만(주문·경매·자동 판매 제외), 한 종목 하루 많이 팔면 ×1까지 내려감(`s.mkt`), 바구니 탭 시세판(▲▼·7일 그림), `FF.market` |
+| `logic/bank.js`, `ui/bank.js` | 은행: 바구니 탭 은행 버튼, 맡기기/찾기, 현실 하루(자정)마다 이자 2%(버림, 복리), 통장 최대 300,000코인(이자도 거기서 멈춤), 비운 날이 길어도 이자는 7일치까지(`BANK_*` 상수), 날을 되돌려도 두 번 안 줌(`s.bank` c/d/i, 첫 입금 때 생김), `FF.bank` |
+| `logic/arcade.js`, `ui/arcade.js`, `arcade.css` | 게임장: 마을 아래 장터 가는 길 옆 건물(`ARC_AT`) → 게임장 창(게임 고르기 → 난이도·내기 → 120×120 판), 두더지 잡기·짝 맞추기·공 던지기(쉬움 ×1.5·보통 ×2·어려움 ×3)·슬롯머신(777 ×20·셋 ×5·둘 ×1.5, 기대 환급 약 0.91), 건 코인은 먼저 내고 이기면 배수로, 상금 게임은 현실 하루 `ARC_DAY_CAP`판(`s.arcade`) 그 뒤엔 그냥 놀기, 시간은 실제 ms, 숫자는 `logic/arcade.js` 맨 위 표, `FF.arcade` |
 | `ui/loop.js` | 제목 알림, 틱, 프레임, 루프, 창 맞춤 |
 | `ui/pip.js` | 작게 띄우기(PiP) |
 | `ui/boot.js` | 시작 순서, 콘솔용 `FF` (항상 마지막) |

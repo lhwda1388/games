@@ -1,4 +1,4 @@
-// test/stage7d.test.js — stage 7 박물관: six rooms filled by donations (basket items or records), a reward per room
+// farm-fish/test/stage7d.test.js — stage 7 박물관: six rooms filled by donations (basket items or records), a reward per room
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

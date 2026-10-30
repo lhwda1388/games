@@ -1,4 +1,4 @@
-// test/stage10d.test.js — stage 10 lane ④: 날씨 장난감, 계절 도감 챌린지
+// farm-fish/test/stage10d.test.js — stage 10 lane ④: 날씨 장난감, 계절 도감 챌린지
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

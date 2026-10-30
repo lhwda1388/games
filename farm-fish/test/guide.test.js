@@ -1,4 +1,4 @@
-// test/guide.test.js — 놀거리 수첩: GUIDE table, open/locked from real state, "새" marks, scene tips, save
+// farm-fish/test/guide.test.js — 놀거리 수첩: GUIDE table, open/locked from real state, "새" marks, scene tips, save
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -93,9 +93,9 @@ test('guideNew lists open unseen entries; guideSee clears them', () => {
   L.guideSee(s, n0);
   assert.deepEqual(L.guideNew(s), []);
   s.rep = 5;
-  assert.deepEqual(L.guideNew(s), ['village', 'story', 'balloon', 'sled', 'townday']);   // 열기구·썰매 live on the 마을 언덕; stage 10 ③ 주민들의 하루
+  assert.deepEqual(L.guideNew(s), ['village', 'story', 'balloon', 'sled', 'townday', 'arcade']);   // 열기구·썰매 live on the 마을 언덕; stage 10 ③ 주민들의 하루; 게임장
   L.guideSee(s, ['village', 'bogus']);
-  assert.deepEqual(L.guideNew(s), ['story', 'balloon', 'sled', 'townday']);
+  assert.deepEqual(L.guideNew(s), ['story', 'balloon', 'sled', 'townday', 'arcade']);
   assert.equal(s.guide.seen.bogus, undefined);
 });
 
