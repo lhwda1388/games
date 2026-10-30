@@ -64,6 +64,7 @@
   addMarketHooks(globalThis.FF);   // 장터 시세: FF.market() opens the 시세판 and lists today's board
   addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
   addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
+  addMysHooks(globalThis.FF);      // 내 가게: FF.myshop() opens the shop sheet, FF.myshop('build') builds it
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
     if (done) S.daily.goals.forEach(function (g) { g.p = g.n; });

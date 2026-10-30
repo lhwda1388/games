@@ -100,6 +100,7 @@
     ctx.drawImage(bgVillage, 0, 0);
     drawSky(tt, e.phase);
     drawTownBack(tt);      // stage 10 ③: upper lane, places, 새 주민 cottages
+    mysDraw(tt);           // 내 가게 (or its 빈 가게 터 sign), behind the houses' marks
     L.VIL_IDS.forEach(function (id) {
       var p = VHOUSE[id], away = L.residentAway(id, t, YTZ);
       DRAW_HOUSE[id](p[0], p[1], tt);
@@ -127,6 +128,7 @@
     if (tapHill(x, y)) return;          // stage 9 ③: 마을 언덕
     if (tapPortSign(x, y)) return;      // stage 11 ①: 옛 포구
     if (tapArcade(x, y)) return;        // 게임장
+    if (!hit([139, 15, 11, 12], x, y) && mysTap(x, y)) return;   // 내 가게, except the 식당 attention mark drawn over its window
     var hitId = null;
     L.VIL_IDS.forEach(function (id) { var p = VHOUSE[id]; if (hit([p[0], p[1] - 8, 52, 58], x, y)) hitId = id; });
     if (hitId) { enterHome(hitId); return; }
