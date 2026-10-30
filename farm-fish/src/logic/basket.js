@@ -80,9 +80,11 @@
     drop.forEach(function (k) { s.bag.splice(k, 1); });
     return true;
   }
+  // kept (지키기) items stay in the basket
   function sellAll(s) {
-    var t = 0; s.bag.forEach(function (e) { t += e.v; });
-    s.bag = []; s.coins += t; return t;
+    var t = 0;
+    s.bag = s.bag.filter(function (e) { if (s.keep && s.keep[e.id]) return true; t += e.v; return false; });
+    s.coins += t; return t;
   }
   // one of id, the cheapest (as bagTake)
   function sellOne(s, id) {
@@ -154,11 +156,13 @@
     s.orders.forEach(function (q) { if (!q.o && now >= q.at) { q.o = genOrder(s, rng, season); n++; } });
     return n;
   }
-  function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && bagCount(s, q.o.id) >= q.o.n); }
+  // what an order can use: the basket and the 창고 together
+  function haveCount(s, id) { return bagCount(s, id) + shedCount(s, id); }
+  function canDeliver(s, k) { var q = s.orders[k]; return !!(q && q.o && haveCount(s, q.o.id) >= q.o.n); }
   function deliver(s, k, now, rng) {
     if (!canDeliver(s, k)) return null;
-    var o = s.orders[k].o;
-    bagTake(s, o.id, o.n);
+    var o = s.orders[k].o, b = Math.min(bagCount(s, o.id), o.n);
+    bagTake(s, o.id, b); shedUse(s, o.id, o.n - b);   // basket first, the rest from the 창고
     var pay = dayIs(s, 'orders') ? Math.round(o.reward * DAY_ORDER_MUL) : o.reward;   // stage 8: 단골 손님의 날
     s.coins += pay; s.rep += o.rep;
     s.orders[k] = { o: null, at: now + REFILL_MIN + rng() * REFILL_SPAN };
@@ -204,7 +208,7 @@
     PRODUCTS: PRODUCTS, RECIPES: RECIPES, ORDER_SLOTS: ORDER_SLOTS, REFILL_MIN: REFILL_MIN, REFILL_SPAN: REFILL_SPAN,
     SKIP_MIN: SKIP_MIN, SKIP_SPAN: SKIP_SPAN, SPECIAL_CHANCE: SPECIAL_CHANCE,
     recipeById: recipeById, itemInfo: itemInfo, obtainable: obtainable,
-    BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
+    BAG_OVER: BAG_OVER, bagCap: bagCap, bagAdd: bagAdd, bagBlocked: bagBlocked, sellOne: sellOne, bagCount: bagCount, haveCount: haveCount, bagTake: bagTake, sellAll: sellAll, sellId: sellId,
     weatherInSeason: weatherInSeason, orderPool: orderPool, genOrder: genOrder, refreshOrders: refreshOrders, canDeliver: canDeliver, deliver: deliver,
     discard: discard, canCook: canCook, cook: cook, potReady: potReady, takeDish: takeDish
   });

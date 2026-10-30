@@ -127,6 +127,13 @@
       });
       if (tank.length) s.tank = tank;
     }
+    if (Array.isArray(o.shed)) {
+      var shed = [];
+      o.shed.forEach(function (e) {
+        if (obj(e) && itemInfo(e.id) && num(e.v) && e.v >= 0 && shed.length < shedCap(s)) shed.push({ id: e.id, v: Math.round(e.v) });
+      });
+      if (shed.length) s.shed = shed;
+    }
     if (obj(o.daily) && typeof o.daily.key === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.daily.key) && Array.isArray(o.daily.goals)) {
       var goals = [];
       o.daily.goals.slice(0, 3).forEach(function (g) {
