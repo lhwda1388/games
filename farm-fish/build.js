@@ -118,6 +118,8 @@ const LOGIC = [
   'logic/train.js',     // 기차 여행: routes, 개통비·하루 기차표, 산골 계곡 fish/picks/기념품 (s.train); after port/junk/yard, before guide.js and dex.js
   // 가공 공방
   'logic/craft.js',     // 가공 공방: machines, lazy real-time batches, crafted goods with per-unit values (s.craft); after train/orchard/flat, before guide.js
+  // 캠핑
+  'logic/camp.js',      // 캠핑: camp sites, 모닥불·석쇠, 불가 손님, 텐트 잠·아침 선물, 장비, 도장 수첩, camp night insects (s.camp); after bugs/museum/town/pets, before guide.js
   // stage 8 ④ 이펙트
   'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
   'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
@@ -214,6 +216,8 @@ const UI = [
   'ui/train.js',        // 마을 간이역 + station sheet, 포구 기차역 ride entry, ride scene, 산골 계곡 view, souvenir art, FF.train
   // 가공 공방
   'ui/craft.js',        // 공방 building in the 마당 (공방 터 sign first), machine sheet, goods icons, 도감 rows, FF.craft
+  // 캠핑
+  'ui/camp.js',         // 숲 캠핑장 sign, camp view (fire glow, grill, tent, gear, guests), camp/도장 수첩 sheets, food icons, 도감 rows, FF.camp
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold
