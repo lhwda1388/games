@@ -63,6 +63,39 @@
     go.addEventListener('click', compare);
     paste.addEventListener('keydown', function (e) { if (e.key === 'Enter') compare(); });
     if (friendRaw) compare(); else msg.textContent = '친구가 보낸 코드를 붙여 넣어요';
+    renderMove();
+  }
+  // 세이브 옮기기: the whole save as text, no server. Trust boundary: a pasted save only ever goes through L.decode.
+  function renderMove() {
+    var h3 = document.createElement('h3'); h3.textContent = '세이브 옮기기'; dexEl.appendChild(h3);
+    var outRow = document.createElement('div'); outRow.className = 'shareRow';
+    var out = shareField('', true, '내 세이브');
+    out.placeholder = '복사를 누르면 지금 세이브가 들어가요';
+    var copy = document.createElement('button'); copy.type = 'button'; copy.textContent = '복사';
+    copy.addEventListener('click', function () { save(); out.value = L.encode(S); copyText(out.value, out); });
+    outRow.appendChild(out); outRow.appendChild(copy); dexEl.appendChild(outRow);
+    var inRow = document.createElement('div'); inRow.className = 'shareRow';
+    var paste = shareField('', false, '옮겨 올 세이브', 200000);
+    paste.placeholder = '다른 기기의 세이브 붙여 넣기';
+    var go = document.createElement('button'); go.type = 'button'; go.textContent = '불러오기';
+    inRow.appendChild(paste); inRow.appendChild(go); dexEl.appendChild(inRow);
+    var msg = document.createElement('p'); msg.className = 'note';
+    msg.textContent = '카톡·메모장에 붙여 두면 백업 · 불러오면 지금 세이브는 이 기기에서 덮어써져요';
+    dexEl.appendChild(msg);
+    var armed = '';
+    go.addEventListener('click', function () {
+      var text = paste.value.trim();
+      if (!L.decode(text)) { armed = ''; msg.textContent = '세이브가 맞지 않아요 · 끝까지 다 복사했는지 확인해 주세요'; return; }
+      // two taps: the first only warns, so one stray tap never replaces a farm
+      if (armed !== text) { armed = text; go.textContent = '정말 불러오기'; msg.textContent = '한 번 더 누르면 지금 세이브 대신 이 세이브로 다시 시작해요'; return; }
+      saveBlocked = true;   // the 5 s save must not write the old farm back before the reload
+      try {
+        var cur = localStorage.getItem(SAVE_KEY);
+        if (cur) localStorage.setItem(SAVE_KEY + '.before-import', cur);
+        localStorage.setItem(SAVE_KEY, text);
+      } catch (e) { saveBlocked = false; msg.textContent = '이 브라우저는 저장이 막혀 있어요'; return; }
+      location.reload();
+    });
   }
   function renderCompare(table) {
     var me = L.shareStats(S, now()), fr = friendStats;

@@ -200,7 +200,7 @@
   function openSheet(kind) {
     dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true;
     sheetKind = kind; sheetEl.hidden = false;
-    if (kind === 'merchant') renderMerchant(); else if (kind === 'tank') renderTank(); else renderMail();
+    if (kind === 'merchant') renderMerchant(); else if (kind === 'tank') renderTank(); else if (kind === 'shed') renderShed(); else renderMail();
   }
   var merchantLine = '';
   function renderMerchant() {

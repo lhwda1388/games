@@ -83,9 +83,9 @@
         upRow(ph, '새 주문 준비 중', '곧 붙어요 · ' + fmtGame(q.at - now()) + ' 뒤', 'idle');
         return;
       }
-      var o = q.o, it = L.itemInfo(o.id), have = L.bagCount(S, o.id);
+      var o = q.o, it = L.itemInfo(o.id), have = L.haveCount(S, o.id);
       var r = upRow(itemIcon(o.id), esc(it.name) + ' ×' + o.n + (o.special ? '<span class="tagx">특별</span>' : ''),
-        L.residentById(L.residentFor(o, S)).name + ' · 바구니 ' + Math.min(have, o.n) + '/' + o.n + ' · ★+' + o.rep, o.special ? 'sp' : '');
+        L.residentById(L.residentFor(o, S)).name + ' · 가진 것 ' + Math.min(have, o.n) + '/' + o.n + ' · ★+' + o.rep, o.special ? 'sp' : '');
       var a = document.createElement('div'); a.className = 'acts';
       a.appendChild(act(o.reward.toLocaleString('ko-KR'), function () { doDeliver(k); }, { off: have < o.n, label: '납품 ' + o.reward + '코인' }));
       if (L.bikeOk(S)) a.appendChild(act('자전거로', function () { bikeDeliver(k); }, { off: have < o.n, cls: 'bike', label: '자전거로 배달 · 팁 도전' }));   // stage 9 ③
@@ -124,7 +124,7 @@
     }
     bagEl.appendChild(grid);
     var groups = {}, order = [], total = 0;
-    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; total += e.v; });
+    S.bag.forEach(function (e) { if (!groups[e.id]) { groups[e.id] = { n: 0, v: 0 }; order.push(e.id); } groups[e.id].n++; groups[e.id].v += e.v; if (!(S.keep && S.keep[e.id])) total += e.v; });
     order.forEach(function (id) {
       var g = groups[id], kept = !!(S.keep && S.keep[id]);
       var r = upRow(itemIcon(id), esc(L.itemInfo(id).name) + ' ×' + g.n + (kept ? '<span class="tagx">지킴</span>' : ''), '팔면 ' + g.v.toLocaleString('ko-KR') + '코인');
@@ -145,7 +145,8 @@
     }, { cls: 'sellAll' });
     auto.setAttribute('aria-pressed', String(!S.noSell));
     bagEl.appendChild(auto);
-    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !S.bag.length });
+    bagEl.appendChild(act('창고 · ' + L.shedList(S).length + ' / ' + L.shedCap(S) + '칸', function () { openSheet('shed'); }, { cls: 'sellAll' }));
+    var all = act('다 팔기 · ' + total.toLocaleString('ko-KR'), function () { var v = L.sellAll(S); toast('다 팔았다 · +' + v); if (v) fxCoinsDom(bagEl.querySelector('.wallet')); refresh(); renderBag(); }, { cls: 'sellAll', off: !total });
     bagEl.appendChild(all);
   }
   // order sign, basket and pot at the left edge of the pond side
