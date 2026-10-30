@@ -314,6 +314,25 @@ const oldYardSave = (house, decos, furn) => {
 };
 const defSpot = (list, id) => list.findIndex((p) => p.def === id);
 
+test('a decoration a save left off its own spot on the 가공 공방 goes to the 보관함, still owned', () => {
+  const CFT_AT = [103, 104, 19, 14];
+  const hits = (r) => r && r[0] < CFT_AT[0] + CFT_AT[2] && CFT_AT[0] < r[0] + r[2] && r[1] < CFT_AT[1] + CFT_AT[3] && CFT_AT[1] < r[1] + r[3];
+  const laundry = defSpot(L.YSPOTS, 'laundry');
+  assert.ok(hits(L.itemRect('deco', 'tree', laundry)), 'the tree on the laundry spot stands on the 공방');
+  const s = rich(); s.yard.house = 3;
+  const j = JSON.parse(L.encode(s));
+  j.yard.deco = { tree: true, laundry: true, flowers: true };
+  j.yard.place = { deco: { tree: laundry, flowers: defSpot(L.YSPOTS, 'flowers') }, furn: {} };
+  const b = L.decode(JSON.stringify(j));
+  assert.equal(b.yard.deco.tree, true);
+  assert.equal(L.spotOf(b, 'deco', 'tree'), -1);
+  assert.ok(L.storedList(b, 'deco').includes('tree'));
+  assert.equal(L.spotOf(b, 'deco', 'flowers'), defSpot(L.YSPOTS, 'flowers'));
+  // nothing placed after load stands on the 공방, and its own spots never do
+  L.YSPOTS.forEach((p) => { if (p.def && p.r) assert.ok(!hits(L.itemRect('deco', p.def, defSpot(L.YSPOTS, p.def))), p.def); });
+  assert.deepEqual(L.decode(L.encode(b)), b);
+});
+
 test('a save from before 옮기기 loads with every item on its old fixed spot, and round-trips', () => {
   const decos = ['flowers', 'mailbox', 'bench', 'tree', 'jars', 'chime'], furn = ['bed', 'rug', 'lamp', 'table', 'piano'];
   const s = L.decode(oldYardSave(3, decos, furn));

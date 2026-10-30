@@ -1056,6 +1056,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var fl = flatById(id); if (fl) return { id: id, kind: 'flat', name: fl.name, price: fl.price };   // stage 7 갯벌
     var dv = diveItem(id); if (dv) return { id: id, kind: 'dive', name: dv.name, price: dv.price };   // stage 12 ③ 잠수
     var tn = trnItem(id); if (tn) return { id: id, kind: 'trn', name: tn.name, price: tn.price };   // 기차 여행 특산물
+    var cf = cftItem(id); if (cf) return { id: id, kind: 'craft', name: cf.name, price: cf.price };   // 가공 공방 (each unit keeps its own v)
     return null;
   }
   // can the player get this item at all right now (some time of day counts)?
@@ -1073,6 +1074,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (flatById(id)) return flatOk(s);   // stage 7 갯벌
     if (diveItem(id)) return diveOk(s);   // stage 12 ③ 잠수
     if (trnItem(id)) return trnOk(s, trnItem(id).route);   // 기차 여행
+    if (cftByOut(id)) return cftCanMake(s, cftByOut(id).k);   // 가공 공방
     return false;
   }
 
@@ -1150,6 +1152,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     farOrders(s, out);      // stage 9 ①: 먼 섬 finds
     orchardOrders(s, out);  // stage 6A: 잡화꿀
     flatOrders(s, out);     // stage 7: common 갯벌 finds
+    cftOrders(s, out);      // 가공 공방: a crafted good once its machine stands
     festPool(s, out);   // stage 5B: festival items while a festival is on
     return out;
   }
@@ -1429,7 +1432,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   ];
   // what a moved item may never cover: house (every tier), pots, gift, pen, the corner buttons, trophies, the merchant's cart
   var YARD_BLOCK = [[52, 14, 76, 73], [126, 70, 46, 18], [96, 82, 14, 10], [3, 113, 100, 84], [0, 0, 16, 34], [156, 0, 24, 18],
-    [132, 28, 14, 38], [147, 148, 12, 30], [100, 136, 52, 30]];
+    [132, 28, 14, 38], [147, 148, 12, 30], [100, 136, 52, 30], [103, 104, 19, 14]];   // last: 가공 공방 (ui/craft.js CFT_AT)
   var ROOM_BLOCK = [[118, 90, 58, 58], [76, 184, 28, 16], [24, 6, 50, 26], [84, 18, 36, 42], [116, 4, 38, 22], [0, 0, 16, 34], [156, 0, 24, 18]];
   function spotsOf(kind) { return kind === 'deco' ? YSPOTS : RSPOTS; }
   function itemsOf(kind) { return kind === 'deco' ? DECOS : FURN; }
@@ -1538,6 +1541,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         var k = oldSave ? defSpot(kind, it.id) : qp[it.id], p = spotsOf(kind)[k];
         if (!num(k) || !p || occupant(s, kind, k) || (it.hang || !p.r) && p.def !== it.id) return;
         if (kind === 'deco' && decoCount(s) >= decoSlots(s)) return;
+        // off its own spot it must keep clear of the blocked areas (a save from before the 공방 may have it there): 보관함
+        if (kind === 'deco' && p.def !== it.id && YARD_BLOCK.some(function (b) { return overlaps(itemRect(kind, it.id, k), b); })) return;
         y.place[kind][it.id] = k;
       });
     });
@@ -2152,7 +2157,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'mine', name: '광물' }
   ];
   var MKT_KIND = { crop: 'crop', isle: 'sea', dive: 'sea', forage: 'wild', flat: 'wild', fruit: 'farm', honey: 'farm', product: 'farm',
-    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine', trn: 'wild' };
+    dish: 'dish', ore: 'mine', gem: 'mine', fossil: 'mine', trn: 'wild', craft: 'dish' };
 
   function mktDay(now, tzMin) { return toyDay(now, tzMin); }
   // item id → 종목 id, or null (no 종목: always ×1)
@@ -7946,6 +7951,167 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     trnTicket: trnTicket, trnBuyTicket: trnBuyTicket, trnBoard: trnBoard,
     trnPicksNow: trnPicksNow, trnPickNext: trnPickNext, trnPick: trnPick, trnBuySouvenir: trnBuySouvenir, decodeTrain: decodeTrain
   });
+  // ---------- 가공 공방: a workshop in the 마당 whose machines turn one basket item × up to 5 into dearer goods ----------
+  // Not the cooking pot: hours long, one ingredient id per machine. Each unit remembers its own value (the basket's
+  // { id, v }): what comes out is worth v plus min(v, CFT_VCAP) × (the machine's mul − 1). Worked out lazily from real time (the game may be closed):
+  // a machine is done once now ≥ t + time, and stays done (d) after that. A clock set back finishes nothing early;
+  // a start more than the machine's own time ahead was a wrong clock and restarts now. Taking out empties the machine, so a
+  // batch never comes out twice.
+  // s.craft = { m: [{ k } | { k, id, v: [input values], t: start ms, d?: 1 }], dx: { output id: units made } }
+  // is made when the workshop is built. Numbers: tools/BALANCE.md 「가공 공방」, 「가공 공방 조정」.
+  var CFT_REP = 10, CFT_PRICE = 15000;
+  var CFT_CAP = 5;                    // units of one input id per machine
+  var CFT_VCAP = 1000;                // only this much of one input's value is multiplied (a legend adds no more than a 1,000 fish)
+  var CFT_MAX = 3;                    // machines of one kind
+  var CFT_MORE = [1, 1.5, 2];         // price × this for the 1st, 2nd, 3rd of a kind
+  // ref = the input whose price sets the output's plain price (orders, 도감); mul stays under what cooking pays for the
+  // same inputs (fruit and milk dishes ×1.33–1.68, fish dishes ×1.54–2.9), so the pot still wins item for item
+  var CFT_M = [
+    { k: 'jar', name: '장독', out: 'cjam', outName: '과일청', price: 4000, time: 3 * 3600e3, mul: 1.4, ref: 'apple', what: '과수원 과일' },
+    { k: 'rack', name: '건조대', out: 'cdry', outName: '건어물', price: 6000, time: 4 * 3600e3, mul: 1.7, ref: 'crucian', what: '민물고기' },
+    { k: 'salt', name: '소금 항아리', out: 'cjeot', outName: '젓갈', price: 10000, time: 8 * 3600e3, mul: 1.7, ref: 'goby', what: '바닷물고기·갯벌 해산물' },
+    { k: 'cheese', name: '치즈 통', out: 'ccheese', outName: '치즈', price: 3000, time: 6 * 3600e3, mul: 1.4, ref: 'milk', what: '우유' }
+  ];
+  var CFT_BERRY = ['berry', 'raspberry', 'mulberry'];   // 딸기류 go to the pot (딸기잼); a 장독 batch saved before that still loads
+
+  function cftDef(k) { for (var j = 0; j < CFT_M.length; j++) if (CFT_M[j].k === k) return CFT_M[j]; return null; }
+  function cftByOut(id) { if (!CFT_M) return null; for (var j = 0; j < CFT_M.length; j++) if (CFT_M[j].out === id) return CFT_M[j]; return null; }
+  // a crafted good → { k, name, price } (price = what the ref input comes out at), else null
+  function cftItem(id) {
+    var d = cftByOut(id);
+    if (!d) return null;
+    var r = itemInfo(d.ref);
+    return { k: d.k, name: d.outName, price: cftValue(r ? r.price : 100, d.k) };
+  }
+  // one input worth v out of machine kind k
+  function cftValue(v, k) { return Math.round(v + Math.min(v, CFT_VCAP) * (cftDef(k).mul - 1)); }
+  // can machine kind k take item id?
+  function cftAccepts(k, id) {
+    var it = itemInfo(id);
+    if (!it || it.kind === 'craft') return false;
+    if (k === 'jar') return it.kind === 'fruit';
+    if (k === 'rack') return it.kind === 'fish' && mktStock(id) === 'fresh';
+    if (k === 'salt') return it.kind === 'fish' ? mktStock(id) === 'sea' : it.kind === 'flat';
+    if (k === 'cheese') return id === 'milk';
+    return false;
+  }
+  // every item id machine kind k takes
+  function cftInputs(k) {
+    var ids = FISH.map(function (f) { return f.id; }).concat(TREES.map(function (t) { return t.id; }), FLAT.map(function (f) { return f.id; }), ['milk']);
+    return ids.filter(function (id) { return cftAccepts(k, id); });
+  }
+  function cftCount(s, k) { var n = 0; if (s.craft) s.craft.m.forEach(function (m) { if (m.k === k) n++; }); return n; }
+  // owns a machine of kind k and can get something to put in it
+  function cftCanMake(s, k) {
+    return cftCount(s, k) > 0 && cftInputs(k).some(function (id) { return obtainable(s, id); });
+  }
+  // crafted goods on the order board, once their machine stands (weight 1: now and then)
+  function cftOrders(s, out) {
+    if (!s.craft) return;
+    CFT_M.forEach(function (d) { if (cftCanMake(s, d.k)) out.push({ id: d.out, w: 1 }); });
+  }
+  function cftBuild(s) {
+    if (s.craft) return { ok: false, why: 'built' };
+    if (s.rep < CFT_REP) return { ok: false, why: 'rep' };
+    if (s.coins < CFT_PRICE) return { ok: false, why: 'coins' };
+    s.coins -= CFT_PRICE;
+    s.craft = { m: [], dx: {} };
+    return { ok: true };
+  }
+  // the next machine of kind k, or 0 when there are CFT_MAX already
+  function cftCost(s, k) {
+    var d = cftDef(k), n = cftCount(s, k);
+    return d && n < CFT_MAX ? Math.round(d.price * CFT_MORE[n]) : 0;
+  }
+  function cftBuy(s, k) {
+    if (!s.craft) return { ok: false, why: 'craft' };
+    if (!cftDef(k)) return { ok: false, why: 'kind' };
+    var c = cftCost(s, k);
+    if (!c) return { ok: false, why: 'max' };
+    if (s.coins < c) return { ok: false, why: 'coins' };
+    s.coins -= c; s.craft.m.push({ k: k });
+    return { ok: true };
+  }
+  // brings every machine up to now; returns how many are done
+  function cftSettle(s, now) {
+    if (!s.craft) return 0;
+    var n = 0;
+    s.craft.m.forEach(function (m) {
+      if (!m.id) return;
+      if (m.t > now + cftDef(m.k).time) m.t = now;        // a clock once set ahead, now put right: start again
+      if (!m.d && now >= m.t + cftDef(m.k).time) m.d = 1;
+      if (m.d) n++;
+    });
+    return n;
+  }
+  // ms until machine m is done (never more than its whole time, even with a clock set back)
+  function cftLeft(m, now) {
+    if (!m.id || m.d) return 0;
+    var tm = cftDef(m.k).time;
+    return Math.max(0, Math.min(tm, m.t + tm - now));
+  }
+  // up to n of id from the basket into empty machine i, dearest first; 지키기 ones too (the player's choice). Returns how many went in.
+  function cftPut(s, i, id, n, now) {
+    var m = s.craft && s.craft.m[i];
+    if (!m || m.id || !cftAccepts(m.k, id)) return 0;
+    var v = [];
+    while (v.length < Math.min(n, CFT_CAP)) {
+      var j = -1;
+      s.bag.forEach(function (e, x) { if (e.id === id && (j < 0 || e.v > s.bag[j].v)) j = x; });
+      if (j < 0) break;
+      v.push(s.bag.splice(j, 1)[0].v);
+    }
+    if (v.length) s.craft.m[i] = { k: m.k, id: id, v: v, t: now };
+    return v.length;
+  }
+  // machine i's goods into the basket while there is room; the rest stays in the machine. Returns how many came out.
+  function cftTake(s, i, now) {
+    cftSettle(s, now);
+    var m = s.craft && s.craft.m[i];
+    if (!m || !m.id || !m.d) return 0;
+    var d = cftDef(m.k), n = 0;
+    while (m.v.length && s.bag.length < bagCap(s)) {
+      s.bag.push({ id: d.out, v: cftValue(m.v.pop(), m.k) }); n++;
+    }
+    if (n) s.craft.dx[d.out] = (s.craft.dx[d.out] || 0) + n;
+    if (!m.v.length) s.craft.m[i] = { k: m.k };
+    return n;
+  }
+  // every done machine → { n: taken, left: still inside done machines }
+  function cftTakeAll(s, now) {
+    var out = { n: 0, left: 0 };
+    if (!s.craft) return out;
+    s.craft.m.forEach(function (m, i) { out.n += cftTake(s, i, now); });
+    s.craft.m.forEach(function (m) { if (m.d) out.left += m.v.length; });
+    return out;
+  }
+  function cftDexCount(s) { var n = 0; CFT_M.forEach(function (d) { if (s.craft && s.craft.dx[d.out]) n++; }); return n; }
+  // a bad field loses only that field: a broken batch empties its machine, never the workshop or the machine
+  function decodeCraft(o, s) {
+    var q = o.craft;
+    function ok(x) { return typeof x === 'number' && isFinite(x) && x >= 0; }
+    if (!q || typeof q !== 'object') return;
+    var m = [], cnt = {}, dx = {};
+    (Array.isArray(q.m) ? q.m : []).forEach(function (e) {
+      if (!e || typeof e !== 'object' || !cftDef(e.k) || (cnt[e.k] || 0) >= CFT_MAX) return;
+      cnt[e.k] = (cnt[e.k] || 0) + 1;
+      var v = Array.isArray(e.v) ? e.v.filter(ok).slice(0, CFT_CAP).map(Math.round) : [];
+      if (typeof e.id !== 'string' || !(cftAccepts(e.k, e.id) || (e.k === 'jar' && CFT_BERRY.indexOf(e.id) >= 0)) || !v.length) { m.push({ k: e.k }); return; }
+      var x = { k: e.k, id: e.id, v: v, t: ok(e.t) ? e.t : ok(o.savedAt) ? o.savedAt : 0 };
+      if (e.d === 1) x.d = 1;
+      m.push(x);
+    });
+    if (q.dx && typeof q.dx === 'object') CFT_M.forEach(function (d) { if (ok(q.dx[d.out])) dx[d.out] = Math.floor(q.dx[d.out]); });
+    s.craft = { m: m, dx: dx };
+  }
+
+  expose({
+    CFT_REP: CFT_REP, CFT_PRICE: CFT_PRICE, CFT_CAP: CFT_CAP, CFT_VCAP: CFT_VCAP, CFT_MAX: CFT_MAX, CFT_MORE: CFT_MORE,
+    CFT_M: CFT_M, cftDef: cftDef, cftByOut: cftByOut, cftItem: cftItem, cftValue: cftValue,
+    cftAccepts: cftAccepts, cftInputs: cftInputs, cftCount: cftCount, cftCanMake: cftCanMake, cftBuild: cftBuild,
+    cftCost: cftCost, cftBuy: cftBuy, cftSettle: cftSettle, cftLeft: cftLeft, cftPut: cftPut, cftTake: cftTake,
+    cftTakeAll: cftTakeAll, cftDexCount: cftDexCount, decodeCraft: decodeCraft
+  });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -8077,7 +8243,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'arcade', name: '게임장', how: '마을 아래 박물관 왼쪽 게임장 · 두더지 잡기·짝 맞추기·공 던지기는 쉬움 ×' + ARC_MUL.easy + '·보통 ×' + ARC_MUL.normal + '·어려움 ×' + ARC_MUL.hard + ', 슬롯머신은 운 · ' + ARC_BETS[0] + '~' + won(ARC_BETS[ARC_BETS.length - 1]) + '을 먼저 걸고 이기면 상금, 지면 잃는다 · 상금 게임은 하루 ' + ARC_DAY_CAP + '판, 그 뒤엔 그냥 놀기', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
     { id: 'myshop', name: '내 가게', how: '마을 윗길 오른쪽 빈 가게 터 · ' + won(MYS_PRICE) + '으로 짓고 바구니·창고 물건을 진열대(' + MYS_SLOTS0 + '~' + MYS_SLOTS_MAX + '칸)에 올리면 손님이 하나씩 사 간다 · 값은 오늘 시세 × 등급 보너스 ×' + MYS_BONUS[0] + '~ · 게임을 꺼 둬도 ' + MYS_CATCHUP / 3600e3 + '시간치까지 팔리고 코인은 금고에 · 꾸미기는 손님을 더 자주, 등급은 값을 더 높게', lock: '★' + VILLAGE_REP + ' 마을이 열리면' },
     // 기차 여행
-    { id: 'train', name: '기차 여행', how: '마을 길 가운데 간이역 · 노선마다 개통비 한 번, 타는 날마다 기차표 한 장(그날은 몇 번이든) · 산골 계곡(물고기 ' + TRN_VALLEY_FISH.length + '종·산나물·송이버섯) → ★' + TRN_REP.onsen + ' 온천 마을(물고기 ' + TRN_ONSEN_FISH.length + '종·온천 달걀·유자·하루 한 번 온천욕: 1시간 입질 빠르게) → 고친 포구 기차역에서 설원 고개(얼음낚시 ' + TRN_SNOW_FISH.length + '종·얼음 결정·눈꽃) · 곳마다 기념품 가게 · 「역으로」 버튼으로 돌아오기', lock: '★' + TRN_REP.valley + ' · 간이역에서 산골 계곡 개통 ' + won(TRN_OPEN.valley) }
+    { id: 'train', name: '기차 여행', how: '마을 길 가운데 간이역 · 노선마다 개통비 한 번, 타는 날마다 기차표 한 장(그날은 몇 번이든) · 산골 계곡(물고기 ' + TRN_VALLEY_FISH.length + '종·산나물·송이버섯) → ★' + TRN_REP.onsen + ' 온천 마을(물고기 ' + TRN_ONSEN_FISH.length + '종·온천 달걀·유자·하루 한 번 온천욕: 1시간 입질 빠르게) → 고친 포구 기차역에서 설원 고개(얼음낚시 ' + TRN_SNOW_FISH.length + '종·얼음 결정·눈꽃) · 곳마다 기념품 가게 · 「역으로」 버튼으로 돌아오기', lock: '★' + TRN_REP.valley + ' · 간이역에서 산골 계곡 개통 ' + won(TRN_OPEN.valley) },
+    // 가공 공방
+    { id: 'craft', name: '가공 공방', how: '마당 집 오른쪽 아래 공방 터 · ' + won(CFT_PRICE) + '으로 짓고 ' + CFT_M.map(function (d) { return d.name + '(' + d.what + ' → ' + d.outName + ' ' + d.time / 3600e3 + '시간 ×' + d.mul + ')'; }).join(' · ') + ' · 기계마다 같은 재료 ' + CFT_CAP + '개까지, 나오는 값은 넣은 값 × 기계 배수(넣은 값 ' + won(CFT_VCAP) + '까지만 늘어남) · 게임을 꺼 둬도 익는다 · 같은 기계는 ' + CFT_MAX + '대까지', lock: '★' + CFT_REP + ' · 마당 공방 터에서 ' + won(CFT_PRICE) }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -8106,6 +8274,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   GUIDE_OPEN.dive = diveOk; GUIDE_OPEN.divemap = diveOk; GUIDE_SCENE.dive = 'dive';   // stage 12 ③
   GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
   GUIDE_OPEN.train = function (s) { return villageOk(s) && trnStatus(s, 'valley') !== 'rep'; }; GUIDE_SCENE.trnvalley = 'train'; GUIDE_SCENE.trnonsen = 'train'; GUIDE_SCENE.trnsnow = 'train';   // 기차 여행
+  GUIDE_OPEN.craft = function (s) { return !!s.craft || s.rep >= CFT_REP; };   // 가공 공방
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
   function guideOpen(s, id) {
@@ -8313,6 +8482,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       decodeBank(o, s);    // 은행: s.bank (balance, last interest day; optional)
       decodeArcade(o, s);  // 게임장: s.arcade (오늘 상금 게임 횟수; optional)
       decodeMyShop(o, s);  // 내 가게: s.mys (진열대·꾸미기·등급·금고; optional)
+      decodeCraft(o, s);   // 가공 공방: s.craft (기계·가공 중인 것·도감; optional)
       decodeTrain(o, s);   // 기차 여행: s.train (개통·기차표·특산물 자리; optional) + the route spots
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
@@ -8854,6 +9024,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (it && it.kind === 'isle') return driftIcon(id);      // stage 7 섬
     if (it && it.kind === 'dive') return diveIcon(id);       // stage 12 ③ 잠수
     if (it && it.kind === 'trn') return trnIcon(id);         // 기차 여행 특산물
+    if (it && it.kind === 'craft') return cftIcon(id);       // 가공 공방
     var c = document.createElement('canvas'); c.width = 12; c.height = 12;
     spr(['..4444..', '.400004.', '40000004', '40000004', '40000004', '.444444.'], 2, 4, false, c.getContext('2d'));
     return c;
@@ -10325,6 +10496,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     renderRideDex(row);     // stage 9 ③: 하늘 (열기구) + 썰매·자전거 기록
     renderGardenDex(row);   // stage 10 ②: 꽃
     renderDiveDex(row);     // stage 12 ③: 해저
+    renderCraftDex(row);    // 가공 공방: 가공품
     renderMuseumDex();      // stage 7 박물관: one progress line
     function row(icon, name, sub, val, unk) {
       var r = document.createElement('div'); r.className = 'dx' + (unk ? ' unk' : '');
@@ -10724,7 +10896,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- 마당 scene: house, pots, animals, decorations; scene switch farm ↔ 마당 ↔ 집 안 ----------
   var view = 'farm';
   // 이/가 · 을/를 by the last syllable's final consonant (고양이 → 가, 꽃밭 → 이)
-  function josa(w, a, b) { var c = w.charCodeAt(w.length - 1) - 0xAC00; return w + (c >= 0 && c < 11172 && c % 28 ? a : b); }
+  function josa(w, a, b) { var c = w.charCodeAt(w.length - 1) - 0xAC00; return w + (c >= 0 && c < 11172 && c % 28 && !(a === '으로' && c % 28 === 8) ? a : b); }   // ㄹ받침 + 로
   var YTZ = -new Date().getTimezoneOffset();
   L.yardOf(S);
   // stage 2's curEnv: the shared clock, or FF.weather / FF.phase overrides while testing
@@ -10974,6 +11146,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drawScope(tt);   // stage 7: 망원경
     var cs = decoRect('chime'); if (cs) DRAW_DECO.chime(cs[0], cs[1], tt);
     drawYardPots(tt);
+    cftDraw(tt);   // 가공 공방 (or its 공방 터 sign)
     if (S.yard.gifts.length) {
       var g = GIFT_AT; px(g.x, g.y, 8, 6, 4); px(g.x + 1, g.y + 1, 6, 4, 0); px(g.x + 3, g.y, 2, 6, 3); px(g.x + 1, g.y - 2, 2, 2, 4); px(g.x + 5, g.y - 2, 2, 2, 4);
       sparkle(g.x + 9, g.y - 2, tt);
@@ -11054,6 +11227,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (cr && hit(cr, x, y, 2)) { tapDeco(L.decoById('chime')); return; }
     var b = houseBox();
     if (hit([b.x, b.y, b.w, b.h], x, y)) { goScene('house'); return; }
+    if (cftTap(x, y)) return;   // 가공 공방
     if (tapBroodYard(x, y)) return;   // stage 10 ②: a baby in the pen
     if (hit([PEN.x, PEN.y, PEN.w, PEN.h], x, y)) { tapPen(); return; }
     var on = standing('deco').filter(function (e) { return hit(e.r, x, y, 2); }).pop();
@@ -11359,6 +11533,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (L.productsWaiting(S)) n++;
     if (y.gifts.length) n++;
     if (y.mail.some(function (m) { return !m.read; })) n++;
+    if (S.craft && cftReadyN() > 0) n++;   // 가공 공방: something is done
     return n;
   }
   function eggFound(e) {
@@ -12879,9 +13054,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
     if (where === 'yard') {
       if (lv < 1) return { x: 92, y: 110, flip: false, mode: 'sit' };
-      if (lv >= 4 && tt % 50 < 14) return { x: 120, y: 110, flip: true, mode: 'sleep' };
+      if (lv >= 4 && tt % 50 < 14) return { x: 88, y: 110, flip: true, mode: 'sleep' };   // clear of the 공방 (craft.js CFT_AT)
       var u = (tt / 14) % 2, w = u < 1 ? u : 2 - u, pause = Math.abs(w - 0.5) > 0.46;
-      return { x: 64 + Math.round(w * 56), y: 110, flip: u >= 1, mode: pause ? 'sit' : 'walk' };
+      return { x: 64 + Math.round(w * 28), y: 110, flip: u >= 1, mode: pause ? 'sit' : 'walk' };
     }
     // 숲: trots from spot to spot (each leg 7 s), sniffing for the last 3 s once 친밀도 allows
     var leg = Math.floor(tt / 7), f = (tt % 7) / 4, a = FSPOTS[leg % FSPOTS.length], b = FSPOTS[(leg + 1) % FSPOTS.length];
@@ -17581,9 +17756,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var TOY_SCENES = { farm: true, yard: true, forest: true };
   var toySpotCache = {}, toyPiles = {}, toySteps = [], toyFx = [], toyLast = null;
   // ground a toy may sit on, per scene: [x, y, w, h] boxes it must keep clear of
-  // 마당 things that are not on a YSPOT: house (every tier), pots, gift, pen, merchant cart, trophies, corner buttons
+  // 마당 things that are not on a YSPOT: house (every tier), pots, gift, pen, merchant cart, trophies, corner buttons, 공방
   var YARD_TOY_BLOCK = [[52, 14, 76, 73], [126, 70, 46, 18], [96, 82, 14, 10], [3, 113, 100, 84], [100, 136, 52, 30],
-    [132, 28, 14, 38], [147, 148, 12, 30], [0, 0, 16, 34], [156, 0, 24, 18]];
+    [132, 28, 14, 38], [147, 148, 12, 30], [0, 0, 16, 34], [156, 0, 24, 18], [103, 104, 19, 14]];   // last: 가공 공방 (ui/craft.js CFT_AT, defined later in the bundle)
   function toyBlocks(sc) {
     if (sc === 'yard') return L.YSPOTS.filter(function (p) { return p.r; }).map(function (p) { return p.r; }).concat(YARD_TOY_BLOCK);
     if (sc === 'forest') return FSPOTS.map(function (p) { return [p[0] - 12, p[1] - 16, 24, 22]; }).concat([[GATE.x - 8, GATE.y - 8, GATE.w + 16, GATE.h + 16]]);
@@ -20719,6 +20894,201 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       return S.train || null;
     };
   }
+  // ---------- 가공 공방 (마당, right of the stepping stones under the lanterns): 공방 터 sign → the workshop; its sheet holds the machines ----------
+  // Logic: logic/craft.js. Batches are worked out lazily; the building sparkles while something is done.
+  // CFT_AT is also in logic/yard.js YARD_BLOCK, so a moved decoration never stands on it.
+  var CFT_AT = [103, 104, 19, 14];
+  var CFT_WHY = { coins: '코인이 모자라요', rep: '신뢰도 ★이 부족해요', built: '이미 공방이 있어요', max: '같은 기계는 ' + L.CFT_MAX + '대까지예요',
+    craft: '공방을 먼저 지어요', kind: '없는 기계예요' };
+  // 12×12 marks ('4' ink, '3' dark, '2' mid, '0' paper)
+  var CFT_ICON = {
+    shop: ['............', '.....44.....', '...443344...', '.4433333344.', '444444444444', '.4222222224.', '.4444224004.',
+      '.4..4224004.', '.4..4224444.', '.4..4224..4.', '.4444444444.', '............'],
+    jar: ['............', '....4444....', '...422224...', '..44444444..', '.4222222224.', '.4233222224.', '.4233222224.',
+      '.4222222224.', '..42222224..', '...444444...', '............', '............'],
+    rack: ['............', '444444444444', '.4..3...3.4.', '.4.333.3334.', '.4.303.3034.', '.4.333.3334.', '.4.333.3334.',
+      '.4..3...3.4.', '.4.3.3.3.34.', '.4........4.', '.4........4.', '44........44'],
+    salt: ['............', '...000000...', '..40000004..', '..44444444..', '.4333333334.', '.4333333334.', '.4300000034.',
+      '.4333333334.', '.4333333334.', '..43333334..', '...444444...', '............'],
+    cheese: ['............', '..44444444..', '.4222222224.', '.4444444444.', '.4222222224.', '.4222222224.', '.4444444444.',
+      '.4222222224.', '.4222222224.', '.4444444444.', '..44444444..', '............'],
+    cjam: ['............', '...444444...', '..42222224..', '...444444...', '...400004...', '..43333334..', '..43333334..',
+      '..43333334..', '..43333334..', '...444444...', '............', '............'],
+    cdry: ['............', '............', '............', '..........4.', '..4444444.44', '.422222224.4', '420232323244',
+      '.422222224.4', '..4444444.44', '..........4.', '............', '............'],
+    cjeot: ['............', '............', '...444444...', '..43333334..', '..44444444..', '.4000000004.', '.4022220204.',
+      '.4000000004.', '.4000000004.', '..44444444..', '............', '............'],
+    ccheese: ['............', '............', '.........44.', '......44004.', '...44000004.', '.4400200004.', '.4000002004.',
+      '.4020000004.', '.4000000204.', '.4444444444.', '............', '............']
+  };
+  var cftReadyAt = { at: -1e9, n: 0 };   // throttled count of done machines for the sparkle and the 이동 dot
+  var cftPick = -1;                      // the empty machine whose 넣기 list is open
+
+  function cftIcon(id) {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(CFT_ICON[id] || CFT_ICON.shop, 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  function cftShown() { return !!S.craft || S.rep >= L.CFT_REP; }
+  function cftReadyN() {
+    var t = performance.now();
+    if (t - cftReadyAt.at > 1000) { cftReadyAt.at = t; cftReadyAt.n = L.cftSettle(S, now()); }
+    return cftReadyAt.n;
+  }
+  function cftBusy() { return !!S.craft && S.craft.m.some(function (m) { return m.id && !m.d; }); }
+
+  // ---------- in the 마당 ----------
+  function cftDraw(tt) {
+    if (!cftShown()) return;
+    var x = CFT_AT[0], y = CFT_AT[1];
+    if (!S.craft) {   // 공방 터: a board on two posts with a hammer mark
+      px(x + 1, y + 13, 17, 1, 2);
+      px(x + 5, y + 7, 1, 7, 3); px(x + 13, y + 7, 1, 7, 3);
+      px(x + 3, y + 2, 13, 6, 3); px(x + 4, y + 3, 11, 4, 0);
+      px(x + 5, y + 4, 4, 2, 4); px(x + 7, y + 6, 1, 1, 4);
+      px(x + 10, y + 4, 4, 1, 3); px(x + 10, y + 6, 3, 1, 3);
+      return;
+    }
+    px(x + 14, y - 1, 2, 4, 4);                                                   // stovepipe
+    px(x + 2, y + 1, 15, 1, 4); px(x + 1, y + 2, 17, 2, 3); px(x, y + 4, 19, 1, 4);   // roof
+    px(x + 1, y + 5, 17, 9, 4); px(x + 2, y + 5, 15, 8, 1);                       // wall
+    px(x + 3, y + 7, 6, 7, 4); px(x + 4, y + 8, 4, 6, 2);                         // open door
+    px(x + 5, y + 11, 2, 2, 3);                                                   // a crock inside
+    px(x + 11, y + 7, 5, 4, 4); px(x + 12, y + 8, 3, 2, 0);                       // window
+    px(x, y + 13, 19, 1, 4);
+    if (cftBusy() && !reduceMotion) for (var w = 0; w < 2; w++) { var ph = (tt * 0.6 + w * 0.5) % 1; px(x + 14 + w, y - 2 - Math.round(ph * 6), 1, 1, 2); }
+    if (cftReadyN() > 0) sparkle(x + 18, y + 1, tt);
+  }
+  function cftTap(x, y) {
+    if (!cftShown() || !hit(CFT_AT, x, y, 1)) return false;
+    cftOpen();
+    return true;
+  }
+
+  // ---------- the sheet ----------
+  function cftOpen() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'craft'; sheetEl.hidden = false; cftPick = -1;
+    cftRedraw = now(); cftRender();
+  }
+  function cftDone(text) { if (text) toast(text); cftReadyAt.at = -1e9; refresh(); save(); cftRender(); }
+  function cftTime(ms) { var m = Math.ceil(ms / 60e3); return m >= 60 ? Math.floor(m / 60) + '시간' + (m % 60 ? ' ' + (m % 60) + '분' : '') : m + '분'; }
+  function cftWon(n) { return n.toLocaleString('ko-KR'); }
+  function cftRender() {
+    var q = S.craft, t = now();
+    if (!q) {
+      sheetHead('공방 터');
+      var say0 = document.createElement('p'); say0.className = 'say';
+      say0.textContent = '팻말: 공방 지을 자리. 장독·건조대에 재료를 몇 시간 묵혀 두면 값이 올라요.';
+      sheetEl.appendChild(say0);
+      var r0 = sheetRow(cftIcon('shop'), '공방 짓기', cftWon(L.CFT_PRICE) + '코인 · ★' + L.CFT_REP + '부터 · 기계는 지은 뒤에 따로');
+      mysBtn(r0, cftWon(L.CFT_PRICE), function () {
+        var res = L.cftBuild(S);
+        if (!res.ok) { toast(CFT_WHY[res.why] || '안 돼요'); return; }
+        cftDone('가공 공방을 지었다!');
+      }, '공방 짓기 ' + L.CFT_PRICE + '코인', S.coins < L.CFT_PRICE || S.rep < L.CFT_REP);
+      return;
+    }
+    var ready = L.cftSettle(S, t);
+    sheetHead('가공 공방');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = !q.m.length ? '아직 기계가 없어요. 아래에서 하나 들여 보세요.' : ready ? '다 된 것이 있어요. 꺼내면 바구니로 가요.' : '같은 재료를 ' + L.CFT_CAP + '개까지 넣으면 하나하나 값이 올라요.';
+    sheetEl.appendChild(say);
+    if (ready > 1) {
+      var ra = sheetRow(cftIcon('shop'), '다 된 것 모두', '기계 ' + ready + '대 · 바구니 ' + S.bag.length + ' / ' + L.bagCap(S));
+      mysBtn(ra, '모두 꺼내기', function () {
+        var g = L.cftTakeAll(S, now());
+        if (!g.n) { if (g.left) toast('바구니가 꽉 찼어요'); cftRender(); return; }   // nothing left: a stale button, just redraw
+        cftDone(g.n + '개 꺼냈다' + (g.left ? ' · ' + g.left + '개는 기계에 남았어요' : ''));
+      }, '다 된 것 모두 꺼내기');
+    }
+    // the machines, in the order bought
+    if (q.m.length) mysH3('기계', q.m.length + '대');
+    q.m.forEach(function (m, i) {
+      var d = L.cftDef(m.k), r;
+      if (!m.id) {
+        r = sheetRow(cftIcon(m.k), d.name, '비었어요 · ' + d.what + ' 같은 것 ' + L.CFT_CAP + '개까지', 'off');
+        mysBtn(r, cftPick === i ? '닫기' : '넣기', function () { cftPick = cftPick === i ? -1 : i; cftRender(); }, d.name + '에 넣기');
+        if (cftPick === i) cftPutList(i, d);
+        return;
+      }
+      var name = L.itemInfo(m.id).name;
+      if (m.d) {
+        r = sheetRow(cftIcon(d.out), d.name + ' · ' + d.outName + ' ×' + m.v.length, josa(name, '으로', '로') + ' 만들었어요 · 하나 약 ' + cftWon(L.cftValue(m.v[m.v.length - 1], m.k)) + '코인');
+        mysBtn(r, '꺼내기', function () {
+          var n = L.cftTake(S, i, now());
+          var mi = S.craft.m[i];
+          if (!n) { if (mi && mi.id && mi.d) toast('바구니가 꽉 찼어요'); cftRender(); return; }   // already empty: a stale button, just redraw
+          cftDone(josa(d.outName, '을', '를') + ' ' + n + '개 바구니에 담았다');
+        }, d.name + ' ' + d.outName + ' 꺼내기');
+        return;
+      }
+      sheetRow(cftIcon(m.k), d.name + ' · ' + name + ' ×' + m.v.length, josa(d.outName, '이', '가') + ' 되는 중 · ' + cftTime(L.cftLeft(m, t)) + ' 남음');
+    });
+    // buying machines
+    mysH3('기계 들이기', '같은 기계 ' + L.CFT_MAX + '대까지');
+    L.CFT_M.forEach(function (d) {
+      var c = L.cftCost(S, d.k), n = L.cftCount(S, d.k);
+      var r = sheetRow(cftIcon(d.k), d.name + (n ? ' (' + n + '대)' : ''), d.what + ' → ' + d.outName + ' · ' + d.time / 3600e3 + '시간 · 값 ×' + d.mul);
+      mysBtn(r, c ? cftWon(c) : '다 있음', function () {
+        var res = L.cftBuy(S, d.k);
+        if (!res.ok) { toast(CFT_WHY[res.why] || '안 돼요'); return; }
+        cftDone(josa(d.name, '을', '를') + ' 들였다');
+      }, d.name + ' 사기', !c || S.coins < c);
+    });
+    mysNote('나오는 하나의 값 = 넣은 그 하나의 값 × 기계 배수(넣은 값 ' + cftWon(L.CFT_VCAP) + '까지만 늘어나요) · 게임을 꺼 둬도 익어요 · 바구니가 차면 남은 건 기계에서 기다려요 · 2·3번째 기계는 값 ×' + L.CFT_MORE[1] + ', ×' + L.CFT_MORE[2]);
+  }
+  // tick: the open sheet follows the clock (countdowns, batches coming done); it closes when the 마당 is left
+  var cftRedraw = 0;
+  function tickCraftUI(t) {
+    if (sheetKind !== 'craft' || sheetEl.hidden) return;
+    if (view !== 'yard') { closeSheet(); return; }
+    if (quiet() && t - cftRedraw > 10e3) { cftRedraw = t; cftRender(); }
+  }
+  // what the basket has for machine i (dearest go in first)
+  function cftPutList(i, d) {
+    var gs = shedGroups(S.bag).filter(function (g) { return L.cftAccepts(d.k, g.id); });
+    if (!gs.length) { mysNote('바구니에 넣을 ' + josa(d.what, '이', '가') + ' 없어요'); return; }
+    gs.forEach(function (g) {
+      var name = L.itemInfo(g.id).name, most = Math.min(g.n, L.CFT_CAP);
+      var r = sheetRow(itemIcon(g.id), name + ' ×' + g.n, (S.keep && S.keep[g.id] ? '지키기 중 · ' : '') + d.outName + ' ' + d.time / 3600e3 + '시간');
+      function go(n) {
+        var k = L.cftPut(S, i, g.id, n, now());
+        if (!k) { toast('넣을 수 없어요'); return; }
+        cftPick = -1;
+        cftDone(d.name + '에 ' + josa(name, '을', '를') + ' ' + k + '개 넣었다');
+      }
+      if (most > 1) mysBtn(r, '1개', function () { go(1); }, name + ' 1개 넣기');
+      mysBtn(r, most + '개', function () { go(most); }, name + ' ' + most + '개 넣기');
+    });
+  }
+  // 도감: one row per crafted good
+  function renderCraftDex(row) {
+    var h3 = document.createElement('h3'); h3.textContent = '가공품';
+    var b = document.createElement('b'); b.textContent = L.cftDexCount(S) + ' / ' + L.CFT_M.length; h3.appendChild(b);
+    dexEl.appendChild(h3);
+    if (!S.craft) { var p = document.createElement('p'); p.className = 'note'; p.textContent = '★' + L.CFT_REP + '에 마당 공방 터에서 공방을 지으면 만들 수 있어요'; dexEl.appendChild(p); }
+    L.CFT_M.forEach(function (d) {
+      var n = S.craft ? S.craft.dx[d.out] || 0 : 0, ic = cftIcon(d.out); ic.className = 'sq';
+      row(ic, n ? d.outName : '???', n ? d.name + ' · ' + d.what + ' · 값은 넣은 것 ×' + d.mul : d.name + '에서 ' + d.time / 3600e3 + '시간', n ? n + '개' : '', !n);
+    });
+  }
+  // console hooks: FF.craft() opens the sheet → s.craft; FF.craft('build') gives ★/coins and builds;
+  // FF.craft('buy', k) gives the coins and buys; FF.craft('put', i, id, n) gives the items and puts them in;
+  // FF.craft('done') makes every batch done now; FF.craft('take') takes everything out
+  function addCftHooks(FF) {
+    FF.craft = function (cmd, a, b, c) {
+      var t = now();
+      if (cmd === 'build' && !S.craft) { S.rep = Math.max(S.rep, L.CFT_REP); S.coins += L.CFT_PRICE; L.cftBuild(S); }
+      if (cmd === 'buy' && S.craft) { S.coins += L.cftCost(S, a); L.cftBuy(S, a); }
+      if (cmd === 'put' && S.craft) { for (var k = 0; k < (c || 1); k++) S.bag.push({ id: b, v: L.itemInfo(b).price }); L.cftPut(S, a, b, c || 1, t); }
+      if (cmd === 'done' && S.craft) S.craft.m.forEach(function (m) { if (m.id) m.t = t - L.cftDef(m.k).time; });
+      if (cmd === 'take') L.cftTakeAll(S, t);
+      cftReadyAt.at = -1e9; refresh(); save();
+      cftOpen();
+      return S.craft || null;
+    };
+  }
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -20749,6 +21119,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     tickRideUI(t);     // stage 9 ②: 깊은 숲·산꼭대기 spots, 도전 cleanup
     tickShipUI(t);     // stage 9 ①: 먼 섬 drift, 배 sheet
     tickGardenUI(t);   // stage 10 ②: 꽃 교배, 새끼
+    tickCraftUI(t);    // 가공 공방 sheet
     tickEventsUI(t);   // stage 8 ①: 오늘의 날 card, boom chip
     tickContestUI(t);  // stage 10 ①: 낚시 대회 week, 결산 카드 year
     tickFest(t);       // stage 5B: festival on/off, header chip
@@ -20992,6 +21363,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   addBankHooks(globalThis.FF);     // 은행: FF.bank() opens the 은행 and returns the 통장
   addArcadeHooks(globalThis.FF);   // 게임장: FF.arcade(game, diff, bet), FF.arcadeState(), FF.arcadeTap(x, y)
   addMysHooks(globalThis.FF);      // 내 가게: FF.myshop() opens the shop sheet, FF.myshop('build') builds it
+  addCftHooks(globalThis.FF);      // 가공 공방: FF.craft() sheet, FF.craft('build' | 'buy', k | 'put', i, id, n | 'done' | 'take')
   addTrnHooks(globalThis.FF);      // 기차 여행: FF.train() station sheet, FF.train('valley') open + ticket + ride, FF.train('pick')
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
