@@ -487,10 +487,11 @@
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' && !SCENES[scene].trip ? '' : 'hidden';   // 기차 여행 물가: no seeds there
-    cv.setAttribute('aria-label', sc === 'farm' ? (SCENES[scene].trip ? trnTripName() + ' 물가' : '농장과 연못') : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : sc === 'trnvalley' ? '산골 계곡' : sc === 'trnonsen' ? '온천 마을' : sc === 'trnsnow' ? '설원 고개' : sc === 'trnride' ? '기차 안' : cmpIsView(sc) ? cmpViewName(sc) : '집 안');
+    cv.setAttribute('aria-label', plcAria(sc));   // 지금 있는 곳: ui/place.js
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
+    plcTick();          // 지금 있는 곳: tag + arrival card
   }
   function sceneDests() {
     if (view === 'house') return ['yard'];

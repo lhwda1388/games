@@ -182,7 +182,6 @@
   }
   // called by sceneVillage (goScene)
   function sceneMuseum(sc) {
-    if (sc === 'museum') cv.setAttribute('aria-label', '박물관');
     if (sc !== 'museum' && sheetKind === 'museum') closeSheet();
   }
 

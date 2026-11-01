@@ -373,8 +373,6 @@
   }
   // called by goScene: canvas label + bar
   function sceneVillage(sc) {
-    if (sc === 'village') cv.setAttribute('aria-label', '마을');
-    if (sc === 'home' && vilCur) cv.setAttribute('aria-label', L.residentById(vilCur).name + ' 집 안');
     if (sc !== 'home' && sheetKind === 'vil') closeSheet();
     sceneMuseum(sc);   // stage 7 박물관
     scenePort(sc);     // stage 11 ① 옛 포구

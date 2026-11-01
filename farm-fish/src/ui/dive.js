@@ -16,7 +16,6 @@
     dv = { room: id, x: 90, y: 30, tx: 90, ty: 60, o2: L.diveO2Max(S), want: -1, taken: {}, map: false, dark: 0, up: 0, face: 1, zones: {}, n: 0 };
     dv.zones[L.diveRoom(id).zone] = true;
     goScene('dive');
-    cv.setAttribute('aria-label', '잠수 · ' + DIVE_ZONE[L.diveRoom(id).zone]);
     save();
     return true;
   }

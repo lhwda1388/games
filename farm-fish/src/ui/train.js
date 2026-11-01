@@ -645,7 +645,7 @@
     trnBathChip.hidden = !left;
     if (left) trnBathLabel.textContent = Math.max(1, Math.ceil(left / SPEED / 60e3)) + '분';
     if (view === 'farm') {   // 기차 여행 물가: no seed tray, and the canvas says where you are (also after a boot or a spot put back)
-      var trip = trnTrip(), vis = trip ? 'hidden' : '', lb = trip ? trnTripName() + ' 물가' : '농장과 연못';
+      var trip = trnTrip(), vis = trip ? 'hidden' : '', lb = plcAria('farm');
       if (trayEl.style.visibility !== vis) trayEl.style.visibility = vis;
       if (cv.getAttribute('aria-label') !== lb) cv.setAttribute('aria-label', lb);
     }

@@ -36,6 +36,7 @@
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
     trnTick(t);        // 기차 여행: 온천욕 chip
+    plcTick();         // 지금 있는 곳: the place tag, the arrival card on a new spot
     renderTray();
     updateTitle();
   }

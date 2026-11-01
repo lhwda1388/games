@@ -266,7 +266,6 @@
   }
   // called by sceneVillage (goScene)
   function scenePort(sc) {
-    if (sc === 'port') cv.setAttribute('aria-label', '옛 포구');
     if (sc !== 'port' && /^(port|auction|trader|dive)$/.test(sheetKind)) closeSheet();
   }
 

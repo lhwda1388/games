@@ -82,7 +82,7 @@
     px(154, 107, 2, 1, 3); px(156, 106, 2, 1, 3); px(158, 107, 2, 1, 3); px(160, 106, 2, 1, 3); px(162, 107, 2, 1, 3); px(164, 106, 2, 1, 3);
     if (spotNew && Math.floor(tt * 2) % 2 === 0) { px(167, 100, 4, 4, 4); px(168, 101, 2, 2, 0); }
   }
-  function spotName(id) { return L.SPOTS[id].name; }
+  function spotName(id) { return PLC_SPOT && PLC_SPOT[id] || L.SPOTS[id].name; }   // 지금 있는 곳 (ui/place.js): 섬 부두, 산골 계곡 물가
   function goSpot(id) {
     if (reel || !L.setSpot(S, id)) return false;
     castAnim = null; scareFx = null; swimmers = []; nextSwim = 1;
