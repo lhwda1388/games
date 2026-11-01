@@ -379,6 +379,24 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 #arcade .pick button.on{background:var(--g4);color:var(--g0)}
 #arcade .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:auto}
 #arcade .menu > button.go{width:100%;background:var(--g4);color:var(--g0)}
+/* Hallmark · component: 지금 있는 곳 place tag + arrival card · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: static (no input: pointer-events none, taps fall through to the canvas) · on / off for the card
+ * Only tokens, no new colours. Motion: the card fades (opacity only); reduced motion shows and hides it without the fade.
+ * The tag hangs from the header's bottom rule like a name plate, centred between the 달력 column and the scene button. */
+#plcTag{position:absolute;left:50%;top:34px;transform:translateX(-50%);z-index:2;max-width:200px;box-sizing:border-box;padding:1px 8px 2px 15px;
+  background:var(--g0);border:2px solid var(--g4);border-top-color:var(--g0);font:700 11px/1.25 var(--font);color:var(--g4);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#plcTag:empty{display:none}
+#plcTag::before{content:'';position:absolute;left:6px;top:50%;width:4px;height:4px;margin-top:-2px;background:var(--g4)}
+#plcBanner{position:absolute;left:50%;top:118px;transform:translateX(-50%);z-index:3;min-width:150px;max-width:300px;box-sizing:border-box;
+  padding:7px 16px 8px;text-align:center;background:var(--g0);border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);
+  display:flex;flex-direction:column;align-items:center;gap:2px;opacity:0;transition:opacity .35s var(--ease-out);pointer-events:none}
+#plcBanner.on{opacity:1;transition-duration:.15s}
+#plcBanner b{font:700 17px/1.2 var(--font);color:var(--g4);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#plcBanner b::before,#plcBanner b::after{content:'';display:inline-block;width:10px;height:2px;margin:0 7px;vertical-align:middle;background:var(--g2)}
+#plcBanner span{font:700 11px var(--font);color:var(--g3)}
+#plcBanner span[hidden]{display:none}
+@media (prefers-reduced-motion: reduce){ #plcBanner,#plcBanner.on{transition:none} }
 </style>
 </head>
 <body>
@@ -8619,7 +8637,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function won(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '코인'; }
   var GUIDE = [
     { id: 'farm', name: '밭', how: '아래 씨앗을 고르고 빈 밭을 누르면 심기 · 다 자라면 눌러 수확 · 까마귀·잡초도 눌러 해결', lock: '' },
-    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질 · 누르고 있으면 감기, 장력이 높으면 떼기', lock: '' },
+    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질 · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다', lock: '' },
     { id: 'bag', name: '바구니·주문', how: '바구니 버튼 · 주문을 납품하면 코인과 신뢰도 ★ · 싫은 주문은 ×로 버리기', lock: '' },
     { id: 'cook', name: '요리', how: '바구니의 냄비 탭에서 재료로 요리 · 다 되면 냄비를 눌러 꺼내기', lock: '' },
     { id: 'shop', name: '상점', how: '낚싯대·미끼·밭 확장·허수아비·바구니 · 동물·장식·도구도 여기서', lock: '' },
@@ -10299,7 +10317,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     px(154, 107, 2, 1, 3); px(156, 106, 2, 1, 3); px(158, 107, 2, 1, 3); px(160, 106, 2, 1, 3); px(162, 107, 2, 1, 3); px(164, 106, 2, 1, 3);
     if (spotNew && Math.floor(tt * 2) % 2 === 0) { px(167, 100, 4, 4, 4); px(168, 101, 2, 2, 0); }
   }
-  function spotName(id) { return L.SPOTS[id].name; }
+  function spotName(id) { return PLC_SPOT && PLC_SPOT[id] || L.SPOTS[id].name; }   // 지금 있는 곳 (ui/place.js): 섬 부두, 산골 계곡 물가
   function goSpot(id) {
     if (reel || !L.setSpot(S, id)) return false;
     castAnim = null; scareFx = null; swimmers = []; nextSwim = 1;
@@ -11871,10 +11889,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     view = sc; pendingBuy = null; closePick();
     if (!resultEl.hidden) hideResult();
     trayEl.style.visibility = sc === 'farm' && !SCENES[scene].trip ? '' : 'hidden';   // 기차 여행 물가: no seeds there
-    cv.setAttribute('aria-label', sc === 'farm' ? (SCENES[scene].trip ? trnTripName() + ' 물가' : '농장과 연못') : sc === 'yard' ? '마당' : sc === 'forest' ? '숲' : sc === 'orchard' ? '과수원' : sc === 'flat' ? '갯벌' : sc === 'cave' ? '동굴' : sc === 'stars' ? '별 잇기' : sc === 'island' ? '섬' : sc === 'deep' ? '깊은 숲' : sc === 'peak' ? '산꼭대기' : sc === 'farisle' ? '먼 섬' : sc === 'port' ? '옛 포구' : sc === 'trnvalley' ? '산골 계곡' : sc === 'trnonsen' ? '온천 마을' : sc === 'trnsnow' ? '설원 고개' : sc === 'trnride' ? '기차 안' : cmpIsView(sc) ? cmpViewName(sc) : '집 안');
+    cv.setAttribute('aria-label', plcAria(sc));   // 지금 있는 곳: ui/place.js
     sceneVillage(sc);   // stage 6B: 마을 / 주민 집 label, 지금 할 일 bar
     guideTipShow(sc);   // 놀거리 수첩: how-to toast on the first visit to this scene
     renderSceneBtn();
+    plcTick();          // 지금 있는 곳: tag + arrival card
   }
   function sceneDests() {
     if (view === 'house') return ['yard'];
@@ -15141,8 +15160,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // called by goScene: canvas label + bar
   function sceneVillage(sc) {
-    if (sc === 'village') cv.setAttribute('aria-label', '마을');
-    if (sc === 'home' && vilCur) cv.setAttribute('aria-label', L.residentById(vilCur).name + ' 집 안');
     if (sc !== 'home' && sheetKind === 'vil') closeSheet();
     sceneMuseum(sc);   // stage 7 박물관
     scenePort(sc);     // stage 11 ① 옛 포구
@@ -16774,7 +16791,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // called by sceneVillage (goScene)
   function sceneMuseum(sc) {
-    if (sc === 'museum') cv.setAttribute('aria-label', '박물관');
     if (sc !== 'museum' && sheetKind === 'museum') closeSheet();
   }
 
@@ -19564,7 +19580,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // called by sceneVillage (goScene)
   function scenePort(sc) {
-    if (sc === 'port') cv.setAttribute('aria-label', '옛 포구');
     if (sc !== 'port' && /^(port|auction|trader|dive)$/.test(sheetKind)) closeSheet();
   }
 
@@ -19820,7 +19835,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     dv = { room: id, x: 90, y: 30, tx: 90, ty: 60, o2: L.diveO2Max(S), want: -1, taken: {}, map: false, dark: 0, up: 0, face: 1, zones: {}, n: 0 };
     dv.zones[L.diveRoom(id).zone] = true;
     goScene('dive');
-    cv.setAttribute('aria-label', '잠수 · ' + DIVE_ZONE[L.diveRoom(id).zone]);
     save();
     return true;
   }
@@ -21435,7 +21449,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     trnBathChip.hidden = !left;
     if (left) trnBathLabel.textContent = Math.max(1, Math.ceil(left / SPEED / 60e3)) + '분';
     if (view === 'farm') {   // 기차 여행 물가: no seed tray, and the canvas says where you are (also after a boot or a spot put back)
-      var trip = trnTrip(), vis = trip ? 'hidden' : '', lb = trip ? trnTripName() + ' 물가' : '농장과 연못';
+      var trip = trnTrip(), vis = trip ? 'hidden' : '', lb = plcAria('farm');
       if (trayEl.style.visibility !== vis) trayEl.style.visibility = vis;
       if (cv.getAttribute('aria-label') !== lb) cv.setAttribute('aria-label', lb);
     }
@@ -22531,6 +22545,49 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       return S.camp;
     };
   }
+  // ---------- 지금 있는 곳: the place tag under the header and the arrival card ----------
+  // One name table for every view (the canvas aria-label reads it too). The 'farm' view is named by its fishing spot
+  // (L.SPOTS names), home-made camp views by L.CMP_SITES, a resident's room by the resident.
+  var PLC_VIEW = { yard: '마당', house: '집 안', forest: '숲', orchard: '과수원', village: '마을', flat: '갯벌', cave: '동굴', stars: '별 잇기',
+    island: '섬', deep: '깊은 숲', peak: '산꼭대기', farisle: '먼 섬', port: '옛 포구', museum: '박물관', dive: '잠수',
+    trnvalley: '산골 계곡', trnonsen: '온천 마을', trnsnow: '설원 고개', trnride: '기차 안' };
+  // a spot whose plain name is also a view's name gets told apart (the 섬 scene vs fishing off its 부두); spotName() reads it
+  var PLC_SPOT = { island: '섬 부두', valley: '산골 계곡 물가' };
+  var PLC_SALT = { sea: true, island: true, offshore: true, ocean: true, cmpshore: true };
+  function placeName(v) {
+    if (v === 'farm') return spotName(scene);
+    if (v === 'home') return vilCur ? L.residentById(vilCur).name + ' 집 안' : '집 안';
+    if (v === 'dive' && dv) return '잠수 · ' + DIVE_ZONE[L.diveRoom(dv.room).zone];
+    if (cmpIsView(v)) return cmpViewName(v);
+    return PLC_VIEW[v] || '집 안';
+  }
+  // the canvas label: on the farm it also says the 밭 is there (not on a trip's water)
+  function plcAria(v) { return v === 'farm' && !SCENES[scene].trip ? '밭과 ' + placeName(v) : placeName(v); }
+
+  var plcTag = document.createElement('div');
+  plcTag.id = 'plcTag'; plcTag.setAttribute('aria-hidden', 'true');   // the canvas aria-label already says it
+  var plcBanner = document.createElement('div');
+  plcBanner.id = 'plcBanner'; plcBanner.setAttribute('aria-hidden', 'true');
+  var plcBannerB = document.createElement('b'), plcBannerS = document.createElement('span');
+  plcBanner.appendChild(plcBannerB); plcBanner.appendChild(plcBannerS);
+  app.appendChild(plcTag); app.appendChild(plcBanner);
+  var plcKey = '', plcName = '', plcTimer = 0;
+  // every logic tick and after goScene: rename the tag; a new view or a new fishing spot shows the card (not at boot,
+  // not in a dive or the 별 잇기 puzzle, not over the reel or a minigame)
+  function plcTick() {
+    if (!plcTag) return;   // a goScene while the files above still load
+    var nm = placeName(view), key = view + '|' + (view === 'farm' ? scene : view === 'home' ? vilCur : '');
+    if (nm !== plcName) { plcName = nm; plcTag.textContent = nm; }
+    if (key === plcKey) return;
+    var first = !plcKey;
+    plcKey = key;
+    if (first || reel || mini || chal || rideOn() || arcOn() || view === 'dive' || view === 'stars') return;
+    plcBannerB.textContent = nm;
+    plcBannerS.textContent = view === 'farm' ? (PLC_SALT[scene] ? '바다 물고기' : '민물고기') : '';
+    plcBannerS.hidden = view !== 'farm';
+    plcBanner.classList.add('on');
+    clearTimeout(plcTimer); plcTimer = setTimeout(function () { plcBanner.classList.remove('on'); }, 1500);
+  }
   // ---------- title notification ----------
   function attention() {
     var n = S.fish.phase === 'bite' ? 1 : 0;
@@ -22569,6 +22626,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
     trnTick(t);        // 기차 여행: 온천욕 chip
+    plcTick();         // 지금 있는 곳: the place tag, the arrival card on a new spot
     renderTray();
     updateTitle();
   }

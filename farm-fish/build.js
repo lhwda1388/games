@@ -30,7 +30,8 @@ const STYLE = [
   // stage 10 ① 낚시 대회·결산 카드·간판
   'contest.css',        // 농장 간판 name tag, 간판 모양 picker, 결산 카드 sheet
   // 게임장
-  'arcade.css'          // 게임장 overlay: board canvas, game rows, 난이도·내기 buttons
+  'arcade.css',         // 게임장 overlay: board canvas, game rows, 난이도·내기 buttons
+  'place.css'           // 지금 있는 곳: place tag under the header, arrival card
 ];
 
 const BODY = [
@@ -218,6 +219,8 @@ const UI = [
   'ui/craft.js',        // 공방 building in the 마당 (공방 터 sign first), machine sheet, goods icons, 도감 rows, FF.craft
   // 캠핑
   'ui/camp.js',         // 숲 캠핑장 sign, camp view (fire glow, grill, tent, gear, guests), camp/도장 수첩 sheets, food icons, 도감 rows, FF.camp
+  // 지금 있는 곳
+  'ui/place.js',        // place names (one table, also the canvas aria-label), the place tag under the header, the arrival card
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit
   'ui/pip.js',          // Document Picture-in-Picture
   'ui/fold.js',         // 도감/상점 section headings fold and unfold
