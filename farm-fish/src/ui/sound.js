@@ -204,7 +204,7 @@
     tr.steps = steps; tr.n = bar * 8; tr.eighth = 30 / tr.bpm;
     return tr;
   }
-  var sndMus = null, musLanes = [], musName = '', musForce = null, musDucked = false, musNotes = 0;
+  var sndMus = null, musLanes = [], musTrack = '', musForce = null, musDucked = false, musNotes = 0;
   function musVoice(dest, type, f, t, dur, vol) {
     var o = sndCtx.createOscillator(), g = sndCtx.createGain();
     o.type = type; o.frequency.setValueAtTime(f, t);
@@ -241,7 +241,7 @@
     musLanes.forEach(function (ln) {
       if (ln.end > t + MUS_FADE) { ln.end = t + MUS_FADE; ln.g.gain.cancelScheduledValues(t); ln.g.gain.setValueAtTime(ln.g.gain.value, t); ln.g.gain.linearRampToValueAtTime(0, t + MUS_FADE); }
     });
-    musName = name;
+    musTrack = name;
     if (!MUS[name]) return;
     var g = sndCtx.createGain(); g.connect(sndMus);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + MUS_FADE);
@@ -254,7 +254,7 @@
       sndMus = sndCtx.createGain(); sndMus.gain.value = volBus('music'); sndMus.connect(lp);
     }
     var t = sndCtx.currentTime, want = musOn ? (musForce || curEnv(now()).phase) : '';
-    if (want !== musName) musSwitch(want);
+    if (want !== musTrack) musSwitch(want);
     var duck = !!(reel || mini || arcOn());
     if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(volBus('music'), t, 0.4); }
     musLanes = musLanes.filter(function (ln) {
