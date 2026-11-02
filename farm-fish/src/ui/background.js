@@ -11,7 +11,7 @@
     island: { cx: 146, cy: 176, rx: 38, ry: 22, ox: 236, oy: 256, r: 162 },  // stage 7 섬: open sea like 바다, a wider bay
     // 기차 여행 spots (trip: drawn as the destination, not the 밭 — ui/train.js trnPaintTrip): 산골 계곡 = a brook falling off the
     // ridge into a deep pool (소) you cast into; 온천 = a round warm lake in a stone rim; 설원 = a wide frozen lake in snowbanks
-    valley: { cx: 118, cy: 164, rx: 32, ry: 15, pool: [118, 164, 42, 22], trip: true },
+    valley: { cx: 116, cy: 162, rx: 40, ry: 19, pool: [116, 162, 54, 28], trip: true },
     onsen: { cx: 120, cy: 160, rx: 34, ry: 26, trip: true }, snow: { cx: 112, cy: 162, rx: 54, ry: 24, trip: true },
     offshore: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }, ocean: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }   // stage 9 ① 먼바다·난바다
   };

@@ -59,7 +59,7 @@
   function donkeyPetNow(at) {
     var r = L.donkeyPet(S, now(), TZ);
     if (!r) return;
-    donkeyHearts.push({ x: at.x, y: at.y, t: 0 });
+    donkeyHearts.push({ x: at.x, y: at.y, t: 0 }); sfx('pet');
     var nm = S.donkey.name;
     if (r.up) toast('♥ ' + nm + ' 친밀도 ' + r.up + ' · ' + L.DONKEY_ACTS[r.up], 3600);
     else toast(nm + ' · 귀를 쫑긋' + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다'), 1500);

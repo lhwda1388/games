@@ -4,7 +4,6 @@
     return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
   }
   cv.addEventListener('pointerdown', function (e) {
-    if (boss) return;
     e.preventDefault();
     try { cv.setPointerCapture(e.pointerId); } catch (er) { /* capture not available */ }
     holdPointer = true;
@@ -38,12 +37,11 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       if (closeSceneMenu()) { sceneBtn.focus(); return; }   // Esc first closes the 이동 list
-      var moving = pick && pick.moving; closePick();     // Esc first cancels 옮기기; otherwise it is the boss key
-      if (!moving) toggleBoss();
+      closePick();     // Esc cancels 옮기기
       return;
     }
     if (isPipKey(e)) { e.preventDefault(); if (pipOK && !e.repeat) togglePip(); return; }
-    if (boss) return;
+    if (isSndKey(e)) { e.preventDefault(); if (!e.repeat) sndToggle(); return; }
     var tg = e.target && e.target.tagName;
     if (tg === 'INPUT' || tg === 'TEXTAREA') return;
     if (e.code === 'Space') {
@@ -60,7 +58,7 @@
         if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
         L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k), curEnv(now()));
-        castAnim = { t: 0 }; refresh();
+        castAnim = { t: 0 }; sfx('cast'); refresh();
       }
     }
   }
@@ -82,6 +80,8 @@
     doc.addEventListener('pointerup', up, true); doc.addEventListener('pointercancel', up, true);
     doc.addEventListener('keydown', onKeyDown);
     doc.addEventListener('keyup', onKeyUp);
+    win.addEventListener('pointerdown', sndWake, true); win.addEventListener('keydown', sndWake, true);   // 소리: first gesture starts audio
+    doc.addEventListener('click', sndClick);
     win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; pressing = false; updateTitle(); });
     win.addEventListener('focus', updateTitle);
     win.addEventListener('resize', fit);
@@ -89,10 +89,3 @@
   bindDoc(document, window);
   document.addEventListener('visibilitychange', function () { updateTitle(); if (document.hidden) save(); });
   window.addEventListener('pagehide', save);
-
-  function toggleBoss() {
-    boss = !boss;
-    bossEl.hidden = !boss;
-    holdPointer = false; holdSpace = false;
-  }
-

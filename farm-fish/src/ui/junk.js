@@ -23,7 +23,7 @@
     if (!id) return false;
     var out = L.landJunk(S, id, Math.random);
     tmapAfter('junk'); if (id === 'letter') rumorAfter('letter');   // stage 8 ③
-    burst(f.x, f.y, 8, 0, 50);
+    burst(f.x, f.y, 8, 0, 50); sfx('catch');
     floatText('+' + L.junkById(id).name, ROD_BASE.x, ROD_BASE.y - 16);
     showJunk(out);
     refresh();
@@ -169,10 +169,11 @@
     if (!mini || mini.done) return;
     if (mini.kind === 'pick') {
       var r = L.pickTap(mini.g, mini.t);
-      if (r === 'hit') burstMini();
+      if (r === 'hit') { burstMini(); sfx('hit'); }
+      if (r === 'miss') sfx('error');
       if (r === 'miss') miniTip.textContent = '아깝다 · 한 번 더 놓치면 그냥 열려요';
       if (r === 'ok' || r === 'fail') endMini(r);
-    } else L.heatTap(mini.g);
+    } else { L.heatTap(mini.g); sfx('puff'); }
     drawMini();
   }
   var miniFlash = 0;
@@ -182,9 +183,9 @@
     e.preventDefault(); miniTap();
   });
   miniGive.addEventListener('click', function () { if (mini && !mini.done) endMini('fail'); });
-  // driven by the frame loop (works in the PiP window too); paused behind the boss key
+  // driven by the frame loop (works in the PiP window too)
   function tickMini(dt) {
-    if (!mini || boss) return;
+    if (!mini) return;
     if (mini.done) { mini.done -= dt; if (mini.done <= 0) closeMini(); return; }
     mini.t += dt; miniFlash = Math.max(0, miniFlash - dt);
     var r = mini.kind === 'pick' ? L.pickTime(mini.g, mini.t) : L.heatStep(mini.g, dt);
@@ -195,6 +196,7 @@
     var m = mini;
     m.done = 0.9;
     miniTip.textContent = r === 'ok' ? '성공!' : '괜찮아요 · 평소대로 받아요';
+    sfx(r === 'ok' ? 'level' : 'lost');
     if (m.kind === 'pick') {
       var res = L.openChest(S, Math.random, r === 'ok' ? 1 : 0);
       chestResult(res, r === 'ok');

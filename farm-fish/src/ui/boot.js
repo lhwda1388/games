@@ -87,4 +87,8 @@
     var ups = []; for (var j = 0; j < (n || 1); j++) ups = ups.concat(L.befriend(S, o).ups);
     refresh(); return ups;
   };
-  globalThis.FF.born = function (daysAgo) { S.born = now() - (daysAgo || 0) * 86400e3; refresh(); return L.farmYear(S, now()); };
+  // 음악: FF.music('night') plays that tune whatever the clock says, FF.music() follows the clock again
+  globalThis.FF.music = function (p) { musForce = p || null; musTick(); return { track: musName, notes: musNotes, lanes: musLanes.length }; };
+  // 환경음: what should play here now (layers with levels, one-shots per second) and the layers actually running
+  globalThis.FF.ambient = function () { var w = ambWant(); ambTick(); return { lay: w.lay, ev: w.ev, live: Object.keys(ambLive) }; };
+  globalThis.FF.born =function (daysAgo) { S.born = now() - (daysAgo || 0) * 86400e3; refresh(); return L.farmYear(S, now()); };

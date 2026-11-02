@@ -52,6 +52,6 @@
   var bagEl = $('bag'), bagBtn = $('bagBtn');
   var coinsEl = $('coins'), toastEl = $('toast'), trayEl = $('tray'), reelHud = $('reelHud');
   var tBar = $('tBar'), cBar = $('cBar'), tWrap = $('tWrap'), cueEl = $('reelCue');
-  var resultEl = $('result'), dexEl = $('dex'), shopEl = $('shop'), bossEl = $('boss'), floatsEl = $('floats');
+  var resultEl = $('result'), dexEl = $('dex'), shopEl = $('shop'), floatsEl = $('floats');
   var dexBtn = $('dexBtn'), shopBtn = $('shopBtn'), pipBtn = $('pipBtn');
 

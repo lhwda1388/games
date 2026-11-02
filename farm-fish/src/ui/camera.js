@@ -60,7 +60,7 @@
     camWatchLegend();
     var own = L.camOk(S);
     camBtn.hidden = !own;
-    if (!own || boss) return;
+    if (!own) return;
     camShots = L.shotsNow(camCtx(t));
     var fresh = camShots.some(function (id) { return !S.cam.album[id]; });
     camBtn.classList.toggle('on', camShots.length > 0);
@@ -73,7 +73,7 @@
   camBtn.addEventListener('click', function () {
     if (!L.camOk(S) || reel) return;
     tickCameraUI(now());
-    camFlashNow();
+    camFlashNow(); sfx('shutter');
     var got = [];
     camShots.forEach(function (id) { var r = L.takeShot(S, id, now()); if (r && r.first) got.push(L.shotById(id).name); });
     if (got.length) toast('찰칵 · 앨범에 「' + got.join('」「') + '」 · ' + L.albumCount(S) + ' / ' + L.SHOTS.length, 3200);

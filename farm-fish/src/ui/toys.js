@@ -54,6 +54,7 @@
       if (!reduceMotion) burst(spot.x, spot.y - 2, 10, 3, 70);
     } else toyWalk(x, y, pt);
     if (toyFx.length > 8) toyFx.shift();
+    sfx(kind === 'splash' ? 'water' : kind === 'leaves' ? 'swing' : 'plant');   // 물웅덩이 첨벙, 낙엽 바스락, 눈 발자국
     var r = L.toyPlay(S, kind, t, TZ, Math.random, L.bagBlocked(S)).reward;
     var fx = spot ? spot.x : x, fy = spot ? spot.y : y;
     if (r && r.id) { floatText(r.sold ? '+' + r.sold : '+도토리', fx, fy - 8); toast('낙엽 속에 도토리 하나' + (r.sold ? ' · 바구니가 꽉 차 팔았다 +' + r.sold : ' · 바구니에'), 2200); refresh(); }

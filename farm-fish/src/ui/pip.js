@@ -13,11 +13,11 @@
   function openPip() {
     pipArmed = false; pipHint.hidden = true;
     window.documentPictureInPicture.requestWindow({ width: 360, height: 480 }).then(function (pw) {
-      pipWin = pw; hideA = null;   // auto-PiP opens just after the tab hides: the player is still here
+      pipWin = pw; hideA = null; sndVis();   // auto-PiP opens just after the tab hides: the player is still here
       var st = pw.document.createElement('style');
       st.textContent = Array.prototype.map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
       pw.document.head.appendChild(st);
-      pw.document.title = '메모';
+      pw.document.title = 'Pixel Pastoral';
       var holder = pw.document.createElement('div'); holder.id = 'stage';
       pw.document.body.appendChild(holder);
       holder.appendChild(app);
@@ -27,7 +27,7 @@
         stageEl.appendChild(app);
         pipWin = null; curWin = window; pipClosed = true;
         pipBtn.innerHTML = PIP_LABEL + '다시'; pipBtn.title = '다시 작게 띄우기';
-        fit(); startLoop();
+        fit(); startLoop(); sndVis();
         toast('작게 띄운 창을 닫았어요 · 위의 📌 다시', 3200);
       });
     }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
@@ -49,8 +49,8 @@
       if (performance.now() < swallowClickUntil) { e.preventDefault(); e.stopPropagation(); swallowClickUntil = 0; }
     }, true);
     window.addEventListener('keydown', function (e) {
-      // Esc stays the boss key and P is the toggle itself; bare modifiers are not a decision to open
-      if (!pipArmed || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || isPipKey(e) ||
+      // Esc closes things, P is the toggle itself and M is sound; bare modifiers are not a decision to open
+      if (!pipArmed || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || isPipKey(e) || isSndKey(e) ||
           /^(Shift|Control|Alt|Meta|Tab|CapsLock|Process)$/.test(e.key)) return;
       e.preventDefault(); e.stopImmediatePropagation();
       openPip();

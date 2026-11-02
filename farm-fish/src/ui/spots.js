@@ -134,7 +134,7 @@
     var p = performance.now();
     if (p < noticeNext) return;
     noticeNext = p + 2000;
-    if (reel || boss) return;
+    if (reel) return;
     var d = new Date(t), e = curEnv(t), live = {}, say = null, sayKey = null;
     var here = view === 'farm' ? L.curSpot(S) : view === 'forest' && L.forestOk(S) ? 'forest' : null;
     L.FISH.forEach(function (f) {

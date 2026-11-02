@@ -68,12 +68,12 @@
     var g = L.takePetGift(S, t, TZ, L.forestOk(S) ? fEnv(t) : null, Math.random);
     if (g) {
       petHearts.push({ x: p.x, y: p.y, t: 0 });
-      burst(p.x, p.y - 8, 8, 0, 40);
+      burst(p.x, p.y - 8, 8, 0, 40); sfx('harvest');
       toast(josa(nm, '이', '가') + ' 선물을 물고 왔다 · ' + L.itemInfo(g.id).name + (g.sold ? ' · 바구니가 꽉 차 팔았다 +' + g.sold : ' · 바구니에'), 2800);
       refresh(); return true;
     }
     var r = L.petPet(S, t, TZ);
-    petHearts.push({ x: p.x, y: p.y, t: 0 });
+    petHearts.push({ x: p.x, y: p.y, t: 0 }); sfx('pet');
     if (r.up) toast('♥ ' + nm + ' 친밀도 ' + r.up + ' · 새 행동: ' + L.PET_ACTS[r.up], 3600);
     else toast(S.pet.kind === 'cat' ? '골골골… ' + nm + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다') : nm + ' · 꼬리를 흔든다' + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다'), 1500);
     save(); return true;

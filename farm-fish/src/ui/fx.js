@@ -35,12 +35,14 @@
   // ---------- effects added by the game ----------
   // strike: freeze + splash rings round the float
   function fxStrike(x, y) {
+    sfx('strike');
     fxHitStop(L.FX_HITSTOP_MS);
     fxAdd({ k: 'splash', x: x, y: y, dur: 420 });
   }
   // a caught fish jumps out and drops into the basket corner (or turns into coins when it was sold at once)
   function fxCatch(f, x, y, sold) {
     var tier = L.fxTier(f);
+    sfx(tier > 1 ? 'catchLegend' : tier ? 'catchRare' : 'catch');
     if (tier) fxShake(tier > 1 ? 4 : 2.5);
     if (tier > 1 && !reduceMotion) fxAdd({ k: 'legend', x: x, y: y, dur: 1300 });
     if (sold) { fxCoins(x, y, sold); return; }
@@ -49,6 +51,7 @@
   }
   // harvest / forage: the item pops up with dirt bits; 특상품 pops higher and sparkles; quick streaks show ×2 ×3
   function fxHarvest(x, y, img, won) {
+    sfx(won ? 'level' : 'harvest');
     burst(x, y + 4, won ? 8 : 5, 4, 45);   // dirt bits
     harvestRun = L.fxCombo(harvestRun, fxT(), L.FX_COMBO_MS);
     if (harvestRun.n >= 2) floatText('×' + harvestRun.n, x + 12, y - 14);
@@ -57,12 +60,14 @@
   }
   // coins: a few pixel coins fly up to the wallet; the wallet number then rolls up (see coinsShown)
   function fxCoins(x, y, amount) {
+    if (amount > 0) sfx('coin');
     if (reduceMotion || !(amount > 0)) return;
     var n = Math.min(5, 2 + Math.floor(Math.log(amount) / Math.LN10));
     for (var k = 0; k < n; k++) fxAdd({ k: 'coin', x0: x + (k - n / 2) * 3, y0: y, x1: 16, y1: -4, arc: 10 + k * 3, dur: 420, delay: k * 45 });
   }
   // DOM coins for panels that cover the canvas (바구니 sell / deliver): from the last press to the visible wallet
   function fxCoinsDom(target) {
+    sfx('coin');
     if (reduceMotion || !pressAt || !target || !app.animate) return;
     var doc = app.ownerDocument, ar = app.getBoundingClientRect(), sc = ar.width / 360 || 1, tr = target.getBoundingClientRect();
     if (app.querySelectorAll('.coinfly').length >= 8) return;
@@ -80,6 +85,7 @@
   }
   // 해금 · 신기록 · 도감 첫 등록: a short stamp landing
   function fxStamp(el) {
+    sfx('level');
     if (!el || reduceMotion) return;
     el.classList.remove('stamp'); void el.offsetWidth; el.classList.add('stamp');
   }
@@ -90,6 +96,7 @@
     var t = fxT();
     if (coinLast === null) coinLast = v;
     if (v !== coinLast) {
+      if (v < coinLast) sfx('buy', true);   // 소리: any spend that made no sound of its own
       var from = coinTween ? L.fxCount(coinTween.from, coinTween.to, t - coinTween.t0, L.FX_COUNT_MS) : coinLast;
       coinTween = v > coinLast && !reduceMotion ? { from: from, to: v, t0: t } : null;
       coinLast = v;

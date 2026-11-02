@@ -151,14 +151,14 @@
       if (L.isReady(p)) { if (!bagStop()) holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
-        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
+        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); sfx('water'); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
         else toast(p.fert ? '이미 비료를 줬어요' : '비료가 없어요');
         refresh(); return true;
       }
       if (!p.crop) {
         var id = S.sel;
-        if (L.plant(S, i, id, t, curEnv(t).season)) { burst(r.x + 22, r.y + 20, 5, 2, 30); floatText(id === 'gold' ? '★' : '-' + L.CROPS[id].cost, r.x + 22, r.y + 6); }
-        else if (!seedInSeason(id)) { toast(L.CROPS[id].name + '는 ' + L.SEASON_NAME[L.CROPS[id].season] + '에만 심을 수 있어요'); }
+        if (L.plant(S, i, id, t, curEnv(t).season)) { sfx('plant'); burst(r.x + 22, r.y + 20, 5, 2, 30); floatText(id === 'gold' ? '★' : '-' + L.CROPS[id].cost, r.x + 22, r.y + 6); }
+        else if (!seedInSeason(id)) { sfx('error'); toast(L.CROPS[id].name + '는 ' + L.SEASON_NAME[L.CROPS[id].season] + '에만 심을 수 있어요'); }
         else { toast('코인이 부족해요'); var tb = trayBtns[id].b; tb.classList.remove('shake'); void tb.offsetWidth; tb.classList.add('shake'); }
         refresh(); return true;
       }

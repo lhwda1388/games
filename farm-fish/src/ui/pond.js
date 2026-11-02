@@ -37,6 +37,7 @@
       milestones();
     } else {
       L.loseFish(S);
+      sfx(res === 'snap' ? 'snap' : 'lost');
       toast(res === 'snap' ? '툭… 줄이 끊어졌다' : (f.power >= 1.6 ? '묵직한 녀석이 도망갔다…' : '도망갔다…'), 2600);
       burst(reelVis.x, reelVis.y, 6, 2, 40);
     }
@@ -106,7 +107,7 @@
         var bx = x, by = y;
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
         L.cast(S, now(), Math.random, Math.round(bx), Math.round(by), curEnv(now()));
-        castAnim = { t: 0 };
+        castAnim = { t: 0 }; sfx('cast');
         return refresh();
       }
       if (S.fish.phase === 'wait') {
@@ -244,8 +245,8 @@
   function tickFishing(t) {
     if (!reel) {
       var f = L.updateFishing(S, t, Math.random, SPEED, curEnv(t));
-      if (f === 'missed') toast('놓쳤다… 다시 던져보자');
-      if (f === 'bite') { burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
+      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('lost'); }
+      if (f === 'bite') { sfx('bite'); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
       if (f && f !== 'nibble') save();
     }
   }
@@ -255,6 +256,7 @@
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
+      if (held && reel.tension > 0.6) sfx('tick');   // 소리: the line creaks when it is close to snapping
       var pulling = reel.burst > 0, warning = reel.warn > 0, ev = reel.ev;
       var jumping = pulling && ev === 'jump', digging = pulling && ev === 'sound', running = pulling && ev === 'run', turning = running && reel.turn > 0;
       if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, jumping ? 3 : 2.5); }

@@ -1,6 +1,6 @@
   // ---------- 게임장 (마을 아래, 장터 가는 길 옆): the building, one overlay for 고르기·내기 and the round ----------
   // Logic: logic/arcade.js. The overlay (#arcade) shows the game list, then 난이도·내기, then a 120×120 board.
-  // Round time = performance.now() since the round began, minus time behind the boss key, so ?speed never changes it.
+  // Round time = performance.now() since the round began, so ?speed never changes it.
   var ARC_AT = [98, 166, 28, 32];   // between the path down and the 박물관 (the tree that stood here is gone)
   var AW = 120, AH = 120;
   var ARC_TZ = -new Date().getTimezoneOffset();
@@ -15,10 +15,10 @@
   arcWallet.className = 'wallet'; arcHead.appendChild(arcTitle); arcHead.appendChild(arcWallet);
   arcCv.width = AW; arcCv.height = AH; arcTip.className = 'tip'; arcMenu.className = 'menu'; arcActs.className = 'acts';
   [arcHead, arcCv, arcTip, arcMenu, arcActs].forEach(function (el) { arcEl.appendChild(el); });
-  var arc = null;   // { kind: 'menu' | 'pick' | 'round', game, diff, bet, play, g, t0, paused, bossAt, done, … }
+  var arc = null;   // { kind: 'menu' | 'pick' | 'round', game, diff, bet, play, g, t0, done, … }
   var arcIcons = {};
   function arcOn() { return !!arc && arc.kind === 'round' && !arc.done; }
-  function arcT() { return performance.now() - arc.t0 - arc.paused; }
+  function arcT() { return performance.now() - arc.t0; }
 
   // ---------- the building on the 마을 street ----------
   function drawArcade(tt) {
@@ -143,7 +143,7 @@
     refresh();   // the bet is paid now: save it
     var g = game === 'mole' ? L.moleLayout(diff, Math.random) : game === 'match' ? L.matchDeal(diff, Math.random)
       : game === 'throw' ? L.throwSetup(diff, Math.random) : null;
-    arc = { kind: 'round', game: game, diff: diff, bet: bet, play: r.play, g: g, t0: performance.now(), paused: 0, bossAt: 0,
+    arc = { kind: 'round', game: game, diff: diff, bet: bet, play: r.play, g: g, t0: performance.now(),
       done: false, fx: [], hideAt: 0, endAt: 0, ballAt: 0, fly: null, reels: null, spinAt: 0, tipKey: '' };
     arcHeader(L.arcGame(game).name + (diff ? ' · ' + L.ARC_DIFF_NAME[diff] : ''));
     arcActs.innerHTML = '';
@@ -160,6 +160,7 @@
     else if (a.game === 'slot') msg = ok ? '×' + win + '!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : '') : '꽝' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     else msg = ok ? '이겼다!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : ' (그냥 놀기)') : '아쉽다' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     arcTip.textContent = msg;
+    if (win !== null) sfx(ok ? 'level' : 'lost');
     arcHeader(arcTitle.textContent);
     if (pay) { fxCoinsDom(arcWallet); fxStamp(arcTip); }
     refresh();
@@ -177,13 +178,13 @@
   }
   // board coordinates from a pointer
   arcCv.addEventListener('pointerdown', function (e) {
-    if (!arcOn() || boss) return;
+    if (!arcOn()) return;
     e.preventDefault();
     var r = arcCv.getBoundingClientRect();
     arcTap((e.clientX - r.left) * AW / r.width, (e.clientY - r.top) * AH / r.height);
   });
   // Space: throw / spin (the games without a place to aim)
-  function arcKey() { if (arcOn() && !boss && (arc.game === 'throw' || arc.game === 'slot')) arcTap(AW / 2, AH / 2); }
+  function arcKey() { if (arcOn() && (arc.game === 'throw' || arc.game === 'slot')) arcTap(AW / 2, AH / 2); }
 
   var MOLE_HX = [22, 60, 98], MOLE_HY = [44, 74, 104];
   function holeAt(h) { return [MOLE_HX[h % 3], MOLE_HY[Math.floor(h / 3)]]; }
@@ -199,7 +200,7 @@
         var p = holeAt(h);
         if (Math.abs(x - p[0]) > 17 || y < p[1] - 24 || y > p[1] + 5) continue;
         var r = L.moleTap(g, t, h);
-        if (r) a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t });
+        if (r) { sfx(r === 'hog' ? 'error' : 'hit'); a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t }); }
         return;
       }
     } else if (a.game === 'match') {
@@ -207,6 +208,7 @@
       for (var k = 0; k < g.cards.length; k++) {
         if (!hit(cardBox(k), x, y, 1)) continue;
         var f = L.matchFlip(g, k);
+        if (f) sfx(f === 'pair' ? 'hit' : 'tap');
         if (f === 'miss') a.hideAt = t + 700;
         if (f === 'pair' && L.matchOver(g)) a.endAt = t + 400;
         return;
@@ -214,9 +216,9 @@
     } else if (a.game === 'throw') {
       if (a.fly || a.endAt || t < a.ballAt) return;
       var hitIt = L.throwShot(g, t - a.ballAt);
-      if (hitIt !== null) a.fly = { t: t, hit: hitIt };
+      if (hitIt !== null) { a.fly = { t: t, hit: hitIt }; sfx('cast'); }
     } else if (!a.reels) {
-      a.reels = L.slotSpin(Math.random); a.spinAt = t;
+      a.reels = L.slotSpin(Math.random); a.spinAt = t; sfx('whoosh');
     }
   }
 
@@ -224,8 +226,6 @@
   var SLOT_STOP = [700, 1100, 1500];
   function tickArcade(dt) {
     if (!arcOn()) return;
-    if (boss) { if (!arc.bossAt) arc.bossAt = performance.now(); return; }
-    if (arc.bossAt) { arc.paused += performance.now() - arc.bossAt; arc.bossAt = 0; }
     var a = arc, g = a.g, t = arcT(), tip;
     if (a.game === 'mole') {
       if (L.moleOver(g, t)) { arcEnd(g.score >= g.need); return; }

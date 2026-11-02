@@ -90,8 +90,9 @@
     var k = L.starAt(g, (x - 14) / 1.26, (y - 44) / 1.4, 9);
     if (k < 0) return;
     var r = L.starTap(g, k), st = g.stars[k];
-    if (r === 'wrong') { toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
+    if (r === 'wrong') { sfx('error'); toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
     burst(chartX(st.x), chartY(st.y), r === 'done' ? 18 : 4, 0, r === 'done' ? 70 : 24);
+    sfx(r === 'done' ? 'chime' : 'star', false, g.step - 1);   // 소리: each star a step higher, the whole shape a chime
     if (r !== 'done') return;
     var mul = L.cmpStarMul(S, cmpIsView(starHome)), c = L.starById(g.id), rec = L.seeStar(S, g.id, now(), mul);
     toast('★ ' + c.name + (rec && rec.first ? ' · 처음 찾았다! 도감에 기록' : ' · 또 만났다') + (rec ? ' · +' + rec.coins + (mul > 1 ? ' (캠프 ×' + mul + ')' : '') : '') + ' · 누르면 ' + (starHome === 'peak' ? '산꼭대기로' : cmpIsView(starHome) ? '캠핑장으로' : '마당으로'), 4000);

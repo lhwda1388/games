@@ -203,18 +203,25 @@
     } finally { ctx = saved; }
     return c;
   }
+  // land lines under the sky and mountains (train.js trnVista): the camp view, and its 밤 낚시 brook
+  function cmpRidgeV(x) { return 34 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3); }
+  function cmpRidgeB(x) { return 36 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3); }
+  // 바닷가 sky: a few clouds and gulls over the horizon (rows 0-25)
+  function cmpSeaSky() {
+    [[14, 10, 24], [74, 17, 16], [124, 7, 28]].forEach(function (c) { px(c[0] + 3, c[1] - 2, c[2] - 6, 1, 1); px(c[0] + 1, c[1] - 1, c[2] - 2, 1, 1); px(c[0], c[1], c[2], 1, 2); });
+    [[104, 19], [112, 15], [58, 6]].forEach(function (g) { px(g[0], g[1], 1, 1, 3); px(g[0] + 1, g[1] + 1, 1, 1, 3); px(g[0] + 2, g[1], 1, 1, 3); px(g[0] + 3, g[1] + 1, 1, 1, 3); px(g[0] + 4, g[1], 1, 1, 3); });
+  }
   // 계곡 camp (ctx = its bg): ridges, pines on the far bank, the stream with stones, the near bank of pebbles
   function cmpPaintValley() {
     var x, y;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
-      var r = 34 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3), d = Math.abs(y - cmpValleyY(x)), c;
-      if (y < r) c = (x + y) % 3 === 0 ? 3 : 2;
-      else if (d < 7) c = d > 5 ? 2 : d < 3 ? ((x + y) % 2 ? 2 : 1) : (x * 3 + y) % 7 === 0 ? 0 : 1;
-      else if (d < 10) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var r = cmpRidgeV(x), d = Math.abs(y - cmpValleyY(x)), c;
+      if (y < r) c = trnVista(x, y, r, false);
+      else if (d < 9) c = d > 7 ? 2 : d < 4 ? ((x + y) % 2 ? 2 : 1) : (x * 3 + y) % 7 === 0 ? 0 : 1;
+      else if (d < 12) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;
       else c = y > 70 && hash(x * 131 + y * 7) < 0.06 ? 1 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     [10, 30, 64, 92, 124, 152, 176].forEach(function (tx, j) { trnPine(tx, cmpValleyY(tx) - 9 - (j % 2) * 2, false); });   // the far bank
     [24, 74, 116, 160].forEach(function (rx) { trnRock(rx, cmpValleyY(rx) + 1); });                                      // stones in the stream
     trnPine(174, 148, false); trnPine(6, 140, false);
@@ -222,7 +229,7 @@
   // 바닷가 camp: the sea up to the horizon, a far headland with a little light, the waterline and a wide sand beach with shells
   function cmpPaintSea() {
     var x, y, k;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {   // rows above stay the sky (cmpPaint fills it)
       var sh = cmpShoreY(x), c;
       if (x > 136 && y < 26 + Math.round((x - 136) * 0.22) && y < 34) c = (x + y) % 2 ? 4 : 3;   // headland
       else if (y < sh) c = y < 34 ? ((x + y) % 2 ? 2 : 1) : sh - y < 3 ? 1 : (x % 4 === 0 && y % 2 === 0) ? 2 : 1;
@@ -230,7 +237,8 @@
       else c = hash(x * 131 + y * 7) < 0.14 ? 1 : hash(x * 17 + y * 311) < 0.03 ? 2 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    for (x = 0; x < W; x++) px(x, 26, 1, 1, 2);   // the horizon
+    cmpSeaSky();
     px(170, 24, 2, 4, 4); px(169, 23, 4, 1, 3);                                                     // the far lighthouse
     for (k = 0; k < 9; k++) {                                                                      // shells and a starfish or two
       var sx = 16 + Math.floor(hash(k * 37 + 4) * 150), sy = 78 + Math.floor(hash(k * 19 + 8) * 110);
@@ -356,7 +364,8 @@
     var t = now(), e = curEnv(t), site = cmpSiteNow(), dark = L.cmpDark(e.phase), night = e.phase === 'night';
     if (!bgCmps[site]) bgCmps[site] = cmpPaint(site);
     ctx.drawImage(bgCmps[site], 0, 0);
-    drawSky(tt, e.phase);
+    var sky = site === 'valley' ? trnSky('cmpv', cmpRidgeV) : null;
+    drawSky(tt, e.phase, sky);
     cmpDrawWaterFx(site, tt);
     if (!S.camp) return;
     L.cmpSettleGrill(S, t);
@@ -370,7 +379,7 @@
     drawYardWeather(tt, e.weather);
     if (dark) {
       ctx.globalAlpha = night ? 0.55 : 0.2; px(0, 0, W, H, 4); ctx.globalAlpha = 1;   // a bit darker than the 숲: the fire is the light here
-      if (night) drawStars(tt);
+      if (night) drawStars(tt, sky);
       if (on) { cmpGlow(78, 150, 30, tt, night ? 0.09 : 0.05); cmpDrawFire(tt, true); cmpDrawGrill(performance.now()); }
       if (S.camp.eq.lantern) { var l = CMP_EQ_AT.lantern; cmpGlow(l[0] + 7, l[1] + 9, 9, 0, 0.07); px(l[0] + 5, l[1] + 7, 4, 4, 0); }
       if (S.camp.sleep) { var tx = CMP_TENT[0] + 25; for (var k = 0; k < 3; k++) if ((Math.floor(tt * 1.5) + k) % 3) px(tx + 10 + k * 4, CMP_TENT[1] - 2 - k * 4, 3, 1, 0); }   // z z z
@@ -466,21 +475,25 @@
   // ---------- 캠프 물가: the night-fishing screen (farm view, scene = the camp's spot) ----------
   function cmpBrookX(y) { return 172 - (y - 26) * 0.3 + Math.sin(y / 14) * 5; }
   function cmpBrookPool(x, y) { var a = (x - 130) / 46, b = (y - 162) / 26; return a * a + b * b; }
-  function cmpBrookD(x, y) { var hw = 8 + Math.max(0, y - 26) * 0.05; return Math.min(y < 28 ? 99 : Math.abs(x - cmpBrookX(y)) / hw, cmpBrookPool(x, y)); }
+  function cmpBrookD(x, y) { var hw = 10 + Math.max(0, y - 26) * 0.05; return Math.min(y < 28 ? 99 : Math.abs(x - cmpBrookX(y)) / hw, cmpBrookPool(x, y)); }
   function cmpSeaX(y) { return 96 + Math.sin(y / 19) * 7 + Math.sin(y / 7) * 2 - (y - 26) * 0.05; }
   function cmpSeaD(x, y) { return 1 - (x - cmpSeaX(y)) / 70; }
   var CMP_TRIP_TENT = [6, 46], CMP_TRIP_FIRE = [34, 112];
   // the whole bg (ctx = bg, from background.js paintBg via trnPaintTrip): land, water, trees; tent and fire are drawn live
   function cmpPaintTrip(sc) {
     var site = SCENES[sc].camp, x, y;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+    var hx = cmpSeaX(26);
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       var d = wetD(x, y), c;
       if (site === 'valley') {
-        var r = 36 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3), pd = cmpBrookPool(x, y);
-        if (y < r && d >= 1) c = (x + y) % 3 === 0 ? 3 : 2;                                                 // the ridge
+        var r = cmpRidgeB(x), pd = cmpBrookPool(x, y);
+        if (y < r && d >= 1) c = trnVista(x, y, r, false);                                                  // sky and the ridge
         else if (d < 1) c = pd < 1 ? (pd < 0.35 ? ((x + y) % 2 ? 2 : 1) : pd > 0.8 ? 2 : (x % 4 === 0 && y % 2 === 0 ? 2 : 1)) : d > 0.75 ? 2 : (y * 2 + x) % 5 === 0 ? 0 : 1;
         else if (d < 1.3) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;                 // pebbles
         else c = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
+      } else if (y < 26) {                                                                                  // sky, a far headland behind the sand
+        var hy = 18 + Math.round(Math.sin(x / 14) * 3 + Math.sin(x / 5) * 1);
+        c = x < hx - 4 && y >= hy ? (y === hy ? 3 : (x + y) % 3 === 0 ? 2 : 1) : 0;
       } else {
         if (d < 1) c = d > 0.95 ? 2 : d < 0.5 ? ((x + y) % 2 ? 2 : 1) : (x % 4 === 0 && y % 2 === 0) ? 2 : 1;   // the sea
         else if (d < 1.07) c = (x + y) % 3 ? 1 : 2;                                                       // wet sand
@@ -488,7 +501,7 @@
       }
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    if (site === 'sea') { for (x = 0; x < W; x++) px(x, 26, 1, 1, 2); cmpSeaSky(); }   // the horizon
     if (site === 'valley') {
       [[70, 60], [96, 50], [122, 62], [178, 100], [176, 142], [172, 200], [84, 200]].forEach(function (t) { trnPine(t[0], t[1], false); });
       [[110, 168], [150, 156], [cmpBrookX(80) - 2, 80], [cmpBrookX(110) + 2, 110]].forEach(function (p) { trnRock(p[0], p[1]); });
@@ -503,7 +516,7 @@
   // live layer (pond.js drawWater → drawTrnWater): sky, moving water, the tent, the fire and its glow, the 물가 팻말
   function cmpDrawTrip(tt) {
     var site = SCENES[scene].camp, t = now(), e = curEnv(t), dark = L.cmpDark(e.phase), mv = !reduceMotion, k, y;
-    drawSky(tt, e.phase);
+    drawSky(tt, e.phase, site === 'valley' ? trnSky('cmpb', cmpRidgeB) : null);
     if (site === 'valley') {
       for (k = 0; k < 20; k++) {                                                             // rapids down the brook
         var yy = 30 + (hash(k * 7 + 3) * 170 + (mv ? tt * 26 : 0)) % 170, xx = cmpBrookX(yy) + (hash(k * 5) - 0.5) * 7;
@@ -548,7 +561,7 @@
     if (!cmpStay()) return;
     var t = now(), r = L.cmpLight(S, cmpSiteNow(), t, TZ, curEnv(t).phase);
     if (!r.ok) { toast(CMP_WHY[r.why] || '불을 못 피워요', 2200); return; }
-    burst(78, 146, 14, 0, 50);
+    burst(78, 146, 14, 0, 50); sfx('puff');
     toast('모닥불을 피웠다 · 아침까지 타요 · 불을 누르면 굽기', 2600);
     cmpDone();
   }
@@ -558,6 +571,7 @@
     if (!r) return;
     var it = L.itemInfo(r.id);
     floatText('+' + it.name, 78, 128);
+    sfx(r.burnt ? 'lost' : 'harvest');
     toast(r.burnt ? '앗, 다 타 버렸다 · 탄 음식' : (r.first ? '★ 처음 · ' : '') + it.name + (r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에'), 2200);
     if (!quick || r.first) burst(78, 136, r.burnt ? 4 : 10, r.burnt ? 3 : 0, 30);
     cmpDone();

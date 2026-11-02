@@ -63,8 +63,26 @@
     }
   }
   function renderSettings() {
-    if (!pipOK) return;
     var h3 = document.createElement('h3'); h3.textContent = '설정'; dexEl.appendChild(h3);
+    var sl = document.createElement('label'); sl.className = 'setRow';
+    var sc = document.createElement('input'); sc.type = 'checkbox'; sc.id = 'setSnd'; sc.checked = !!sndOn;
+    sc.addEventListener('change', function () { sndSet(sc.checked); });
+    var st = document.createElement('span'); st.textContent = '소리';
+    var ss = document.createElement('small'); ss.textContent = '위의 스피커 버튼이나 M 키로도 켜고 끄기'; st.appendChild(ss);
+    sl.appendChild(sc); sl.appendChild(st); dexEl.appendChild(sl);
+    var ml = document.createElement('label'); ml.className = 'setRow';
+    var mc = document.createElement('input'); mc.type = 'checkbox'; mc.checked = musOn;
+    mc.addEventListener('change', function () { musSet(mc.checked); });
+    var mt = document.createElement('span'); mt.textContent = '음악';
+    var ms = document.createElement('small'); ms.textContent = '시간마다 바뀌는 배경 음악 · 효과음은 그대로'; mt.appendChild(ms);
+    ml.appendChild(mc); ml.appendChild(mt); dexEl.appendChild(ml);
+    var al = document.createElement('label'); al.className = 'setRow';
+    var ac = document.createElement('input'); ac.type = 'checkbox'; ac.checked = ambOn;
+    ac.addEventListener('change', function () { ambSet(ac.checked); });
+    var at = document.createElement('span'); at.textContent = '환경음';
+    var as = document.createElement('small'); as.textContent = '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요'; at.appendChild(as);
+    al.appendChild(ac); al.appendChild(at); dexEl.appendChild(al);
+    if (!pipOK) return;
     var lb = document.createElement('label'); lb.className = 'setRow';
     var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
     cb.addEventListener('change', function () { setAutoPip(cb.checked); });

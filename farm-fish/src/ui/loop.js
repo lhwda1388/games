@@ -7,7 +7,7 @@
   function updateTitle() {
     var away = document.hidden || !document.hasFocus();
     var n = attention();
-    var want = away && n > 0 ? '(' + n + ') 메모' : '메모';
+    var want = away && n > 0 ? '(' + n + ') Pixel Pastoral' : 'Pixel Pastoral';
     if (document.title !== want) document.title = want;
   }
 

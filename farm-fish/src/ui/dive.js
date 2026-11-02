@@ -1,6 +1,6 @@
   // ---------- 잠수 탐험 (stage 12): one room = one screen, tap to swim, oxygen, take / look at things ----------
   // Logic in logic/dive.js + logic/divemap.js. Oxygen runs on frame time (dt), so it stops whenever the game is hidden
-  // (no frames) or behind the boss key; it also waits while the minimap is open. At 0 the diver floats up: nothing is lost.
+  // (no frames); it also waits while the minimap is open. At 0 the diver floats up: nothing is lost.
   // The 옛 포구 scene (lane ①) calls drawPortExtra_dive / tapPortExtra_dive for the dock marker; diveGearRows fills a sheet.
   var DIVE_SPEED = 38, DIVE_GAP = 18, DIVE_MID = 110;   // px/s; half width of a passage; e/w passage centre y
   var DIVE_MARK = [14, 114, 18, 26];                    // dock marker on the 포구 scene (x, y, w, h)
@@ -15,14 +15,14 @@
     L.diveEnter(S, id);
     dv = { room: id, x: 90, y: 30, tx: 90, ty: 60, o2: L.diveO2Max(S), want: -1, taken: {}, map: false, dark: 0, up: 0, face: 1, zones: {}, n: 0 };
     dv.zones[L.diveRoom(id).zone] = true;
-    goScene('dive');
+    goScene('dive'); sfx('splash');
     save();
     return true;
   }
   function endDive(why) {
     var n = dv ? dv.n : 0;
     dv = null;
-    goScene(diveHome());
+    goScene(diveHome()); sfx('splash');
     toast((why === 'o2' ? '숨이 차서 물 위로 · ' : '물 위로 · ') + (n ? '이번에 ' + n + '가지 · ' : '') + '주운 것·밝힌 방은 그대로', 3000);
     refresh();
   }
@@ -134,18 +134,19 @@
       if (k === dv.want) sparkle(t.x + 7, t.y - 10, tt);
     });
     // swim
-    var still = boss || dv.up > 0 || dv.map;
+    var still = dv.up > 0 || dv.map;
     if (!still) {
       var dx = dv.tx - dv.x, dy = dv.ty - dv.y, dist = Math.hypot(dx, dy), step = DIVE_SPEED * dt;
-      if (dist > 0.5) { dv.x += dx / dist * Math.min(step, dist); dv.y += dy / dist * Math.min(step, dist); if (Math.abs(dx) > 1) dv.face = dx > 0 ? 1 : -1; }
+      if (dist > 0.5) { dv.x += dx / dist * Math.min(step, dist); dv.y += dy / dist * Math.min(step, dist); if (Math.abs(dx) > 1) dv.face = dx > 0 ? 1 : -1; if (dist > 4) sfx('swim'); }   // 소리: a stroke now and then (SND_GAPS)
       if (dv.want >= 0) { var wt = r.things[dv.want]; if (!thingShown(r, dv.want)) dv.want = -1; else if (Math.hypot(wt.x - dv.x, wt.y - 4 - dv.y) < 16) { var k2 = dv.want; dv.want = -1; diveTakeNow(r, k2); } }
       diveEdge(r);
       // oxygen
       var near = L.diveRoom(dv.room).bubbles.some(function (b) { return Math.hypot(b[0] - dv.x, b[1] - 10 - dv.y) < 18; });
       dv.o2 = near ? Math.min(L.diveO2Max(S), dv.o2 + 30 * dt) : dv.o2 - dt;
+      if (!near && dv.o2 < 10 && dv.o2 > 0 && Math.ceil(dv.o2) !== Math.ceil(dv.o2 + dt)) sfx('beep');   // 소리: low air, once a second
       if (dv.o2 <= 0) { dv.o2 = 0; dv.up = 1.6; dv.want = -1; }
     }
-    if (dv.up > 0 && !boss) {
+    if (dv.up > 0) {
       dv.y -= 40 * dt;
       dv.up -= dt;
       if (dv.up <= 0) { drawDiver(dv.x, dv.y, dv.face, tt); endDive('o2'); return; }
@@ -180,6 +181,7 @@
     var next = r.exits[d], can = L.diveCanEnter(S, next);
     var back = { w: [14, DIVE_MID], e: [W - 14, DIVE_MID], n: [90, 18], s: [90, H - 16] }[d];
     if (!can.ok) {
+      sfx('bump');
       dv.x = back[0]; dv.y = back[1]; dv.tx = dv.x + (d === 'w' ? 16 : d === 'e' ? -16 : 0); dv.ty = dv.y + (d === 'n' ? 16 : d === 's' ? -16 : 0);
       if (can.why === 'light') { dv.dark = 1.4; toast('너무 어둡다… 아무것도 안 보여 · 조선소에서 손전등을', 2800); }
       else if (can.why === 'key') toast('녹슨 문이 잠겨 있다 · 얕은 여 어딘가에 열쇠가', 2600);
@@ -187,7 +189,7 @@
       return;
     }
     var res = L.diveEnter(S, next), o = L.diveRoom(next);
-    dv.room = next; dv.want = -1;
+    dv.room = next; dv.want = -1; sfx('whoosh');
     var arrive = { w: [W - 10, DIVE_MID], e: [10, DIVE_MID], n: [90, H - 12], s: [90, 14] }[d];
     dv.x = arrive[0]; dv.y = arrive[1];
     dv.tx = dv.x + (d === 'w' ? -18 : d === 'e' ? 18 : 0); dv.ty = dv.y + (d === 'n' ? -18 : d === 's' ? 18 : 0);
@@ -204,6 +206,7 @@
     if (!res) return;
     dv.n++;
     burst(t.x, t.y - 4, 8, r.zone === 'deep' ? 0 : 4, 30);
+    sfx(res.kind === 'pick' ? (res.first ? 'catchRare' : 'harvest') : res.kind === 'see' ? (res.first ? 'catchRare' : 'tap') : res.kind === 'log' ? 'harvest' : 'catchLegend');   // 소리: 열쇠·상자 = 보물
     if (res.kind === 'pick') {
       floatText('+' + dx.name, t.x, t.y - 10);
       toast((res.first ? '★ 처음 · 해저 도감에 · ' : '') + dx.name + ' 주웠다' + (res.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + res.sold : ''), 2000);

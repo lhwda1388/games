@@ -1,7 +1,7 @@
   // ---------- stage 9 ③: 자전거 배달, 열기구, 겨울 썰매 ----------
   // One overlay (#ride) runs all three one-button rides; the logic judges from the tap times it records.
   // The 마을 언덕 (bottom left of the street) opens a small menu: 열기구 when one is up, 썰매 in game winter.
-  // Rides use real seconds (frame dt), pause behind the boss key, and take Space or a tap anywhere on the overlay.
+  // Rides use real seconds (frame dt) and take Space or a tap anywhere on the overlay.
   var HILL = [2, 168, 48, 32];
   var RW = 120, RH = 64;
   var rideEl = document.createElement('section');
@@ -34,12 +34,13 @@
     e.preventDefault(); rideTap();
   });
   function rideTap() {
-    if (!rideOn() || ride.done || boss) return;
+    if (!rideOn() || ride.done) return;
     ride.taps.push(ride.t);
     if (ride.kind === 'bal') {
       var seen = L.balloonJudge(ride.lay, [ride.t]);
-      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; }
-    }
+      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; sfx('shutter'); }
+      else sfx('tap');
+    } else sfx(ride.kind === 'bike' ? 'jump' : 'swing');   // 자전거 점프, 썰매 옆 줄로
   }
   function startRide(kind, lay, title, tip, extra) {
     ride = { kind: kind, lay: lay, taps: [], t: 0, done: 0, flash: 0, seen: [], season: curEnv(now()).season };
@@ -47,7 +48,7 @@
     rideTitle.textContent = title; rideTip.textContent = tip;
     rideMenu.hidden = true; rideCv.hidden = false;
     rideStop.textContent = kind === 'bike' ? '그만 타기 (납품은 그대로)' : '그만 타기';
-    showRide(); drawRide();
+    showRide(); drawRide(); sfx('whoosh');
   }
 
   // ---------- 자전거 배달: 납품 first, then the ride for a tip ----------
@@ -82,16 +83,16 @@
   // ---------- tick (frame loop) ----------
   function rideLen() { return ride.kind === 'bike' ? L.BIKE_TIME : ride.kind === 'sled' ? L.SLED_TIME : L.BAL_TIME; }
   function tickRide(dt) {
-    if (!rideOn() || boss) return;
+    if (!rideOn()) return;
     if (ride.done) { ride.done -= dt; ride.flash = Math.max(0, ride.flash - dt); if (ride.done <= 0) closeRide(); else drawRide(); return; }
     ride.t += dt; ride.flash = Math.max(0, ride.flash - dt);
     if (ride.kind === 'bike') {
       var b = L.bikeRun(ride.lay, ride.taps, ride.t);
-      if (b.crash) { endRide(false); return; }
+      if (b.crash) { sfx('bump'); endRide(false); return; }
     }
     if (ride.kind === 'sled') {
       var sr = L.sledRun(ride.lay, ride.taps, ride.t);
-      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; }
+      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; sfx('bump'); }
     }
     if (ride.t >= rideLen()) endRide(false);
     drawRide();
@@ -120,6 +121,7 @@
       msg = (seen.length ? '본 것 ' + seen.length + '가지' : '구름 사이를 둥실') + (out.first.length ? ' · 새로 ' + out.first.length + ' (+' + out.coins + ')' : '') +
         (out.all ? ' · 하늘 도감 완성!' : '') + (shot ? ' · 앨범 +' + shot : '');
     }
+    if (!quit) sfx(m.kind === 'bike' && m.crash ? 'lost' : 'catch');   // 소리: the ride's result (신기록·팁 add their own)
     rideTip.textContent = msg; rideStop.textContent = '닫기';
     toast(msg, 3200);
     refresh(); drawRide();
@@ -181,7 +183,7 @@
     ride.lay.forEach(function (e) {
       if (e.kind === 'flower' && e.t <= t && jumps.some(function (j) { return e.t >= j && e.t < j + L.BIKE_JUMP; })) {
         ride.picked = ride.picked || [];
-        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; }
+        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; sfx('harvest'); }
       }
     });
     var crashed = ride.done && ride.crash;

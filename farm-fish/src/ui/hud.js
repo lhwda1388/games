@@ -1,12 +1,14 @@
   // ---------- runtime UI state ----------
   var reel = null, reelRoll = null, reelVis = null;
-  var holdPointer = false, holdSpace = false, boss = false;
+  var holdPointer = false, holdSpace = false;
   var castAnim = null, particles = [], shake = 0, lastFishRes = 0;
   var swimmers = [], nextSwim = 3, scareFx = null, flyCrows = [], scareWob = 0, earlyTips = 0;
 
   // ---------- toast / floats ----------
   var toastTimer = 0;
+  var SND_ERR = /부족|못 해요|수 없어요|꽉 찼어요/;
   function toast(msg, ms) {
+    if (String(msg).charAt(0) === '★') sfx('level', true); else if (SND_ERR.test(msg)) sfx('error', true);   // 소리: 해금·칭호 / 막힘
     toastEl.textContent = msg; toastEl.classList.add('on');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
   }

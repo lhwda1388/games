@@ -282,13 +282,19 @@
     });
     return out.sort(function (a, b) { return (b.flat - a.flat) || (a.r[1] + a.r[3]) - (b.r[1] + b.r[3]); });
   }
-  function drawSky(tt, ph) {
-    if (ph === 'night') { px(0, 0, W, 20, 3); for (var y = 20; y < 26; y++) for (var x = (y % 2); x < W; x += 2) px(x, y, 1, 1, 3); }
-    else if (ph === 'evening') { for (y = 0; y < 14; y++) for (x = (y % 2); x < W; x += 2) px(x, y, 1, 1, 1); }
+  // sky = optional per-column depth (기차·캠핑: the sky ends at the peaks); default is the 26-row strip
+  function drawSky(tt, ph, sky) {
+    if (ph !== 'night' && ph !== 'evening') return;
+    for (var x = 0; x < W; x++) {
+      var b = sky ? sky[x] : 26;
+      if (ph === 'night') { px(x, 0, 1, Math.max(0, b - 6), 3); for (var y = Math.max(0, b - 6); y < b; y++) if ((x + y) % 2 === 0) px(x, y, 1, 1, 3); }
+      else for (y = 0; y < Math.min(14, b); y++) if ((x + y) % 2 === 0) px(x, y, 1, 1, 1);
+    }
   }
-  function drawStars(tt) {
+  function drawStars(tt, sky) {
     for (var k = 0; k < 18; k++) {
       var sx = Math.floor(hash(k * 19 + 2) * W), sy = Math.floor(hash(k * 7 + 3) * 18);
+      if (sky && sy >= sky[sx] - 1) continue;
       if ((Math.floor(tt * 1.5) + k) % 7) px(sx, sy, 1, 1, 0);
     }
   }

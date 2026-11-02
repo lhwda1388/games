@@ -299,20 +299,41 @@
   var TRN_VSTN = [4, 168, 48, 30];
   var TRN_VSPOTS = [[64, 128], [96, 100], [158, 150]];
   function trnStreamX(y) { return 150 - (y - 60) * 0.45 + Math.sin(y / 18) * 8; }
-  function trnInStream(x, y, k) { return y >= 58 && Math.abs(x - trnStreamX(y)) < (k || 10); }
+  function trnInStream(x, y, k) { return y >= 58 && Math.abs(x - trnStreamX(y)) < (k || 14); }
   function trnRidge(x) { return 44 + Math.round(Math.sin(x / 23) * 10 + Math.sin(x / 9 + 1) * 6); }
+  // 하늘과 산 (y < r, r = where the land starts): sky, a pale far range with real peaks, then the near ridge with its own
+  // outline — not a flat hatched band under an empty strip. snow = white caps up top and a white foot.
+  function trnPeakY(x) {
+    var y = 99;
+    [[14, 13], [52, 7], [94, 14], [134, 5], [172, 11]].forEach(function (p) { y = Math.min(y, p[1] + Math.abs(x - p[0]) * 0.45); });
+    return Math.round(y + Math.sin(x / 3) * 0.8);
+  }
+  function trnFarY(x, r) { return Math.min(trnPeakY(x), r - 9); }
+  function trnVista(x, y, r, snow) {
+    var far = trnFarY(x, r), near = Math.max(far + 4, r - 12 + Math.round(Math.sin(x / 13 + 2) * 3));
+    if (y < far) return 0;
+    if (y === far) return 3;
+    if (y < near) return snow && y < far + 4 ? 0 : (x + y * 2) % 4 === 0 ? 2 : 1;
+    if (y === near) return 4;
+    return snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;
+  }
+  // per-column sky depth for drawSky/drawStars (night sky stops at the peaks); rf = that scene's land line
+  var trnSkyMemo = {};
+  function trnSky(key, rf) {
+    if (!trnSkyMemo[key]) { var a = []; for (var x = 0; x < W; x++) a.push(trnFarY(x, rf(x))); trnSkyMemo[key] = a; }
+    return trnSkyMemo[key];
+  }
   var bgTrnValley = document.createElement('canvas'); bgTrnValley.width = W; bgTrnValley.height = H;
   (function paintValley() {
     var saved = ctx; ctx = bgTrnValley.getContext('2d');
-    for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var d = Math.abs(x - trnStreamX(y)), c;
-      if (y < trnRidge(x)) c = (x + y) % 3 === 0 ? 3 : 2;                                           // mountains
-      else if (y >= 58 && d < 10) c = d < 4 ? ((x + y) % 2 ? 2 : 1) : d > 8 ? 2 : ((x % 4 === 0 && y % 2 === 0) ? 2 : 1);   // stream
-      else if (y >= 58 && d < 13) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;    // pebbles
+      if (y < trnRidge(x)) c = trnVista(x, y, trnRidge(x), false);                                   // sky and mountains
+      else if (y >= 58 && d < 14) c = d < 6 ? ((x + y) % 2 ? 2 : 1) : d > 12 ? 2 : ((x % 4 === 0 && y % 2 === 0) ? 2 : 1);   // stream
+      else if (y >= 58 && d < 18) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;    // pebbles
       else c = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     [[20, 66], [40, 150], [170, 90], [150, 190], [176, 130], [12, 112], [120, 74]].forEach(function (t) { trnPine(t[0], t[1], false); });   // pines
     [[118, 112], [104, 150], [86, 176]].forEach(function (r) {   // boulders in the stream
       var sx = Math.round(trnStreamX(r[1])) - 3;
@@ -341,9 +362,9 @@
   function trnDrawValley(tt) {
     var t = now(), e = curEnv(t), night = e.phase === 'night', k;
     ctx.drawImage(bgTrnValley, 0, 0);
-    drawSky(tt, e.phase);
+    drawSky(tt, e.phase, trnSky('ridge', trnRidge));
     var fx = Math.round(trnStreamX(58)), top = trnRidge(fx);                                    // the waterfall feeding the stream
-    for (k = -5; k <= 5; k++) for (var y = top; y < 60; y++) if ((y + Math.floor(tt * 14) + k * 3) % 5 === 0) px(fx + k, y, 1, 2, 0); else if (k === -5 || k === 5) px(fx + k, y, 1, 1, 2);
+    for (k = -7; k <= 7; k++) for (var y = top; y < 60; y++) if ((y + Math.floor(tt * 14) + k * 3) % 5 === 0) px(fx + k, y, 1, 2, 0); else if (k === -7 || k === 7) px(fx + k, y, 1, 1, 2);
     if (!reduceMotion) for (k = 0; k < 16; k++) {                                              // ripples running down
       var yy = 60 + ((hash(k * 7 + 3) * 140 + tt * 18) % 140), xx = trnStreamX(yy) + (hash(k * 5) - 0.5) * 10;
       px(xx, yy, 2, 1, 0);
@@ -358,7 +379,7 @@
     drawYardWeather(tt, e.weather);
     cmpDrawSignAt('valley', tt);   // 캠핑: the 계곡 캠핑 sign
     if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
-    if (night) drawStars(tt);
+    if (night) drawStars(tt, trnSky('ridge', trnRidge));
   }
   function trnTapValley(x, y) {
     var t = now();
@@ -366,7 +387,7 @@
     if (cmpTapSignAt('valley', x, y)) return;   // 캠핑: up to the 계곡 캠핑
     if (hit(TRN_SHOP, x, y, 1)) { trnOpenShop('valley'); return; }
     if (trnTapPick('valley', TRN_VSPOTS, x, y, t)) return;
-    if (trnInStream(x, y, 13)) { trnFish('valley'); return; }
+    if (trnInStream(x, y, 17)) { trnFish('valley'); return; }
     var nx = L.trnPickNext(S, 'valley', t);
     toast('산골 계곡 · 계곡물을 누르면 낚시 · 산나물·송이버섯 줍기 · 기념품 가게 · 승강장이나 「역으로」로 돌아가기' + (nx !== null && !L.trnPicksNow(S, 'valley', t).some(Boolean) ? ' · 다음 특산물 ' + fmtLeft(Math.max(0, nx - t)) : ''), 3000);
   }
@@ -417,7 +438,7 @@
   function trnPoolD(x, y) { var p = SCENES.valley.pool, a = (x - p[0]) / p[2], b = (y - p[1]) / p[3]; return a * a + b * b; }
   // 계곡 wetD: the brook (by its width, wider downstream) or the pool (squared, like the 연못), whichever is wetter
   function trnBrookD(x, y) {
-    var brook = y < 36 ? 99 : Math.abs(x - trnBrookX(y)) / (4 + Math.max(0, y - 60) * 0.03);
+    var brook = y < 36 ? 99 : Math.abs(x - trnBrookX(y)) / (6 + Math.max(0, y - 60) * 0.04);
     return Math.min(trnPoolD(x, y), brook);
   }
   function trnTripWater(sc, x, y, d) {
@@ -451,15 +472,14 @@
   function trnPaintTrip(sc) {
     if (SCENES[sc].camp) { cmpPaintTrip(sc); return; }   // 캠핑 물가: ui/camp.js
     var snow = sc === 'snow', x, y;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       var r = sc === 'onsen' ? trnHills(x) : trnRidge(x), d = wetD(x, y), c;
-      if (y < r) c = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                    // the destination's ridges
+      if (y < r) c = trnVista(x, y, r, snow);                                               // sky and the destination's mountains
       else if (d < 1) c = trnTripWater(sc, x, y, d);
       else if (d < (sc === 'valley' ? 1.3 : 1.36)) c = trnTripShore(sc, x, y, d);
       else c = hash(x * 131 + y * 7) < (snow ? 0.03 : 0.05) ? 1 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     TRN_TRIP_PINES[sc].forEach(function (t) { trnPine(t[0], t[1], snow); });
     if (sc === 'valley') {
       [[104, 170], [134, 158]].forEach(function (p) { trnRock(p[0], p[1]); });             // boulders in the pool
@@ -475,7 +495,7 @@
     if (!SCENES[scene].trip) return;
     if (SCENES[scene].camp) { cmpDrawTrip(tt); return; }   // 캠핑 물가: ui/camp.js
     var e = curEnv(now()), mv = !reduceMotion, k, y;
-    drawSky(tt, e.phase);
+    drawSky(tt, e.phase, scene === 'onsen' ? trnSky('hills', trnHills) : trnSky('ridge', trnRidge));
     if (scene === 'valley') {
       var fx = Math.round(trnBrookX(40)), y0 = trnRidge(fx) - 12;                            // the waterfall off the ridge
       for (k = -3; k <= 3; k++) for (y = y0; y < y0 + 20; y++) px(fx + k, y, 1, 1, (y + (mv ? Math.floor(tt * 14) : 0) + k * 3) % 5 === 0 ? 2 : 0);
@@ -548,15 +568,14 @@
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var saved = ctx, snow = route === 'snow', k;
     ctx = c.getContext('2d');
-    for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var r = snow ? trnRidge(x) : trnHills(x), d = trnLakeD(x, y), cc;
-      if (y < r) cc = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                          // ridges (white caps on the 설원)
+      if (y < r) cc = trnVista(x, y, r, snow);                                                     // sky and mountains (white caps on the 설원)
       else if (d < 1) cc = snow ? (d > 0.9 ? 2 : (x * 2 + y * 5) % 17 === 0 ? 2 : 1) : (d > 0.9 ? 2 : d < 0.35 ? ((x + y) % 2 ? 2 : 1) : (x % 4 === 0 && y % 2 === 0 ? 2 : 1));
       else if (d < 1.2) cc = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;            // shore stones
       else cc = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
       px(x, y, 1, 1, cc);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     [[20, 62], [44, 112], [172, 92], [164, 196], [14, 118], [90, 66]].forEach(function (t) { trnPine(t[0], t[1], snow); });   // pines (snow on their tiers)
     if (snow) {
       [[112, 150], [140, 158]].forEach(function (h) { px(h[0] - 3, h[1] - 1, 7, 3, 4); px(h[0] - 4, h[1], 9, 1, 4); px(h[0] - 2, h[1], 5, 1, 3); px(h[0] - 4, h[1] + 2, 9, 1, 2); });   // ice holes
@@ -567,9 +586,12 @@
     return c;
   }
   // a pine (x = trunk, y = ground); snow = white on its tiers
-  function trnPine(x, y, snow) {
-    for (var j = 0; j < 12; j++) px(x - Math.floor(j / 2), y - 12 + j, 1 + Math.floor(j / 2) * 2, 1, snow && j % 4 === 0 ? 0 : j % 3 ? 3 : 4);
-    px(x, y, 1, 3, 4);
+  function trnPine(x, y, snow) {   // three tiers, about 1.5× a person tall
+    for (var k = 0; k < 3; k++) for (var i = 0; i < 8; i++) {
+      var w = 1 + 2 * Math.floor((i + k * 3) * 0.6);
+      px(x - (w - 1) / 2, y - 22 + k * 6 + i, w, 1, i === 7 ? 4 : snow && i < 2 ? 0 : (i + k) % 3 ? 3 : 2);
+    }
+    px(x - 1, y - 3, 3, 6, 4);
   }
   // the 온천 bath house and its outdoor pool
   function trnPaintBath() {
@@ -591,7 +613,8 @@
     var t = now(), e = curEnv(t), night = e.phase === 'night', k;
     if (!bgTrnDest[route]) bgTrnDest[route] = trnPaintDest(route);
     ctx.drawImage(bgTrnDest[route], 0, 0);
-    drawSky(tt, e.phase);
+    var sky = route === 'snow' ? trnSky('ridge', trnRidge) : trnSky('hills', trnHills);
+    drawSky(tt, e.phase, sky);
     var ps = L.trnPicksNow(S, route, t);
     TRN_DSPOTS.forEach(function (sp, j) {
       px(sp[0] - 5, sp[1] + 1, 11, 1, 2);
@@ -606,7 +629,7 @@
     }
     drawYardWeather(tt, route === 'snow' && e.weather === 'rain' ? 'snow' : e.weather);   // rain falls as snow up on the pass
     if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
-    if (night) drawStars(tt);
+    if (night) drawStars(tt, sky);
   }
   function trnTapDest(route, x, y) {
     var t = now();

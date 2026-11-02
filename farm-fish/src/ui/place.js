@@ -35,6 +35,7 @@
     var first = !plcKey;
     plcKey = key;
     if (first || reel || mini || chal || rideOn() || arcOn() || view === 'dive' || view === 'stars') return;
+    sfx('whoosh');
     plcBannerB.textContent = nm;
     plcBannerS.textContent = view === 'farm' ? (PLC_SALT[scene] ? '바다 물고기' : '민물고기') : '';
     plcBannerS.hidden = view !== 'farm';
