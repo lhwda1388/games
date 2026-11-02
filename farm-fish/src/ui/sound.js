@@ -22,7 +22,11 @@
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { sndOn = false; return; }
       try { sndCtx = new AC(); } catch (e) { sndOn = false; return; }
-      sndMaster = sndCtx.createGain(); sndMaster.gain.value = volBus('master'); sndMaster.connect(sndCtx.destination);
+      // a limiter after the master: at 100% the game sits near other tabs' loudness and stacked sounds don't clip (VOC: 100%가 너무 작음)
+      var lim = sndCtx.createDynamicsCompressor();
+      lim.threshold.value = -6; lim.knee.value = 3; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.2;
+      lim.connect(sndCtx.destination);
+      sndMaster = sndCtx.createGain(); sndMaster.gain.value = volBus('master'); sndMaster.connect(lim);
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4500; lp.connect(sndMaster);
       sndSfx = sndCtx.createGain(); sndSfx.gain.value = volBus('sfx'); sndSfx.connect(lp);
       var n = sndCtx.sampleRate, buf = sndCtx.createBuffer(1, n, n), d = buf.getChannelData(0);
@@ -397,9 +401,10 @@
   }
 
   // ---------- 크기: each bus = its mix gain × the slider (music ducking stays on top) ----------
+  var SND_LOUD = 8;   // master at 100%: catch sounds reach the limiter (-6 dBFS), music RMS about -21 dBFS (was 0.5: 24 dB quieter, VOC)
   function volBus(k) {
     var g = Math.pow(VOL[k] / 100, 2);
-    return g * (k === 'master' ? 0.5 : k === 'sfx' ? 0.8 : k === 'music' ? MUS_BUS * (musDucked ? MUS_DUCK : 1) : AMB_BUS);
+    return g * (k === 'master' ? SND_LOUD : k === 'sfx' ? 0.8 : k === 'music' ? MUS_BUS * (musDucked ? MUS_DUCK : 1) : AMB_BUS);
   }
   function volSet(k, v) {
     VOL[k] = v;
