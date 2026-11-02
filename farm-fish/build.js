@@ -134,8 +134,9 @@ const UI = [
   'ui/background.js',   // layout constants and the pre-rendered background
   'ui/hud.js',          // runtime UI state, toast, floating text, particles
   'ui/fx.js',           // stage 8 ④ 이펙트: hit-stop, splash, fly-to-basket, pops, coins, count-up, stamp, reduced motion
+  'ui/sound.js',        // 소리: Web Audio sfx(name), header speaker button, M key, on/off in localStorage
   'ui/tray.js',         // seed tray
-  'ui/input.js',        // pointer/keys, tap dispatch, boss key
+  'ui/input.js',        // pointer/keys, tap dispatch, keys
   'ui/farm.js',         // farm tap, tick and render
   'ui/pond.js',         // fishing flow, pond tap, tick and render, milestone decor
   // stage 2: new pond-side UI files go here

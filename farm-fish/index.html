@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>메모</title>
-<link rel="icon" href="data:,">
+<title>Pixel Pastoral</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect width='8' height='8' fill='%23ddd'/%3E%3Cg fill='%23222'%3E%3Crect x='2' y='2' width='3' height='1'/%3E%3Crect x='1' y='3' width='5' height='2'/%3E%3Crect x='2' y='5' width='3' height='1'/%3E%3Crect x='6' y='3' width='1' height='2'/%3E%3Crect x='7' y='2' width='1' height='4'/%3E%3C/g%3E%3Crect x='2' y='3' width='1' height='1' fill='%23ddd'/%3E%3C/svg%3E">
 <style>
 /* Hallmark · macrostructure: single-scene game (n/a) · genre: playful · tone: quiet monochrome pixel · anchor hue: none (grayscale only)
  * pre-emit critique: P4 H4 E4 S4 R5 V4
@@ -31,6 +31,10 @@ body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
 .coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
 #coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em;white-space:nowrap}
 .spacer{flex:1}
+#sndBtn{display:flex;align-items:center;padding:3px 5px}
+#sndBtn canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
+/* a header chip (입질 폭풍·온천욕) needs the room: the speaker steps aside, M and 도감 설정 still work */
+#hud:has(#boomChip:not([hidden])) #sndBtn,#hud:has(#trnBathChip:not([hidden])) #sndBtn{display:none}
 .mono-emoji{filter:grayscale(1) contrast(1.2)}
 button{font:700 12px var(--font);color:var(--g4);background:var(--g0);border:2px solid var(--g4);border-radius:0;
   padding:3px 7px;box-shadow:0 2px 0 var(--g4);cursor:pointer;white-space:nowrap;line-height:1.2}
@@ -132,13 +136,6 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 .dx .n small{display:block;font:400 10px var(--font);color:var(--g3)}
 .dx .v{font:700 11px var(--mono);text-align:right}
 .dx.unk .n{color:var(--g3)}
-#boss{overflow:hidden;background:var(--g0);font:12px/1.3 var(--font);color:var(--g4);z-index:9}
-#boss .bh{padding:6px 8px;border-bottom:1px solid var(--g2);font-weight:700}
-#boss .fx{padding:3px 8px;border-bottom:1px solid var(--g2);font:11px var(--mono);color:var(--g3)}
-#boss table{border-collapse:collapse;width:100%;table-layout:fixed}
-#boss th,#boss td{border:1px solid var(--g1);padding:3px 4px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#boss th{background:var(--g1);font-weight:400;color:var(--g3)}
-#boss td.num{text-align:right;font-family:var(--mono)}
 /* main-tab hint for auto picture-in-picture; lives outside #app so it never travels into the PiP window */
 #pipHint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;box-sizing:border-box;width:236px;padding:12px 12px 10px;
   text-align:center;background:var(--g0);border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);font:12px/1.4 var(--font);color:var(--g4);
@@ -424,34 +421,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   <section id="shop" class="overlay" hidden aria-label="상점"></section>
   <section id="bag" class="overlay" hidden aria-label="바구니와 주문"></section>
   <section id="cal" class="overlay" hidden aria-label="달력과 낚시터"></section>
-  <section id="boss" class="overlay" hidden aria-hidden="true">
-    <div class="bh">4분기_업무정리_v3 (최종).xlsx</div>
-    <div class="fx">fx&nbsp;&nbsp;=SUM(D2:D14)</div>
-    <table>
-      <colgroup><col style="width:24px"><col><col style="width:42px"><col style="width:44px"><col style="width:72px"></colgroup>
-      <tr><th></th><th>A 항목</th><th>B 담당</th><th>C 진도</th><th>D 비용</th></tr>
-      <tr><th>1</th><td>주간 회의록 정리</td><td>운영팀</td><td class="num">80%</td><td class="num">0</td></tr>
-      <tr><th>2</th><td>거래처 견적 비교</td><td>구매</td><td class="num">45%</td><td class="num">1,240,000</td></tr>
-      <tr><th>3</th><td>분기 예산 재배분</td><td>재무</td><td class="num">60%</td><td class="num">3,800,000</td></tr>
-      <tr><th>4</th><td>사내 교육 일정 확정</td><td>인사</td><td class="num">100%</td><td class="num">420,000</td></tr>
-      <tr><th>5</th><td>고객 문의 분류 기준</td><td>CS</td><td class="num">30%</td><td class="num">0</td></tr>
-      <tr><th>6</th><td>서버 비용 점검</td><td>개발</td><td class="num">75%</td><td class="num">2,115,000</td></tr>
-      <tr><th>7</th><td>신규 입사자 장비</td><td>총무</td><td class="num">90%</td><td class="num">1,560,000</td></tr>
-      <tr><th>8</th><td>연말 행사 장소 후보</td><td>총무</td><td class="num">20%</td><td class="num">0</td></tr>
-      <tr><th>9</th><td>계약서 갱신 목록</td><td>법무</td><td class="num">55%</td><td class="num">0</td></tr>
-      <tr><th>10</th><td>KPI 중간 점검</td><td>기획</td><td class="num">65%</td><td class="num">0</td></tr>
-      <tr><th>11</th><td>복리후생 설문 집계</td><td>인사</td><td class="num">40%</td><td class="num">180,000</td></tr>
-      <tr><th>12</th><td>사무용품 재고 확인</td><td>총무</td><td class="num">100%</td><td class="num">96,000</td></tr>
-      <tr><th>13</th><td>보안 점검 체크리스트</td><td>개발</td><td class="num">35%</td><td class="num">0</td></tr>
-      <tr><th>14</th><td></td><td></td><td></td><td class="num">9,411,000</td></tr>
-      <tr><th>15</th><td></td><td></td><td></td><td></td></tr>
-      <tr><th>16</th><td></td><td></td><td></td><td></td></tr>
-      <tr><th>17</th><td></td><td></td><td></td><td></td></tr>
-      <tr><th>18</th><td></td><td></td><td></td><td></td></tr>
-      <tr><th>19</th><td></td><td></td><td></td><td></td></tr>
-      <tr><th>20</th><td></td><td></td><td></td><td></td></tr>
-    </table>
-  </section>
 </div></div>
 <div id="pipHint" hidden role="status">
   <p>아무 곳이나 클릭하면 작게 떠요</p>
@@ -8660,7 +8629,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'secrets', name: '비밀', how: '숨은 비밀이 있다 · 도감 기록 탭의 힌트를 따라가 보기', lock: '' },
     { id: 'friend', name: '친구 기록', how: '도감 친구 탭 · 내 기록 코드를 복사해 친구 기록과 나란히', lock: '' },
     { id: 'move', name: '세이브 옮기기', how: '도감 친구 탭 · 세이브를 복사해 카톡·메모장에 두면 백업, 다른 기기에서 붙여 넣고 불러오기 두 번이면 이어 하기', lock: '' },
-    { id: 'pip', name: '작게 띄우기·숨기기', how: '작게 버튼이나 P 키로 작은 창 · Esc는 업무 화면으로 숨기', lock: '' },
+    { id: 'pip', name: '작게 띄우기', how: '작게 버튼이나 P 키로 작은 창 · 다른 일을 하면서 곁에 띄워 두기', lock: '' },
+    { id: 'sound', name: '소리', how: '위의 스피커 버튼이나 M 키로 소리 켜기·끄기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음 · 도감 설정에서 음악·환경음 따로 끄기', lock: '' },
     { id: 'forest', name: '숲', how: '돋아난 것을 눌러 채집 · 꾹 누르면 도전 · 철마다 다른 것이 돋는다', lock: '★' + FOREST_REP + ' · 숲 표지판에서 ' + won(FOREST_COST) },
     { id: 'pet', name: '반려동물', how: '쓰다듬으면 친밀도 · 하루 몇 번 선물 · 숲에서 킁킁 찾아 준다', lock: '상점 입양 · 강아지 ' + won(PET_KINDS.dog.cost) + ' · 고양이는 ' + PET_CAT_VISITS + '번 놀러 오면' },
     { id: 'orchard', name: '과수원', how: '빈 자리를 눌러 묘목 심기 · 다 자란 나무는 제철마다 열매', lock: '★' + ORCHARD_REP + ' · 과수원 팻말에서 ' + won(ORCHARD_COST) },
@@ -9042,7 +9012,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var bagEl = $('bag'), bagBtn = $('bagBtn');
   var coinsEl = $('coins'), toastEl = $('toast'), trayEl = $('tray'), reelHud = $('reelHud');
   var tBar = $('tBar'), cBar = $('cBar'), tWrap = $('tWrap'), cueEl = $('reelCue');
-  var resultEl = $('result'), dexEl = $('dex'), shopEl = $('shop'), bossEl = $('boss'), floatsEl = $('floats');
+  var resultEl = $('result'), dexEl = $('dex'), shopEl = $('shop'), floatsEl = $('floats');
   var dexBtn = $('dexBtn'), shopBtn = $('shopBtn'), pipBtn = $('pipBtn');
 
   // ---------- pixel helpers ----------
@@ -9174,7 +9144,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     island: { cx: 146, cy: 176, rx: 38, ry: 22, ox: 236, oy: 256, r: 162 },  // stage 7 섬: open sea like 바다, a wider bay
     // 기차 여행 spots (trip: drawn as the destination, not the 밭 — ui/train.js trnPaintTrip): 산골 계곡 = a brook falling off the
     // ridge into a deep pool (소) you cast into; 온천 = a round warm lake in a stone rim; 설원 = a wide frozen lake in snowbanks
-    valley: { cx: 118, cy: 164, rx: 32, ry: 15, pool: [118, 164, 42, 22], trip: true },
+    valley: { cx: 116, cy: 162, rx: 40, ry: 19, pool: [116, 162, 54, 28], trip: true },
     onsen: { cx: 120, cy: 160, rx: 34, ry: 26, trip: true }, snow: { cx: 112, cy: 162, rx: 54, ry: 24, trip: true },
     offshore: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }, ocean: { cx: 140, cy: 174, rx: 40, ry: 24, ox: 232, oy: 262, r: 170 }   // stage 9 ① 먼바다·난바다
   };
@@ -9295,13 +9265,15 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
 
   // ---------- runtime UI state ----------
   var reel = null, reelRoll = null, reelVis = null;
-  var holdPointer = false, holdSpace = false, boss = false;
+  var holdPointer = false, holdSpace = false;
   var castAnim = null, particles = [], shake = 0, lastFishRes = 0;
   var swimmers = [], nextSwim = 3, scareFx = null, flyCrows = [], scareWob = 0, earlyTips = 0;
 
   // ---------- toast / floats ----------
   var toastTimer = 0;
+  var SND_ERR = /부족|못 해요|수 없어요|꽉 찼어요/;
   function toast(msg, ms) {
+    if (String(msg).charAt(0) === '★') sfx('level', true); else if (SND_ERR.test(msg)) sfx('error', true);   // 소리: 해금·칭호 / 막힘
     toastEl.textContent = msg; toastEl.classList.add('on');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
   }
@@ -9364,12 +9336,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- effects added by the game ----------
   // strike: freeze + splash rings round the float
   function fxStrike(x, y) {
+    sfx('strike');
     fxHitStop(L.FX_HITSTOP_MS);
     fxAdd({ k: 'splash', x: x, y: y, dur: 420 });
   }
   // a caught fish jumps out and drops into the basket corner (or turns into coins when it was sold at once)
   function fxCatch(f, x, y, sold) {
     var tier = L.fxTier(f);
+    sfx(tier > 1 ? 'catchLegend' : tier ? 'catchRare' : 'catch');
     if (tier) fxShake(tier > 1 ? 4 : 2.5);
     if (tier > 1 && !reduceMotion) fxAdd({ k: 'legend', x: x, y: y, dur: 1300 });
     if (sold) { fxCoins(x, y, sold); return; }
@@ -9378,6 +9352,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // harvest / forage: the item pops up with dirt bits; 특상품 pops higher and sparkles; quick streaks show ×2 ×3
   function fxHarvest(x, y, img, won) {
+    sfx(won ? 'level' : 'harvest');
     burst(x, y + 4, won ? 8 : 5, 4, 45);   // dirt bits
     harvestRun = L.fxCombo(harvestRun, fxT(), L.FX_COMBO_MS);
     if (harvestRun.n >= 2) floatText('×' + harvestRun.n, x + 12, y - 14);
@@ -9386,12 +9361,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // coins: a few pixel coins fly up to the wallet; the wallet number then rolls up (see coinsShown)
   function fxCoins(x, y, amount) {
+    if (amount > 0) sfx('coin');
     if (reduceMotion || !(amount > 0)) return;
     var n = Math.min(5, 2 + Math.floor(Math.log(amount) / Math.LN10));
     for (var k = 0; k < n; k++) fxAdd({ k: 'coin', x0: x + (k - n / 2) * 3, y0: y, x1: 16, y1: -4, arc: 10 + k * 3, dur: 420, delay: k * 45 });
   }
   // DOM coins for panels that cover the canvas (바구니 sell / deliver): from the last press to the visible wallet
   function fxCoinsDom(target) {
+    sfx('coin');
     if (reduceMotion || !pressAt || !target || !app.animate) return;
     var doc = app.ownerDocument, ar = app.getBoundingClientRect(), sc = ar.width / 360 || 1, tr = target.getBoundingClientRect();
     if (app.querySelectorAll('.coinfly').length >= 8) return;
@@ -9409,6 +9386,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // 해금 · 신기록 · 도감 첫 등록: a short stamp landing
   function fxStamp(el) {
+    sfx('level');
     if (!el || reduceMotion) return;
     el.classList.remove('stamp'); void el.offsetWidth; el.classList.add('stamp');
   }
@@ -9419,6 +9397,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var t = fxT();
     if (coinLast === null) coinLast = v;
     if (v !== coinLast) {
+      if (v < coinLast) sfx('buy', true);   // 소리: any spend that made no sound of its own
       var from = coinTween ? L.fxCount(coinTween.from, coinTween.to, t - coinTween.t0, L.FX_COUNT_MS) : coinLast;
       coinTween = v > coinLast && !reduceMotion ? { from: from, to: v, t0: t } : null;
       coinLast = v;
@@ -9484,6 +9463,430 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   app.addEventListener('pointerdown', function (e) { pressAt = { x: e.clientX, y: e.clientY }; }, true);
   // end of frame: hit-stop picture on top, wallet roll
   function fxEnd() { drawHitStop(); coinsFrame(); }
+  // ---------- 소리: tiny Web Audio synth, no files ----------
+  // sfx(name) is a silent no-op before the first pointerdown/keydown (sndWake, bound in bindDoc for the tab and the PiP
+  // window), while muted, or without Web Audio. Graph: voices → sndSfx (bus, soft lowpass) → sndMaster → speakers;
+  // the music and ambient buses hang off sndMaster too. The on/off choice lives in localStorage, not in the save.
+  var SND_KEY = 'farmfish.sound';
+  var sndOn = (function () { try { return localStorage.getItem(SND_KEY) !== '0'; } catch (e) { return true; } })();
+  var sndCtx = null, sndMaster = null, sndSfx = null, sndNoise = null;
+  var sndLast = {}, sndAny = -1e9, sndEnds = [];
+  var SND_VOICES = 8, SND_GAP = 60, SND_SOFT = 80;
+  function sndWake() {
+    if (!sndOn) return;
+    if (!sndCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { sndOn = false; return; }
+      try { sndCtx = new AC(); } catch (e) { sndOn = false; return; }
+      sndMaster = sndCtx.createGain(); sndMaster.gain.value = 0.5; sndMaster.connect(sndCtx.destination);
+      var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4500; lp.connect(sndMaster);
+      sndSfx = sndCtx.createGain(); sndSfx.gain.value = 0.8; sndSfx.connect(lp);
+      var n = sndCtx.sampleRate, buf = sndCtx.createBuffer(1, n, n), d = buf.getChannelData(0);
+      for (var k = 0; k < n; k++) d[k] = Math.random() * 2 - 1;
+      sndNoise = buf;
+    }
+    if (sndCtx.state !== 'running' && (!document.hidden || pipWin)) sndCtx.resume();   // also iOS 'interrupted'; PiP plays while the tab hides
+  }
+  // a hidden tab is quiet unless the PiP window is showing the game
+  function sndVis() {
+    if (!sndCtx) return;
+    if (document.hidden && !pipWin) sndCtx.suspend(); else if (sndOn) sndCtx.resume();
+  }
+  document.addEventListener('visibilitychange', sndVis);
+
+  // one voice: oscillator from f0 (slide to f1) with a short attack and an exponential fall; returns its end time
+  function sndOsc(type, f0, f1, t, dur, vol, dest) {
+    var o = sndCtx.createOscillator(), g = sndCtx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest || sndSfx); o.start(t); o.stop(t + dur + 0.02);
+    return t + dur;
+  }
+  // filtered noise (filter freq slides f0 → f1)
+  function sndHiss(kind, f0, f1, t, dur, vol, dest) {
+    var s = sndCtx.createBufferSource(), f = sndCtx.createBiquadFilter(), g = sndCtx.createGain();
+    s.buffer = sndNoise; f.type = kind; f.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(dest || sndSfx); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    return t + dur;
+  }
+  // notes one after another, each `step` apart
+  function sndSeq(type, fs, t, step, dur, vol) {
+    var end = t;
+    fs.forEach(function (f, k) { end = sndOsc(type, f, f, t + k * step, k === fs.length - 1 ? dur * 1.6 : dur, vol); });
+    return end;
+  }
+  var SND = {
+    tap:     function (t) { return sndOsc('triangle', 1100, 900, t, 0.035, 0.05); },
+    cast:    function (t) { sndOsc('triangle', 520, 260, t, 0.12, 0.03); return sndHiss('bandpass', 1800, 500, t, 0.22, 0.12); },
+    bite:    function (t) { sndOsc('sine', 900, 300, t, 0.09, 0.12); return sndOsc('sine', 700, 250, t + 0.11, 0.08, 0.09); },
+    strike:  function (t) { sndOsc('triangle', 300, 120, t, 0.12, 0.1); return sndHiss('lowpass', 1200, 300, t, 0.2, 0.18); },
+    tick:    function (t) { return sndOsc('square', 1400, 1400, t, 0.018, 0.025); },
+    catch:   function (t) { return sndSeq('triangle', [523, 784], t, 0.07, 0.1, 0.09); },
+    catchRare: function (t) { sndSeq('square', [523, 659, 784, 1047], t, 0.07, 0.12, 0.03); return sndSeq('triangle', [523, 659, 784, 1047], t, 0.07, 0.12, 0.08); },
+    catchLegend: function (t) {
+      sndSeq('square', [392, 523, 659, 784], t, 0.09, 0.1, 0.025);
+      sndSeq('triangle', [392, 523, 659, 784], t, 0.09, 0.1, 0.07);
+      [784, 1047, 1319].forEach(function (f) { sndOsc('triangle', f, f, t + 0.38, 0.6, 0.05); });
+      return sndOsc('square', 1047, 1047, t + 0.38, 0.6, 0.02);
+    },
+    lost:    function (t) { return sndSeq('triangle', [440, 330, 247], t, 0.1, 0.14, 0.07); },
+    snap:    function (t) { sndHiss('highpass', 3000, 3000, t, 0.05, 0.15); return sndSeq('triangle', [330, 220], t + 0.06, 0.1, 0.14, 0.07); },
+    plant:   function (t) { sndHiss('lowpass', 600, 600, t, 0.06, 0.06); return sndOsc('triangle', 180, 110, t, 0.09, 0.12); },
+    water:   function (t) { sndOsc('sine', 1200, 1800, t + 0.03, 0.04, 0.04); sndOsc('sine', 1500, 2200, t + 0.1, 0.04, 0.04); return sndHiss('bandpass', 2500, 1200, t, 0.25, 0.05); },
+    harvest: function (t) { sndOsc('triangle', 440, 880, t, 0.08, 0.09); return sndOsc('triangle', 1320, 1320, t + 0.07, 0.06, 0.05); },
+    coin:    function (t) { return sndSeq('square', [988, 1319], t, 0.06, 0.1, 0.035); },
+    buy:     function (t) { sndHiss('bandpass', 3000, 3000, t, 0.03, 0.04); return sndSeq('triangle', [784, 587], t, 0.06, 0.09, 0.07); },
+    level:   function (t) { sndSeq('square', [523, 659, 784, 1047], t, 0.06, 0.1, 0.035); return sndSeq('triangle', [523, 659, 784, 1047], t, 0.06, 0.1, 0.06); },
+    error:   function (t) { return sndSeq('triangle', [196, 175], t, 0.09, 0.08, 0.05); },
+    splash:  function (t) { sndOsc('sine', 400, 120, t, 0.15, 0.08); return sndHiss('lowpass', 2000, 300, t, 0.4, 0.2); },
+    whoosh:  function (t) { return sndHiss('bandpass', 400, 1400, t, 0.25, 0.04); },
+    hit:     function (t) { sndHiss('bandpass', 2000, 2000, t, 0.03, 0.05); return sndOsc('square', 660, 330, t, 0.06, 0.04); },
+    // active play: 잠수, 탈것, 사진기, 곤충, 별 잇기, 동굴, 도전, 보스전, 쓰다듬기
+    swim:    function (t) { sndOsc('sine', 220, 150, t + 0.02, 0.12, 0.03); return sndHiss('lowpass', 500, 200, t, 0.22, 0.06); },
+    beep:    function (t) { sndOsc('square', 880, 880, t, 0.05, 0.025); return sndOsc('square', 880, 880, t + 0.1, 0.05, 0.025); },
+    jump:    function (t) { sndOsc('square', 300, 700, t, 0.1, 0.025); return sndOsc('triangle', 300, 700, t, 0.1, 0.06); },
+    bump:    function (t) { sndHiss('lowpass', 800, 200, t, 0.1, 0.12); return sndOsc('triangle', 160, 70, t, 0.12, 0.12); },
+    shutter: function (t) { sndHiss('highpass', 4000, 4000, t, 0.02, 0.1); sndOsc('square', 1800, 1800, t + 0.06, 0.015, 0.02); return sndHiss('bandpass', 2500, 2500, t + 0.06, 0.03, 0.08); },
+    swing:   function (t) { return sndHiss('bandpass', 800, 2500, t, 0.12, 0.05); },
+    // p = how many stars are joined so far: each one a step up a pentatonic scale
+    star:    function (t, p) {
+      var f = 523 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24][Math.max(0, Math.min(10, p || 0))] / 12);
+      sndOsc('triangle', f * 2, f * 2, t, 0.06, 0.015);
+      return sndOsc('sine', f, f, t, 0.18, 0.06);
+    },
+    chime:   function (t) { [523, 784].forEach(function (f) { sndOsc('triangle', f, f, t + 0.3, 0.6, 0.04); }); return sndSeq('sine', [1047, 1319, 1568, 2093], t, 0.08, 0.2, 0.05); },
+    pick:    function (t) { sndOsc('triangle', 180, 90, t, 0.06, 0.06); sndHiss('bandpass', 3500, 3500, t, 0.04, 0.08); sndOsc('square', 1300, 1100, t, 0.04, 0.025); return sndOsc('triangle', 2600, 2400, t, 0.09, 0.03); },
+    sting:   function (t) {
+      sndOsc('triangle', 110, 55, t, 0.5, 0.12); sndHiss('lowpass', 3000, 200, t, 0.45, 0.14);
+      sndSeq('square', [220, 233], t, 0.12, 0.1, 0.03);
+      return sndOsc('square', 466, 440, t + 0.24, 0.3, 0.025);
+    },
+    puff:    function (t) { return sndHiss('lowpass', 900, 300, t, 0.15, 0.08); },
+    pet:     function (t) { sndOsc('sine', 700, 900, t, 0.06, 0.05); return sndOsc('sine', 900, 1200, t + 0.08, 0.08, 0.05); }
+  };
+  var SND_GAPS = { tick: 150, swim: 700, beep: 300 };
+  // soft: a fallback sound (button tap, wallet spend) that stays quiet when something else just played; arg: passed to the sound
+  function sfx(name, soft, arg) {
+    if (!sndOn || !sndCtx || sndCtx.state !== 'running' || !SND[name]) return;
+    var p = performance.now();
+    if (p - (sndLast[name] || -1e9) < (SND_GAPS[name] || SND_GAP)) return;
+    if (soft && p - sndAny < SND_SOFT) return;
+    var t = sndCtx.currentTime;
+    sndEnds = sndEnds.filter(function (e) { return e > t; });
+    if (sndEnds.length >= SND_VOICES) return;
+    sndLast[name] = sndAny = p;
+    try { sndEnds.push(SND[name](t + 0.005, arg)); } catch (e) { /* a browser without some node type: stay quiet */ }
+  }
+
+  // ---------- 음악: one small loop per time of day (curEnv phase), crossfaded ----------
+  // Lanes of voices → per-track gain (the crossfade) → sndMus (quiet bus, ducked in the reel fight and minigames) → lowpass
+  // → sndMaster. A 200ms timer books notes up to MUS_AHEAD seconds ahead on the AudioContext clock, so a busy or throttled
+  // main thread (hidden tab while the PiP window shows the game) never makes it drift. A suspended context books nothing.
+  // Song text: one token per eighth note, '.' rest, '-' holds the note before, '|' is just a bar line.
+  // Chords per bar feed the bass and arp patterns: r root, 3 third, 5 fifth, 7 seventh (octave on a plain triad), o octave.
+  // Drums per eighth: k soft kick, s brushed snare, h hat. All four tunes are written for this game.
+  var MUS_KEY = 'farmfish.music';
+  var musOn = (function () { try { return localStorage.getItem(MUS_KEY) !== '0'; } catch (e) { return true; } })();
+  var MUS_AHEAD = 1.5, MUS_BUS = 0.3, MUS_DUCK = 0.45, MUS_FADE = 2.5;
+  var MUS = {
+    morning: {   // D major, 108 bpm: bright, a little bounce
+      bpm: 108, swing: 0, lead: ['square', 0.022], bassV: 0.07, arpV: 0, form: 'AABC',
+      bass: 'r . 5 . o . 5 .', arp: '', drum: 'k . h . s . h .',
+      A: { ch: 'D Bm G A', mel: 'F#5 . A5 B5 A5 - F#5 . | D5 - F#5 . E5 D5 B4 . | D5 . E5 F#5 G5 - B5 . | A5 - - - E5 - . .' },
+      B: { ch: 'G A F#m Bm', mel: 'B5 . A5 G5 F#5 - G5 . | A5 - E5 . C#5 - E5 . | F#5 . E5 F#5 A5 - F#5 . | D5 - F#5 . B4 - - .' },
+      C: { ch: 'Em A D D', mel: 'G5 . F#5 E5 D5 - E5 . | C#5 . E5 . A5 - G5 . | F#5 - D5 . A4 . D5 . | D5 - - - . . . .' }
+    },
+    day: {       // F major, 88 bpm, swung: relaxed lo-fi sevenths
+      bpm: 88, swing: 0.14, lead: ['triangle', 0.075], bassV: 0.08, arpV: 0.018, form: 'ABAC',
+      bass: 'r - - 5 . r 5 .', arp: '. . 3 . . . 7 .', drum: 'k . h . s . h k',
+      A: { ch: 'FM7 Am7 Dm7 C', mel: 'A4 - C5 . E5 - D5 C5 | E5 - - . C5 . A4 . | F4 . A4 C5 D5 - C5 . | G4 - - - . . . .' },
+      B: { ch: 'BbM7 Am7 Gm7 C', mel: 'D5 - F5 . E5 D5 C5 . | C5 - E5 . A4 - . . | Bb4 . D5 . F5 - E5 D5 | E5 - - - G4 - . .' },
+      C: { ch: 'BbM7 C FM7 FM7', mel: 'D5 - F5 . A5 - G5 F5 | E5 - D5 . C5 - . . | A4 . C5 . E5 - C5 . | F5 - - - . . . .' }
+    },
+    evening: {   // Eb major, 76 bpm, swung: warm and slow, broken chords underneath
+      bpm: 76, swing: 0.1, lead: ['triangle', 0.07], bassV: 0.08, arpV: 0.014, form: 'ABAC',
+      bass: 'r - - - 5 - - .', arp: 'r 3 5 7 o 7 5 3', drum: 'k . . . s . . h',
+      A: { ch: 'EbM7 Cm7 AbM7 Bb', mel: 'G4 - Bb4 - Eb5 - D5 . | C5 - - - G4 - . . | Ab4 . C5 . Eb5 - F5 . | D5 - - - - - . .' },
+      B: { ch: 'Gm7 Cm7 Fm7 Bb', mel: 'Bb4 - D5 - F5 - Eb5 . | Eb5 - - - C5 - . . | Ab4 - C5 . F5 - Eb5 D5 | D5 - - - Bb4 - . .' },
+      C: { ch: 'AbM7 Bb EbM7 EbM7', mel: 'C5 - Eb5 . Ab5 - G5 F5 | F5 - D5 . Bb4 - . . | G4 . Bb4 . Eb5 - D5 . | Eb5 - - - - - . .' }
+    },
+    night: {     // A minor, 62 bpm: sparse, no drums
+      bpm: 62, swing: 0, lead: ['triangle', 0.06], bassV: 0.06, arpV: 0.016, form: 'ABAC',
+      bass: 'r - - - - - - -', arp: 'r . . 5 . . 7 .', drum: '',
+      A: { ch: 'Am7 FM7 Dm7 Em', mel: 'E5 - - - C5 - . . | A4 - - - . . . . | D5 - F5 - E5 - D5 - | B4 - - - - - . .' },
+      B: { ch: 'FM7 Em7 Dm7 E', mel: 'C5 - - - A4 - . . | B4 - G4 - . . . . | F4 - A4 - D5 - C5 - | B4 - - - G#4 - . .' },
+      C: { ch: 'FM7 G Am7 Am7', mel: 'A4 - C5 - E5 - D5 . | D5 - - - B4 - . . | C5 - - - B4 - A4 - | A4 - - - - - - .' }
+    }
+  };
+  var MUS_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  var MUS_CH = { '': [0, 4, 7], m: [0, 3, 7], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10] };
+  function musHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function musPc(s) { return MUS_PC[s[0]] + (s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0); }
+  function musToks(s) { return s.split(/\s+/).filter(function (x) { return x && x !== '|'; }); }
+  // a pattern of tokens → [{ i: eighth index, len: eighths, v: token }] (held by '-')
+  function musHits(toks) {
+    var out = [];
+    toks.forEach(function (x, i) { if (x === '-') { if (out.length) out[out.length - 1].len++; } else if (x !== '.') out.push({ i: i, len: 1, v: x }); });
+    return out;
+  }
+  // a track → steps[eighth] = [[kind, hz, eighths, vol]]; built once
+  function musBuild(tr) {
+    if (tr.steps) return tr;
+    var steps = [], bar = 0;
+    function add(i, ev) { (steps[i] = steps[i] || []).push(ev); }
+    tr.form.split('').forEach(function (sec) {
+      var S2 = tr[sec], base = bar * 8;
+      musHits(musToks(S2.mel)).forEach(function (h) {
+        var m = /^([A-G][#b]?)(\d)$/.exec(h.v);
+        add(base + h.i, ['lead', musHz(12 * (+m[2] + 1) + musPc(m[1])), h.len, tr.lead[1]]);
+      });
+      S2.ch.split(' ').forEach(function (c, b) {
+        var m = /^([A-G][#b]?)(m7|M7|m)?$/.exec(c), pc = (musPc(m[1]) + 12) % 12, iv = MUS_CH[m[2] || ''];
+        function note(t, oct) { return oct + (t === 'r' ? 0 : t === '3' ? iv[1] : t === '5' ? iv[2] : t === '7' ? (iv[3] || 12) : 12); }
+        var bassRoot = 40 + (pc - 4 + 12) % 12, arpRoot = 60 + pc;
+        musHits(musToks(tr.bass)).forEach(function (h) { add(base + b * 8 + h.i, ['bass', musHz(note(h.v, bassRoot)), h.len, tr.bassV]); });
+        if (tr.arpV) musHits(musToks(tr.arp)).forEach(function (h) { add(base + b * 8 + h.i, ['arp', musHz(note(h.v, arpRoot)), h.len, tr.arpV]); });
+        if (tr.drum) musToks(tr.drum).forEach(function (d, i) { if (d !== '.') add(base + b * 8 + i, [d]); });
+      });
+      bar += 4;
+    });
+    tr.steps = steps; tr.n = bar * 8; tr.eighth = 30 / tr.bpm;
+    return tr;
+  }
+  var sndMus = null, musLanes = [], musName = '', musForce = null, musDucked = false, musNotes = 0;
+  function musVoice(dest, type, f, t, dur, vol) {
+    var o = sndCtx.createOscillator(), g = sndCtx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.012);
+    g.gain.linearRampToValueAtTime(vol * 0.6, t + dur * 0.7); g.gain.linearRampToValueAtTime(0, t + dur + 0.08);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.1);
+  }
+  function musDrum(dest, d, t) {
+    if (d === 'k') {
+      var o = sndCtx.createOscillator(), g = sndCtx.createGain();
+      o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+      g.gain.setValueAtTime(0.09, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.18);
+      return;
+    }
+    var s = sndCtx.createBufferSource(), f = sndCtx.createBiquadFilter(), g2 = sndCtx.createGain(), dur = d === 's' ? 0.1 : 0.03;
+    s.buffer = sndNoise; f.type = d === 's' ? 'bandpass' : 'highpass'; f.frequency.value = d === 's' ? 1800 : 7000;
+    g2.gain.setValueAtTime(d === 's' ? 0.035 : 0.018, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g2); g2.connect(dest); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+  }
+  function musStep(ln, t) {
+    var tr = ln.tr, len = tr.eighth;
+    (tr.steps[ln.step] || []).forEach(function (ev) {
+      musNotes++;
+      if (ev[0] === 'lead') musVoice(ln.g, tr.lead[0], ev[1], t, ev[2] * len * 0.95, ev[3]);
+      else if (ev[0] === 'bass') musVoice(ln.g, 'triangle', ev[1], t, ev[2] * len * 0.9, ev[3]);
+      else if (ev[0] === 'arp') musVoice(ln.g, 'sine', ev[1], t, Math.max(2, ev[2]) * len, ev[3]);
+      else musDrum(ln.g, ev[0], t);
+    });
+  }
+  // start `name` (or silence for ''), fading every older lane out over MUS_FADE
+  function musSwitch(name) {
+    var t = sndCtx.currentTime;
+    musLanes.forEach(function (ln) {
+      if (ln.end > t + MUS_FADE) { ln.end = t + MUS_FADE; ln.g.gain.cancelScheduledValues(t); ln.g.gain.setValueAtTime(ln.g.gain.value, t); ln.g.gain.linearRampToValueAtTime(0, t + MUS_FADE); }
+    });
+    musName = name;
+    if (!MUS[name]) return;
+    var g = sndCtx.createGain(); g.connect(sndMus);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + MUS_FADE);
+    musLanes.push({ tr: musBuild(MUS[name]), g: g, step: 0, at: t + 0.05, end: Infinity });
+  }
+  function musTick() {
+    if (!sndCtx || sndCtx.state !== 'running') return;
+    if (!sndMus) {
+      var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(sndMaster);
+      sndMus = sndCtx.createGain(); sndMus.gain.value = MUS_BUS; sndMus.connect(lp);
+    }
+    var t = sndCtx.currentTime, want = musOn ? (musForce || curEnv(now()).phase) : '';
+    if (want !== musName) musSwitch(want);
+    var duck = !!(reel || mini || arcOn());
+    if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(MUS_BUS * (duck ? MUS_DUCK : 1), t, 0.4); }
+    musLanes = musLanes.filter(function (ln) {
+      if (ln.end + 1 < t) { setTimeout(function () { ln.g.disconnect(); }, 500); return false; }
+      if (ln.at < t) ln.at = t + 0.05;   // back from a pause or a stall: carry on from now, never a burst of late notes
+      var stop = Math.min(t + MUS_AHEAD, ln.end);
+      while (ln.at < stop) {
+        musStep(ln, ln.at);
+        ln.at += ln.tr.eighth * (ln.step % 2 ? 1 - ln.tr.swing : 1 + ln.tr.swing);
+        ln.step = (ln.step + 1) % ln.tr.n;
+      }
+      return true;
+    });
+  }
+  var sndErr = null;   // a timer error is logged once, not swallowed every tick
+  function sndLog(e) { if (!sndErr) { sndErr = e; console.warn(e); } }
+  setInterval(function () { try { musTick(); } catch (e) { sndLog(e); } }, 200);
+  function musSet(on) {
+    musOn = on;
+    try { localStorage.setItem(MUS_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    toast(on ? '음악 켬' : '음악 끔', 1600);
+  }
+
+  // ---------- 환경음: a quiet soundscape for where you are, the weather, the time of day ----------
+  // Looping layers (one shared 4s noise buffer, filtered, most with a slow LFO) → per-layer gain (the crossfade) → sndAmb
+  // (bus, under the music) → lowpass → sndMaster; plus sparse random one-shots (birds, cicadas, crickets, frogs, an owl, rain
+  // drops, fire crackle) booked on the AudioContext clock. ambTick reads the state every 500ms, never per frame. A layer
+  // that has faded out is stopped and rebuilt when wanted again. Mute and a hidden tab suspend the whole context.
+  var AMB_KEY = 'farmfish.ambient';
+  var ambOn = (function () { try { return localStorage.getItem(AMB_KEY) !== '0'; } catch (e) { return true; } })();
+  var AMB_BUS = 0.4, AMB_FADE = 2, AMB_DT = 0.5;
+  // layer: noise filter [type, Hz, Q], volume, gain LFO [Hz, depth 0–1], filter LFO [Hz, ±Hz]
+  var AMB_LAYERS = {
+    lap:   { f: ['lowpass', 450, 0.7], v: 0.35, lfo: [0.17, 0.4] },                       // 연못·강: gentle lapping
+    waves: { f: ['lowpass', 600, 0.7], v: 0.45, lfo: [0.09, 0.55] },                      // 바다: slow swells
+    brook: { f: ['bandpass', 1600, 0.8], v: 0.12, lfo: [0.6, 0.2], sweep: [1.7, 500] },   // 계곡·온천: a trickle
+    under: { f: ['lowpass', 220, 0.7], v: 0.7, lfo: [0.05, 0.25] },                       // 잠수 (and the train's rumble, quieter)
+    rain:  { f: ['bandpass', 3000, 0.4], v: 0.08 },
+    wind:  { f: ['bandpass', 500, 1.5], v: 0.4, lfo: [0.11, 0.5], sweep: [0.07, 250] },
+    fire:  { f: ['lowpass', 250, 0.7], v: 0.3, lfo: [0.8, 0.3] }
+  };
+  // the water at each fishing spot ('farm' view; every SCENES id — test/sound.test.js checks): layer → level
+  var AMB_SPOT = {
+    pond: { lap: 1 }, river: { lap: 0.8, brook: 0.4 }, sea: { waves: 1 }, island: { waves: 1 }, offshore: { waves: 1 }, ocean: { waves: 1 },
+    valley: { brook: 1 }, onsen: { brook: 0.5, lap: 0.5 }, snow: { wind: 0.7 }, cmpbrook: { brook: 1 }, cmpshore: { waves: 1 }
+  };
+  // the other views with water or wind; any view not here is dry land (birds, bugs, weather only)
+  var AMB_VIEW = {
+    island: { waves: 0.8 }, farisle: { waves: 1 }, port: { waves: 0.6 }, flat: { waves: 0.5 }, peak: { wind: 1 },
+    trnvalley: { brook: 0.7 }, trnonsen: { brook: 0.5 }, trnsnow: { wind: 0.8 }, cmpvalley: { brook: 0.8 }, cmpsea: { waves: 0.8 }
+  };
+  // indoors: quiet, rain only muffled (the train: its own low rumble)
+  var AMB_IN = { house: true, home: true, museum: true, cave: true, trnride: true };
+  // one-shots at time t into the ambient bus d
+  var AMB_EV = {
+    bird: function (t, d) {
+      var f = 2600 + Math.random() * 1500, n = 2 + Math.floor(Math.random() * 4), up = Math.random() < 0.5;
+      for (var k = 0; k < n; k++) sndOsc('sine', f, f * (up ? 1.3 : 0.75), t + k * (0.09 + Math.random() * 0.05), 0.05, 0.02, d);
+    },
+    cicada: function (t, d) {   // a buzzing tone (square tremolo) that swells, holds a few seconds and fades
+      var o = sndCtx.createOscillator(), am = sndCtx.createOscillator(), ag = sndCtx.createGain(), g = sndCtx.createGain(), e = sndCtx.createGain(), len = 2 + Math.random() * 3;
+      o.frequency.value = 4000 + Math.random() * 800; am.type = 'square'; am.frequency.value = 30 + Math.random() * 20;
+      ag.gain.value = 0.5; g.gain.value = 0.5;
+      e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.012, t + 1); e.gain.setValueAtTime(0.012, t + len); e.gain.linearRampToValueAtTime(0, t + len + 1.5);
+      am.connect(ag); ag.connect(g.gain); o.connect(g); g.connect(e); e.connect(d);
+      o.start(t); am.start(t); o.stop(t + len + 1.6); am.stop(t + len + 1.6);
+    },
+    cricket: function (t, d) {
+      var f = 4300 + Math.random() * 600, r, k, n = 1 + Math.floor(Math.random() * 3);
+      for (r = 0; r < n; r++) for (k = 0; k < 3; k++) sndOsc('sine', f, f, t + r * 0.4 + k * 0.05, 0.025, 0.012, d);
+    },
+    frog: function (t, d) { var f = 130 + Math.random() * 60; sndOsc('triangle', f, f * 0.8, t, 0.07, 0.03, d); sndOsc('triangle', f * 1.1, f * 0.85, t + 0.11, 0.08, 0.03, d); },
+    owl: function (t, d) { sndOsc('sine', 420, 390, t, 0.25, 0.025, d); sndOsc('sine', 400, 370, t + 0.6, 0.4, 0.02, d); },
+    drop: function (t, d) { var f = 1500 + Math.random() * 1500; sndOsc('sine', f, f * 0.6, t, 0.04, 0.012, d); },
+    crackle: function (t, d) { for (var k = 0, n = 1 + Math.floor(Math.random() * 3); k < n; k++) sndHiss('highpass', 2500, 2500, t + k * 0.03, 0.015, 0.03 + Math.random() * 0.04, d); }
+  };
+  // what should be playing now: { lay: { layer: level }, ev: { one-shot: per second } }
+  function ambWant() {
+    var lay = {}, ev = {}, v = view, t = now(), e = curEnv(t), k;
+    if (!ambOn) return { lay: lay, ev: ev };
+    if (v === 'dive') return { lay: { under: 1 }, ev: ev };
+    if (AMB_IN[v]) {
+      if (v === 'trnride') lay.under = 0.4;
+      if (e.weather === 'rain') lay.rain = 0.3;
+      return { lay: lay, ev: ev };
+    }
+    var water = v === 'farm' ? AMB_SPOT[scene] || AMB_SPOT.pond : AMB_VIEW[v] || {};
+    for (k in water) lay[k] = water[k];
+    var wet = e.weather === 'rain', cold = e.weather === 'snow' || e.season === 'winter', ph = e.phase, se = e.season;
+    if (wet) { lay.rain = 1; ev.drop = 1.5; }
+    if (cold) lay.wind = Math.max(lay.wind || 0, e.weather === 'snow' ? 0.6 : 0.4);
+    // a lit camp fire: at the camp, or quieter from its night-fishing water
+    var site = cmpIsView(v) ? cmpSiteNow() : v === 'farm' && SCENES[scene].camp;
+    if (site && S.camp && L.cmpFireOn(S, site, t)) { lay.fire = v === 'farm' ? 0.5 : 1; ev.crackle = v === 'farm' ? 1 : 3; }
+    if (!cold && !wet && (ph === 'morning' || ph === 'day')) ev.bird = ph === 'morning' ? 0.4 : 0.2;
+    if (se === 'summer' && ph === 'day' && !wet && !cold) ev.cicada = 0.12;
+    if (!cold && (ph === 'evening' || ph === 'night')) ev.cricket = se === 'autumn' ? 1 : ph === 'evening' ? 0.6 : 0.4;
+    if (ph === 'night' && (se === 'spring' || se === 'summer') && (lay.lap || lay.brook || wet)) ev.frog = 0.3;
+    if (ph === 'night' && !wet) ev.owl = 0.03;
+    return { lay: lay, ev: ev };
+  }
+  var sndAmb = null, ambNoise = null, ambLive = {}, ambNow = { lay: {}, ev: {} };
+  function ambLayer(id) {
+    var A = AMB_LAYERS[id], s = sndCtx.createBufferSource(), f = sndCtx.createBiquadFilter(), m = sndCtx.createGain(), g = sndCtx.createGain(), lfos = [];
+    s.buffer = ambNoise; s.loop = true; f.type = A.f[0]; f.frequency.value = A.f[1]; f.Q.value = A.f[2];
+    m.gain.value = 1 - (A.lfo ? A.lfo[1] : 0); g.gain.value = 0;
+    function lfo(hz, depth, param) {
+      var o = sndCtx.createOscillator(), og = sndCtx.createGain();
+      o.frequency.value = hz * (0.85 + Math.random() * 0.3); og.gain.value = depth; o.connect(og); og.connect(param); o.start(); lfos.push(o);
+    }
+    if (A.lfo) lfo(A.lfo[0], A.lfo[1], m.gain);
+    if (A.sweep) lfo(A.sweep[0], A.sweep[1], f.frequency);
+    s.connect(f); f.connect(m); m.connect(g); g.connect(sndAmb); s.start(0, Math.random() * 4);
+    return { s: s, g: g, lfos: lfos, lv: 0, off: 0 };
+  }
+  function ambTick() {
+    if (!sndCtx || sndCtx.state !== 'running') return;
+    if (!sndAmb) {
+      var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5000; lp.connect(sndMaster);
+      sndAmb = sndCtx.createGain(); sndAmb.gain.value = AMB_BUS; sndAmb.connect(lp);
+      var n = sndCtx.sampleRate * 4, d = (ambNoise = sndCtx.createBuffer(1, n, sndCtx.sampleRate)).getChannelData(0);
+      for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
+    var t = sndCtx.currentTime, w = ambNow = ambWant(), id;
+    for (id in AMB_LAYERS) {
+      var lv = w.lay[id] || 0, ly = ambLive[id];
+      if (!ly && !lv) continue;
+      if (!ly) ly = ambLive[id] = ambLayer(id);
+      if (lv !== ly.lv) { ly.lv = lv; ly.off = t; ly.g.gain.setTargetAtTime(lv * AMB_LAYERS[id].v, t, AMB_FADE / 3); }
+      if (!lv && t - ly.off > AMB_FADE * 2) {   // faded out: stop it, rebuilt when wanted again
+        ly.s.stop(); ly.lfos.forEach(function (o) { o.stop(); }); ly.g.disconnect(); delete ambLive[id];
+      }
+    }
+    for (id in w.ev) {   // about rate × 0.5s of each one-shot this tick, at random moments in the next half second
+      var c = w.ev[id] * AMB_DT, k = Math.floor(c) + (Math.random() < c % 1 ? 1 : 0);
+      while (k-- > 0) AMB_EV[id](t + 0.05 + Math.random() * AMB_DT, sndAmb);
+    }
+  }
+  setInterval(function () { try { ambTick(); } catch (e) { sndLog(e); } }, AMB_DT * 1000);
+  function ambSet(on) {
+    ambOn = on;
+    try { localStorage.setItem(AMB_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    toast(on ? '환경음 켬' : '환경음 끔', 1600);
+  }
+
+  // ---------- on/off: header speaker button, 도감 설정 row, M key ----------
+  var SND_IC = {
+    on:  ['...4...', '..44..4', '4444.44', '4444.44', '4444.44', '..44..4', '...4...'],
+    off: ['...4...', '..44...', '44444.4', '4444.4.', '44444.4', '..44...', '...4...']
+  };
+  var sndBtn = document.createElement('button');
+  sndBtn.type = 'button'; sndBtn.id = 'sndBtn';
+  var sndIcon = document.createElement('canvas'); sndIcon.width = 7; sndIcon.height = 7;
+  sndBtn.appendChild(sndIcon);
+  pipBtn.before(sndBtn);
+  function sndShow() {
+    var c2 = sndIcon.getContext('2d'); c2.clearRect(0, 0, 7, 7); spr(SND_IC[sndOn ? 'on' : 'off'], 0, 0, false, c2);
+    sndBtn.title = sndOn ? '소리 끄기 (M)' : '소리 켜기 (M)';
+    sndBtn.setAttribute('aria-label', sndOn ? '소리 끄기' : '소리 켜기');
+    var cb = dexEl.querySelector('#setSnd'); if (cb) cb.checked = !!sndOn;   // 도감 설정 stays true when M or the button flips it
+  }
+  function sndSet(on) {
+    sndOn = on;
+    try { localStorage.setItem(SND_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    if (on) sndWake(); else if (sndCtx) sndCtx.suspend();   // no Web Audio: sndWake turns sndOn back off
+    sndShow();
+    toast(sndOn ? '소리 켬 · M 키로 끄기' : on ? '이 브라우저는 소리를 낼 수 없어요' : '소리 끔 · M 키로 켜기', 1600);
+  }
+  function sndToggle() { sndSet(!sndOn); }
+  sndBtn.addEventListener('click', sndToggle);
+  sndShow();
+  // M on any layout or case: physical KeyM, m/M, or the Korean IME jamo on that key
+  function isSndKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    var t = e.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return false;
+    return e.code === 'KeyM' || (typeof e.key === 'string' && (e.key.toLowerCase() === 'm' || e.key === 'ㅡ'));
+  }
+  // any button press that made no sound of its own gets a soft click (bubble phase: after the button's own handler)
+  function sndClick(e) { var b = e.target && e.target.closest && e.target.closest('button,label'); if (b && !b.disabled) sfx('tap', true); }
   // ---------- tray (seed shop) ----------
   var TRAY = L.SEEDS.concat(['gold', 'fert']);
   var trayBtns = {}, trayPage = 0, PAGE = 3;
@@ -9581,7 +9984,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
   }
   cv.addEventListener('pointerdown', function (e) {
-    if (boss) return;
     e.preventDefault();
     try { cv.setPointerCapture(e.pointerId); } catch (er) { /* capture not available */ }
     holdPointer = true;
@@ -9615,12 +10017,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (e.key === 'Escape') {
       e.preventDefault();
       if (closeSceneMenu()) { sceneBtn.focus(); return; }   // Esc first closes the 이동 list
-      var moving = pick && pick.moving; closePick();     // Esc first cancels 옮기기; otherwise it is the boss key
-      if (!moving) toggleBoss();
+      closePick();     // Esc cancels 옮기기
       return;
     }
     if (isPipKey(e)) { e.preventDefault(); if (pipOK && !e.repeat) togglePip(); return; }
-    if (boss) return;
+    if (isSndKey(e)) { e.preventDefault(); if (!e.repeat) sndToggle(); return; }
     var tg = e.target && e.target.tagName;
     if (tg === 'INPUT' || tg === 'TEXTAREA') return;
     if (e.code === 'Space') {
@@ -9637,7 +10038,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
         L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k), curEnv(now()));
-        castAnim = { t: 0 }; refresh();
+        castAnim = { t: 0 }; sfx('cast'); refresh();
       }
     }
   }
@@ -9659,6 +10060,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     doc.addEventListener('pointerup', up, true); doc.addEventListener('pointercancel', up, true);
     doc.addEventListener('keydown', onKeyDown);
     doc.addEventListener('keyup', onKeyUp);
+    win.addEventListener('pointerdown', sndWake, true); win.addEventListener('keydown', sndWake, true);   // 소리: first gesture starts audio
+    doc.addEventListener('click', sndClick);
     win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; pressing = false; updateTitle(); });
     win.addEventListener('focus', updateTitle);
     win.addEventListener('resize', fit);
@@ -9666,13 +10069,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   bindDoc(document, window);
   document.addEventListener('visibilitychange', function () { updateTitle(); if (document.hidden) save(); });
   window.addEventListener('pagehide', save);
-
-  function toggleBoss() {
-    boss = !boss;
-    bossEl.hidden = !boss;
-    holdPointer = false; holdSpace = false;
-  }
-
   // ---------- farm render ----------
   function drawLocked(i) {
     // unbought ground: rough grass inside a dashed stake line, so the expansion reads as a goal
@@ -9826,14 +10222,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (L.isReady(p)) { if (!bagStop()) holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
-        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
+        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); sfx('water'); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
         else toast(p.fert ? '이미 비료를 줬어요' : '비료가 없어요');
         refresh(); return true;
       }
       if (!p.crop) {
         var id = S.sel;
-        if (L.plant(S, i, id, t, curEnv(t).season)) { burst(r.x + 22, r.y + 20, 5, 2, 30); floatText(id === 'gold' ? '★' : '-' + L.CROPS[id].cost, r.x + 22, r.y + 6); }
-        else if (!seedInSeason(id)) { toast(L.CROPS[id].name + '는 ' + L.SEASON_NAME[L.CROPS[id].season] + '에만 심을 수 있어요'); }
+        if (L.plant(S, i, id, t, curEnv(t).season)) { sfx('plant'); burst(r.x + 22, r.y + 20, 5, 2, 30); floatText(id === 'gold' ? '★' : '-' + L.CROPS[id].cost, r.x + 22, r.y + 6); }
+        else if (!seedInSeason(id)) { sfx('error'); toast(L.CROPS[id].name + '는 ' + L.SEASON_NAME[L.CROPS[id].season] + '에만 심을 수 있어요'); }
         else { toast('코인이 부족해요'); var tb = trayBtns[id].b; tb.classList.remove('shake'); void tb.offsetWidth; tb.classList.add('shake'); }
         refresh(); return true;
       }
@@ -9906,6 +10302,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       milestones();
     } else {
       L.loseFish(S);
+      sfx(res === 'snap' ? 'snap' : 'lost');
       toast(res === 'snap' ? '툭… 줄이 끊어졌다' : (f.power >= 1.6 ? '묵직한 녀석이 도망갔다…' : '도망갔다…'), 2600);
       burst(reelVis.x, reelVis.y, 6, 2, 40);
     }
@@ -9975,7 +10372,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         var bx = x, by = y;
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
         L.cast(S, now(), Math.random, Math.round(bx), Math.round(by), curEnv(now()));
-        castAnim = { t: 0 };
+        castAnim = { t: 0 }; sfx('cast');
         return refresh();
       }
       if (S.fish.phase === 'wait') {
@@ -10113,8 +10510,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function tickFishing(t) {
     if (!reel) {
       var f = L.updateFishing(S, t, Math.random, SPEED, curEnv(t));
-      if (f === 'missed') toast('놓쳤다… 다시 던져보자');
-      if (f === 'bite') { burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
+      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('lost'); }
+      if (f === 'bite') { sfx('bite'); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
       if (f && f !== 'nibble') save();
     }
   }
@@ -10124,6 +10521,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
+      if (held && reel.tension > 0.6) sfx('tick');   // 소리: the line creaks when it is close to snapping
       var pulling = reel.burst > 0, warning = reel.warn > 0, ev = reel.ev;
       var jumping = pulling && ev === 'jump', digging = pulling && ev === 'sound', running = pulling && ev === 'run', turning = running && reel.turn > 0;
       if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, jumping ? 3 : 2.5); }
@@ -10369,7 +10767,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var p = performance.now();
     if (p < noticeNext) return;
     noticeNext = p + 2000;
-    if (reel || boss) return;
+    if (reel) return;
     var d = new Date(t), e = curEnv(t), live = {}, say = null, sayKey = null;
     var here = view === 'farm' ? L.curSpot(S) : view === 'forest' && L.forestOk(S) ? 'forest' : null;
     L.FISH.forEach(function (f) {
@@ -11012,8 +11410,26 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
   }
   function renderSettings() {
-    if (!pipOK) return;
     var h3 = document.createElement('h3'); h3.textContent = '설정'; dexEl.appendChild(h3);
+    var sl = document.createElement('label'); sl.className = 'setRow';
+    var sc = document.createElement('input'); sc.type = 'checkbox'; sc.id = 'setSnd'; sc.checked = !!sndOn;
+    sc.addEventListener('change', function () { sndSet(sc.checked); });
+    var st = document.createElement('span'); st.textContent = '소리';
+    var ss = document.createElement('small'); ss.textContent = '위의 스피커 버튼이나 M 키로도 켜고 끄기'; st.appendChild(ss);
+    sl.appendChild(sc); sl.appendChild(st); dexEl.appendChild(sl);
+    var ml = document.createElement('label'); ml.className = 'setRow';
+    var mc = document.createElement('input'); mc.type = 'checkbox'; mc.checked = musOn;
+    mc.addEventListener('change', function () { musSet(mc.checked); });
+    var mt = document.createElement('span'); mt.textContent = '음악';
+    var ms = document.createElement('small'); ms.textContent = '시간마다 바뀌는 배경 음악 · 효과음은 그대로'; mt.appendChild(ms);
+    ml.appendChild(mc); ml.appendChild(mt); dexEl.appendChild(ml);
+    var al = document.createElement('label'); al.className = 'setRow';
+    var ac = document.createElement('input'); ac.type = 'checkbox'; ac.checked = ambOn;
+    ac.addEventListener('change', function () { ambSet(ac.checked); });
+    var at = document.createElement('span'); at.textContent = '환경음';
+    var as = document.createElement('small'); as.textContent = '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요'; at.appendChild(as);
+    al.appendChild(ac); al.appendChild(at); dexEl.appendChild(al);
+    if (!pipOK) return;
     var lb = document.createElement('label'); lb.className = 'setRow';
     var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
     cb.addEventListener('change', function () { setAutoPip(cb.checked); });
@@ -11287,6 +11703,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // 자동 판매 끔 and full: new catches/harvests wait (they stay in the pond/field/tree)
   function bagStop() {
     if (!L.bagBlocked(S)) return false;
+    sfx('error');
     toast('바구니가 꽉 찼어요 · 바구니에서 팔 것을 골라요', 2600); return true;
   }
   function tapPot() {
@@ -11684,13 +12101,19 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     });
     return out.sort(function (a, b) { return (b.flat - a.flat) || (a.r[1] + a.r[3]) - (b.r[1] + b.r[3]); });
   }
-  function drawSky(tt, ph) {
-    if (ph === 'night') { px(0, 0, W, 20, 3); for (var y = 20; y < 26; y++) for (var x = (y % 2); x < W; x += 2) px(x, y, 1, 1, 3); }
-    else if (ph === 'evening') { for (y = 0; y < 14; y++) for (x = (y % 2); x < W; x += 2) px(x, y, 1, 1, 1); }
+  // sky = optional per-column depth (기차·캠핑: the sky ends at the peaks); default is the 26-row strip
+  function drawSky(tt, ph, sky) {
+    if (ph !== 'night' && ph !== 'evening') return;
+    for (var x = 0; x < W; x++) {
+      var b = sky ? sky[x] : 26;
+      if (ph === 'night') { px(x, 0, 1, Math.max(0, b - 6), 3); for (var y = Math.max(0, b - 6); y < b; y++) if ((x + y) % 2 === 0) px(x, y, 1, 1, 3); }
+      else for (y = 0; y < Math.min(14, b); y++) if ((x + y) % 2 === 0) px(x, y, 1, 1, 1);
+    }
   }
-  function drawStars(tt) {
+  function drawStars(tt, sky) {
     for (var k = 0; k < 18; k++) {
       var sx = Math.floor(hash(k * 19 + 2) * W), sy = Math.floor(hash(k * 7 + 3) * 18);
+      if (sky && sy >= sky[sx] - 1) continue;
       if ((Math.floor(tt * 1.5) + k) % 7) px(sx, sy, 1, 1, 0);
     }
   }
@@ -13615,12 +14038,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var g = L.takePetGift(S, t, TZ, L.forestOk(S) ? fEnv(t) : null, Math.random);
     if (g) {
       petHearts.push({ x: p.x, y: p.y, t: 0 });
-      burst(p.x, p.y - 8, 8, 0, 40);
+      burst(p.x, p.y - 8, 8, 0, 40); sfx('harvest');
       toast(josa(nm, '이', '가') + ' 선물을 물고 왔다 · ' + L.itemInfo(g.id).name + (g.sold ? ' · 바구니가 꽉 차 팔았다 +' + g.sold : ' · 바구니에'), 2800);
       refresh(); return true;
     }
     var r = L.petPet(S, t, TZ);
-    petHearts.push({ x: p.x, y: p.y, t: 0 });
+    petHearts.push({ x: p.x, y: p.y, t: 0 }); sfx('pet');
     if (r.up) toast('♥ ' + nm + ' 친밀도 ' + r.up + ' · 새 행동: ' + L.PET_ACTS[r.up], 3600);
     else toast(S.pet.kind === 'cat' ? '골골골… ' + nm + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다') : nm + ' · 꼬리를 흔든다' + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다'), 1500);
     save(); return true;
@@ -13734,7 +14157,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!id) return false;
     var out = L.landJunk(S, id, Math.random);
     tmapAfter('junk'); if (id === 'letter') rumorAfter('letter');   // stage 8 ③
-    burst(f.x, f.y, 8, 0, 50);
+    burst(f.x, f.y, 8, 0, 50); sfx('catch');
     floatText('+' + L.junkById(id).name, ROD_BASE.x, ROD_BASE.y - 16);
     showJunk(out);
     refresh();
@@ -13880,10 +14303,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!mini || mini.done) return;
     if (mini.kind === 'pick') {
       var r = L.pickTap(mini.g, mini.t);
-      if (r === 'hit') burstMini();
+      if (r === 'hit') { burstMini(); sfx('hit'); }
+      if (r === 'miss') sfx('error');
       if (r === 'miss') miniTip.textContent = '아깝다 · 한 번 더 놓치면 그냥 열려요';
       if (r === 'ok' || r === 'fail') endMini(r);
-    } else L.heatTap(mini.g);
+    } else { L.heatTap(mini.g); sfx('puff'); }
     drawMini();
   }
   var miniFlash = 0;
@@ -13893,9 +14317,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     e.preventDefault(); miniTap();
   });
   miniGive.addEventListener('click', function () { if (mini && !mini.done) endMini('fail'); });
-  // driven by the frame loop (works in the PiP window too); paused behind the boss key
+  // driven by the frame loop (works in the PiP window too)
   function tickMini(dt) {
-    if (!mini || boss) return;
+    if (!mini) return;
     if (mini.done) { mini.done -= dt; if (mini.done <= 0) closeMini(); return; }
     mini.t += dt; miniFlash = Math.max(0, miniFlash - dt);
     var r = mini.kind === 'pick' ? L.pickTime(mini.g, mini.t) : L.heatStep(mini.g, dt);
@@ -13906,6 +14330,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var m = mini;
     m.done = 0.9;
     miniTip.textContent = r === 'ok' ? '성공!' : '괜찮아요 · 평소대로 받아요';
+    sfx(r === 'ok' ? 'level' : 'lost');
     if (m.kind === 'pick') {
       var res = L.openChest(S, Math.random, r === 'ok' ? 1 : 0);
       chestResult(res, r === 'ok');
@@ -14620,12 +15045,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
     if (L.bugJudge(bug.fl, p) !== 'catch') {
       bug.flee = { x: q.x, y: q.y, t: p, dx: q.x < 90 ? -1 : 1 };
+      sfx('swing');
       if (bugMissTips++ < 3) toast('휙 날아갔다 · 앉아서 날개를 접었을 때 눌러요', 2200);
       return true;
     }
     var id = bug.id, c = L.catchBug(S, id);
     bug = null; bugNextAt = p + 20e3 + Math.random() * 30e3;
     burst(q.x, q.y - 3, 10, 0, 40);
+    sfx('swing'); sfx(L.bugById(id).rarity === '흔함' ? 'catch' : 'catchRare');
     showBugCard(id, c);
     refresh();
     return true;
@@ -14664,7 +15091,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (k.ok) toast(b.name + ' · 표본 상자에 넣었다' + (k.gift ? ' · 집 안에 표본 상자가 생겼다' : ''), 2800);
       else choice = 'release';
     }
-    if (choice === 'release') { var got = L.releaseBug(S, pd.id); floatText('+' + got, 90, 90); toast(josa(b.name, '을', '를') + ' 놓아주었다 · 고맙다며 +' + got, 2200); }
+    if (choice === 'release') { sfx('coin'); var got = L.releaseBug(S, pd.id); floatText('+' + got, 90, 90); toast(josa(b.name, '을', '를') + ' 놓아주었다 · 고맙다며 +' + got, 2200); }
     refresh();
   }
 
@@ -15336,7 +15763,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (!td.low) {
         if (p) { toast('통발 · 썰물이 되면 걷어요 · 지금 ' + L.trapCount(p, t) + '마리쯤 (최대 ' + L.TRAP_CAP + ')', 2400); return true; }
         if (!L.setTrap(S, k, t, TZ, td).ok) return true;
-        burst(sp[0], sp[1] - 6, 8, 0, 40);
+        burst(sp[0], sp[1] - 6, 8, 0, 40); sfx('plant');
         toast('통발을 놓았다 · 물이 빠지면 걷으러 와요', 2400); refresh();
         return true;
       }
@@ -15345,7 +15772,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var r = L.pullTrap(S, k, t, Math.random, TZ, td);
       if (!r) return true;
       if (!r.got.length) { toast('통발이 아직 비었다 · 밀물이 한 번 더 지나면', 2200); return true; }
-      burst(sp[0], sp[1] - 6, 12, 3, 50);
+      burst(sp[0], sp[1] - 6, 12, 3, 50); sfx('harvest');
       floatText('+' + r.got.length, sp[0], sp[1] - 16);
       toast('통발을 걷었다 · ' + r.got.map(function (id) { return L.flatById(id).name; }).join(', ') + (r.sold ? ' · 꽉 차서 바로 팔았다 +' + r.sold : ''), 3000);
       refresh();
@@ -15375,6 +15802,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var f = L.flatById(r.id);
     flatLastDug = { id: r.id, at: performance.now() };
     burst(c.x, c.y + 8, won ? 16 : 8, won ? 4 : 3, won ? 70 : 40);
+    sfx('plant'); sfx(won ? 'level' : 'harvest');   // 소리: 삽질, then the find
     floatText((won ? '★' : '+') + f.name + (r.n > 1 ? '×' + r.n : ''), c.x, c.y - 6);
     var tail = r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : r.first ? ' · 갯벌 도감 등록!' : ' · 바구니에';
     if (won) toast('도전 성공! ' + f.name + (r.n > 1 ? ' 두 개' : ' 하나 · 이번엔 덤이 없었다') + tail, 2600);
@@ -15540,7 +15968,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     camWatchLegend();
     var own = L.camOk(S);
     camBtn.hidden = !own;
-    if (!own || boss) return;
+    if (!own) return;
     camShots = L.shotsNow(camCtx(t));
     var fresh = camShots.some(function (id) { return !S.cam.album[id]; });
     camBtn.classList.toggle('on', camShots.length > 0);
@@ -15553,7 +15981,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   camBtn.addEventListener('click', function () {
     if (!L.camOk(S) || reel) return;
     tickCameraUI(now());
-    camFlashNow();
+    camFlashNow(); sfx('shutter');
     var got = [];
     camShots.forEach(function (id) { var r = L.takeShot(S, id, now()); if (r && r.first) got.push(L.shotById(id).name); });
     if (got.length) toast('찰칵 · 앨범에 「' + got.join('」「') + '」 · ' + L.albumCount(S) + ' / ' + L.SHOTS.length, 3200);
@@ -15750,6 +16178,10 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!r) return;
     tmapAfter('cave');   // stage 8 ③
     var rr = cellRect(c.k);
+    sfx('pick');
+    if (r.done || (r.more && r.more.done)) sfx('level');
+    else if ((r.kind === 'part' && !r.dup) || (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함')) sfx('catchRare');
+    else sfx('harvest');
     burst(rr[0] + rr[2] / 2, rr[1] + rr[3] / 2, won ? 16 : 9, won ? 0 : 2, won ? 70 : 45);
     var parts = [mineText(r)];
     if (r.more) parts.push(mineText(r.more));
@@ -15991,8 +16423,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var k = L.starAt(g, (x - 14) / 1.26, (y - 44) / 1.4, 9);
     if (k < 0) return;
     var r = L.starTap(g, k), st = g.stars[k];
-    if (r === 'wrong') { toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
+    if (r === 'wrong') { sfx('error'); toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
     burst(chartX(st.x), chartY(st.y), r === 'done' ? 18 : 4, 0, r === 'done' ? 70 : 24);
+    sfx(r === 'done' ? 'chime' : 'star', false, g.step - 1);   // 소리: each star a step higher, the whole shape a chime
     if (r !== 'done') return;
     var mul = L.cmpStarMul(S, cmpIsView(starHome)), c = L.starById(g.id), rec = L.seeStar(S, g.id, now(), mul);
     toast('★ ' + c.name + (rec && rec.first ? ' · 처음 찾았다! 도감에 기록' : ' · 또 만났다') + (rec ? ' · +' + rec.coins + (mul > 1 ? ' (캠프 ×' + mul + ')' : '') : '') + ' · 누르면 ' + (starHome === 'peak' ? '산꼭대기로' : cmpIsView(starHome) ? '캠핑장으로' : '마당으로'), 4000);
@@ -16900,6 +17333,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // boss phase change: shake, splash, and a blinking frame drawn by drawReelFrame
   function bossPhaseFx() {
+    sfx('sting');
     fxShake(5);
     burst(reelVis.x, reelVis.y, 20, 0, 110);
   }
@@ -17337,7 +17771,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function donkeyPetNow(at) {
     var r = L.donkeyPet(S, now(), TZ);
     if (!r) return;
-    donkeyHearts.push({ x: at.x, y: at.y, t: 0 });
+    donkeyHearts.push({ x: at.x, y: at.y, t: 0 }); sfx('pet');
     var nm = S.donkey.name;
     if (r.up) toast('♥ ' + nm + ' 친밀도 ' + r.up + ' · ' + L.DONKEY_ACTS[r.up], 3600);
     else toast(nm + ' · 귀를 쫑긋' + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다'), 1500);
@@ -17881,7 +18315,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- stage 9 ③: 자전거 배달, 열기구, 겨울 썰매 ----------
   // One overlay (#ride) runs all three one-button rides; the logic judges from the tap times it records.
   // The 마을 언덕 (bottom left of the street) opens a small menu: 열기구 when one is up, 썰매 in game winter.
-  // Rides use real seconds (frame dt), pause behind the boss key, and take Space or a tap anywhere on the overlay.
+  // Rides use real seconds (frame dt) and take Space or a tap anywhere on the overlay.
   var HILL = [2, 168, 48, 32];
   var RW = 120, RH = 64;
   var rideEl = document.createElement('section');
@@ -17914,12 +18348,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     e.preventDefault(); rideTap();
   });
   function rideTap() {
-    if (!rideOn() || ride.done || boss) return;
+    if (!rideOn() || ride.done) return;
     ride.taps.push(ride.t);
     if (ride.kind === 'bal') {
       var seen = L.balloonJudge(ride.lay, [ride.t]);
-      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; }
-    }
+      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; sfx('shutter'); }
+      else sfx('tap');
+    } else sfx(ride.kind === 'bike' ? 'jump' : 'swing');   // 자전거 점프, 썰매 옆 줄로
   }
   function startRide(kind, lay, title, tip, extra) {
     ride = { kind: kind, lay: lay, taps: [], t: 0, done: 0, flash: 0, seen: [], season: curEnv(now()).season };
@@ -17927,7 +18362,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     rideTitle.textContent = title; rideTip.textContent = tip;
     rideMenu.hidden = true; rideCv.hidden = false;
     rideStop.textContent = kind === 'bike' ? '그만 타기 (납품은 그대로)' : '그만 타기';
-    showRide(); drawRide();
+    showRide(); drawRide(); sfx('whoosh');
   }
 
   // ---------- 자전거 배달: 납품 first, then the ride for a tip ----------
@@ -17962,16 +18397,16 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- tick (frame loop) ----------
   function rideLen() { return ride.kind === 'bike' ? L.BIKE_TIME : ride.kind === 'sled' ? L.SLED_TIME : L.BAL_TIME; }
   function tickRide(dt) {
-    if (!rideOn() || boss) return;
+    if (!rideOn()) return;
     if (ride.done) { ride.done -= dt; ride.flash = Math.max(0, ride.flash - dt); if (ride.done <= 0) closeRide(); else drawRide(); return; }
     ride.t += dt; ride.flash = Math.max(0, ride.flash - dt);
     if (ride.kind === 'bike') {
       var b = L.bikeRun(ride.lay, ride.taps, ride.t);
-      if (b.crash) { endRide(false); return; }
+      if (b.crash) { sfx('bump'); endRide(false); return; }
     }
     if (ride.kind === 'sled') {
       var sr = L.sledRun(ride.lay, ride.taps, ride.t);
-      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; }
+      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; sfx('bump'); }
     }
     if (ride.t >= rideLen()) endRide(false);
     drawRide();
@@ -18000,6 +18435,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       msg = (seen.length ? '본 것 ' + seen.length + '가지' : '구름 사이를 둥실') + (out.first.length ? ' · 새로 ' + out.first.length + ' (+' + out.coins + ')' : '') +
         (out.all ? ' · 하늘 도감 완성!' : '') + (shot ? ' · 앨범 +' + shot : '');
     }
+    if (!quit) sfx(m.kind === 'bike' && m.crash ? 'lost' : 'catch');   // 소리: the ride's result (신기록·팁 add their own)
     rideTip.textContent = msg; rideStop.textContent = '닫기';
     toast(msg, 3200);
     refresh(); drawRide();
@@ -18061,7 +18497,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     ride.lay.forEach(function (e) {
       if (e.kind === 'flower' && e.t <= t && jumps.some(function (j) { return e.t >= j && e.t < j + L.BIKE_JUMP; })) {
         ride.picked = ride.picked || [];
-        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; }
+        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; sfx('harvest'); }
       }
     });
     var crashed = ride.done && ride.crash;
@@ -18322,6 +18758,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (!reduceMotion) burst(spot.x, spot.y - 2, 10, 3, 70);
     } else toyWalk(x, y, pt);
     if (toyFx.length > 8) toyFx.shift();
+    sfx(kind === 'splash' ? 'water' : kind === 'leaves' ? 'swing' : 'plant');   // 물웅덩이 첨벙, 낙엽 바스락, 눈 발자국
     var r = L.toyPlay(S, kind, t, TZ, Math.random, L.bagBlocked(S)).reward;
     var fx = spot ? spot.x : x, fy = spot ? spot.y : y;
     if (r && r.id) { floatText(r.sold ? '+' + r.sold : '+도토리', fx, fy - 8); toast('낙엽 속에 도토리 하나' + (r.sold ? ' · 바구니가 꽉 차 팔았다 +' + r.sold : ' · 바구니에'), 2200); refresh(); }
@@ -19819,7 +20256,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // ---------- 잠수 탐험 (stage 12): one room = one screen, tap to swim, oxygen, take / look at things ----------
   // Logic in logic/dive.js + logic/divemap.js. Oxygen runs on frame time (dt), so it stops whenever the game is hidden
-  // (no frames) or behind the boss key; it also waits while the minimap is open. At 0 the diver floats up: nothing is lost.
+  // (no frames); it also waits while the minimap is open. At 0 the diver floats up: nothing is lost.
   // The 옛 포구 scene (lane ①) calls drawPortExtra_dive / tapPortExtra_dive for the dock marker; diveGearRows fills a sheet.
   var DIVE_SPEED = 38, DIVE_GAP = 18, DIVE_MID = 110;   // px/s; half width of a passage; e/w passage centre y
   var DIVE_MARK = [14, 114, 18, 26];                    // dock marker on the 포구 scene (x, y, w, h)
@@ -19834,14 +20271,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     L.diveEnter(S, id);
     dv = { room: id, x: 90, y: 30, tx: 90, ty: 60, o2: L.diveO2Max(S), want: -1, taken: {}, map: false, dark: 0, up: 0, face: 1, zones: {}, n: 0 };
     dv.zones[L.diveRoom(id).zone] = true;
-    goScene('dive');
+    goScene('dive'); sfx('splash');
     save();
     return true;
   }
   function endDive(why) {
     var n = dv ? dv.n : 0;
     dv = null;
-    goScene(diveHome());
+    goScene(diveHome()); sfx('splash');
     toast((why === 'o2' ? '숨이 차서 물 위로 · ' : '물 위로 · ') + (n ? '이번에 ' + n + '가지 · ' : '') + '주운 것·밝힌 방은 그대로', 3000);
     refresh();
   }
@@ -19953,18 +20390,19 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (k === dv.want) sparkle(t.x + 7, t.y - 10, tt);
     });
     // swim
-    var still = boss || dv.up > 0 || dv.map;
+    var still = dv.up > 0 || dv.map;
     if (!still) {
       var dx = dv.tx - dv.x, dy = dv.ty - dv.y, dist = Math.hypot(dx, dy), step = DIVE_SPEED * dt;
-      if (dist > 0.5) { dv.x += dx / dist * Math.min(step, dist); dv.y += dy / dist * Math.min(step, dist); if (Math.abs(dx) > 1) dv.face = dx > 0 ? 1 : -1; }
+      if (dist > 0.5) { dv.x += dx / dist * Math.min(step, dist); dv.y += dy / dist * Math.min(step, dist); if (Math.abs(dx) > 1) dv.face = dx > 0 ? 1 : -1; if (dist > 4) sfx('swim'); }   // 소리: a stroke now and then (SND_GAPS)
       if (dv.want >= 0) { var wt = r.things[dv.want]; if (!thingShown(r, dv.want)) dv.want = -1; else if (Math.hypot(wt.x - dv.x, wt.y - 4 - dv.y) < 16) { var k2 = dv.want; dv.want = -1; diveTakeNow(r, k2); } }
       diveEdge(r);
       // oxygen
       var near = L.diveRoom(dv.room).bubbles.some(function (b) { return Math.hypot(b[0] - dv.x, b[1] - 10 - dv.y) < 18; });
       dv.o2 = near ? Math.min(L.diveO2Max(S), dv.o2 + 30 * dt) : dv.o2 - dt;
+      if (!near && dv.o2 < 10 && dv.o2 > 0 && Math.ceil(dv.o2) !== Math.ceil(dv.o2 + dt)) sfx('beep');   // 소리: low air, once a second
       if (dv.o2 <= 0) { dv.o2 = 0; dv.up = 1.6; dv.want = -1; }
     }
-    if (dv.up > 0 && !boss) {
+    if (dv.up > 0) {
       dv.y -= 40 * dt;
       dv.up -= dt;
       if (dv.up <= 0) { drawDiver(dv.x, dv.y, dv.face, tt); endDive('o2'); return; }
@@ -19999,6 +20437,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var next = r.exits[d], can = L.diveCanEnter(S, next);
     var back = { w: [14, DIVE_MID], e: [W - 14, DIVE_MID], n: [90, 18], s: [90, H - 16] }[d];
     if (!can.ok) {
+      sfx('bump');
       dv.x = back[0]; dv.y = back[1]; dv.tx = dv.x + (d === 'w' ? 16 : d === 'e' ? -16 : 0); dv.ty = dv.y + (d === 'n' ? 16 : d === 's' ? -16 : 0);
       if (can.why === 'light') { dv.dark = 1.4; toast('너무 어둡다… 아무것도 안 보여 · 조선소에서 손전등을', 2800); }
       else if (can.why === 'key') toast('녹슨 문이 잠겨 있다 · 얕은 여 어딘가에 열쇠가', 2600);
@@ -20006,7 +20445,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       return;
     }
     var res = L.diveEnter(S, next), o = L.diveRoom(next);
-    dv.room = next; dv.want = -1;
+    dv.room = next; dv.want = -1; sfx('whoosh');
     var arrive = { w: [W - 10, DIVE_MID], e: [10, DIVE_MID], n: [90, H - 12], s: [90, 14] }[d];
     dv.x = arrive[0]; dv.y = arrive[1];
     dv.tx = dv.x + (d === 'w' ? -18 : d === 'e' ? 18 : 0); dv.ty = dv.y + (d === 'n' ? -18 : d === 's' ? 18 : 0);
@@ -20023,6 +20462,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!res) return;
     dv.n++;
     burst(t.x, t.y - 4, 8, r.zone === 'deep' ? 0 : 4, 30);
+    sfx(res.kind === 'pick' ? (res.first ? 'catchRare' : 'harvest') : res.kind === 'see' ? (res.first ? 'catchRare' : 'tap') : res.kind === 'log' ? 'harvest' : 'catchLegend');   // 소리: 열쇠·상자 = 보물
     if (res.kind === 'pick') {
       floatText('+' + dx.name, t.x, t.y - 10);
       toast((res.first ? '★ 처음 · 해저 도감에 · ' : '') + dx.name + ' 주웠다' + (res.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + res.sold : ''), 2000);
@@ -20234,7 +20674,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   };
   // ---------- 게임장 (마을 아래, 장터 가는 길 옆): the building, one overlay for 고르기·내기 and the round ----------
   // Logic: logic/arcade.js. The overlay (#arcade) shows the game list, then 난이도·내기, then a 120×120 board.
-  // Round time = performance.now() since the round began, minus time behind the boss key, so ?speed never changes it.
+  // Round time = performance.now() since the round began, so ?speed never changes it.
   var ARC_AT = [98, 166, 28, 32];   // between the path down and the 박물관 (the tree that stood here is gone)
   var AW = 120, AH = 120;
   var ARC_TZ = -new Date().getTimezoneOffset();
@@ -20249,10 +20689,10 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   arcWallet.className = 'wallet'; arcHead.appendChild(arcTitle); arcHead.appendChild(arcWallet);
   arcCv.width = AW; arcCv.height = AH; arcTip.className = 'tip'; arcMenu.className = 'menu'; arcActs.className = 'acts';
   [arcHead, arcCv, arcTip, arcMenu, arcActs].forEach(function (el) { arcEl.appendChild(el); });
-  var arc = null;   // { kind: 'menu' | 'pick' | 'round', game, diff, bet, play, g, t0, paused, bossAt, done, … }
+  var arc = null;   // { kind: 'menu' | 'pick' | 'round', game, diff, bet, play, g, t0, done, … }
   var arcIcons = {};
   function arcOn() { return !!arc && arc.kind === 'round' && !arc.done; }
-  function arcT() { return performance.now() - arc.t0 - arc.paused; }
+  function arcT() { return performance.now() - arc.t0; }
 
   // ---------- the building on the 마을 street ----------
   function drawArcade(tt) {
@@ -20377,7 +20817,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     refresh();   // the bet is paid now: save it
     var g = game === 'mole' ? L.moleLayout(diff, Math.random) : game === 'match' ? L.matchDeal(diff, Math.random)
       : game === 'throw' ? L.throwSetup(diff, Math.random) : null;
-    arc = { kind: 'round', game: game, diff: diff, bet: bet, play: r.play, g: g, t0: performance.now(), paused: 0, bossAt: 0,
+    arc = { kind: 'round', game: game, diff: diff, bet: bet, play: r.play, g: g, t0: performance.now(),
       done: false, fx: [], hideAt: 0, endAt: 0, ballAt: 0, fly: null, reels: null, spinAt: 0, tipKey: '' };
     arcHeader(L.arcGame(game).name + (diff ? ' · ' + L.ARC_DIFF_NAME[diff] : ''));
     arcActs.innerHTML = '';
@@ -20394,6 +20834,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     else if (a.game === 'slot') msg = ok ? '×' + win + '!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : '') : '꽝' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     else msg = ok ? '이겼다!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : ' (그냥 놀기)') : '아쉽다' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     arcTip.textContent = msg;
+    if (win !== null) sfx(ok ? 'level' : 'lost');
     arcHeader(arcTitle.textContent);
     if (pay) { fxCoinsDom(arcWallet); fxStamp(arcTip); }
     refresh();
@@ -20411,13 +20852,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // board coordinates from a pointer
   arcCv.addEventListener('pointerdown', function (e) {
-    if (!arcOn() || boss) return;
+    if (!arcOn()) return;
     e.preventDefault();
     var r = arcCv.getBoundingClientRect();
     arcTap((e.clientX - r.left) * AW / r.width, (e.clientY - r.top) * AH / r.height);
   });
   // Space: throw / spin (the games without a place to aim)
-  function arcKey() { if (arcOn() && !boss && (arc.game === 'throw' || arc.game === 'slot')) arcTap(AW / 2, AH / 2); }
+  function arcKey() { if (arcOn() && (arc.game === 'throw' || arc.game === 'slot')) arcTap(AW / 2, AH / 2); }
 
   var MOLE_HX = [22, 60, 98], MOLE_HY = [44, 74, 104];
   function holeAt(h) { return [MOLE_HX[h % 3], MOLE_HY[Math.floor(h / 3)]]; }
@@ -20433,7 +20874,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         var p = holeAt(h);
         if (Math.abs(x - p[0]) > 17 || y < p[1] - 24 || y > p[1] + 5) continue;
         var r = L.moleTap(g, t, h);
-        if (r) a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t });
+        if (r) { sfx(r === 'hog' ? 'error' : 'hit'); a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t }); }
         return;
       }
     } else if (a.game === 'match') {
@@ -20441,6 +20882,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       for (var k = 0; k < g.cards.length; k++) {
         if (!hit(cardBox(k), x, y, 1)) continue;
         var f = L.matchFlip(g, k);
+        if (f) sfx(f === 'pair' ? 'hit' : 'tap');
         if (f === 'miss') a.hideAt = t + 700;
         if (f === 'pair' && L.matchOver(g)) a.endAt = t + 400;
         return;
@@ -20448,9 +20890,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     } else if (a.game === 'throw') {
       if (a.fly || a.endAt || t < a.ballAt) return;
       var hitIt = L.throwShot(g, t - a.ballAt);
-      if (hitIt !== null) a.fly = { t: t, hit: hitIt };
+      if (hitIt !== null) { a.fly = { t: t, hit: hitIt }; sfx('cast'); }
     } else if (!a.reels) {
-      a.reels = L.slotSpin(Math.random); a.spinAt = t;
+      a.reels = L.slotSpin(Math.random); a.spinAt = t; sfx('whoosh');
     }
   }
 
@@ -20458,8 +20900,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var SLOT_STOP = [700, 1100, 1500];
   function tickArcade(dt) {
     if (!arcOn()) return;
-    if (boss) { if (!arc.bossAt) arc.bossAt = performance.now(); return; }
-    if (arc.bossAt) { arc.paused += performance.now() - arc.bossAt; arc.bossAt = 0; }
     var a = arc, g = a.g, t = arcT(), tip;
     if (a.game === 'mole') {
       if (L.moleOver(g, t)) { arcEnd(g.score >= g.need); return; }
@@ -21103,20 +21543,41 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var TRN_VSTN = [4, 168, 48, 30];
   var TRN_VSPOTS = [[64, 128], [96, 100], [158, 150]];
   function trnStreamX(y) { return 150 - (y - 60) * 0.45 + Math.sin(y / 18) * 8; }
-  function trnInStream(x, y, k) { return y >= 58 && Math.abs(x - trnStreamX(y)) < (k || 10); }
+  function trnInStream(x, y, k) { return y >= 58 && Math.abs(x - trnStreamX(y)) < (k || 14); }
   function trnRidge(x) { return 44 + Math.round(Math.sin(x / 23) * 10 + Math.sin(x / 9 + 1) * 6); }
+  // 하늘과 산 (y < r, r = where the land starts): sky, a pale far range with real peaks, then the near ridge with its own
+  // outline — not a flat hatched band under an empty strip. snow = white caps up top and a white foot.
+  function trnPeakY(x) {
+    var y = 99;
+    [[14, 13], [52, 7], [94, 14], [134, 5], [172, 11]].forEach(function (p) { y = Math.min(y, p[1] + Math.abs(x - p[0]) * 0.45); });
+    return Math.round(y + Math.sin(x / 3) * 0.8);
+  }
+  function trnFarY(x, r) { return Math.min(trnPeakY(x), r - 9); }
+  function trnVista(x, y, r, snow) {
+    var far = trnFarY(x, r), near = Math.max(far + 4, r - 12 + Math.round(Math.sin(x / 13 + 2) * 3));
+    if (y < far) return 0;
+    if (y === far) return 3;
+    if (y < near) return snow && y < far + 4 ? 0 : (x + y * 2) % 4 === 0 ? 2 : 1;
+    if (y === near) return 4;
+    return snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;
+  }
+  // per-column sky depth for drawSky/drawStars (night sky stops at the peaks); rf = that scene's land line
+  var trnSkyMemo = {};
+  function trnSky(key, rf) {
+    if (!trnSkyMemo[key]) { var a = []; for (var x = 0; x < W; x++) a.push(trnFarY(x, rf(x))); trnSkyMemo[key] = a; }
+    return trnSkyMemo[key];
+  }
   var bgTrnValley = document.createElement('canvas'); bgTrnValley.width = W; bgTrnValley.height = H;
   (function paintValley() {
     var saved = ctx; ctx = bgTrnValley.getContext('2d');
-    for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var d = Math.abs(x - trnStreamX(y)), c;
-      if (y < trnRidge(x)) c = (x + y) % 3 === 0 ? 3 : 2;                                           // mountains
-      else if (y >= 58 && d < 10) c = d < 4 ? ((x + y) % 2 ? 2 : 1) : d > 8 ? 2 : ((x % 4 === 0 && y % 2 === 0) ? 2 : 1);   // stream
-      else if (y >= 58 && d < 13) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;    // pebbles
+      if (y < trnRidge(x)) c = trnVista(x, y, trnRidge(x), false);                                   // sky and mountains
+      else if (y >= 58 && d < 14) c = d < 6 ? ((x + y) % 2 ? 2 : 1) : d > 12 ? 2 : ((x % 4 === 0 && y % 2 === 0) ? 2 : 1);   // stream
+      else if (y >= 58 && d < 18) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;    // pebbles
       else c = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     [[20, 66], [40, 150], [170, 90], [150, 190], [176, 130], [12, 112], [120, 74]].forEach(function (t) { trnPine(t[0], t[1], false); });   // pines
     [[118, 112], [104, 150], [86, 176]].forEach(function (r) {   // boulders in the stream
       var sx = Math.round(trnStreamX(r[1])) - 3;
@@ -21145,9 +21606,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function trnDrawValley(tt) {
     var t = now(), e = curEnv(t), night = e.phase === 'night', k;
     ctx.drawImage(bgTrnValley, 0, 0);
-    drawSky(tt, e.phase);
+    drawSky(tt, e.phase, trnSky('ridge', trnRidge));
     var fx = Math.round(trnStreamX(58)), top = trnRidge(fx);                                    // the waterfall feeding the stream
-    for (k = -5; k <= 5; k++) for (var y = top; y < 60; y++) if ((y + Math.floor(tt * 14) + k * 3) % 5 === 0) px(fx + k, y, 1, 2, 0); else if (k === -5 || k === 5) px(fx + k, y, 1, 1, 2);
+    for (k = -7; k <= 7; k++) for (var y = top; y < 60; y++) if ((y + Math.floor(tt * 14) + k * 3) % 5 === 0) px(fx + k, y, 1, 2, 0); else if (k === -7 || k === 7) px(fx + k, y, 1, 1, 2);
     if (!reduceMotion) for (k = 0; k < 16; k++) {                                              // ripples running down
       var yy = 60 + ((hash(k * 7 + 3) * 140 + tt * 18) % 140), xx = trnStreamX(yy) + (hash(k * 5) - 0.5) * 10;
       px(xx, yy, 2, 1, 0);
@@ -21162,7 +21623,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drawYardWeather(tt, e.weather);
     cmpDrawSignAt('valley', tt);   // 캠핑: the 계곡 캠핑 sign
     if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
-    if (night) drawStars(tt);
+    if (night) drawStars(tt, trnSky('ridge', trnRidge));
   }
   function trnTapValley(x, y) {
     var t = now();
@@ -21170,7 +21631,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (cmpTapSignAt('valley', x, y)) return;   // 캠핑: up to the 계곡 캠핑
     if (hit(TRN_SHOP, x, y, 1)) { trnOpenShop('valley'); return; }
     if (trnTapPick('valley', TRN_VSPOTS, x, y, t)) return;
-    if (trnInStream(x, y, 13)) { trnFish('valley'); return; }
+    if (trnInStream(x, y, 17)) { trnFish('valley'); return; }
     var nx = L.trnPickNext(S, 'valley', t);
     toast('산골 계곡 · 계곡물을 누르면 낚시 · 산나물·송이버섯 줍기 · 기념품 가게 · 승강장이나 「역으로」로 돌아가기' + (nx !== null && !L.trnPicksNow(S, 'valley', t).some(Boolean) ? ' · 다음 특산물 ' + fmtLeft(Math.max(0, nx - t)) : ''), 3000);
   }
@@ -21221,7 +21682,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function trnPoolD(x, y) { var p = SCENES.valley.pool, a = (x - p[0]) / p[2], b = (y - p[1]) / p[3]; return a * a + b * b; }
   // 계곡 wetD: the brook (by its width, wider downstream) or the pool (squared, like the 연못), whichever is wetter
   function trnBrookD(x, y) {
-    var brook = y < 36 ? 99 : Math.abs(x - trnBrookX(y)) / (4 + Math.max(0, y - 60) * 0.03);
+    var brook = y < 36 ? 99 : Math.abs(x - trnBrookX(y)) / (6 + Math.max(0, y - 60) * 0.04);
     return Math.min(trnPoolD(x, y), brook);
   }
   function trnTripWater(sc, x, y, d) {
@@ -21255,15 +21716,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function trnPaintTrip(sc) {
     if (SCENES[sc].camp) { cmpPaintTrip(sc); return; }   // 캠핑 물가: ui/camp.js
     var snow = sc === 'snow', x, y;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       var r = sc === 'onsen' ? trnHills(x) : trnRidge(x), d = wetD(x, y), c;
-      if (y < r) c = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                    // the destination's ridges
+      if (y < r) c = trnVista(x, y, r, snow);                                               // sky and the destination's mountains
       else if (d < 1) c = trnTripWater(sc, x, y, d);
       else if (d < (sc === 'valley' ? 1.3 : 1.36)) c = trnTripShore(sc, x, y, d);
       else c = hash(x * 131 + y * 7) < (snow ? 0.03 : 0.05) ? 1 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     TRN_TRIP_PINES[sc].forEach(function (t) { trnPine(t[0], t[1], snow); });
     if (sc === 'valley') {
       [[104, 170], [134, 158]].forEach(function (p) { trnRock(p[0], p[1]); });             // boulders in the pool
@@ -21279,7 +21739,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!SCENES[scene].trip) return;
     if (SCENES[scene].camp) { cmpDrawTrip(tt); return; }   // 캠핑 물가: ui/camp.js
     var e = curEnv(now()), mv = !reduceMotion, k, y;
-    drawSky(tt, e.phase);
+    drawSky(tt, e.phase, scene === 'onsen' ? trnSky('hills', trnHills) : trnSky('ridge', trnRidge));
     if (scene === 'valley') {
       var fx = Math.round(trnBrookX(40)), y0 = trnRidge(fx) - 12;                            // the waterfall off the ridge
       for (k = -3; k <= 3; k++) for (y = y0; y < y0 + 20; y++) px(fx + k, y, 1, 1, (y + (mv ? Math.floor(tt * 14) : 0) + k * 3) % 5 === 0 ? 2 : 0);
@@ -21352,15 +21812,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var saved = ctx, snow = route === 'snow', k;
     ctx = c.getContext('2d');
-    for (var y = 26; y < H; y++) for (var x = 0; x < W; x++) {
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var r = snow ? trnRidge(x) : trnHills(x), d = trnLakeD(x, y), cc;
-      if (y < r) cc = snow && y > r - 4 ? 0 : (x + y) % 3 === 0 ? 3 : 2;                          // ridges (white caps on the 설원)
+      if (y < r) cc = trnVista(x, y, r, snow);                                                     // sky and mountains (white caps on the 설원)
       else if (d < 1) cc = snow ? (d > 0.9 ? 2 : (x * 2 + y * 5) % 17 === 0 ? 2 : 1) : (d > 0.9 ? 2 : d < 0.35 ? ((x + y) % 2 ? 2 : 1) : (x % 4 === 0 && y % 2 === 0 ? 2 : 1));
       else if (d < 1.2) cc = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;            // shore stones
       else cc = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
       px(x, y, 1, 1, cc);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     [[20, 62], [44, 112], [172, 92], [164, 196], [14, 118], [90, 66]].forEach(function (t) { trnPine(t[0], t[1], snow); });   // pines (snow on their tiers)
     if (snow) {
       [[112, 150], [140, 158]].forEach(function (h) { px(h[0] - 3, h[1] - 1, 7, 3, 4); px(h[0] - 4, h[1], 9, 1, 4); px(h[0] - 2, h[1], 5, 1, 3); px(h[0] - 4, h[1] + 2, 9, 1, 2); });   // ice holes
@@ -21371,9 +21830,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     return c;
   }
   // a pine (x = trunk, y = ground); snow = white on its tiers
-  function trnPine(x, y, snow) {
-    for (var j = 0; j < 12; j++) px(x - Math.floor(j / 2), y - 12 + j, 1 + Math.floor(j / 2) * 2, 1, snow && j % 4 === 0 ? 0 : j % 3 ? 3 : 4);
-    px(x, y, 1, 3, 4);
+  function trnPine(x, y, snow) {   // three tiers, about 1.5× a person tall
+    for (var k = 0; k < 3; k++) for (var i = 0; i < 8; i++) {
+      var w = 1 + 2 * Math.floor((i + k * 3) * 0.6);
+      px(x - (w - 1) / 2, y - 22 + k * 6 + i, w, 1, i === 7 ? 4 : snow && i < 2 ? 0 : (i + k) % 3 ? 3 : 2);
+    }
+    px(x - 1, y - 3, 3, 6, 4);
   }
   // the 온천 bath house and its outdoor pool
   function trnPaintBath() {
@@ -21395,7 +21857,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var t = now(), e = curEnv(t), night = e.phase === 'night', k;
     if (!bgTrnDest[route]) bgTrnDest[route] = trnPaintDest(route);
     ctx.drawImage(bgTrnDest[route], 0, 0);
-    drawSky(tt, e.phase);
+    var sky = route === 'snow' ? trnSky('ridge', trnRidge) : trnSky('hills', trnHills);
+    drawSky(tt, e.phase, sky);
     var ps = L.trnPicksNow(S, route, t);
     TRN_DSPOTS.forEach(function (sp, j) {
       px(sp[0] - 5, sp[1] + 1, 11, 1, 2);
@@ -21410,7 +21873,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     }
     drawYardWeather(tt, route === 'snow' && e.weather === 'rain' ? 'snow' : e.weather);   // rain falls as snow up on the pass
     if (night || e.phase === 'evening') { ctx.globalAlpha = night ? 0.36 : 0.14; px(0, 0, W, H, 4); ctx.globalAlpha = 1; }
-    if (night) drawStars(tt);
+    if (night) drawStars(tt, sky);
   }
   function trnTapDest(route, x, y) {
     var t = now();
@@ -21927,18 +22390,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     } finally { ctx = saved; }
     return c;
   }
+  // land lines under the sky and mountains (train.js trnVista): the camp view, and its 밤 낚시 brook
+  function cmpRidgeV(x) { return 34 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3); }
+  function cmpRidgeB(x) { return 36 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3); }
+  // 바닷가 sky: a few clouds and gulls over the horizon (rows 0-25)
+  function cmpSeaSky() {
+    [[14, 10, 24], [74, 17, 16], [124, 7, 28]].forEach(function (c) { px(c[0] + 3, c[1] - 2, c[2] - 6, 1, 1); px(c[0] + 1, c[1] - 1, c[2] - 2, 1, 1); px(c[0], c[1], c[2], 1, 2); });
+    [[104, 19], [112, 15], [58, 6]].forEach(function (g) { px(g[0], g[1], 1, 1, 3); px(g[0] + 1, g[1] + 1, 1, 1, 3); px(g[0] + 2, g[1], 1, 1, 3); px(g[0] + 3, g[1] + 1, 1, 1, 3); px(g[0] + 4, g[1], 1, 1, 3); });
+  }
   // 계곡 camp (ctx = its bg): ridges, pines on the far bank, the stream with stones, the near bank of pebbles
   function cmpPaintValley() {
     var x, y;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
-      var r = 34 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3), d = Math.abs(y - cmpValleyY(x)), c;
-      if (y < r) c = (x + y) % 3 === 0 ? 3 : 2;
-      else if (d < 7) c = d > 5 ? 2 : d < 3 ? ((x + y) % 2 ? 2 : 1) : (x * 3 + y) % 7 === 0 ? 0 : 1;
-      else if (d < 10) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var r = cmpRidgeV(x), d = Math.abs(y - cmpValleyY(x)), c;
+      if (y < r) c = trnVista(x, y, r, false);
+      else if (d < 9) c = d > 7 ? 2 : d < 4 ? ((x + y) % 2 ? 2 : 1) : (x * 3 + y) % 7 === 0 ? 0 : 1;
+      else if (d < 12) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;
       else c = y > 70 && hash(x * 131 + y * 7) < 0.06 ? 1 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
     [10, 30, 64, 92, 124, 152, 176].forEach(function (tx, j) { trnPine(tx, cmpValleyY(tx) - 9 - (j % 2) * 2, false); });   // the far bank
     [24, 74, 116, 160].forEach(function (rx) { trnRock(rx, cmpValleyY(rx) + 1); });                                      // stones in the stream
     trnPine(174, 148, false); trnPine(6, 140, false);
@@ -21946,7 +22416,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // 바닷가 camp: the sea up to the horizon, a far headland with a little light, the waterline and a wide sand beach with shells
   function cmpPaintSea() {
     var x, y, k;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {   // rows above stay the sky (cmpPaint fills it)
       var sh = cmpShoreY(x), c;
       if (x > 136 && y < 26 + Math.round((x - 136) * 0.22) && y < 34) c = (x + y) % 2 ? 4 : 3;   // headland
       else if (y < sh) c = y < 34 ? ((x + y) % 2 ? 2 : 1) : sh - y < 3 ? 1 : (x % 4 === 0 && y % 2 === 0) ? 2 : 1;
@@ -21954,7 +22424,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       else c = hash(x * 131 + y * 7) < 0.14 ? 1 : hash(x * 17 + y * 311) < 0.03 ? 2 : 0;
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    for (x = 0; x < W; x++) px(x, 26, 1, 1, 2);   // the horizon
+    cmpSeaSky();
     px(170, 24, 2, 4, 4); px(169, 23, 4, 1, 3);                                                     // the far lighthouse
     for (k = 0; k < 9; k++) {                                                                      // shells and a starfish or two
       var sx = 16 + Math.floor(hash(k * 37 + 4) * 150), sy = 78 + Math.floor(hash(k * 19 + 8) * 110);
@@ -22080,7 +22551,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var t = now(), e = curEnv(t), site = cmpSiteNow(), dark = L.cmpDark(e.phase), night = e.phase === 'night';
     if (!bgCmps[site]) bgCmps[site] = cmpPaint(site);
     ctx.drawImage(bgCmps[site], 0, 0);
-    drawSky(tt, e.phase);
+    var sky = site === 'valley' ? trnSky('cmpv', cmpRidgeV) : null;
+    drawSky(tt, e.phase, sky);
     cmpDrawWaterFx(site, tt);
     if (!S.camp) return;
     L.cmpSettleGrill(S, t);
@@ -22094,7 +22566,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     drawYardWeather(tt, e.weather);
     if (dark) {
       ctx.globalAlpha = night ? 0.55 : 0.2; px(0, 0, W, H, 4); ctx.globalAlpha = 1;   // a bit darker than the 숲: the fire is the light here
-      if (night) drawStars(tt);
+      if (night) drawStars(tt, sky);
       if (on) { cmpGlow(78, 150, 30, tt, night ? 0.09 : 0.05); cmpDrawFire(tt, true); cmpDrawGrill(performance.now()); }
       if (S.camp.eq.lantern) { var l = CMP_EQ_AT.lantern; cmpGlow(l[0] + 7, l[1] + 9, 9, 0, 0.07); px(l[0] + 5, l[1] + 7, 4, 4, 0); }
       if (S.camp.sleep) { var tx = CMP_TENT[0] + 25; for (var k = 0; k < 3; k++) if ((Math.floor(tt * 1.5) + k) % 3) px(tx + 10 + k * 4, CMP_TENT[1] - 2 - k * 4, 3, 1, 0); }   // z z z
@@ -22190,21 +22662,25 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- 캠프 물가: the night-fishing screen (farm view, scene = the camp's spot) ----------
   function cmpBrookX(y) { return 172 - (y - 26) * 0.3 + Math.sin(y / 14) * 5; }
   function cmpBrookPool(x, y) { var a = (x - 130) / 46, b = (y - 162) / 26; return a * a + b * b; }
-  function cmpBrookD(x, y) { var hw = 8 + Math.max(0, y - 26) * 0.05; return Math.min(y < 28 ? 99 : Math.abs(x - cmpBrookX(y)) / hw, cmpBrookPool(x, y)); }
+  function cmpBrookD(x, y) { var hw = 10 + Math.max(0, y - 26) * 0.05; return Math.min(y < 28 ? 99 : Math.abs(x - cmpBrookX(y)) / hw, cmpBrookPool(x, y)); }
   function cmpSeaX(y) { return 96 + Math.sin(y / 19) * 7 + Math.sin(y / 7) * 2 - (y - 26) * 0.05; }
   function cmpSeaD(x, y) { return 1 - (x - cmpSeaX(y)) / 70; }
   var CMP_TRIP_TENT = [6, 46], CMP_TRIP_FIRE = [34, 112];
   // the whole bg (ctx = bg, from background.js paintBg via trnPaintTrip): land, water, trees; tent and fire are drawn live
   function cmpPaintTrip(sc) {
     var site = SCENES[sc].camp, x, y;
-    for (y = 26; y < H; y++) for (x = 0; x < W; x++) {
+    var hx = cmpSeaX(26);
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       var d = wetD(x, y), c;
       if (site === 'valley') {
-        var r = 36 + Math.round(Math.sin(x / 23) * 5 + Math.sin(x / 9 + 1) * 3), pd = cmpBrookPool(x, y);
-        if (y < r && d >= 1) c = (x + y) % 3 === 0 ? 3 : 2;                                                 // the ridge
+        var r = cmpRidgeB(x), pd = cmpBrookPool(x, y);
+        if (y < r && d >= 1) c = trnVista(x, y, r, false);                                                  // sky and the ridge
         else if (d < 1) c = pd < 1 ? (pd < 0.35 ? ((x + y) % 2 ? 2 : 1) : pd > 0.8 ? 2 : (x % 4 === 0 && y % 2 === 0 ? 2 : 1)) : d > 0.75 ? 2 : (y * 2 + x) % 5 === 0 ? 0 : 1;
         else if (d < 1.3) c = (x + y * 3) % 5 === 0 ? 2 : (x * 7 + y) % 13 === 0 ? 3 : 0;                 // pebbles
         else c = hash(x * 131 + y * 7) < 0.05 ? 1 : 0;
+      } else if (y < 26) {                                                                                  // sky, a far headland behind the sand
+        var hy = 18 + Math.round(Math.sin(x / 14) * 3 + Math.sin(x / 5) * 1);
+        c = x < hx - 4 && y >= hy ? (y === hy ? 3 : (x + y) % 3 === 0 ? 2 : 1) : 0;
       } else {
         if (d < 1) c = d > 0.95 ? 2 : d < 0.5 ? ((x + y) % 2 ? 2 : 1) : (x % 4 === 0 && y % 2 === 0) ? 2 : 1;   // the sea
         else if (d < 1.07) c = (x + y) % 3 ? 1 : 2;                                                       // wet sand
@@ -22212,7 +22688,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       }
       px(x, y, 1, 1, c);
     }
-    for (x = 0; x < W; x++) px(x, 26, 1, 1, 3);
+    if (site === 'sea') { for (x = 0; x < W; x++) px(x, 26, 1, 1, 2); cmpSeaSky(); }   // the horizon
     if (site === 'valley') {
       [[70, 60], [96, 50], [122, 62], [178, 100], [176, 142], [172, 200], [84, 200]].forEach(function (t) { trnPine(t[0], t[1], false); });
       [[110, 168], [150, 156], [cmpBrookX(80) - 2, 80], [cmpBrookX(110) + 2, 110]].forEach(function (p) { trnRock(p[0], p[1]); });
@@ -22227,7 +22703,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // live layer (pond.js drawWater → drawTrnWater): sky, moving water, the tent, the fire and its glow, the 물가 팻말
   function cmpDrawTrip(tt) {
     var site = SCENES[scene].camp, t = now(), e = curEnv(t), dark = L.cmpDark(e.phase), mv = !reduceMotion, k, y;
-    drawSky(tt, e.phase);
+    drawSky(tt, e.phase, site === 'valley' ? trnSky('cmpb', cmpRidgeB) : null);
     if (site === 'valley') {
       for (k = 0; k < 20; k++) {                                                             // rapids down the brook
         var yy = 30 + (hash(k * 7 + 3) * 170 + (mv ? tt * 26 : 0)) % 170, xx = cmpBrookX(yy) + (hash(k * 5) - 0.5) * 7;
@@ -22272,7 +22748,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!cmpStay()) return;
     var t = now(), r = L.cmpLight(S, cmpSiteNow(), t, TZ, curEnv(t).phase);
     if (!r.ok) { toast(CMP_WHY[r.why] || '불을 못 피워요', 2200); return; }
-    burst(78, 146, 14, 0, 50);
+    burst(78, 146, 14, 0, 50); sfx('puff');
     toast('모닥불을 피웠다 · 아침까지 타요 · 불을 누르면 굽기', 2600);
     cmpDone();
   }
@@ -22282,6 +22758,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!r) return;
     var it = L.itemInfo(r.id);
     floatText('+' + it.name, 78, 128);
+    sfx(r.burnt ? 'lost' : 'harvest');
     toast(r.burnt ? '앗, 다 타 버렸다 · 탄 음식' : (r.first ? '★ 처음 · ' : '') + it.name + (r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에'), 2200);
     if (!quick || r.first) burst(78, 136, r.burnt ? 4 : 10, r.burnt ? 3 : 0, 30);
     cmpDone();
@@ -22582,6 +23059,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var first = !plcKey;
     plcKey = key;
     if (first || reel || mini || chal || rideOn() || arcOn() || view === 'dive' || view === 'stars') return;
+    sfx('whoosh');
     plcBannerB.textContent = nm;
     plcBannerS.textContent = view === 'farm' ? (PLC_SALT[scene] ? '바다 물고기' : '민물고기') : '';
     plcBannerS.hidden = view !== 'farm';
@@ -22597,7 +23075,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function updateTitle() {
     var away = document.hidden || !document.hasFocus();
     var n = attention();
-    var want = away && n > 0 ? '(' + n + ') 메모' : '메모';
+    var want = away && n > 0 ? '(' + n + ') Pixel Pastoral' : 'Pixel Pastoral';
     if (document.title !== want) document.title = want;
   }
 
@@ -22716,11 +23194,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   function openPip() {
     pipArmed = false; pipHint.hidden = true;
     window.documentPictureInPicture.requestWindow({ width: 360, height: 480 }).then(function (pw) {
-      pipWin = pw; hideA = null;   // auto-PiP opens just after the tab hides: the player is still here
+      pipWin = pw; hideA = null; sndVis();   // auto-PiP opens just after the tab hides: the player is still here
       var st = pw.document.createElement('style');
       st.textContent = Array.prototype.map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
       pw.document.head.appendChild(st);
-      pw.document.title = '메모';
+      pw.document.title = 'Pixel Pastoral';
       var holder = pw.document.createElement('div'); holder.id = 'stage';
       pw.document.body.appendChild(holder);
       holder.appendChild(app);
@@ -22730,7 +23208,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
         stageEl.appendChild(app);
         pipWin = null; curWin = window; pipClosed = true;
         pipBtn.innerHTML = PIP_LABEL + '다시'; pipBtn.title = '다시 작게 띄우기';
-        fit(); startLoop();
+        fit(); startLoop(); sndVis();
         toast('작게 띄운 창을 닫았어요 · 위의 📌 다시', 3200);
       });
     }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
@@ -22752,8 +23230,8 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (performance.now() < swallowClickUntil) { e.preventDefault(); e.stopPropagation(); swallowClickUntil = 0; }
     }, true);
     window.addEventListener('keydown', function (e) {
-      // Esc stays the boss key and P is the toggle itself; bare modifiers are not a decision to open
-      if (!pipArmed || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || isPipKey(e) ||
+      // Esc closes things, P is the toggle itself and M is sound; bare modifiers are not a decision to open
+      if (!pipArmed || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape' || isPipKey(e) || isSndKey(e) ||
           /^(Shift|Control|Alt|Meta|Tab|CapsLock|Process)$/.test(e.key)) return;
       e.preventDefault(); e.stopImmediatePropagation();
       openPip();
@@ -22890,7 +23368,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var ups = []; for (var j = 0; j < (n || 1); j++) ups = ups.concat(L.befriend(S, o).ups);
     refresh(); return ups;
   };
-  globalThis.FF.born = function (daysAgo) { S.born = now() - (daysAgo || 0) * 86400e3; refresh(); return L.farmYear(S, now()); };
+  // 음악: FF.music('night') plays that tune whatever the clock says, FF.music() follows the clock again
+  globalThis.FF.music = function (p) { musForce = p || null; musTick(); return { track: musName, notes: musNotes, lanes: musLanes.length }; };
+  // 환경음: what should play here now (layers with levels, one-shots per second) and the layers actually running
+  globalThis.FF.ambient = function () { var w = ambWant(); ambTick(); return { lay: w.lay, ev: w.ev, live: Object.keys(ambLive) }; };
+  globalThis.FF.born =function (daysAgo) { S.born = now() - (daysAgo || 0) * 86400e3; refresh(); return L.farmYear(S, now()); };
 })();
 </script>
 </body>

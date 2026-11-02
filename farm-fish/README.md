@@ -25,8 +25,9 @@ node --test farm-fish/test/*.test.js    # 빌드 없이 src/에서 바로 테스
 | `ui/sprites.js` | 픽셀 도우미, 스프라이트 |
 | `ui/background.js` | 배치 좌표, 미리 그린 배경 |
 | `ui/hud.js` | 화면 상태, 토스트, 떠오르는 글자, 파티클 |
+| `ui/sound.js` | 소리: Web Audio 효과음 `sfx(name)`, 헤더 스피커 버튼·M 키, 켜고 끄기는 localStorage(세이브 밖) |
 | `ui/tray.js` | 씨앗 트레이 |
-| `ui/input.js` | 포인터·키, 탭 분배, 보스키 |
+| `ui/input.js` | 포인터·키, 탭 분배 |
 | `ui/farm.js` | 밭 탭·틱·그리기 |
 | `ui/pond.js` | 낚시 흐름, 연못 탭·틱·그리기, 마일스톤 장식 |
 | `ui/spots.js`, `ui/weather.js`, `ui/calendar.js`, `calendar.css` | 강·바다 그림·표지판·조건부 물고기·채집물 알림, 날씨·밤 효과와 구석 표시, 달력 패널 |
