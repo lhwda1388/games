@@ -37,5 +37,10 @@ test('no top-level function name is declared twice in the logic or ui block', ()
     while ((f = re.exec(m[1]))) { if (seen[f[1]]) dup.push(f[1]); seen[f[1]] = true; }
     assert.ok(Object.keys(seen).length > 100, id + ': the scan sees the functions');
     assert.deepEqual(dup, [], id);
+    // a top-level `var NAME` with the same name as a function replaces the function too
+    // (music's `var musName = ''` once blanked 박물관's musName() and every 기증 list)
+    const vars = [], vr = /^ {2}var (.*)$/gm, nm = /(?:^|,\s*)([A-Za-z_$][\w$]*)\s*=/g;
+    while ((f = vr.exec(m[1]))) { let v; nm.lastIndex = 0; while ((v = nm.exec(f[1]))) vars.push(v[1]); }
+    assert.deepEqual(vars.filter((v) => seen[v]), [], id + ': var shadows a function');
   }
 });
