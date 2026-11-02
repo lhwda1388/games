@@ -3,7 +3,7 @@
   var pipWin = null, pipClosed = false, pipArmed = false, swallowClickUntil = 0;
   var pipOK = 'documentPictureInPicture' in window && window.top === window;
   var PIP_KEY = 'farmfish.autopip', pipHint = $('pipHint'), pipAuto = $('pipAuto');
-  var PIP_LABEL = '<span class="mono-emoji">📌</span> ';
+  var PIP_LABEL = '<span class="mono-emoji">📌</span>';   // icon only: the header has no room for words
   function autoPip() { try { return localStorage.getItem(PIP_KEY) !== '0'; } catch (e) { return true; } }
   function arm() { pipArmed = pipOK && autoPip() && !pipWin && !pipClosed; pipHint.hidden = !pipArmed; }
   function setAutoPip(on) {
@@ -21,14 +21,14 @@
       var holder = pw.document.createElement('div'); holder.id = 'stage';
       pw.document.body.appendChild(holder);
       holder.appendChild(app);
-      pipBtn.textContent = '돌아가기'; pipBtn.title = '원래 창으로 돌아가기';
+      pipBtn.textContent = '↩'; pipBtn.title = '원래 창으로 돌아가기'; pipBtn.setAttribute('aria-label', pipBtn.title);
       curWin = pw; bindDoc(pw.document, pw); fit(); startLoop();
       pw.addEventListener('pagehide', function () {
         stageEl.appendChild(app);
         pipWin = null; curWin = window; pipClosed = true;
-        pipBtn.innerHTML = PIP_LABEL + '다시'; pipBtn.title = '다시 작게 띄우기';
+        pipBtn.innerHTML = PIP_LABEL; pipBtn.title = '다시 작게 띄우기'; pipBtn.setAttribute('aria-label', pipBtn.title);
         fit(); startLoop(); sndVis();
-        toast('작게 띄운 창을 닫았어요 · 위의 📌 다시', 3200);
+        toast('작게 띄운 창을 닫았어요 · 위의 📌로 다시', 3200);
       });
     }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
   }

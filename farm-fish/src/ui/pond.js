@@ -18,14 +18,14 @@
     reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false, phase: 0, air: 0 };
     reelIntro(res.roll);   // stage 8: a known fish says how it fights; a legend announces a boss fight
     reelHud.hidden = false;
-    dexBtn.disabled = true; shopBtn.disabled = true; bagBtn.disabled = true;
+    dexBtn.disabled = true; shopBtn.disabled = true; bagBtn.disabled = true; setBtn.disabled = true;
     shake = 2;
     burst(f.x, f.y, 10, 0, 60);
     fxStrike(f.x, f.y);   // stage 8 ④: hit-stop + splash
   }
   function endReel(res) {
     reelHud.hidden = true; cueEl.hidden = true;
-    dexBtn.disabled = false; shopBtn.disabled = false; bagBtn.disabled = false;
+    dexBtn.disabled = false; shopBtn.disabled = false; bagBtn.disabled = false; setBtn.disabled = false;
     var f = L.fishById(reelRoll.id);
     if (res === 'caught') {
       var out = L.landFish(S, reelRoll);

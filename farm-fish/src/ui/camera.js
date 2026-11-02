@@ -63,7 +63,7 @@
     if (!own) return;
     camShots = L.shotsNow(camCtx(t));
     var fresh = camShots.some(function (id) { return !S.cam.album[id]; });
-    camBtn.classList.toggle('on', camShots.length > 0);
+    camBtn.classList.toggle('on', fresh);   // VOC: a scene already in the 앨범 no longer blinks (찍어도 남는 게 없음)
     camDot.hidden = !fresh;
     camBtn.setAttribute('aria-label', camShots.length ? (fresh ? '사진 찍기 · 앨범에 없는 장면' : '사진 찍기 · 찍을 만한 순간') : '사진 찍기');
   }

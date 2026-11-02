@@ -1,9 +1,18 @@
   // ---------- 소리: tiny Web Audio synth, no files ----------
   // sfx(name) is a silent no-op before the first pointerdown/keydown (sndWake, bound in bindDoc for the tab and the PiP
   // window), while muted, or without Web Audio. Graph: voices → sndSfx (bus, soft lowpass) → sndMaster → speakers;
-  // the music and ambient buses hang off sndMaster too. The on/off choice lives in localStorage, not in the save.
+  // the music and ambient buses hang off sndMaster too. On/off and 크기 live in localStorage, not in the save.
   var SND_KEY = 'farmfish.sound';
   var sndOn = (function () { try { return localStorage.getItem(SND_KEY) !== '0'; } catch (e) { return true; } })();
+  var SFX_KEY = 'farmfish.sfx';
+  var sfxOn = (function () { try { return localStorage.getItem(SFX_KEY) !== '0'; } catch (e) { return true; } })();
+  // 크기 0–100 per bus (⚙ 설정 sliders), kept before the AudioContext exists and applied when each bus is made.
+  // 100 = the gains the mix was made at; squared so the middle of the slider sounds like the middle.
+  var VOL_KEY = 'farmfish.vol.', VOL = {};
+  ['master', 'sfx', 'music', 'ambient'].forEach(function (k) {
+    var v = null; try { v = localStorage.getItem(VOL_KEY + k); } catch (e) { /* storage blocked: full volume */ }
+    VOL[k] = v !== null && v !== '' && isFinite(+v) ? Math.max(0, Math.min(100, Math.round(+v))) : 100;
+  });
   var sndCtx = null, sndMaster = null, sndSfx = null, sndNoise = null;
   var sndLast = {}, sndAny = -1e9, sndEnds = [];
   var SND_VOICES = 8, SND_GAP = 60, SND_SOFT = 80;
@@ -13,9 +22,9 @@
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { sndOn = false; return; }
       try { sndCtx = new AC(); } catch (e) { sndOn = false; return; }
-      sndMaster = sndCtx.createGain(); sndMaster.gain.value = 0.5; sndMaster.connect(sndCtx.destination);
+      sndMaster = sndCtx.createGain(); sndMaster.gain.value = volBus('master'); sndMaster.connect(sndCtx.destination);
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4500; lp.connect(sndMaster);
-      sndSfx = sndCtx.createGain(); sndSfx.gain.value = 0.8; sndSfx.connect(lp);
+      sndSfx = sndCtx.createGain(); sndSfx.gain.value = volBus('sfx'); sndSfx.connect(lp);
       var n = sndCtx.sampleRate, buf = sndCtx.createBuffer(1, n, n), d = buf.getChannelData(0);
       for (var k = 0; k < n; k++) d[k] = Math.random() * 2 - 1;
       sndNoise = buf;
@@ -105,7 +114,7 @@
   var SND_GAPS = { tick: 150, swim: 700, beep: 300 };
   // soft: a fallback sound (button tap, wallet spend) that stays quiet when something else just played; arg: passed to the sound
   function sfx(name, soft, arg) {
-    if (!sndOn || !sndCtx || sndCtx.state !== 'running' || !SND[name]) return;
+    if (!sndOn || !sfxOn || !sndCtx || sndCtx.state !== 'running' || !SND[name]) return;
     var p = performance.now();
     if (p - (sndLast[name] || -1e9) < (SND_GAPS[name] || SND_GAP)) return;
     if (soft && p - sndAny < SND_SOFT) return;
@@ -238,12 +247,12 @@
     if (!sndCtx || sndCtx.state !== 'running') return;
     if (!sndMus) {
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(sndMaster);
-      sndMus = sndCtx.createGain(); sndMus.gain.value = MUS_BUS; sndMus.connect(lp);
+      sndMus = sndCtx.createGain(); sndMus.gain.value = volBus('music'); sndMus.connect(lp);
     }
     var t = sndCtx.currentTime, want = musOn ? (musForce || curEnv(now()).phase) : '';
     if (want !== musName) musSwitch(want);
     var duck = !!(reel || mini || arcOn());
-    if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(MUS_BUS * (duck ? MUS_DUCK : 1), t, 0.4); }
+    if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(volBus('music'), t, 0.4); }
     musLanes = musLanes.filter(function (ln) {
       if (ln.end + 1 < t) { setTimeout(function () { ln.g.disconnect(); }, 500); return false; }
       if (ln.at < t) ln.at = t + 0.05;   // back from a pause or a stall: carry on from now, never a burst of late notes
@@ -361,7 +370,7 @@
     if (!sndCtx || sndCtx.state !== 'running') return;
     if (!sndAmb) {
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5000; lp.connect(sndMaster);
-      sndAmb = sndCtx.createGain(); sndAmb.gain.value = AMB_BUS; sndAmb.connect(lp);
+      sndAmb = sndCtx.createGain(); sndAmb.gain.value = volBus('ambient'); sndAmb.connect(lp);
       var n = sndCtx.sampleRate * 4, d = (ambNoise = sndCtx.createBuffer(1, n, sndCtx.sampleRate)).getChannelData(0);
       for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     }
@@ -387,22 +396,26 @@
     toast(on ? '환경음 켬' : '환경음 끔', 1600);
   }
 
-  // ---------- on/off: header speaker button, 도감 설정 row, M key ----------
-  var SND_IC = {
-    on:  ['...4...', '..44..4', '4444.44', '4444.44', '4444.44', '..44..4', '...4...'],
-    off: ['...4...', '..44...', '44444.4', '4444.4.', '44444.4', '..44...', '...4...']
-  };
-  var sndBtn = document.createElement('button');
-  sndBtn.type = 'button'; sndBtn.id = 'sndBtn';
-  var sndIcon = document.createElement('canvas'); sndIcon.width = 7; sndIcon.height = 7;
-  sndBtn.appendChild(sndIcon);
-  pipBtn.before(sndBtn);
-  function sndShow() {
-    var c2 = sndIcon.getContext('2d'); c2.clearRect(0, 0, 7, 7); spr(SND_IC[sndOn ? 'on' : 'off'], 0, 0, false, c2);
-    sndBtn.title = sndOn ? '소리 끄기 (M)' : '소리 켜기 (M)';
-    sndBtn.setAttribute('aria-label', sndOn ? '소리 끄기' : '소리 켜기');
-    var cb = dexEl.querySelector('#setSnd'); if (cb) cb.checked = !!sndOn;   // 도감 설정 stays true when M or the button flips it
+  // ---------- 크기: each bus = its mix gain × the slider (music ducking stays on top) ----------
+  function volBus(k) {
+    var g = Math.pow(VOL[k] / 100, 2);
+    return g * (k === 'master' ? 0.5 : k === 'sfx' ? 0.8 : k === 'music' ? MUS_BUS * (musDucked ? MUS_DUCK : 1) : AMB_BUS);
   }
+  function volSet(k, v) {
+    VOL[k] = v;
+    try { localStorage.setItem(VOL_KEY + k, String(v)); } catch (e) { /* storage blocked: setting lasts this session */ }
+    var bus = { master: sndMaster, sfx: sndSfx, music: sndMus, ambient: sndAmb }[k];
+    if (bus) bus.gain.setTargetAtTime(volBus(k), sndCtx.currentTime, 0.05);   // not made yet: picked up when it is
+  }
+  function sfxSet(on) {
+    sfxOn = on;
+    try { localStorage.setItem(SFX_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    toast(on ? '효과음 켬' : '효과음 끔', 1600);
+  }
+
+  // ---------- on/off: ⚙ 설정 「전체」 row, M key ----------
+  // M (or the 설정 row) flips everything; the 설정 checkbox follows (app, not document: it may live in the PiP window)
+  function sndShow() { var cb = app.querySelector('#setSnd'); if (cb) cb.checked = !!sndOn; }
   function sndSet(on) {
     sndOn = on;
     try { localStorage.setItem(SND_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
@@ -411,8 +424,6 @@
     toast(sndOn ? '소리 켬 · M 키로 끄기' : on ? '이 브라우저는 소리를 낼 수 없어요' : '소리 끔 · M 키로 켜기', 1600);
   }
   function sndToggle() { sndSet(!sndOn); }
-  sndBtn.addEventListener('click', sndToggle);
-  sndShow();
   // M on any layout or case: physical KeyM, m/M, or the Korean IME jamo on that key
   function isSndKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false;

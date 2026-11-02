@@ -7,7 +7,7 @@
     [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].forEach(function (tb) {
       var b = document.createElement('button'); b.type = 'button'; b.textContent = tb[1];
       b.setAttribute('aria-pressed', String(dexTab === tb[0]));
-      b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); renderSettings(); decorateDex(); dexEl.scrollTop = 0; });
+      b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); decorateDex(); dexEl.scrollTop = 0; });
       tabs.appendChild(b);
     });
     head.after(tabs);

@@ -62,35 +62,7 @@
       r.appendChild(icon); r.appendChild(n); r.appendChild(v); dexEl.appendChild(r);
     }
   }
-  function renderSettings() {
-    var h3 = document.createElement('h3'); h3.textContent = '설정'; dexEl.appendChild(h3);
-    var sl = document.createElement('label'); sl.className = 'setRow';
-    var sc = document.createElement('input'); sc.type = 'checkbox'; sc.id = 'setSnd'; sc.checked = !!sndOn;
-    sc.addEventListener('change', function () { sndSet(sc.checked); });
-    var st = document.createElement('span'); st.textContent = '소리';
-    var ss = document.createElement('small'); ss.textContent = '위의 스피커 버튼이나 M 키로도 켜고 끄기'; st.appendChild(ss);
-    sl.appendChild(sc); sl.appendChild(st); dexEl.appendChild(sl);
-    var ml = document.createElement('label'); ml.className = 'setRow';
-    var mc = document.createElement('input'); mc.type = 'checkbox'; mc.checked = musOn;
-    mc.addEventListener('change', function () { musSet(mc.checked); });
-    var mt = document.createElement('span'); mt.textContent = '음악';
-    var ms = document.createElement('small'); ms.textContent = '시간마다 바뀌는 배경 음악 · 효과음은 그대로'; mt.appendChild(ms);
-    ml.appendChild(mc); ml.appendChild(mt); dexEl.appendChild(ml);
-    var al = document.createElement('label'); al.className = 'setRow';
-    var ac = document.createElement('input'); ac.type = 'checkbox'; ac.checked = ambOn;
-    ac.addEventListener('change', function () { ambSet(ac.checked); });
-    var at = document.createElement('span'); at.textContent = '환경음';
-    var as = document.createElement('small'); as.textContent = '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요'; at.appendChild(as);
-    al.appendChild(ac); al.appendChild(at); dexEl.appendChild(al);
-    if (!pipOK) return;
-    var lb = document.createElement('label'); lb.className = 'setRow';
-    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
-    cb.addEventListener('change', function () { setAutoPip(cb.checked); });
-    var tx = document.createElement('span'); tx.textContent = '열면 바로 작게 띄우기';
-    var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
-    lb.appendChild(cb); lb.appendChild(tx); dexEl.appendChild(lb);
-  }
-  dexBtn.addEventListener('click', function () { shopEl.hidden = true; bagEl.hidden = true; renderDex(); renderSettings(); dexEl.hidden = false; });
+  dexBtn.addEventListener('click', function () { shopEl.hidden = true; bagEl.hidden = true; renderDex(); dexEl.hidden = false; });
 
   var MS_TOAST = { cat: '도감 5종 · 고양이가 선착장에 놀러 왔다', lantern: '도감 8종 · 연못가에 석등이 켜졌다',
     koi: '황금 수박 · 연못에 금빛 잉어가 산다는 소문', boat: '도감 완성 · 연못에 작은 배가 생겼다',

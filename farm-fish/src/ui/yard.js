@@ -665,7 +665,7 @@
     var f = S.fish;
     if (f.phase === 'bite' && f.roll && f.roll.id !== 'clockfish' && !f.clockChecked) {
       f.clockChecked = true;
-      var cr = L.clockRoll(clockForce ? new Date(2026, 0, 1, 12, 0) : new Date(f.biteAt), Math.random);
+      var cr = L.clockRoll(clockForce ? new Date(2026, 0, 1, 12, 0) : new Date(f.biteAt), Math.random, clockForce ? null : S);
       clockForce = false;
       if (cr) { f.roll = cr; toast('째깍째깍… 연못이 이상하다!', 2400); }
     }
