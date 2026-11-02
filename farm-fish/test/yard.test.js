@@ -274,6 +274,9 @@ test('easter eggs trigger once each: scarecrow, clock fish, 999 radish, midnight
   assert.equal(roll.id, 'clockfish');
   assert.equal(L.newReel(roll, 0).power > 0, true);
   L.landFish(s, roll);
+  // after the first one only 1 bite in 4 at hh:00 is the clock fish (VOC)
+  assert.equal(L.clockRoll(real(16, 0), seq(0.5), s), null);
+  assert.equal(L.clockRoll(real(16, 0), seq(0.1), s).id, 'clockfish');
   assert.deepEqual(L.checkEggs(s, 1, real(15, 1)).map((e) => e.id), ['clockfish']);
   assert.equal(L.availableFish(real(15, 0), s).some((f) => f.id === 'clockfish'), false);
   assert.equal(L.obtainable(s, 'clockfish'), false);

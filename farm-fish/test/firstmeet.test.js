@@ -27,26 +27,26 @@ function share(id, d, s, env) {
 }
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, (msg || '') + ' ' + a.toFixed(3) + ' vs ' + b);
 
-test('점심 붕어 is ~40% of the 연못 pool at 12:30, caught or not, whatever the season', () => {
+test('점심 붕어 is ~25% of the 연못 pool at 12:30, caught or not, whatever the season', () => {
   for (const season of ['spring', 'summer', 'autumn', 'winter']) {
-    near(share('lunch', WED(12, 30), st('pond'), E('day', 'clear', season)), 0.4, 0.001, season);
-    near(share('lunch', WED(12, 30), st('pond', { caught: true }), E('day', 'clear', season)), 0.4, 0.001, season + ' caught');
+    near(share('lunch', WED(12, 30), st('pond'), E('day', 'clear', season)), 0.25, 0.001, season);
+    near(share('lunch', WED(12, 30), st('pond', { caught: true }), E('day', 'clear', season)), 0.25, 0.001, season + ' caught');
   }
   // the roll agrees with the weights
   const s = st('pond', { caught: true });
   let i = 0, n = 0; const r = () => ((i = (i * 1103515245 + 12345) % 2147483648) / 2147483648);
   for (let k = 0; k < 20000; k++) if (L.rollFish(WED(12, 30), r, s, E('day')).id === 'lunch') n++;
-  near(n / 20000, 0.4, 0.02, 'rolled');
+  near(n / 20000, 0.25, 0.02, 'rolled');
 });
 
-test('퇴근 참치 is ~20% on Friday 17:30; bait raises both but never past 55%', () => {
+test('퇴근 참치 is ~20% on Friday 17:30; bait raises both but never past 40%', () => {
   near(share('tuna', FRI(17, 30), st('pond'), E('evening')), 0.2, 0.001);
   near(share('tuna', FRI(17, 30), st('pond', { caught: true }), E('evening')), 0.2, 0.001);
   const lunch3 = share('lunch', WED(12, 30), st('pond', { bait: 3 }), E('day'));
   const tuna3 = share('tuna', FRI(17, 30), st('pond', { bait: 3 }), E('evening'));
-  assert.ok(lunch3 > 0.4 && lunch3 <= 0.55 + 1e-9, 'lunch bait3 ' + lunch3);
-  assert.ok(tuna3 > 0.2 && tuna3 <= 0.55 + 1e-9, 'tuna bait3 ' + tuna3);
-  assert.ok(share('lunch', WED(12, 30), st('pond', { bait: 1 }), E('day')) > 0.4);
+  assert.ok(lunch3 > 0.25 && lunch3 <= 0.4 + 1e-9, 'lunch bait3 ' + lunch3);
+  assert.ok(tuna3 > 0.2 && tuna3 <= 0.4 + 1e-9, 'tuna bait3 ' + tuna3);
+  assert.ok(share('lunch', WED(12, 30), st('pond', { bait: 1 }), E('day')) > 0.25);
 });
 
 test('outside their windows the lunch/friday fish are gone and nothing is boosted', () => {
@@ -94,7 +94,7 @@ test('unlock-only 금빛 잉어 and the egg 시계 물고기 are untouched', () 
 });
 
 test('rollFish without s still works (no boost, share kept)', () => {
-  near(share('lunch', WED(12, 30), undefined, E('day')), 0.4, 0.001);
+  near(share('lunch', WED(12, 30), undefined, E('day')), 0.25, 0.001);
   assert.ok(L.rollFish(WED(12, 30), () => 0.5, undefined, E('day')).id);
 });
 

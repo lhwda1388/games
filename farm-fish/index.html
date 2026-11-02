@@ -31,10 +31,11 @@ body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
 .coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
 #coins{font:700 14px var(--mono);min-width:44px;letter-spacing:.02em;white-space:nowrap}
 .spacer{flex:1}
-#sndBtn{display:flex;align-items:center;padding:3px 5px}
-#sndBtn canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
-/* a header chip (입질 폭풍·온천욕) needs the room: the speaker steps aside, M and 도감 설정 still work */
-#hud:has(#boomChip:not([hidden])) #sndBtn,#hud:has(#trnBathChip:not([hidden])) #sndBtn{display:none}
+#setBtn{display:flex;align-items:center;padding:3px 5px}
+#setBtn canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
+/* a header chip (입질 폭풍·온천욕) needs room: gaps and button sides tighten so ⚙ never has to step aside */
+#hud:has(#boomChip:not([hidden]),#trnBathChip:not([hidden])){gap:3px}
+#hud:has(#boomChip:not([hidden]),#trnBathChip:not([hidden])) button{padding-left:4px;padding-right:4px}
 .mono-emoji{filter:grayscale(1) contrast(1.2)}
 button{font:700 12px var(--font);color:var(--g4);background:var(--g0);border:2px solid var(--g4);border-radius:0;
   padding:3px 7px;box-shadow:0 2px 0 var(--g4);cursor:pointer;white-space:nowrap;line-height:1.2}
@@ -84,7 +85,7 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
   transform:translate(-50%,0);animation:up 1.1s var(--ease-out) forwards;white-space:nowrap}
 @keyframes up{to{transform:translate(-50%,-26px);opacity:0}}
 .overlay{position:absolute;inset:0;background:var(--g0);z-index:5;overflow:auto;box-sizing:border-box}
-#dex,#shop,#bag{padding:10px 12px 14px}
+#dex,#shop,#bag,#set{padding:10px 12px 14px}
 #bagBtn{display:flex;align-items:center;gap:3px;font-family:var(--mono);position:relative}
 #bagBtn canvas{width:20px;height:16px;image-rendering:pixelated;flex:none}
 #bagBtn .dot{position:absolute;right:-4px;top:-4px;width:7px;height:7px;background:var(--g4);border:1px solid var(--g0)}
@@ -146,6 +147,24 @@ button:disabled{color:var(--g2);border-color:var(--g2);box-shadow:0 2px 0 var(--
 .setRow small{display:block;font:400 10px var(--font);color:var(--g3)}
 input[type=checkbox]{accent-color:var(--g4);width:14px;height:14px;margin:0}
 input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
+/* ⚙ 설정: one sound row = on/off label, then a pixel 크기 slider (track fills to --p) and its 「70%」 */
+.setVol{border-bottom:1px dashed var(--g2);padding-bottom:6px}
+.setVol .setRow{padding-bottom:2px}
+.vol{display:flex;align-items:center;gap:8px;padding-left:20px}
+.vol output{font:700 11px var(--mono);min-width:34px;text-align:right}
+.setVol:has(input[type=checkbox]:not(:checked)) .vol{opacity:.45}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:20px;margin:0;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border:2px solid var(--g4);background:linear-gradient(to right,var(--g3) var(--p,100%),var(--g1) var(--p,100%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:10px;height:16px;margin-top:-7px;background:var(--g4);border:2px solid var(--g0);box-shadow:0 0 0 2px var(--g4)}
+input[type=range]::-moz-range-track{height:6px;border:2px solid var(--g4);background:var(--g1)}
+input[type=range]::-moz-range-progress{height:6px;background:var(--g3)}
+input[type=range]::-moz-range-thumb{box-sizing:border-box;width:10px;height:16px;border-radius:0;background:var(--g4);border:2px solid var(--g0);box-shadow:0 0 0 2px var(--g4)}
+input[type=range]:hover::-webkit-slider-thumb{background:var(--g3)}
+input[type=range]:hover::-moz-range-thumb{background:var(--g3)}
+input[type=range]:active::-webkit-slider-thumb{background:var(--g2)}
+input[type=range]:active::-moz-range-thumb{background:var(--g2)}
+input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){ .float,.bar.hot,#tray button.shake,#reelCue.loud{animation:none} #toast{transition:none} }
 /* stage 8 ④ 이펙트: a stamp lands in three hard steps (pixel feel, no easing blur); coins flying to the wallet in panels */
@@ -404,7 +423,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     <button id="bagBtn" type="button" aria-label="바구니와 주문"></button>
     <button id="shopBtn" type="button">상점</button>
     <button id="dexBtn" type="button">도감</button>
-    <button id="pipBtn" type="button" title="작게 띄우기" hidden><span class="mono-emoji">📌</span> 작게</button>
+    <button id="pipBtn" type="button" title="작게 띄우기" aria-label="작게 띄우기" hidden><span class="mono-emoji">📌</span></button>
   </header>
   <canvas id="cv" width="180" height="200" aria-label="농장과 연못"></canvas>
   <button id="clockBtn" type="button" aria-label="달력 열기"></button>
@@ -421,6 +440,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   <section id="shop" class="overlay" hidden aria-label="상점"></section>
   <section id="bag" class="overlay" hidden aria-label="바구니와 주문"></section>
   <section id="cal" class="overlay" hidden aria-label="달력과 낚시터"></section>
+  <section id="set" class="overlay" hidden aria-label="설정"></section>
 </div></div>
 <div id="pipHint" hidden role="status">
   <p>아무 곳이나 클릭하면 작게 떠요</p>
@@ -700,13 +720,13 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'crucian', name: '붕어',     rarity: '흔함',    w: 34, min: 14, max: 32,  power: 1.0,  price: 28 },
     { id: 'catfish', name: '메기',     rarity: '드묾',    w: 16, min: 30, max: 72,  power: 1.3,  price: 70 },
     { id: 'carp',    name: '비단잉어', rarity: '희귀',    w: 7,  min: 40, max: 90,  power: 1.6,  price: 160 },
-    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.4, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
+    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.25, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
     { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.4,  price: 1200, window: 'friday', share: 0.2 },
     { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 2.2,  price: 600, unlock: 'koi' },
     // 강 (river). phase = game-clock time of day, weather = weatherAt(), season = game season (stage 4 adds seasonal fish)
     { id: 'dace',      name: '갈겨니',   rarity: '흔함', w: 40, min: 8,  max: 18,  power: 0.9, price: 30,   spot: 'river', hint: '여울에 흔한 작은 물고기' },
     { id: 'chub',      name: '끄리',     rarity: '흔함', w: 30, min: 15, max: 35,  power: 1.1, price: 50,   spot: 'river', hint: '여울을 떼 지어 다닌다' },
-    { id: 'loach',     name: '미꾸라지', rarity: '흔함', w: 30, min: 8,  max: 18,  power: 0.8, price: 60,   spot: 'river', weather: 'rain', hint: '비가 오면 진흙에서 나온다' },
+    { id: 'loach',     name: '미꾸라지', rarity: '흔함', w: 18, min: 8,  max: 18,  power: 0.8, price: 60,   spot: 'river', weather: 'rain', hint: '비가 오면 진흙에서 나온다' },
     { id: 'trout',     name: '산천어',   rarity: '드묾', w: 18, min: 18, max: 40,  power: 1.3, price: 150,  spot: 'river', phase: ['morning'], hint: '맑은 아침 물에서' },
     { id: 'eel',       name: '뱀장어',   rarity: '드묾', w: 16, min: 40, max: 90,  power: 1.5, price: 220,  spot: 'river', phase: ['night'], hint: '밤이 되면 돌 틈에서 나온다' },
     { id: 'bass',      name: '배스',     rarity: '드묾', w: 16, min: 25, max: 55,  power: 1.4, price: 160,  spot: 'river', weather: 'fog', hint: '안개 낀 날 겁 없이 문다' },
@@ -752,7 +772,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   }
   // 첫 만남 보정: a time/weather/season/festival fish not caught yet bites more often while its condition holds.
   // Unlock-only fish (금빛 잉어) and the egg 시계 물고기 are left alone.
-  var FIRST_MUL = 2.5, FIRST_MUL_LEGEND = 3, POOL_SHARE_MAX = 0.55;
+  var FIRST_MUL = 2.5, FIRST_MUL_LEGEND = 3, POOL_SHARE_MAX = 0.4;
   function firstMeet(s, f) {
     return !!(s && s.dex && s.dex.fish && !s.dex.fish[f.id] && !f.unlock && !f.egg && (f.window || isConditional(f)));
   }
@@ -1900,9 +1920,11 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     g.scare = 0;
     return { n: 10, egg: findEgg(s, 'scarecrow', now) };
   }
-  // the bite landed at real hh:00 → it's the clock fish
-  function clockRoll(d, rng) {
+  // the bite landed at real hh:00 → the clock fish: always the first time (the egg), then 1 bite in CLOCK_AGAIN (VOC: 정각엔 이것만 나옴)
+  var CLOCK_AGAIN = 0.25;
+  function clockRoll(d, rng, s) {
     if (d.getMinutes() !== 0) return null;
+    if (s && s.dex && s.dex.fish && s.dex.fish.clockfish && rng() >= CLOCK_AGAIN) return null;
     var f = fishById('clockfish');
     return { id: f.id, size: Math.round((f.min + (f.max - f.min) * rng()) * 10) / 10 };
   }
@@ -2223,7 +2245,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // goes over BANK_CAP (putting in stops there, and interest stops there too). A clock set back pays nothing.
   // s.bank = { c: balance, d: local day last settled, i: interest earned so far } is made on the first deposit.
   var BANK_RATE = 0.02;       // per real day
-  var BANK_CAP = 300000;      // most coins the bank holds (6,000 a day at most: about a tenth of a day's play)
+  var BANK_CAP = 1000000;     // most coins the bank holds (20,000 a day at most: about a third of a day's play)
   var BANK_CATCHUP = 7;       // most days of interest paid at once
 
   function bankBal(s) { return s.bank ? s.bank.c : 0; }
@@ -8630,7 +8652,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     { id: 'friend', name: '친구 기록', how: '도감 친구 탭 · 내 기록 코드를 복사해 친구 기록과 나란히', lock: '' },
     { id: 'move', name: '세이브 옮기기', how: '도감 친구 탭 · 세이브를 복사해 카톡·메모장에 두면 백업, 다른 기기에서 붙여 넣고 불러오기 두 번이면 이어 하기', lock: '' },
     { id: 'pip', name: '작게 띄우기', how: '작게 버튼이나 P 키로 작은 창 · 다른 일을 하면서 곁에 띄워 두기', lock: '' },
-    { id: 'sound', name: '소리', how: '위의 스피커 버튼이나 M 키로 소리 켜기·끄기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음 · 도감 설정에서 음악·환경음 따로 끄기', lock: '' },
+    { id: 'sound', name: '소리', how: '위의 ⚙ 설정에서 전체·효과음·음악·환경음 크기와 켜기·끄기 · M 키로 바로 끄고 켜기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음', lock: '' },
     { id: 'forest', name: '숲', how: '돋아난 것을 눌러 채집 · 꾹 누르면 도전 · 철마다 다른 것이 돋는다', lock: '★' + FOREST_REP + ' · 숲 표지판에서 ' + won(FOREST_COST) },
     { id: 'pet', name: '반려동물', how: '쓰다듬으면 친밀도 · 하루 몇 번 선물 · 숲에서 킁킁 찾아 준다', lock: '상점 입양 · 강아지 ' + won(PET_KINDS.dog.cost) + ' · 고양이는 ' + PET_CAT_VISITS + '번 놀러 오면' },
     { id: 'orchard', name: '과수원', how: '빈 자리를 눌러 묘목 심기 · 다 자란 나무는 제철마다 열매', lock: '★' + ORCHARD_REP + ' · 과수원 팻말에서 ' + won(ORCHARD_COST) },
@@ -9466,9 +9488,18 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   // ---------- 소리: tiny Web Audio synth, no files ----------
   // sfx(name) is a silent no-op before the first pointerdown/keydown (sndWake, bound in bindDoc for the tab and the PiP
   // window), while muted, or without Web Audio. Graph: voices → sndSfx (bus, soft lowpass) → sndMaster → speakers;
-  // the music and ambient buses hang off sndMaster too. The on/off choice lives in localStorage, not in the save.
+  // the music and ambient buses hang off sndMaster too. On/off and 크기 live in localStorage, not in the save.
   var SND_KEY = 'farmfish.sound';
   var sndOn = (function () { try { return localStorage.getItem(SND_KEY) !== '0'; } catch (e) { return true; } })();
+  var SFX_KEY = 'farmfish.sfx';
+  var sfxOn = (function () { try { return localStorage.getItem(SFX_KEY) !== '0'; } catch (e) { return true; } })();
+  // 크기 0–100 per bus (⚙ 설정 sliders), kept before the AudioContext exists and applied when each bus is made.
+  // 100 = the gains the mix was made at; squared so the middle of the slider sounds like the middle.
+  var VOL_KEY = 'farmfish.vol.', VOL = {};
+  ['master', 'sfx', 'music', 'ambient'].forEach(function (k) {
+    var v = null; try { v = localStorage.getItem(VOL_KEY + k); } catch (e) { /* storage blocked: full volume */ }
+    VOL[k] = v !== null && v !== '' && isFinite(+v) ? Math.max(0, Math.min(100, Math.round(+v))) : 100;
+  });
   var sndCtx = null, sndMaster = null, sndSfx = null, sndNoise = null;
   var sndLast = {}, sndAny = -1e9, sndEnds = [];
   var SND_VOICES = 8, SND_GAP = 60, SND_SOFT = 80;
@@ -9478,9 +9509,9 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { sndOn = false; return; }
       try { sndCtx = new AC(); } catch (e) { sndOn = false; return; }
-      sndMaster = sndCtx.createGain(); sndMaster.gain.value = 0.5; sndMaster.connect(sndCtx.destination);
+      sndMaster = sndCtx.createGain(); sndMaster.gain.value = volBus('master'); sndMaster.connect(sndCtx.destination);
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4500; lp.connect(sndMaster);
-      sndSfx = sndCtx.createGain(); sndSfx.gain.value = 0.8; sndSfx.connect(lp);
+      sndSfx = sndCtx.createGain(); sndSfx.gain.value = volBus('sfx'); sndSfx.connect(lp);
       var n = sndCtx.sampleRate, buf = sndCtx.createBuffer(1, n, n), d = buf.getChannelData(0);
       for (var k = 0; k < n; k++) d[k] = Math.random() * 2 - 1;
       sndNoise = buf;
@@ -9570,7 +9601,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var SND_GAPS = { tick: 150, swim: 700, beep: 300 };
   // soft: a fallback sound (button tap, wallet spend) that stays quiet when something else just played; arg: passed to the sound
   function sfx(name, soft, arg) {
-    if (!sndOn || !sndCtx || sndCtx.state !== 'running' || !SND[name]) return;
+    if (!sndOn || !sfxOn || !sndCtx || sndCtx.state !== 'running' || !SND[name]) return;
     var p = performance.now();
     if (p - (sndLast[name] || -1e9) < (SND_GAPS[name] || SND_GAP)) return;
     if (soft && p - sndAny < SND_SOFT) return;
@@ -9703,12 +9734,12 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!sndCtx || sndCtx.state !== 'running') return;
     if (!sndMus) {
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(sndMaster);
-      sndMus = sndCtx.createGain(); sndMus.gain.value = MUS_BUS; sndMus.connect(lp);
+      sndMus = sndCtx.createGain(); sndMus.gain.value = volBus('music'); sndMus.connect(lp);
     }
     var t = sndCtx.currentTime, want = musOn ? (musForce || curEnv(now()).phase) : '';
     if (want !== musName) musSwitch(want);
     var duck = !!(reel || mini || arcOn());
-    if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(MUS_BUS * (duck ? MUS_DUCK : 1), t, 0.4); }
+    if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(volBus('music'), t, 0.4); }
     musLanes = musLanes.filter(function (ln) {
       if (ln.end + 1 < t) { setTimeout(function () { ln.g.disconnect(); }, 500); return false; }
       if (ln.at < t) ln.at = t + 0.05;   // back from a pause or a stall: carry on from now, never a burst of late notes
@@ -9826,7 +9857,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!sndCtx || sndCtx.state !== 'running') return;
     if (!sndAmb) {
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5000; lp.connect(sndMaster);
-      sndAmb = sndCtx.createGain(); sndAmb.gain.value = AMB_BUS; sndAmb.connect(lp);
+      sndAmb = sndCtx.createGain(); sndAmb.gain.value = volBus('ambient'); sndAmb.connect(lp);
       var n = sndCtx.sampleRate * 4, d = (ambNoise = sndCtx.createBuffer(1, n, sndCtx.sampleRate)).getChannelData(0);
       for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     }
@@ -9852,22 +9883,26 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     toast(on ? '환경음 켬' : '환경음 끔', 1600);
   }
 
-  // ---------- on/off: header speaker button, 도감 설정 row, M key ----------
-  var SND_IC = {
-    on:  ['...4...', '..44..4', '4444.44', '4444.44', '4444.44', '..44..4', '...4...'],
-    off: ['...4...', '..44...', '44444.4', '4444.4.', '44444.4', '..44...', '...4...']
-  };
-  var sndBtn = document.createElement('button');
-  sndBtn.type = 'button'; sndBtn.id = 'sndBtn';
-  var sndIcon = document.createElement('canvas'); sndIcon.width = 7; sndIcon.height = 7;
-  sndBtn.appendChild(sndIcon);
-  pipBtn.before(sndBtn);
-  function sndShow() {
-    var c2 = sndIcon.getContext('2d'); c2.clearRect(0, 0, 7, 7); spr(SND_IC[sndOn ? 'on' : 'off'], 0, 0, false, c2);
-    sndBtn.title = sndOn ? '소리 끄기 (M)' : '소리 켜기 (M)';
-    sndBtn.setAttribute('aria-label', sndOn ? '소리 끄기' : '소리 켜기');
-    var cb = dexEl.querySelector('#setSnd'); if (cb) cb.checked = !!sndOn;   // 도감 설정 stays true when M or the button flips it
+  // ---------- 크기: each bus = its mix gain × the slider (music ducking stays on top) ----------
+  function volBus(k) {
+    var g = Math.pow(VOL[k] / 100, 2);
+    return g * (k === 'master' ? 0.5 : k === 'sfx' ? 0.8 : k === 'music' ? MUS_BUS * (musDucked ? MUS_DUCK : 1) : AMB_BUS);
   }
+  function volSet(k, v) {
+    VOL[k] = v;
+    try { localStorage.setItem(VOL_KEY + k, String(v)); } catch (e) { /* storage blocked: setting lasts this session */ }
+    var bus = { master: sndMaster, sfx: sndSfx, music: sndMus, ambient: sndAmb }[k];
+    if (bus) bus.gain.setTargetAtTime(volBus(k), sndCtx.currentTime, 0.05);   // not made yet: picked up when it is
+  }
+  function sfxSet(on) {
+    sfxOn = on;
+    try { localStorage.setItem(SFX_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    toast(on ? '효과음 켬' : '효과음 끔', 1600);
+  }
+
+  // ---------- on/off: ⚙ 설정 「전체」 row, M key ----------
+  // M (or the 설정 row) flips everything; the 설정 checkbox follows (app, not document: it may live in the PiP window)
+  function sndShow() { var cb = app.querySelector('#setSnd'); if (cb) cb.checked = !!sndOn; }
   function sndSet(on) {
     sndOn = on;
     try { localStorage.setItem(SND_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
@@ -9876,8 +9911,6 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     toast(sndOn ? '소리 켬 · M 키로 끄기' : on ? '이 브라우저는 소리를 낼 수 없어요' : '소리 끔 · M 키로 켜기', 1600);
   }
   function sndToggle() { sndSet(!sndOn); }
-  sndBtn.addEventListener('click', sndToggle);
-  sndShow();
   // M on any layout or case: physical KeyM, m/M, or the Korean IME jamo on that key
   function isSndKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false;
@@ -10017,6 +10050,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (e.key === 'Escape') {
       e.preventDefault();
       if (closeSceneMenu()) { sceneBtn.focus(); return; }   // Esc first closes the 이동 list
+      if (!setEl.hidden) { setEl.hidden = true; setBtn.focus(); return; }   // then the 설정 panel
       closePick();     // Esc cancels 옮기기
       return;
     }
@@ -10034,7 +10068,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
-      else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden) {
+      else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden && setEl.hidden) {
         if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
         L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k), curEnv(now()));
@@ -10283,14 +10317,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false, phase: 0, air: 0 };
     reelIntro(res.roll);   // stage 8: a known fish says how it fights; a legend announces a boss fight
     reelHud.hidden = false;
-    dexBtn.disabled = true; shopBtn.disabled = true; bagBtn.disabled = true;
+    dexBtn.disabled = true; shopBtn.disabled = true; bagBtn.disabled = true; setBtn.disabled = true;
     shake = 2;
     burst(f.x, f.y, 10, 0, 60);
     fxStrike(f.x, f.y);   // stage 8 ④: hit-stop + splash
   }
   function endReel(res) {
     reelHud.hidden = true; cueEl.hidden = true;
-    dexBtn.disabled = false; shopBtn.disabled = false; bagBtn.disabled = false;
+    dexBtn.disabled = false; shopBtn.disabled = false; bagBtn.disabled = false; setBtn.disabled = false;
     var f = L.fishById(reelRoll.id);
     if (res === 'caught') {
       var out = L.landFish(S, reelRoll);
@@ -11409,35 +11443,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       r.appendChild(icon); r.appendChild(n); r.appendChild(v); dexEl.appendChild(r);
     }
   }
-  function renderSettings() {
-    var h3 = document.createElement('h3'); h3.textContent = '설정'; dexEl.appendChild(h3);
-    var sl = document.createElement('label'); sl.className = 'setRow';
-    var sc = document.createElement('input'); sc.type = 'checkbox'; sc.id = 'setSnd'; sc.checked = !!sndOn;
-    sc.addEventListener('change', function () { sndSet(sc.checked); });
-    var st = document.createElement('span'); st.textContent = '소리';
-    var ss = document.createElement('small'); ss.textContent = '위의 스피커 버튼이나 M 키로도 켜고 끄기'; st.appendChild(ss);
-    sl.appendChild(sc); sl.appendChild(st); dexEl.appendChild(sl);
-    var ml = document.createElement('label'); ml.className = 'setRow';
-    var mc = document.createElement('input'); mc.type = 'checkbox'; mc.checked = musOn;
-    mc.addEventListener('change', function () { musSet(mc.checked); });
-    var mt = document.createElement('span'); mt.textContent = '음악';
-    var ms = document.createElement('small'); ms.textContent = '시간마다 바뀌는 배경 음악 · 효과음은 그대로'; mt.appendChild(ms);
-    ml.appendChild(mc); ml.appendChild(mt); dexEl.appendChild(ml);
-    var al = document.createElement('label'); al.className = 'setRow';
-    var ac = document.createElement('input'); ac.type = 'checkbox'; ac.checked = ambOn;
-    ac.addEventListener('change', function () { ambSet(ac.checked); });
-    var at = document.createElement('span'); at.textContent = '환경음';
-    var as = document.createElement('small'); as.textContent = '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요'; at.appendChild(as);
-    al.appendChild(ac); al.appendChild(at); dexEl.appendChild(al);
-    if (!pipOK) return;
-    var lb = document.createElement('label'); lb.className = 'setRow';
-    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
-    cb.addEventListener('change', function () { setAutoPip(cb.checked); });
-    var tx = document.createElement('span'); tx.textContent = '열면 바로 작게 띄우기';
-    var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
-    lb.appendChild(cb); lb.appendChild(tx); dexEl.appendChild(lb);
-  }
-  dexBtn.addEventListener('click', function () { shopEl.hidden = true; bagEl.hidden = true; renderDex(); renderSettings(); dexEl.hidden = false; });
+  dexBtn.addEventListener('click', function () { shopEl.hidden = true; bagEl.hidden = true; renderDex(); dexEl.hidden = false; });
 
   var MS_TOAST = { cat: '도감 5종 · 고양이가 선착장에 놀러 왔다', lantern: '도감 8종 · 연못가에 석등이 켜졌다',
     koi: '황금 수박 · 연못에 금빛 잉어가 산다는 소문', boat: '도감 완성 · 연못에 작은 배가 생겼다',
@@ -11447,6 +11453,61 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (got.length) setTimeout(function () { toast('★ ' + MS_TOAST[got[got.length - 1]], 4000); fxStamp(toastEl); }, 1400);   // stage 8 ④: stamp
   }
 
+  // ---------- 설정: ⚙ in the header → one panel: 전체·효과음·음악·환경음 on/off + 크기, 작게 띄우기 ----------
+  // Everything here lives in localStorage (sound.js, pip.js), never in the save. M stays the quick 전체 on/off (sndShow
+  // keeps #setSnd in step). The panel sits inside #app like 도감, so it travels into the PiP window too.
+  var setEl = $('set'), setBtn = document.createElement('button');
+  setBtn.type = 'button'; setBtn.id = 'setBtn'; setBtn.title = '설정'; setBtn.setAttribute('aria-label', '설정');
+  var setIcon = document.createElement('canvas'); setIcon.width = 7; setIcon.height = 7;
+  setBtn.appendChild(setIcon);
+  pipBtn.before(setBtn);
+  spr(['..4.4..', '.44444.', '444.444', '44...44', '444.444', '.44444.', '..4.4..'], 0, 0, false, setIcon.getContext('2d'));
+  var setPing = 0;
+  function renderSet() {
+    setEl.innerHTML = '';
+    var h = document.createElement('h2'); h.textContent = '설정';
+    var close = document.createElement('button'); close.type = 'button'; close.textContent = '닫기';
+    close.addEventListener('click', function () { setEl.hidden = true; setBtn.focus(); });
+    h.appendChild(close); setEl.appendChild(h);
+    var h3 = document.createElement('h3'); h3.textContent = '소리'; setEl.appendChild(h3);
+    setVolRow('setSnd', sndOn, '전체', 'M 키로 바로 끄고 켜기', sndSet, 'master');
+    setVolRow('setSfx', sfxOn, '효과음', '낚시·수확·버튼 소리 · 끌어 보면 들려요', sfxSet, 'sfx');
+    setVolRow('setMus', musOn, '음악', '시간마다 바뀌는 배경 음악', musSet, 'music');
+    setVolRow('setAmb', ambOn, '환경음', '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요', ambSet, 'ambient');
+    if (!pipOK) return;
+    h3 = document.createElement('h3'); h3.textContent = '작은 창'; setEl.appendChild(h3);
+    var lb = document.createElement('label'); lb.className = 'setRow';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
+    cb.addEventListener('change', function () { setAutoPip(cb.checked); });
+    var tx = document.createElement('span'); tx.textContent = '열면 바로 작게 띄우기';
+    var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
+    lb.appendChild(cb); lb.appendChild(tx); setEl.appendChild(lb);
+  }
+  // one sound row: on/off checkbox, then its 크기 slider (0–100, step 5) with the value as 「70%」
+  function setVolRow(id, on, name, sub, set, k) {
+    var box = document.createElement('div'); box.className = 'setVol';
+    var lb = document.createElement('label'); lb.className = 'setRow';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = id; cb.checked = !!on;
+    cb.addEventListener('change', function () { set(cb.checked); });
+    var tx = document.createElement('span'); tx.textContent = name;
+    var sm = document.createElement('small'); sm.textContent = sub; tx.appendChild(sm);
+    lb.appendChild(cb); lb.appendChild(tx); box.appendChild(lb);
+    var row = document.createElement('div'); row.className = 'vol';
+    var rl = document.createElement('label'); rl.className = 'vh'; rl.htmlFor = id + 'Vol'; rl.textContent = name + ' 크기';
+    var rg = document.createElement('input'); rg.type = 'range'; rg.id = id + 'Vol'; rg.min = '0'; rg.max = '100'; rg.step = '5'; rg.value = String(VOL[k]);
+    var out = document.createElement('output'); out.setAttribute('for', rg.id);
+    function show() { var p = rg.value + '%'; out.textContent = p; rg.setAttribute('aria-valuetext', p); rg.style.setProperty('--p', p); }
+    rg.addEventListener('input', function () {
+      volSet(k, +rg.value); show();
+      if (k === 'sfx' && performance.now() - setPing > 150) { setPing = performance.now(); sfx('coin'); }   // hear the level while dragging
+    });
+    show();
+    row.appendChild(rl); row.appendChild(rg); row.appendChild(out); box.appendChild(row); setEl.appendChild(box);
+  }
+  setBtn.addEventListener('click', function () {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    renderSet(); setEl.hidden = false; setEl.scrollTop = 0;
+  });
   // ---------- 상점 ----------
   function pct(x) { return Math.round(x * 100) + '%'; }
   var SHOP = {
@@ -12484,7 +12545,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     var f = S.fish;
     if (f.phase === 'bite' && f.roll && f.roll.id !== 'clockfish' && !f.clockChecked) {
       f.clockChecked = true;
-      var cr = L.clockRoll(clockForce ? new Date(2026, 0, 1, 12, 0) : new Date(f.biteAt), Math.random);
+      var cr = L.clockRoll(clockForce ? new Date(2026, 0, 1, 12, 0) : new Date(f.biteAt), Math.random, clockForce ? null : S);
       clockForce = false;
       if (cr) { f.roll = cr; toast('째깍째깍… 연못이 이상하다!', 2400); }
     }
@@ -13150,7 +13211,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].forEach(function (tb) {
       var b = document.createElement('button'); b.type = 'button'; b.textContent = tb[1];
       b.setAttribute('aria-pressed', String(dexTab === tb[0]));
-      b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); renderSettings(); decorateDex(); dexEl.scrollTop = 0; });
+      b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); decorateDex(); dexEl.scrollTop = 0; });
       tabs.appendChild(b);
     });
     head.after(tabs);
@@ -15971,7 +16032,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
     if (!own) return;
     camShots = L.shotsNow(camCtx(t));
     var fresh = camShots.some(function (id) { return !S.cam.album[id]; });
-    camBtn.classList.toggle('on', camShots.length > 0);
+    camBtn.classList.toggle('on', fresh);   // VOC: a scene already in the 앨범 no longer blinks (찍어도 남는 게 없음)
     camDot.hidden = !fresh;
     camBtn.setAttribute('aria-label', camShots.length ? (fresh ? '사진 찍기 · 앨범에 없는 장면' : '사진 찍기 · 찍을 만한 순간') : '사진 찍기');
   }
@@ -23184,7 +23245,7 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
   var pipWin = null, pipClosed = false, pipArmed = false, swallowClickUntil = 0;
   var pipOK = 'documentPictureInPicture' in window && window.top === window;
   var PIP_KEY = 'farmfish.autopip', pipHint = $('pipHint'), pipAuto = $('pipAuto');
-  var PIP_LABEL = '<span class="mono-emoji">📌</span> ';
+  var PIP_LABEL = '<span class="mono-emoji">📌</span>';   // icon only: the header has no room for words
   function autoPip() { try { return localStorage.getItem(PIP_KEY) !== '0'; } catch (e) { return true; } }
   function arm() { pipArmed = pipOK && autoPip() && !pipWin && !pipClosed; pipHint.hidden = !pipArmed; }
   function setAutoPip(on) {
@@ -23202,14 +23263,14 @@ input[type=checkbox]:focus-visible{outline:2px dashed var(--g4);outline-offset:2
       var holder = pw.document.createElement('div'); holder.id = 'stage';
       pw.document.body.appendChild(holder);
       holder.appendChild(app);
-      pipBtn.textContent = '돌아가기'; pipBtn.title = '원래 창으로 돌아가기';
+      pipBtn.textContent = '↩'; pipBtn.title = '원래 창으로 돌아가기'; pipBtn.setAttribute('aria-label', pipBtn.title);
       curWin = pw; bindDoc(pw.document, pw); fit(); startLoop();
       pw.addEventListener('pagehide', function () {
         stageEl.appendChild(app);
         pipWin = null; curWin = window; pipClosed = true;
-        pipBtn.innerHTML = PIP_LABEL + '다시'; pipBtn.title = '다시 작게 띄우기';
+        pipBtn.innerHTML = PIP_LABEL; pipBtn.title = '다시 작게 띄우기'; pipBtn.setAttribute('aria-label', pipBtn.title);
         fit(); startLoop(); sndVis();
-        toast('작게 띄운 창을 닫았어요 · 위의 📌 다시', 3200);
+        toast('작게 띄운 창을 닫았어요 · 위의 📌로 다시', 3200);
       });
     }).catch(function () { toast('작게 띄우기를 열 수 없어요'); });
   }

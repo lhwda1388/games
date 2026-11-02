@@ -40,6 +40,14 @@ test('음악: a tune for every time of day, music on/off in its own key, not in 
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'logic', 'save.js'), 'utf8'), /music/);
 });
 
+test('⚙ 설정: 크기 and 효과음 on/off in their own keys, not in the save; 도감 has no settings left', () => {
+  assert.match(soundSrc, /VOL_KEY = 'farmfish\.vol\.'/);
+  assert.match(soundSrc, /SFX_KEY = 'farmfish\.sfx'/);
+  const save = fs.readFileSync(path.join(__dirname, '..', 'src', 'logic', 'save.js'), 'utf8');
+  assert.doesNotMatch(save, /farmfish\.(vol|sfx)|volume|\bVOL\b/);
+  assert.doesNotMatch(fs.readFileSync(path.join(UI, 'dex.js'), 'utf8'), /setRow|sndSet|musSet|ambSet/);
+});
+
 test('환경음: every fishing spot in SCENES has a water sound, on/off in its own key, not in the save', () => {
   const spots = soundSrc.slice(soundSrc.indexOf('var AMB_SPOT = {'), soundSrc.indexOf('var AMB_VIEW'));
   const bgSrc = fs.readFileSync(path.join(UI, 'background.js'), 'utf8');

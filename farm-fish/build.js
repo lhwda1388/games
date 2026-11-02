@@ -134,7 +134,7 @@ const UI = [
   'ui/background.js',   // layout constants and the pre-rendered background
   'ui/hud.js',          // runtime UI state, toast, floating text, particles
   'ui/fx.js',           // stage 8 ④ 이펙트: hit-stop, splash, fly-to-basket, pops, coins, count-up, stamp, reduced motion
-  'ui/sound.js',        // 소리: Web Audio sfx(name), header speaker button, M key, on/off in localStorage
+  'ui/sound.js',        // 소리: Web Audio sfx(name), M key, on/off and 크기 in localStorage
   'ui/tray.js',         // seed tray
   'ui/input.js',        // pointer/keys, tap dispatch, keys
   'ui/farm.js',         // farm tap, tick and render
@@ -144,7 +144,8 @@ const UI = [
   'ui/seasons.js',      // stage 4: seasonal crop/fish art, ground touches, frozen pond (얼음낚시)
   'ui/weather.js',      // sky effects, night tint, corner clock indicator, FF sky hooks
   'ui/calendar.js',     // 달력 panel (today / 낚시터)
-  'ui/dex.js',          // 도감 panel, settings, milestone toasts
+  'ui/dex.js',          // 도감 panel, milestone toasts
+  'ui/settings.js',     // ⚙ 설정 panel: 소리 on/off + 크기 sliders, 작게 띄우기
   'ui/shop.js',         // 상점 panel
   'ui/basket.js',       // 바구니·주문·냄비 panel and the basket corner on the map
   // stage 3: new yard/house/animal UI files go here

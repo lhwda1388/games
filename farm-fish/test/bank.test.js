@@ -14,7 +14,7 @@ const rich = (c) => { const s = L.newState(0, seq(0.5)); s.coins = c; return s; 
 
 test('constants: 2%/day, 300,000 cap, 7 days of catch-up', () => {
   assert.equal(L.BANK_RATE, 0.02);
-  assert.equal(L.BANK_CAP, 300000);
+  assert.equal(L.BANK_CAP, 1000000);
   assert.equal(L.BANK_CATCHUP, 7);
 });
 
