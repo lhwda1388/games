@@ -4,13 +4,13 @@
     { id: 'crucian', name: '붕어',     rarity: '흔함',    w: 34, min: 14, max: 32,  power: 1.0,  price: 28 },
     { id: 'catfish', name: '메기',     rarity: '드묾',    w: 16, min: 30, max: 72,  power: 1.3,  price: 70 },
     { id: 'carp',    name: '비단잉어', rarity: '희귀',    w: 7,  min: 40, max: 90,  power: 1.6,  price: 160 },
-    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.4, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
+    { id: 'lunch',   name: '점심 붕어', rarity: '점심 한정', w: 30, share: 0.25, min: 18, max: 36, power: 1.1, price: 110, window: 'lunch' },
     { id: 'tuna',    name: '퇴근 참치', rarity: '전설',   w: 10, min: 90, max: 210, power: 2.4,  price: 1200, window: 'friday', share: 0.2 },
     { id: 'koi',     name: '금빛 잉어', rarity: '전설',   w: 5,  min: 50, max: 110, power: 2.2,  price: 600, unlock: 'koi' },
     // 강 (river). phase = game-clock time of day, weather = weatherAt(), season = game season (stage 4 adds seasonal fish)
     { id: 'dace',      name: '갈겨니',   rarity: '흔함', w: 40, min: 8,  max: 18,  power: 0.9, price: 30,   spot: 'river', hint: '여울에 흔한 작은 물고기' },
     { id: 'chub',      name: '끄리',     rarity: '흔함', w: 30, min: 15, max: 35,  power: 1.1, price: 50,   spot: 'river', hint: '여울을 떼 지어 다닌다' },
-    { id: 'loach',     name: '미꾸라지', rarity: '흔함', w: 30, min: 8,  max: 18,  power: 0.8, price: 60,   spot: 'river', weather: 'rain', hint: '비가 오면 진흙에서 나온다' },
+    { id: 'loach',     name: '미꾸라지', rarity: '흔함', w: 18, min: 8,  max: 18,  power: 0.8, price: 60,   spot: 'river', weather: 'rain', hint: '비가 오면 진흙에서 나온다' },
     { id: 'trout',     name: '산천어',   rarity: '드묾', w: 18, min: 18, max: 40,  power: 1.3, price: 150,  spot: 'river', phase: ['morning'], hint: '맑은 아침 물에서' },
     { id: 'eel',       name: '뱀장어',   rarity: '드묾', w: 16, min: 40, max: 90,  power: 1.5, price: 220,  spot: 'river', phase: ['night'], hint: '밤이 되면 돌 틈에서 나온다' },
     { id: 'bass',      name: '배스',     rarity: '드묾', w: 16, min: 25, max: 55,  power: 1.4, price: 160,  spot: 'river', weather: 'fog', hint: '안개 낀 날 겁 없이 문다' },
@@ -56,7 +56,7 @@
   }
   // 첫 만남 보정: a time/weather/season/festival fish not caught yet bites more often while its condition holds.
   // Unlock-only fish (금빛 잉어) and the egg 시계 물고기 are left alone.
-  var FIRST_MUL = 2.5, FIRST_MUL_LEGEND = 3, POOL_SHARE_MAX = 0.55;
+  var FIRST_MUL = 2.5, FIRST_MUL_LEGEND = 3, POOL_SHARE_MAX = 0.4;
   function firstMeet(s, f) {
     return !!(s && s.dex && s.dex.fish && !s.dex.fish[f.id] && !f.unlock && !f.egg && (f.window || isConditional(f)));
   }

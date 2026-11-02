@@ -5,7 +5,7 @@
   // goes over BANK_CAP (putting in stops there, and interest stops there too). A clock set back pays nothing.
   // s.bank = { c: balance, d: local day last settled, i: interest earned so far } is made on the first deposit.
   var BANK_RATE = 0.02;       // per real day
-  var BANK_CAP = 300000;      // most coins the bank holds (6,000 a day at most: about a tenth of a day's play)
+  var BANK_CAP = 1000000;     // most coins the bank holds (20,000 a day at most: about a third of a day's play)
   var BANK_CATCHUP = 7;       // most days of interest paid at once
 
   function bankBal(s) { return s.bank ? s.bank.c : 0; }

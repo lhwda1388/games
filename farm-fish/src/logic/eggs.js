@@ -64,9 +64,11 @@
     g.scare = 0;
     return { n: 10, egg: findEgg(s, 'scarecrow', now) };
   }
-  // the bite landed at real hh:00 → it's the clock fish
-  function clockRoll(d, rng) {
+  // the bite landed at real hh:00 → the clock fish: always the first time (the egg), then 1 bite in CLOCK_AGAIN (VOC: 정각엔 이것만 나옴)
+  var CLOCK_AGAIN = 0.25;
+  function clockRoll(d, rng, s) {
     if (d.getMinutes() !== 0) return null;
+    if (s && s.dex && s.dex.fish && s.dex.fish.clockfish && rng() >= CLOCK_AGAIN) return null;
     var f = fishById('clockfish');
     return { id: f.id, size: Math.round((f.min + (f.max - f.min) * rng()) * 10) / 10 };
   }
