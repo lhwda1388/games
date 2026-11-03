@@ -5495,7 +5495,19 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     }
   }
 
+  // ---------- 새 소식: newest first, one card per update. Add an entry at the top when a deploy has news ----------
+  // id = deploy date (YYYY-MM-DD, sorts as text). Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
+  var NEWS = [
+    { id: '2026-11-03', title: '정식 출시', lines: ['「📲 앱으로 설치」 · 타이틀과 ⚙ 설정에서 홈 화면에 설치', '⚙ 세이브 백업 · 내보내기·복사·붙여넣어 불러오기', '처음 오면 타이틀 화면과 6단계 안내'] }
+  ];
+  // entries to show now: newer than the last seen id; a player with no farm yet gets none (nothing was "new" to them)
+  function newsDue(news, seen, hadFarm) {
+    if (!hadFarm) return [];
+    return news.filter(function (n) { return !seen || n.id > seen; });
+  }
+
   expose({
+    NEWS: NEWS, newsDue: newsDue,
     BOOM_BLOCK: BOOM_BLOCK, BOOM_MIN: BOOM_MIN, BOOM_SPAN: BOOM_SPAN, BOOM_RARE_MUL: BOOM_RARE_MUL, BOOM_WAIT_MUL: BOOM_WAIT_MUL,
     BOOM_FARM_EXTRA: BOOM_FARM_EXTRA, BOOM_FOREST_EXTRA: BOOM_FOREST_EXTRA, BOOM_ORCHARD_MUL: BOOM_ORCHARD_MUL,
     BOOM_NAME: BOOM_NAME, BOOM_PLACES: BOOM_PLACES, BOOM_PLACE_NAME: BOOM_PLACE_NAME,
@@ -9169,6 +9181,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'boom', name: '입질 폭풍·대풍년', how: '현실 하루 몇 번, ' + (BOOM_MIN / 60e3) + '~' + ((BOOM_MIN + BOOM_SPAN) / 60e3) + '분 · 폭풍은 그 낚시터 귀한 물고기 ×' + BOOM_RARE_MUL + '·입질 빨리, 대풍년은 밭·과수원·숲 수확 덤 · 위 표시와 이동 메뉴 점 · 놓쳐도 손해 없음', lock: '' },
     { id: 'today', name: '오늘의 날', how: '현실 하루마다 ' + DAYS.length + '가지 중 하나 (큰 물고기·장날·고양이 잔치…) · 그날 첫 접속에 카드 · 달력 맨 위에서 다시 보기', lock: '' },
     { id: 'diary', name: '자리 비운 사이 일기', how: (DIARY_AWAY / 60e3) + '분 넘게 비웠다 오면 그동안 생긴 일 카드 · 눌러 닫기 · 도감 기록 탭에 최근 ' + DIARY_KEEP + '개', lock: '' },
+    { id: 'news', name: '새 소식', how: '업데이트가 있으면 처음 열 때 카드로 한 번 · 지난 소식은 ⚙ 설정에서 다시 보기', lock: '' },
     // stage 8 ③
     { id: 'rumor', name: '소문 수첩', how: '마을 주민 대화·병 편지·손님에게서 가끔 소문 · 들은 소문은 도감 기록 탭에 모인다', lock: '' },
     // stage 9 ②
@@ -12449,6 +12462,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
       lb.appendChild(cb); lb.appendChild(tx); setEl.appendChild(lb);
     }
+    newsSettings();  // events.js: 새 소식 to read again
     pwaSettings();   // pwa.js: 세이브 백업, 설치, 후원, privacy line (always last)
   }
   // one sound row: on/off checkbox, then its 크기 slider (0–100, step 5) with the value as 「70%」
@@ -18492,7 +18506,23 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (e) { showCard({ kicker: '자리 비운 사이', title: '그동안의 일기', lines: e.lines }, true); save(); }
     return e;
   }
-  function diaryBoot() { diaryFrom(awayA); awayA = null; if (bootDay) showCard(bootDay); bootDay = null; }   // boot.js, right after the first (catch-up) tick
+  function diaryBoot() { diaryFrom(awayA); awayA = null; newsBoot(); if (bootDay) showCard(bootDay); bootDay = null; }   // boot.js, right after the first (catch-up) tick
+  // ---------- 새 소식 (L.NEWS): after the 일기, before 오늘의 날; seen id in localStorage, so it never touches the save ----------
+  var NEWS_KEY = 'farmfish.news';
+  function newsBoot() {
+    var seen = null;
+    try { seen = localStorage.getItem(NEWS_KEY); } catch (e) { return; }   // storage blocked: no card (it would come back every visit)
+    L.newsDue(L.NEWS, seen, hadSave).forEach(function (n) { showCard({ kicker: '새 소식 · ' + n.id, title: n.title, lines: n.lines }); });
+    try { localStorage.setItem(NEWS_KEY, L.NEWS[0].id); } catch (e) { /* storage blocked */ }
+  }
+  // ⚙ 설정: the last few, to read again
+  function newsSettings() {
+    var h3 = document.createElement('h3'); h3.textContent = '새 소식'; setEl.appendChild(h3);
+    L.NEWS.slice(0, 3).forEach(function (n) {
+      var p = document.createElement('p'); p.className = 'note'; p.textContent = n.id + ' · ' + n.title + ' — ' + n.lines.join(' · ');
+      setEl.appendChild(p);
+    });
+  }
   // a tab hidden for a long time catches up on its own throttled ticks: same before/after
   var hideA = null;
   document.addEventListener('visibilitychange', function () {
@@ -24951,7 +24981,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = 'bdc3534931e6';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '17c9db271c16';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
