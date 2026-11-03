@@ -486,7 +486,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .setFoot{margin:14px 0 0;padding-top:8px;border-top:1px dashed var(--g2);font:400 10px/1.4 var(--font);color:var(--g3)}
 /* 「📲 앱으로 설치」 sheet (iOS 홈 화면 steps, in-app browser → Safari·Chrome): a card over a 25% ink dither, same tokens */
 [hidden].pwaInst{display:none!important}
-#pwaSheet{position:absolute;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;
+#pwaSheet,#talkSheet{position:absolute;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;
   background:conic-gradient(var(--g4) 25%,transparent 0) 0 0/4px 4px}
 .pwaCard{width:300px;max-width:100%;max-height:100%;overflow:auto;box-sizing:border-box;padding:10px 12px 12px;
   background:var(--g0);border:2px solid var(--g4);box-shadow:4px 4px 0 var(--g4)}
@@ -502,6 +502,17 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .pwaArrow{display:block;margin:8px auto 0;width:27px;height:27px;image-rendering:pixelated;animation:pwaBob 1s steps(2) infinite}
 @keyframes pwaBob{50%{transform:translateY(3px)}}
 @media (prefers-reduced-motion: reduce){ .pwaArrow{animation:none} }
+/* 말하는 물고기 card (ui/talk.js): the same sheet + card; buttons stack a name over a small line, so they may wrap */
+#talkSheet{z-index:13}
+.talkCard{width:260px;text-align:center}
+.talkCard h2{justify-content:center}
+.talkPic{display:block;width:64px;height:32px;margin:2px auto 4px;image-rendering:pixelated}
+.talkSay{margin:0 0 8px;font:700 12px/1.45 var(--font)}
+.talkRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
+.talkWishes{display:grid;gap:6px;margin-top:6px}
+.talkBtn{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;white-space:normal;line-height:1.3}
+.talkBtn small{font:400 10px/1.3 var(--font);color:var(--g3)}
+.talkBtn:disabled small{color:inherit}
 /* 타이틀 화면 + 처음 안내. Same five --g* tokens and hard 2px ink edges as #result / .overlay; no hue, no new fonts.
  * The title covers the HUD and the tray with paper bands and leaves the live canvas showing between them. */
 #ttl{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;cursor:pointer;
@@ -4615,7 +4626,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function wishUsed(s, now) { return !!s.sky && s.sky.wish === Math.floor(now / HOUR_MS); }
   // mul = a coin wish × this (캠핑: cmpStarMul); the seed and the decorations stay as they are
   function meteorWish(s, now, rng, tzMin, mul) {   // (visitors.js has its own wish)
-    if (tzMin !== undefined && !meteorNight(now, tzMin)) return null;
+    if (tzMin !== undefined && !meteorNight(now, tzMin) && !talkMeteorOn(s, now)) return null;   // or 말하는 물고기's wished night
     var sk = skyOf(s), key = Math.floor(now / HOUR_MS);
     if (sk.wish === key) return null;
     sk.wish = key;
@@ -5380,7 +5391,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // the boom this player gets now: its place is one of the places they have open
   function boomFor(s, now) {
-    var w = boomForced && now >= boomForced.start && now < boomForced.end ? boomForced : boomAt(now);
+    // 말하는 물고기's 대풍년 wish (logic/talk.js) comes before the shared schedule
+    var w = boomForced && now >= boomForced.start && now < boomForced.end ? boomForced : (talkBoom(s, now) || boomAt(now));
     if (!w) return null;
     var list = BOOM_PLACES[w.kind].filter(function (p) { return boomPlaceOpen(s, p); });
     if (w.place && list.indexOf(w.place) >= 0) list = [w.place];
@@ -5510,6 +5522,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // id = deploy date (YYYY-MM-DD, sorts as text); a second update the same day adds a letter suffix (b, c…), only the date is shown. Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
   var NEWS = [
     { id: '2026-11-03e', title: '🌙 꿈 낚시', lines: ['집 안 침대에서 「잠들기」 · 하루 한 번 거꾸로 뒤집힌 꿈 연못', '별 조각·구름 물고기·꿈 고래… 도감 기록 탭에 꿈 도감'] },
+    { id: '2026-11-03d', title: '🐟 말하는 물고기', lines: ['낚은 물고기가 아주 가끔 말을 건다 · 갖으면 값 ×20', '놓아주면 소원 하나 · 대풍년·반짝이·유성우'] },
     { id: '2026-11-03c', title: '✨ 반짝이 등장', lines: ['낚시·수확 중 아주 가끔 반짝이 · 값 ×10', '도감 기록 탭에 반짝이 모으기'] },
     { id: '2026-11-03b', title: '낚시·밭이 더 쫄깃하게', lines: ['오늘의 현상수배 · 달력에 뜬 물고기를 그 크기 이상 낚으면 큰 보상', '연속 손맛 · 놓치지 않고 이어 낚으면 3·5·10연속 보너스', '밭 연쇄 · 쉬지 않고 이어 거두면 가끔 하나 더'] },
     { id: '2026-11-03', title: '정식 출시', lines: ['「📲 앱으로 설치」 · 타이틀과 ⚙ 설정에서 홈 화면에 설치', '⚙ 세이브 백업 · 내보내기·복사·붙여넣어 불러오기', '처음 오면 타이틀 화면과 6단계 안내'] }
@@ -9347,6 +9360,154 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     dreamById: dreamById, dreamLeft: dreamLeft, dreamStart: dreamStart, dreamRoll: dreamRoll, dreamCast: dreamCast,
     dreamMiss: dreamMiss, dreamFound: dreamFound, decodeDream: decodeDream
   });
+  // ---------- 말하는 물고기: very rarely a landed fish talks — keep it (worth ×TALK_KEEP_MUL) or free it for one wish ----------
+  // s.talk = { day, n, wish, got: { fishId: count }, kept, freed } is made lazily on the first one; older saves have none.
+  // day/n = the real day key ('YYYY-MM-DD') and how many talked that day (cap TALK_DAY_MAX).
+  // wish = the one pending wish (a new one replaces it): { k: 'boom', key, at? } | { k: 'shiny' } | { k: 'meteor', start, end }.
+  var TALK_P = 1 / 200;           // per landed fish (not 전설, not a 반짝이 catch)
+  var TALK_DAY_MAX = 1;           // talking fish per real day
+  var TALK_KEEP_MUL = 20;         // kept: worth ×20 in all (the extra ×19 is paid in coins at once, like 반짝이)
+  var TALK_BOOM_MS = 30 * 60e3;   // 대풍년 wish: half an hour on the 밭, from the first moment played on/after the wished day
+  var TALK_WISHES = ['boom', 'shiny', 'meteor'];
+  var TALK_WISH_NAME = { boom: '내일은 대풍년', shiny: '다음 낚시는 반짝이', meteor: '오늘 밤 유성우' };
+  var TALK_LINES = [
+    '…잠깐! 놓아주면 소원 하나 들어줄게',
+    '쉿, 나 말할 줄 알아 · 놓아주면 소원 하나!',
+    '어푸… 물 밖은 답답해 · 보내 주면 소원을 들어줄게',
+    '나를 놓아주면 좋은 일이 생길 거야 · 약속해',
+    '여기서 말하는 건 비밀이야 · 소원 하나 어때?'
+  ];
+
+  function talkOf(s) {
+    if (!s.talk) s.talk = { day: null, n: 0, wish: null, got: {}, kept: 0, freed: 0 };
+    return s.talk;
+  }
+  // 전설 (boss fights) never talk, and a 반짝이 catch already had its moment
+  function talkOk(id, shiny) {
+    var f = fishById(id);
+    return !!f && f.rarity !== '전설' && !shiny;
+  }
+  function talkLeft(s, key) {
+    var t = s.talk;
+    return !t || t.day !== key ? TALK_DAY_MAX : Math.max(0, TALK_DAY_MAX - t.n);
+  }
+  function talkRoll(s, id, key, shiny, rng) {
+    return talkOk(id, shiny) && talkLeft(s, key) > 0 && rng() < TALK_P;
+  }
+  // one met: counts toward today's cap and the 도감 기록
+  function talkMeet(s, id, key) {
+    var t = talkOf(s);
+    if (t.day !== key) { t.day = key; t.n = 0; }
+    t.n++;
+    t.got[id] = (t.got[id] || 0) + 1;
+  }
+  function talkPhrase(rng) { return TALK_LINES[Math.floor(rng() * TALK_LINES.length) % TALK_LINES.length]; }
+  function talkMet(s) {
+    var n = 0;
+    if (s.talk) Object.keys(s.talk.got).forEach(function (id) { n += s.talk.got[id]; });
+    return n;
+  }
+
+  // 갖는다: the fish stays where landFish put it; value = what landFish paid / put in → the extra coins
+  function talkKeep(s, value) {
+    var coins = Math.max(0, Math.round(value)) * (TALK_KEEP_MUL - 1);
+    s.coins += coins;
+    talkOf(s).kept++;
+    return coins;
+  }
+  // 놓아준다: undo what landFish did with this fish. bagAdd pushed { id, v: value } (also when it swapped out a cheaper
+  // one), so the newest matching entry is it. Not there = it went straight to coins (full basket) or was sold meanwhile:
+  // take its value back instead (never below 0). The 도감 keeps it — you did meet it. → { back } (coins taken back)
+  function talkFree(s, id, value) {
+    talkOf(s).freed++;
+    for (var k = s.bag.length - 1; k >= 0; k--) {
+      if (s.bag[k].id === id && s.bag[k].v === value) { s.bag.splice(k, 1); return { back: 0 }; }
+    }
+    var back = Math.min(s.coins, Math.max(0, Math.round(value)));
+    s.coins -= back;
+    return { back: back };
+  }
+
+  // ---------- wishes ----------
+  function talkKeyAdd(key, d) { return new Date((dayNum(key) + d) * 86400e3).toISOString().slice(0, 10); }
+  // the 유성우 wish needs the 망원경 (the meteors are tapped in its sky)
+  function talkWishOk(s, k) { return TALK_WISHES.indexOf(k) >= 0 && (k !== 'meteor' || skyOk(s)); }
+  // the game night on now, or the next one → { start, end } (a game day is one real hour; night = its last 15 minutes)
+  function talkNight(now, tzMin) {
+    var start = gameClock(now, tzMin).phase === 'night' ? now : nextPhase(now, tzMin, 'night').at;
+    return { start: start, end: nextPhase(start, tzMin).at };
+  }
+  // key = today's local day key; a new wish replaces a pending one
+  function talkWish(s, k, now, key, tzMin) {
+    if (!talkWishOk(s, k)) return null;
+    var t = talkOf(s);
+    if (k === 'boom') t.wish = { k: 'boom', key: talkKeyAdd(key, 1) };
+    else if (k === 'shiny') t.wish = { k: 'shiny' };
+    else { var nt = talkNight(now, tzMin); t.wish = { k: 'meteor', start: nt.start, end: nt.end }; }
+    return t.wish;
+  }
+  function talkWishOf(s) { return s.talk && s.talk.wish ? s.talk.wish : null; }
+  // UI tick: the 대풍년 wish starts the first time the game runs on or after its day (keys sort as text) → true once
+  function talkArm(s, now, key) {
+    var w = talkWishOf(s);
+    if (!w || w.k !== 'boom' || w.at != null || key < w.key) return false;
+    w.at = now;
+    return true;
+  }
+  // UI tick: a spent 대풍년 / 유성우 wish is cleared → its kind, or null
+  function talkExpire(s, now) {
+    var w = talkWishOf(s);
+    if (!w || !((w.k === 'boom' && w.at != null && now >= w.at + TALK_BOOM_MS) || (w.k === 'meteor' && now >= w.end))) return null;
+    s.talk.wish = null;
+    return w.k;
+  }
+  // events.js boomFor: the wished 대풍년 window (밭 first; boomFor still checks the place is open) or null
+  function talkBoom(s, now) {
+    var w = talkWishOf(s);
+    if (!w || w.k !== 'boom' || w.at == null || now < w.at || now >= w.at + TALK_BOOM_MS) return null;
+    return { kind: 'harvest', place: 'farm', pick: 0, start: w.at, end: w.at + TALK_BOOM_MS };
+  }
+  // sky.js meteorWish + ui/sky.js meteorOn: the wished 유성우 night
+  function talkMeteorOn(s, now) {
+    var w = talkWishOf(s);
+    return !!w && w.k === 'meteor' && now >= w.start && now < w.end;
+  }
+  // ui/shiny.js shinyAfter: the next landed non-전설 fish is 반짝이; the wish is used up → true
+  function talkShinyTake(s, kind, id) {
+    var w = talkWishOf(s);
+    if (!w || w.k !== 'shiny' || kind !== 'fish' || !shinyOk('fish', id)) return false;
+    s.talk.wish = null;
+    return true;
+  }
+
+  // ---------- save: called by decode() ----------
+  function decodeTalkWish(w) {
+    var num = function (x) { return typeof x === 'number' && isFinite(x); };
+    if (!w || typeof w !== 'object') return null;
+    if (w.k === 'shiny') return { k: 'shiny' };
+    if (w.k === 'boom' && DAY_RE.test(w.key)) return num(w.at) ? { k: 'boom', key: w.key, at: w.at } : { k: 'boom', key: w.key };
+    if (w.k === 'meteor' && num(w.start) && num(w.end) && w.end > w.start && w.end - w.start <= 3600e3) return { k: 'meteor', start: w.start, end: w.end };
+    return null;
+  }
+  function decodeTalk(o, s) {
+    var q = o.talk, cnt = function (x) { return typeof x === 'number' && isFinite(x) && x >= 0 ? Math.min(1e6, Math.floor(x)) : 0; };
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var t = { day: DAY_RE.test(q.day) ? q.day : null, n: 0, wish: decodeTalkWish(q.wish), got: {}, kept: cnt(q.kept), freed: cnt(q.freed) };
+    if (t.day) t.n = Math.min(TALK_DAY_MAX, cnt(q.n));
+    if (q.got && typeof q.got === 'object' && !Array.isArray(q.got)) {
+      Object.keys(q.got).forEach(function (id) { var n = cnt(q.got[id]); if (fishById(id) && n >= 1) t.got[id] = n; });
+    }
+    s.talk = t;
+  }
+
+  expose({
+    TALK_P: TALK_P, TALK_DAY_MAX: TALK_DAY_MAX, TALK_KEEP_MUL: TALK_KEEP_MUL, TALK_BOOM_MS: TALK_BOOM_MS,
+    TALK_WISHES: TALK_WISHES, TALK_WISH_NAME: TALK_WISH_NAME, TALK_LINES: TALK_LINES,
+    talkOk: talkOk, talkLeft: talkLeft, talkRoll: talkRoll, talkMeet: talkMeet, talkPhrase: talkPhrase, talkMet: talkMet,
+    talkKeep: talkKeep, talkFree: talkFree, talkWishOk: talkWishOk, talkNight: talkNight, talkWish: talkWish, talkWishOf: talkWishOf,
+    talkArm: talkArm, talkExpire: talkExpire, talkBoom: talkBoom, talkMeteorOn: talkMeteorOn, talkShinyTake: talkShinyTake,
+    decodeTalk: decodeTalk
+  });
   // ---------- 놀거리 수첩: one line per place/activity, open or locked from the real state (s.guide, optional) ----------
   // s.guide = { seen: { id: true }, tip: { scene: true } } is made on first use; older saves simply have none.
   // Lock hints are built from the same constants the game checks, so they never drift from the real numbers.
@@ -9410,6 +9571,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'shiny', name: '반짝이', how: '낚시·수확 중 아주 가끔(물고기 약 1/' + Math.round(1 / SHINY_P_FISH) + ' · 작물 약 1/' + Math.round(1 / SHINY_P_CROP) + ') 반짝이 · 값 ×' + SHINY_MUL + ', 더 받는 몫은 바로 코인 · 전설은 빼고 · 도감 기록 탭에 모인다', lock: '' },
     // 꿈 낚시 (logic/dream.js)
     { id: 'dream', name: '꿈 낚시', how: '집 안 침대를 누르고 「잠들기」 · 현실 하루 ' + DREAM_DAY_MAX + '번 · 거꾸로 뒤집힌 꿈 연못에 ' + DREAM_CASTS + '번 던지기, 찌가 「!」 하면 눌러 낚기 · 낚은 건 바로 코인 · 깨면 꿈 일기, 도감 기록 탭 꿈 도감', lock: '집 안에 침대를 놓으면 (상점 마당 칸)' },
+    // 말하는 물고기 (logic/talk.js)
+    { id: 'talk', name: '말하는 물고기', how: '낚은 물고기가 아주 가끔(약 1/' + Math.round(1 / TALK_P) + ', 하루 ' + TALK_DAY_MAX + '번까지, 전설·반짝이 빼고) 말을 건다 · 갖으면 값 ×' + TALK_KEEP_MUL + ' · 놓아주면 소원 하나: ' + TALK_WISHES.map(function (k) { return TALK_WISH_NAME[k]; }).join(' · ') + ' (대풍년은 다음 날 처음 들어올 때부터 ' + (TALK_BOOM_MS / 60e3) + '분, 유성우는 망원경이 있어야) · 기다리는 소원은 달력에', lock: '' },
     // stage 8 ③
     { id: 'rumor', name: '소문 수첩', how: '마을 주민 대화·병 편지·손님에게서 가끔 소문 · 들은 소문은 도감 기록 탭에 모인다', lock: '' },
     // stage 9 ②
@@ -9709,6 +9872,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       decodeBounty(o, s);  // 오늘의 현상수배: s.bounty (오늘 목표·이번 주 횟수·칭호; optional)
       decodeShiny(o, s);   // 반짝이: s.shiny (id → 몇 번; optional)
       decodeDream(o, s);   // 꿈 낚시: s.dream (오늘 꾼 날·횟수, 꿈 도감; optional)
+      decodeTalk(o, s);    // 말하는 물고기: s.talk (오늘 몇 번·소원·만난 것·가짐/놓아줌; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -10476,6 +10640,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     dreamCatch: function (t) { return sndBells([784, 1175, 1568], t, 0.07, 0.3, 0.045, 3); },
     dreamWhale: function (t) { sndOsc('sine', 98, 196, t, 0.8, 0.06); return sndBells([523, 659, 784, 1047, 1319], t + 0.25, 0.09, 0.4, 0.045, 2); },   // 꿈 고래: a low song, then bells
     dreamWake:  function (t) { return sndBells([587, 740, 880, 1175], t, 0.08, 0.25, 0.04, 2); },   // waking: a bell run up
+    fishTalk: function (t) { for (var k = 0; k < 3; k++) sndOsc('sine', 380 + k * 90, 760 + k * 120, t + k * 0.09, 0.06, 0.05); return sndOsc('triangle', 660, 880, t + 0.3, 0.18, 0.035); },   // 말하는 물고기: three bubbles, then a small rising voice
     error:    function (t) { return sndSeq('triangle', [196, 175], t, 0.09, 0.08, 0.05); },
     bagFull:  function (t) { for (var k = 0; k < 3; k++) sndHiss('bandpass', 1300 + k * 300, 900, t + k * 0.03, 0.03, 0.04); return sndOsc('triangle', 150, 130, t + 0.08, 0.16, 0.055); },
     // ---- 곤충 ----
@@ -10604,7 +10769,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     fireLight: 'puff',
     donkeyPet: 'pet',
     ballThrow: 'cast',
-    bandGet: 'level', bandFind: 'catchRare', bandBuy: 'buy', bandMiss: 'error', bandEnd: 'chime', bandCheer: 'catchLegend'
+    bandGet: 'level', bandFind: 'catchRare', bandBuy: 'buy', bandMiss: 'error', bandEnd: 'chime', fishTalk: 'chime', bandCheer: 'catchLegend'
   };
   // tuned sounds keep their pitch (each 별 a scale step, the 크기 slider's reference ping); only their length varies
   var SND_TUNED = { star: true, chime: true, volPing: true };
@@ -11509,7 +11674,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       floatText(out.sold ? '+' + out.sold : '+' + f.name, ROD_BASE.x, ROD_BASE.y - 16);
       showResult(f, reelRoll, out);
       bountyAfterReel(res, reelRoll);   // 연속 손맛 + 오늘의 현상수배
-      shinyAfter('fish', f.id, out.coins, reelVis.x, reelVis.y);   // 반짝이: last, so its toast wins
+      var shn = shinyAfter('fish', f.id, out.coins, reelVis.x, reelVis.y);   // 반짝이: last toast, so it wins
+      talkAfter(f, out, shn);   // 말하는 물고기: a rare card after the catch card (not on a 반짝이)
       milestones();
     } else {
       L.loseFish(S);
@@ -14511,6 +14677,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     renderDiary();           // stage 8: 자리 비운 사이 일기
     renderShinyRec();        // 반짝이 모음 (ui/shiny.js)
     renderDreamRec();        // 꿈 도감 (ui/dream.js)
+    renderTalkRec();         // 말하는 물고기 (ui/talk.js)
     renderBottleLetters();   // stage 5B: 병 편지 + the 고물 상자
     renderTreasure();        // stage 8 ③: 보물 지도 + 소문 수첩
     renderContestRec();      // stage 10 ①: 낚시 대회 트로피·편지, 한 해 결산 카드
@@ -17659,7 +17826,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function chartX(u) { return 14 + u * 1.26; }
   function chartY(v) { return 44 + v * 1.4; }
   function skyNight() { return curEnv(now()).phase === 'night'; }
-  function meteorOn() { return L.skyOk(S) && (meteorForce || (skyNight() && L.meteorNight(now(), TZ))); }
+  function meteorOn() { return L.skyOk(S) && (meteorForce || (skyNight() && (L.meteorNight(now(), TZ) || L.talkMeteorOn(S, now())))); }   // or 말하는 물고기's wished night
   function lineDots(x0, y0, x1, y1, c, gap) {
     var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
     for (var k = 0; k <= n; k += gap || 1) px(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, 1, 1, c);
@@ -18733,7 +18900,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var c2 = boomIcon.getContext('2d'); c2.clearRect(0, 0, 7, 7); spr(BOOM_IC[b.kind], 0, 0, false, c2);
     boomChip.title = L.BOOM_NAME[b.kind] + ' · ' + L.BOOM_PLACE_NAME[b.place];
     boomChip.setAttribute('aria-label', boomChip.title + ' 자세히');
-    if (booted) toast(L.BOOM_NAME[b.kind] + '! ' + L.BOOM_PLACE_NAME[b.place] + '에서 ' + boomWhat(b) + ' · 몇 분만', 4200);
+    if (booted) toast(L.BOOM_NAME[b.kind] + '! ' + L.BOOM_PLACE_NAME[b.place] + '에서 ' + boomWhat(b) + (L.talkBoom(S, t) ? ' · 🐟 소원 ' + Math.round((b.end - b.start) / 60e3) + '분' : ' · 몇 분만'), 4200);   // 말하는 물고기's wish says so
   }
 
   // ---------- one small card at a time: 일기, 오늘의 날 (tap to close) ----------
@@ -18814,6 +18981,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     note(bm ? '지금 ' + L.BOOM_NAME[bm.kind] + ' · ' + L.BOOM_PLACE_NAME[bm.place] + ' · ' + fmtReal(bm.end - now()) + ' 남음'
       : '입질 폭풍·대풍년은 언젠가 온다 · 오면 위에 표시가 뜬다');
     bountyCal();   // 오늘의 현상수배 (ui/bounty.js)
+    talkCal();     // 말하는 물고기 소원 (ui/talk.js), only while one waits
   }
   function renderDiary() {
     var list = S.diary || [];
@@ -18908,6 +19076,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // pond.js endReel (after landFish) and farm.js doHarvest. value = one piece's worth, (x, y) = the spot in game coords
   function shinyAfter(kind, id, value, x, y) {
     var forced = shinyNext && L.shinyOk(kind, id);
+    if (!forced) forced = L.talkShinyTake(S, kind, id);   // 말하는 물고기's wish: the next landed fish (used up here)
     if (!forced && !L.shinyRoll(kind, id, Math.random)) return null;
     shinyNext = false;
     var r = L.shinyGet(S, id, value);
@@ -19141,6 +19310,146 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (cmd === 'wake') { wakeDream(); return view; }
       startDream(true);
       return view;
+    };
+  }
+  // ---------- 말하는 물고기: the card after the catch card (갖는다 / 놓아준다 → 소원), 달력 소원 줄, 도감 기록 칸, FF.talk ----------
+  // Logic in logic/talk.js. The card is the 설치 sheet's look (#talkSheet shares #pwaSheet's rules in pwa.css) inside #app,
+  // so it follows the game into the PiP window. No tap-outside close: the choice matters; Esc = 갖는다 (the safe one).
+  var talkNext = false, talkSheetEl = null;
+  function talkFishName(id) { return L.fishById(id).name; }
+  // name + 을/를 by its last syllable
+  function talkObj(id) { var n = talkFishName(id), c = n.charCodeAt(n.length - 1) - 0xAC00; return n + (c >= 0 && c < 11172 && c % 28 ? '을' : '를'); }
+  // pond.js endReel, after shinyAfter. out = landFish's result, shn = the 반짝이 result or null
+  function talkAfter(f, out, shn) {
+    var t = now(), key = todayKey(t), forced = talkNext && L.talkOk(f.id, !!shn);
+    if (!forced && !L.talkRoll(S, f.id, key, !!shn, Math.random)) return false;
+    talkNext = false;
+    L.talkMeet(S, f.id, key);
+    save();
+    var c = { id: f.id, v: out.coins, line: L.talkPhrase(Math.random) };
+    // the catch card shows the fish first (rare ones wait for their silhouette, as in showResult)
+    var tier = L.fxTier(f), wait = (tier > 1 ? 900 : tier ? 450 : 0) + 1100;
+    clearTimeout(talkAfter.t);
+    talkAfter.t = setTimeout(function () { talkOpen(c); }, wait);
+    return true;
+  }
+  function talkBtn(text, sub) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'talkBtn';
+    var m = document.createElement('span'); m.textContent = text; b.appendChild(m);
+    if (sub) { var s = document.createElement('small'); s.textContent = sub; b.appendChild(s); }
+    return b;
+  }
+  function talkWishSub(k) {
+    if (k === 'boom') return '내일 처음 들어올 때부터 ' + (L.TALK_BOOM_MS / 60e3) + '분 · 밭에서 거두면 덤';
+    if (k === 'shiny') return '다음에 낚는 물고기가 반짝이 · 값 ×' + L.SHINY_MUL + ' (전설 빼고)';
+    if (!L.talkWishOk(S, 'meteor')) return '망원경이 있어야 해요 (마당·상점)';
+    var nt = L.talkNight(now(), TZ), d = new Date(nt.start);
+    return '다음 밤 ' + d.getHours() + '시 ' + String(d.getMinutes()).padStart(2, '0') + '분부터 · 마당 하늘의 유성을 눌러요';
+  }
+  function talkOpen(c) {
+    talkClose();
+    hideResult();
+    sfx('fishTalk');
+    var el = document.createElement('div'); el.id = 'talkSheet';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'talkSheetH');
+    var card = document.createElement('div'); card.className = 'pwaCard talkCard';
+    var h = document.createElement('h2'); h.id = 'talkSheetH'; h.textContent = '말하는 ' + talkFishName(c.id) + '!'; card.appendChild(h);
+    var pic = fishCanvas(c.id); pic.className = 'talkPic'; card.appendChild(pic);
+    var say = document.createElement('p'); say.className = 'talkSay'; say.textContent = '「' + c.line + '」'; card.appendChild(say);
+    var body = document.createElement('div'); card.appendChild(body);
+    var extra = Math.max(0, Math.round(c.v)) * (L.TALK_KEEP_MUL - 1);
+    var keep = talkBtn('갖는다', '값 ×' + L.TALK_KEEP_MUL + ' · +' + extra + '코인'), free = talkBtn('놓아준다', '소원 하나');
+    var row = document.createElement('div'); row.className = 'talkRow'; row.appendChild(keep); row.appendChild(free); body.appendChild(row);
+    var stage = 'pick';
+    function doKeep() {
+      var coins = L.talkKeep(S, c.v);
+      talkClose();
+      fxCoins(ROD_BASE.x, ROD_BASE.y - 8, coins);
+      toast('🐟 ' + talkObj(c.id) + ' 가졌다 · +' + coins + '코인 (값 ×' + L.TALK_KEEP_MUL + ')', 3200);
+      save(); refresh();
+    }
+    function doFree() {
+      var r = L.talkFree(S, c.id, c.v);
+      stage = 'wish';
+      body.innerHTML = '';
+      var q = document.createElement('p'); q.className = 'note';
+      q.textContent = '첨벙! 고마워 · 소원을 하나 골라 줘' + (r.back ? ' (바로 팔린 ' + r.back + '코인은 돌려놓았어요)' : '') +
+        (L.talkWishOf(S) ? ' · 기다리던 소원은 이걸로 바뀌어요' : '');
+      body.appendChild(q);
+      var list = document.createElement('div'); list.className = 'talkWishes';
+      L.TALK_WISHES.forEach(function (k) {
+        var b = talkBtn(L.TALK_WISH_NAME[k], talkWishSub(k));
+        b.disabled = !L.talkWishOk(S, k);
+        b.addEventListener('click', function () { doWish(k); });
+        list.appendChild(b);
+      });
+      body.appendChild(list);
+      save(); refresh();
+      var first = list.querySelector('button:not([disabled])');
+      try { if (first) first.focus({ preventScroll: true }); } catch (e) { /* old browsers */ }
+    }
+    function doWish(k) {
+      var t = now();
+      if (!L.talkWish(S, k, t, todayKey(t), TZ)) return;
+      talkClose();
+      toast('🐟 ' + talkObj(c.id) + ' 놓아주었다 · 소원 「' + L.TALK_WISH_NAME[k] + '」 · 달력', 3600);
+      save(); refresh();
+    }
+    keep.addEventListener('click', doKeep);
+    free.addEventListener('click', doFree);
+    el.appendChild(card);
+    // nothing in here reaches the game's taps or keys; a tap outside the card does nothing
+    el.addEventListener('click', function (e) { e.stopPropagation(); });
+    el.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    el.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); if (stage === 'pick') doKeep(); return; }
+      if (e.key === 'Tab') {   // keep focus on the card's buttons
+        var bs = [].slice.call(card.querySelectorAll('button:not([disabled])')), i = bs.indexOf(e.target);
+        if (!bs.length) return;
+        e.preventDefault();
+        bs[(i + (e.shiftKey ? -1 : 1) + bs.length) % bs.length].focus();
+      }
+    });
+    app.appendChild(el); talkSheetEl = el;
+    try { keep.focus({ preventScroll: true }); } catch (e) { /* old browsers */ }
+  }
+  function talkClose() { if (talkSheetEl) { talkSheetEl.remove(); talkSheetEl = null; } }
+
+  // logic tick: the 대풍년 wish starts on its day (the boom chip's own toast announces it), spent wishes go away
+  function talkTick(t) {
+    L.talkArm(S, t, todayKey(t));
+    L.talkExpire(S, t);
+  }
+  // 달력, under 오늘의 현상수배: only while a wish waits
+  function talkCal() {
+    var w = L.talkWishOf(S), t = now();
+    if (!w) return;
+    var when = w.k === 'shiny' ? '다음에 낚는 물고기'
+      : w.k === 'boom' ? (w.at != null ? '지금 · ' + fmtReal(w.at + L.TALK_BOOM_MS - t) + ' 남음' : w.key + ' 처음 들어올 때부터 ' + (L.TALK_BOOM_MS / 60e3) + '분')
+      : (L.talkMeteorOn(S, t) ? '지금 · 마당 하늘의 유성을 눌러요' : fmtReal(w.start - t) + ' 뒤 밤');
+    note('말하는 물고기 소원 · ' + L.TALK_WISH_NAME[w.k] + ' · ' + when);
+  }
+  // 도감 기록 탭, after 반짝이
+  function renderTalkRec() {
+    var h3 = document.createElement('h3'); h3.textContent = '말하는 물고기';
+    var b = document.createElement('b'); b.textContent = L.talkMet(S) + '번 만남'; h3.appendChild(b); dexEl.appendChild(h3);
+    var q = document.createElement('p'), tk = S.talk; q.className = 'note';
+    if (!tk || !L.talkMet(S)) q.textContent = '낚은 물고기가 아주 가끔(약 1/' + Math.round(1 / L.TALK_P) + ') 말을 걸어요 · 갖거나, 놓아주고 소원 하나';
+    else {
+      q.textContent = '가짐 ' + tk.kept + ' · 놓아줌 ' + tk.freed + ' (소원 ' + tk.freed + '번)' +
+        (tk.wish ? ' · 기다리는 소원 「' + L.TALK_WISH_NAME[tk.wish.k] + '」' : '') + ' · ' +
+        Object.keys(tk.got).map(function (id) { return talkFishName(id) + ' ×' + tk.got[id]; }).join(' · ');
+    }
+    dexEl.appendChild(q);
+  }
+
+  // ---------- FF test hooks ----------
+  function addTalkHooks(FF) {
+    // FF.talk() = s.talk; FF.talk('next') makes the next landed fish talk (no chance or daily cap; 전설·반짝이 still don't)
+    FF.talk = function (cmd) {
+      if (cmd === 'next') talkNext = true;
+      return cmd === 'next' ? 'next' : S.talk;
     };
   }
   // ---------- 소문과 보물 지도 (stage 8 ③): map pictures, piece/rumor toasts, 꾹 눌러 파기, 기록 tab, FF hooks ----------
@@ -25354,6 +25663,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     tickGardenUI(t);   // stage 10 ②: 꽃 교배, 새끼
     tickCraftUI(t);    // 가공 공방 sheet
     tickCampUI(t);     // 캠핑: morning wake-up, camp sheets
+    talkTick(t);       // 말하는 물고기: start the 대풍년 wish, clear spent wishes (before the boom chip reads it)
     tickEventsUI(t);   // stage 8 ①: 오늘의 날 card, boom chip
     tickContestUI(t);  // stage 10 ①: 낚시 대회 week, 결산 카드 year
     tickFest(t);       // stage 5B: festival on/off, header chip
@@ -25550,7 +25860,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '823084997962';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '788f46fee240';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
@@ -26181,6 +26491,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   addBountyHooks(globalThis.FF);  // 현상수배·연속 손맛: FF.bounty(cmd | fishId), FF.streak(n)
   addShinyHooks(globalThis.FF);   // 반짝이: FF.shiny(), FF.shiny('next')
   addDreamHooks(globalThis.FF);   // 꿈 낚시: FF.dream() (now, ignoring the day), FF.dream('state' | 'bite' | 'tap' | 'wake')
+  addTalkHooks(globalThis.FF);    // 말하는 물고기: FF.talk(), FF.talk('next')
   addRecHooks(globalThis.FF);     // 소리 도감: FF.rec('all'), FF.recNow(), FF.recNote(id)
   addBandHooks(globalThis.FF);    // 마을 음악회: FF.band('all'), FF.bandPlay(), FF.bandShow(), FF.bandStart(), FF.bandAuto()
   addMuseumHooks(globalThis.FF);  // stage 7 박물관: FF.museum(room), FF.museumFill(room, left)
