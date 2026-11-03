@@ -9514,7 +9514,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function won(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '코인'; }
   var GUIDE = [
     { id: 'farm', name: '밭', how: '아래 씨앗을 고르고 빈 밭을 누르면 심기 · 다 자라면 눌러 수확 · 까마귀·잡초도 눌러 해결', lock: '' },
-    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질 · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다', lock: '' },
+    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질 · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다 · 찌를 던져 둔 동안은 화면이 꺼지지 않는다', lock: '' },
     { id: 'bag', name: '바구니·주문', how: '바구니 버튼 · 주문을 납품하면 코인과 신뢰도 ★ · 싫은 주문은 ×로 버리기', lock: '' },
     { id: 'cook', name: '요리', how: '바구니의 냄비 탭에서 재료로 요리 · 다 되면 냄비를 눌러 꺼내기', lock: '' },
     { id: 'shop', name: '상점', how: '낚싯대·미끼·밭 확장·허수아비·바구니 · 동물·장식·도구도 여기서', lock: '' },
@@ -11894,9 +11894,23 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (f && f !== 'nibble') save();
     }
   }
+  // keep the screen on while a line is in the water (찌 기다리기·입질·릴). The browser drops the lock
+  // whenever the page hides, so this per-frame check simply asks again on return.
+  var wake = null, wakeAsk = false;
+  function keepAwake(on) {
+    if (!navigator.wakeLock) return;   // ponytail: old browsers just sleep as before
+    if (on && !wake && !wakeAsk && !document.hidden) {
+      wakeAsk = true;
+      navigator.wakeLock.request('screen').then(function (l) {
+        wake = l; wakeAsk = false;
+        l.addEventListener('release', function () { if (wake === l) wake = null; });
+      }, function () { wakeAsk = false; });
+    } else if (!on && wake) { wake.release(); wake = null; }
+  }
   // line, bobber, hooked fish and the reel HUD; returns where the rod tip ends up
   function drawFishing(tt, dt) {
     var f = S.fish, tip = { x: ROD_TIP.x, y: ROD_TIP.y }, nowT = now();
+    keepAwake(!!reel || f.phase === 'wait' || f.phase === 'bite');
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
@@ -25860,7 +25874,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '788f46fee240';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '63482ba4a912';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
