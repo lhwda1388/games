@@ -904,6 +904,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'swordfish', name: '황새치',   rarity: '전설', w: 2,  min: 120, max: 260, power: 2.35, price: 2600, spot: 'sea', phase: ['day'], hint: '한낮 먼바다의 전설 · 장력을 잘 다뤄야' }
   ];
   var BITE_MS = 2500;
+  var PERFECT_MS = 500;   // 완벽한 챔질: striking this soon after the bobber sinks gives the reel a head start
   var WAIT_MIN = 20e3, WAIT_SPAN = 70e3;
   var NIBBLE_MS = 700, NIB_MIN = 5e3, NIB_SPAN = 11e3, NIB_GAP = 3e3;
   var REEL_MAX = 10, WARN = 0.4;
@@ -1004,6 +1005,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var f = s.fish;
     if (f.phase !== 'bite' || now > f.biteEnd) return null;
     f.phase = 'reel';
+    f.roll.perfect = now - f.biteAt <= PERFECT_MS * (f.biteEnd - f.biteAt) / BITE_MS;   // same slow-down as the bite window
     return f.roll;
   }
   // Player jerks the rod. On a real bite this hooks; any earlier it spooks the fish and the wait starts over.
@@ -1021,7 +1023,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // Stage 8: the fish's personality (logic/temper.js) picks what each burst is; 순한 fish keep exactly this model.
   function newReel(roll, rodTier) {
     var f = fishById(roll.id);
-    return temperReel({ tension: 0, catch: 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
+    return temperReel({ tension: 0, catch: roll.perfect ? 0.45 : 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
       tgain: UPG.rod.tgain[rodTier || 0], dir: 1, burst: 0, warn: 0, next: 0.9, result: null }, roll.id);
   }
   function reelStep(r, dt, holding, rng) {
@@ -1066,7 +1068,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function loseFish(s) { s.fish = { phase: 'idle' }; }
 
   expose({
-    FISH: FISH, BITE_MS: BITE_MS, REEL_MAX: REEL_MAX, NIBBLE_MS: NIBBLE_MS,
+    FISH: FISH, BITE_MS: BITE_MS, PERFECT_MS: PERFECT_MS, REEL_MAX: REEL_MAX, NIBBLE_MS: NIBBLE_MS,
     fishById: fishById, inWindow: inWindow, availableFish: availableFish, fishWeights: fishWeights, firstMeet: firstMeet, rollFish: rollFish, sizeFrac: sizeFrac,
     waitMs: waitMs, cast: cast, reelIn: reelIn, updateFishing: updateFishing, hook: hook, strike: strike,
     newReel: newReel, reelStep: reelStep, landFish: landFish, loseFish: loseFish
@@ -5521,6 +5523,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // ---------- 새 소식: newest first, one card per update. Add an entry at the top when a deploy has news ----------
   // id = deploy date (YYYY-MM-DD, sorts as text); a second update the same day adds a letter suffix (b, c…), only the date is shown. Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
   var NEWS = [
+    { id: '2026-11-04', title: '🎣 손맛 더하기', lines: ['찌가 잠기자마자 채면 「완벽한 챔질!」 · 릴 감기가 앞서 시작', '줄이 끊기기 직전에 끌어올리면 「아슬아슬!」', '낚시 중에는 화면이 꺼지지 않는다'] },
     { id: '2026-11-03e', title: '🌙 꿈 낚시', lines: ['집 안 침대에서 「잠들기」 · 하루 한 번 거꾸로 뒤집힌 꿈 연못', '별 조각·구름 물고기·꿈 고래… 도감 기록 탭에 꿈 도감'] },
     { id: '2026-11-03d', title: '🐟 말하는 물고기', lines: ['낚은 물고기가 아주 가끔 말을 건다 · 갖으면 값 ×20', '놓아주면 소원 하나 · 대풍년·반짝이·유성우'] },
     { id: '2026-11-03c', title: '✨ 반짝이 등장', lines: ['낚시·수확 중 아주 가끔 반짝이 · 값 ×10', '도감 기록 탭에 반짝이 모으기'] },
@@ -9514,7 +9517,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function won(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '코인'; }
   var GUIDE = [
     { id: 'farm', name: '밭', how: '아래 씨앗을 고르고 빈 밭을 누르면 심기 · 다 자라면 눌러 수확 · 까마귀·잡초도 눌러 해결', lock: '' },
-    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질 · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다 · 찌를 던져 둔 동안은 화면이 꺼지지 않는다', lock: '' },
+    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질(잠기자마자 채면 「완벽한 챔질」, 릴이 앞서 시작) · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다 · 찌를 던져 둔 동안은 화면이 꺼지지 않는다', lock: '' },
     { id: 'bag', name: '바구니·주문', how: '바구니 버튼 · 주문을 납품하면 코인과 신뢰도 ★ · 싫은 주문은 ×로 버리기', lock: '' },
     { id: 'cook', name: '요리', how: '바구니의 냄비 탭에서 재료로 요리 · 다 되면 냄비를 눌러 꺼내기', lock: '' },
     { id: 'shop', name: '상점', how: '낚싯대·미끼·밭 확장·허수아비·바구니 · 동물·장식·도구도 여기서', lock: '' },
@@ -11661,6 +11664,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     shake = 2;
     burst(f.x, f.y, 10, 0, 60);
     fxStrike(f.x, f.y);   // stage 8 ④: hit-stop + splash
+    if (res.roll.perfect) { floatText('완벽한 챔질!', f.x, f.y - 14); fxShake(3); burst(f.x, f.y, 8, 4, 70); hapt([30, 40, 30]); }
   }
   function endReel(res) {
     reelHud.hidden = true; cueEl.hidden = true;
@@ -11668,6 +11672,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var f = L.fishById(reelRoll.id);
     if (res === 'caught') {
       var out = L.landFish(S, reelRoll);
+      if (reel.tension > 0.85) { floatText('아슬아슬!', reelVis.x, reelVis.y - 22); fxShake(2); }   // landed a hair before the line would snap
       contestAfterCatch(reelRoll);   // stage 10 ①: 낚시 대회 + 결산 카드 counts
       burst(reelVis.x, reelVis.y, 14, 0, 80);
       fxCatch(f, reelVis.x, reelVis.y, out.sold);   // stage 8 ④: rare shake, legend beam, fly to the basket / coins
@@ -25874,7 +25879,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '63482ba4a912';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '5e9a13122bf8';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
