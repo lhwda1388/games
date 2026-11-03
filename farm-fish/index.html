@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pixel Pastoral</title>
+<meta name="theme-color" content="#f2f2ef">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pixel Pastoral">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect width='8' height='8' fill='%23ddd'/%3E%3Cg fill='%23222'%3E%3Crect x='2' y='2' width='3' height='1'/%3E%3Crect x='1' y='3' width='5' height='2'/%3E%3Crect x='2' y='5' width='3' height='1'/%3E%3Crect x='6' y='3' width='1' height='2'/%3E%3Crect x='7' y='2' width='1' height='4'/%3E%3C/g%3E%3Crect x='2' y='3' width='1' height='1' fill='%23ddd'/%3E%3C/svg%3E">
 <style>
 /* Hallmark · macrostructure: single-scene game (n/a) · genre: playful · tone: quiet monochrome pixel · anchor hue: none (grayscale only)
@@ -455,6 +461,68 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 #band .menu .up > span{width:12px;flex:none}
 #band .menu > button.go{width:100%;background:var(--g4);color:var(--g0)}
 #band .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:auto}
+/* ⚙ 설정 additions (pwa.js): 세이브 백업 buttons, 설치 row, 후원 link, privacy line.
+ * Reuses button/.setRow/.note/.overlay h3; only the five --g tokens, no new colours. Motion: none beyond the shared button press.
+ */
+.setBtns{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px}
+.setBtns[hidden]{display:none}
+/* 붙여넣어 불러오기: a .field.code grown to a textarea (same border, focus ring and placeholder as the 친구 code field) */
+.setPaste{display:block;width:100%;height:auto;min-height:44px;margin-top:6px;resize:vertical;font-weight:400;line-height:1.3;word-break:break-all}
+.setInstall{justify-content:space-between;cursor:default}
+.setLink{display:inline-block;margin-top:12px;font:700 12px var(--font);color:var(--g4);text-decoration:underline;text-underline-offset:3px}
+.setLink:hover{background:var(--g1)}
+.setLink:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
+.setFoot{margin:14px 0 0;padding-top:8px;border-top:1px dashed var(--g2);font:400 10px/1.4 var(--font);color:var(--g3)}
+/* 타이틀 화면 + 처음 안내. Same five --g* tokens and hard 2px ink edges as #result / .overlay; no hue, no new fonts.
+ * The title covers the HUD and the tray with paper bands and leaves the live canvas showing between them. */
+#ttl{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;cursor:pointer;
+  background:linear-gradient(var(--g0) 0 36px,transparent 36px calc(100% - 44px),var(--g0) calc(100% - 44px))}
+#ttl::before,#ttl::after{content:'';position:absolute;left:0;right:0;border:0 solid var(--g4)}
+#ttl::before{top:34px;border-top-width:2px}
+#ttl::after{bottom:42px;border-bottom-width:2px}
+#ttl.out{opacity:0;transition:opacity .18s var(--ease-out)}
+.ttlCard{margin-top:70px;width:288px;max-width:calc(100% - 32px);box-sizing:border-box;padding:16px 14px 13px;text-align:center;cursor:default;
+  background:var(--g0);border:2px solid var(--g4);box-shadow:4px 4px 0 var(--g4)}
+.ttlCard h1{margin:0;font:800 30px/1.05 var(--font);letter-spacing:.01em;color:var(--g4);text-shadow:2px 2px 0 var(--g2);
+  overflow-wrap:anywhere;min-width:0}
+.ttlCard p{margin:9px 0 0;padding-top:8px;font:700 12px/1.3 var(--font);color:var(--g3);
+  background:repeating-linear-gradient(90deg,var(--g4) 0 4px,transparent 4px 8px) top/100% 2px no-repeat}
+.ttlCard p.ttlApp{font:400 11px/1.4 var(--font);color:var(--g4)}
+.ttlRow{position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;gap:8px}
+#ttlGo{min-width:150px;padding:9px 20px;font:800 16px var(--font);background:var(--g4);color:var(--g0);box-shadow:0 3px 0 var(--g2)}
+#ttlGo:hover{background:var(--g3)}
+#ttlGo:active{transform:translateY(3px);box-shadow:none}
+#ttlSet{width:42px;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 var(--g4)}
+#ttlSet canvas{width:18px;height:18px;image-rendering:pixelated}
+#ttlGo:focus-visible,#ttlSet:focus-visible{outline:2px dashed var(--g4);outline-offset:3px}
+.ttlKey{position:absolute;bottom:15px;margin:0;font:700 10px var(--mono);color:var(--g3);
+  text-shadow:1px 0 var(--g0),-1px 0 var(--g0),0 1px var(--g0),0 -1px var(--g0)}
+@media (pointer:coarse){ .ttlKey{display:none} }
+/* behind the title only the live canvas shows: chips, cards and toasts wait (still there, just not drawn) until it goes.
+ * ⚙ from the title opens the real 설정 panel over it; a returning player's boot toast reads on top of it */
+#app.ttlUp > :where(:not(#ttl):not(#cv):not(#set)){visibility:hidden}
+#app.ttlUp #set{z-index:10}
+#app.ttlUp.ttlBack #toast{visibility:visible;z-index:10}
+
+/* 처음 안내: under every panel (.overlay is 5), over the scene; only the card takes taps */
+#tut{position:absolute;inset:0;z-index:4;pointer-events:none}
+.tutRing{position:absolute;box-sizing:border-box;border:2px dashed var(--g4);outline:2px solid var(--g0);pointer-events:none;
+  animation:tutPulse 1.2s steps(2) infinite}
+.tutRing.oval{border-radius:50%}
+@keyframes tutPulse{50%{border-color:var(--g2)}}
+.tutCard{position:absolute;left:50%;transform:translateX(-50%);width:300px;max-width:calc(100% - 24px);box-sizing:border-box;padding:7px 10px 8px;
+  background:var(--g0);border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);pointer-events:auto}
+.tutCard.top{top:44px}
+.tutCard.low{bottom:52px}
+.tutN{margin:0;float:right;font:700 10px var(--mono);color:var(--g3)}
+.tutT{display:block;font:800 14px var(--font)}
+.tutS{margin:3px 0 7px;font:700 12px/1.35 var(--font);color:var(--g3)}
+.tutB{display:flex;justify-content:flex-end;gap:6px}
+.tutB .tutSkip{box-shadow:none;border-color:var(--g2);color:var(--g3)}
+.tutB .tutNext{background:var(--g4);color:var(--g0);min-width:56px}
+.tutB .tutNext:hover{background:var(--g3)}
+.tutAgain{display:block;margin:10px auto 0}
+@media (prefers-reduced-motion: reduce){ #ttl.out{transition:none} .tutRing{animation:none} }
 </style>
 </head>
 <body>
@@ -8955,6 +9023,40 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     bndPlayLeft: bndPlayLeft, bndPlayPay: bndPlayPay, bndFestDay: bndFestDay, bndShowWhy: bndShowWhy, bndShowPay: bndShowPay,
     bndTitles: bndTitles, bndSongNow: bndSongNow, decodeBand: decodeBand
   });
+  // ---------- 타이틀·처음 안내: who sees the title, who gets the 처음 안내 (pure; nothing here touches a save) ----------
+  // Both live outside the save on purpose: the last visit in localStorage farmfish.title, the 안내 progress in farmfish.tut.
+  // An old save never gets the 안내, because "new" means "there was no save string at all when the page loaded".
+  var TTL_RECENT = 10 * 60e3;   // a returning player back within 10 real minutes (a tab reload) goes straight in
+  var TUT_STEPS = 6;            // 심기 · 기다리기 · 수확 · 낚시 · 팔기 · 수첩과 ⚙
+  var TUT_YOUNG = 10;        // a resumed 안내 needs a young farm: at most this many crops + fish ever, no upgrades
+
+  // o = { hasSave, last (ms or null), now (ms), bypass }
+  function ttlShow(o) {
+    if (o.bypass) return false;
+    if (!o.hasSave) return true;
+    var d = o.now - o.last;
+    return !(typeof o.last === 'number' && isFinite(o.last) && d >= 0 && d < TTL_RECENT);
+  }
+  // a farm that has barely started (only used to RESUME an 안내 begun in this browser; a reload mid-안내)
+  function tutYoung(s) {
+    if (!s) return false;
+    var n = 0, k;
+    for (k in s.dex.crops) n += s.dex.crops[k];
+    for (k in s.dex.fish) n += s.dex.fish[k].n;
+    for (k in s.up) if (s.up[k]) return false;
+    return n <= TUT_YOUNG && !s.yard;
+  }
+  // which 안내 step to show at load: 0..TUT_STEPS-1, or -1 for none
+  // o = { hasSave, blocked, mark (farmfish.tut string or null), state, bypass }
+  function tutWant(o) {
+    if (o.bypass || o.blocked || o.mark === 'done') return -1;
+    if (!o.hasSave) return 0;                      // brand-new player: no save string existed at load
+    var k = Number(o.mark);                        // a step number written by this browser's own 안내
+    if (o.mark === null || o.mark === undefined || o.mark === '' || !(k >= 0 && k < TUT_STEPS) || k !== Math.floor(k)) return -1;
+    return tutYoung(o.state) ? k : -1;
+  }
+
+  expose({ TTL_RECENT: TTL_RECENT, TUT_STEPS: TUT_STEPS, ttlShow: ttlShow, tutWant: tutWant, tutYoung: tutYoung });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -9390,6 +9492,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     saveBlocked = true;
     if (typeof toast === 'function') toast('다른 창에서 게임이 열려 있어요 · 이 창은 저장을 멈춰요', 6000);
   });
+  var hadSave = !!raw;   // a save string was there at load (pwa.js: no iOS 홈 화면 hint for these players)
   var fresh = !S;
   if (S && SPEED !== 1 && S.savedAt > base) base = S.savedAt;
   if (!S) S = L.newState(now(), Math.random);
@@ -9674,8 +9777,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function toast(msg, ms) {
     if (String(msg).charAt(0) === '★') { var sk = sndStar(msg); sfx(sk === 'title' ? 'starTitle' : sk === 'set' ? 'starSet' : sk === 'open' ? 'starOpen' : sk === 'new' ? 'starNew' : 'level', true); }   // 소리: 칭호 · 수집 완성 · 해금 · 첫 발견 · 그 밖의 ★
     else if (SND_ERR.test(msg)) sfx('error', true);   // 막힘
+    toastEl.style.pointerEvents = ''; toastEl.style.cursor = ''; toastEl.onclick = null;   // a tappable toast (pwa.js) is not tappable once replaced
     toastEl.textContent = msg; toastEl.classList.add('on');
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () {
+      toastEl.classList.remove('on'); toastEl.style.pointerEvents = ''; toastEl.style.cursor = ''; toastEl.onclick = null;
+    }, ms || 2200);
   }
   function floatText(text, x, y) {
     while (floatsEl.children.length >= L.FX_FLOATS) floatsEl.removeChild(floatsEl.firstChild);   // stage 8 ④: cap
@@ -10875,6 +10981,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     doc.addEventListener('keydown', onKeyDown);
     doc.addEventListener('keyup', onKeyUp);
     win.addEventListener('pointerdown', sndWake, true); win.addEventListener('keydown', sndWake, true);   // 소리: first gesture starts audio
+    win.addEventListener('keydown', function (e) { ttlKey(e); }, true);   // 타이틀 화면 (ui/title.js): keys stop at the title while it is up
     doc.addEventListener('click', sndClick);
     win.addEventListener('blur', function () { holdSpace = false; holdPointer = false; pressing = false; updateTitle(); });
     win.addEventListener('focus', updateTitle);
@@ -12311,14 +12418,16 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       var vs = document.createElement('small'); vs.textContent = haptOK() ? '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만' : '아이폰은 터치할 때만 짧게'; vt.appendChild(vs);
       vl.appendChild(vc); vl.appendChild(vt); setEl.appendChild(vl);
     }
-    if (!pipOK) return;
-    h3 = document.createElement('h3'); h3.textContent = '작은 창'; setEl.appendChild(h3);
-    var lb = document.createElement('label'); lb.className = 'setRow';
-    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
-    cb.addEventListener('change', function () { setAutoPip(cb.checked); });
-    var tx = document.createElement('span'); tx.textContent = '열면 바로 작게 띄우기';
-    var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
-    lb.appendChild(cb); lb.appendChild(tx); setEl.appendChild(lb);
+    if (pipOK) {
+      h3 = document.createElement('h3'); h3.textContent = '작은 창'; setEl.appendChild(h3);
+      var lb = document.createElement('label'); lb.className = 'setRow';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = autoPip();
+      cb.addEventListener('change', function () { setAutoPip(cb.checked); });
+      var tx = document.createElement('span'); tx.textContent = '열면 바로 작게 띄우기';
+      var sm = document.createElement('small'); sm.textContent = '첫 클릭에 작은 창으로 · P 키로 언제든 켜고 끄기'; tx.appendChild(sm);
+      lb.appendChild(cb); lb.appendChild(tx); setEl.appendChild(lb);
+    }
+    pwaSettings();   // pwa.js: 세이브 백업, 설치, 후원, privacy line (always last)
   }
   // one sound row: on/off checkbox, then its 크기 slider (0–100, step 5) with the value as 「70%」
   function setVolRow(id, on, name, sub, set, k) {
@@ -14009,6 +14118,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var p = document.createElement('p'); p.className = 'note';
     p.textContent = '새로 열리면 「새」 표시 · 새 장소에 처음 가면 한 번 알려 줘요';
     dexEl.appendChild(p);
+    tutGuideBtn(dexEl);   // 「처음 안내 다시 보기」 (ui/tut.js)
     if (!fresh.length) return;
     L.guideSee(S, fresh); save();
     var tb = dexEl.querySelector('.tabs button[aria-pressed="true"]');
@@ -14534,11 +14644,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       // two taps: the first only warns, so one stray tap never replaces a farm
       if (armed !== text) { armed = text; go.textContent = '정말 불러오기'; msg.textContent = '한 번 더 누르면 지금 세이브 대신 이 세이브로 다시 시작해요'; return; }
       saveBlocked = true;   // the 5 s save must not write the old farm back before the reload
-      try {
-        var cur = localStorage.getItem(SAVE_KEY);
-        if (cur) localStorage.setItem(SAVE_KEY + '.before-import', cur);
-        localStorage.setItem(SAVE_KEY, text);
-      } catch (e) { saveBlocked = false; msg.textContent = '이 브라우저는 저장이 막혀 있어요'; return; }
+      var ok = false;
+      try { ok = pwaApply(text, localStorage, SAVE_KEY); } catch (e) { ok = false; }   // pwa.js: the farm from before the first import is never overwritten
+      if (!ok) { saveBlocked = false; msg.textContent = '이 브라우저는 저장이 막혀 있어요'; return; }
       location.reload();
     });
   }
@@ -24808,6 +24916,484 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   [dexEl, shopEl].forEach(function (panel) {
     new MutationObserver(function () { applyFolds(panel); }).observe(panel, { childList: true });
   });
+  // ---------- 앱 설치 (PWA): sw.js, 새 버전 toast, install hint, storage.persist, ⚙ 세이브 백업, FF gating, 후원 ----------
+  // Nothing here touches the save format: 백업 is exactly L.encode(S), 불러오기 only ever goes through L.decode.
+  // Install-hint state lives in localStorage 'farmfish.install', never in the save. No network calls of our own.
+  var DONATE_URL = '';   // 후원 링크: empty shows nothing in ⚙ 설정; the user fills this in
+  var PWA_KEY = 'farmfish.install', PWA_DAYS = 14, PWA_PLAY = 4 * 60;   // hint after 4 min of visible play, then not again for 14 days
+  var PWA_NEW = '새 버전이 있어요 · 다시 열기';
+  var PWA_IOS_TIP = '공유 → 홈 화면에 추가하면 세이브가 안전해요';
+  // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
+  var PWA_IOS_SAVE = '홈 화면 앱은 세이브가 따로예요 · 먼저 ⚙ 내보내기/복사 → 앱에서 불러오기';
+  var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
+  var PWA_BUILD = 'cdb1ab7fe012';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
+  var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
+  var pwaPrompt = null, pwaReg = null, pwaChecked = 0;
+
+  function pwaLocal(h) { return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1' || /\.localhost$/.test(h); }
+  // debug/cheat hooks (window.FF) only on file:, localhost, or with #dev in the URL
+  function pwaDev(loc) { return loc.protocol === 'file:' || pwaLocal(loc.hostname) || /(^#|&)dev(&|$)/.test(loc.hash || ''); }
+  // service worker only on https:, or http: on localhost — never on file: (headless tests, opening the file directly)
+  function pwaCanSW(loc, nav) { return !!nav && 'serviceWorker' in nav && (loc.protocol === 'https:' || (loc.protocol === 'http:' && pwaLocal(loc.hostname))); }
+  function pwaStandalone(win, nav) {
+    try { if (win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) return true; } catch (e) { /* old browser */ }
+    return !!(nav && nav.standalone);
+  }
+  function pwaStore() { try { return localStorage; } catch (e) { return null; } }   // reading localStorage itself can throw
+  function pwaInApp(nav) { try { return PWA_INAPP.test(nav.userAgent || ''); } catch (e) { return false; } }
+  // the page's own build id vs the id a newly activated worker posted: true only for a real, different build
+  function pwaNewBuild(mine, theirs) { return /^[0-9a-f]{12}$/.test(mine) && /^[0-9a-f]{12}$/.test(theirs) && mine !== theirs; }
+  function pwaIOS(nav) { var ua = nav.userAgent || ''; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && nav.maxTouchPoints > 1); }
+  function pwaMobile(nav) { return pwaIOS(nav) || /Android|Mobi/i.test(nav.userAgent || ''); }
+  function pwaHintState(store) {
+    try { var o = JSON.parse(store.getItem(PWA_KEY) || 'null'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+  }
+  // env: { mobile, standalone, ios, prompt, inapp, hadSave }. Android hints only once the browser has offered to install.
+  // iOS: never to a player who had a save at load (the 홈 화면 app would open an empty farm). In-app browsers: never.
+  function pwaHintDue(st, nowMs, env) {
+    if (!env.mobile || env.standalone || st.done || env.inapp) return false;
+    if (env.ios && env.hadSave) return false;
+    if (!env.ios && !env.prompt) return false;
+    return !(st.at && nowMs - st.at < PWA_DAYS * 86400e3);
+  }
+  function pwaEnv() {
+    var env = { mobile: false, standalone: false, ios: false, inapp: false, prompt: !!pwaPrompt, hadSave: hadSave };
+    try { env.ios = pwaIOS(navigator); env.mobile = pwaMobile(navigator); env.inapp = pwaInApp(navigator); env.standalone = pwaStandalone(window, navigator); } catch (e) { /* odd navigator */ }
+    return env;
+  }
+  // ⚙ 설정 line where the install row would be (iOS has no install button): '' = nothing
+  function pwaInstallTip(env) {
+    if (env.inapp || env.standalone || !env.ios) return '';
+    return env.hadSave ? PWA_IOS_SAVE : PWA_IOS_TIP;
+  }
+  // iOS 홈 화면 app opened with no save: once ever, say where a Safari farm can come from
+  function pwaAppTipDue(env, st) { return env.ios && env.standalone && !env.hadSave && !st.app; }
+  function pwaAppTip() {
+    var env = pwaEnv(), store = pwaStore();
+    if (!store || !pwaAppTipDue(env, pwaHintState(store))) return '';
+    var st = pwaHintState(store); st.app = 1;
+    try { store.setItem(PWA_KEY, JSON.stringify(st)); } catch (e) { /* storage blocked */ }
+    return PWA_APP_TIP;
+  }
+  function pwaHintMark(store, nowMs, done) {
+    var st = pwaHintState(store); st.at = nowMs; if (done) st.done = true;
+    try { store.setItem(PWA_KEY, JSON.stringify(st)); } catch (e) { /* storage blocked: hint may show again */ }
+  }
+  // 불러오기: the decoded farm, or null. Never writes anything.
+  function pwaCheck(text) {
+    var s = null;
+    try { s = L.decode(String(text).trim()); } catch (e) { s = null; }
+    return s || null;
+  }
+  // overwrite the save with a checked text; the old save is kept aside first. false = nothing was changed.
+  // <key>.before-import is written once and never again (the farm before the very first import survives any number
+  // of imports); later imports keep the farm they replace in <key>.before-import.2 (latest only).
+  function pwaApply(text, store, key) {
+    text = String(text).trim();
+    if (!pwaCheck(text)) return false;
+    try {
+      var cur = store.getItem(key);
+      if (cur && cur !== text) {
+        var first = store.getItem(key + '.before-import');
+        if (first === null) store.setItem(key + '.before-import', cur);
+        else if (first !== cur) store.setItem(key + '.before-import.2', cur);
+      }
+      store.setItem(key, text);
+    } catch (e) { return false; }
+    return true;
+  }
+  function pwaFileName(d) {
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return 'pixel-pastoral-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '.json';
+  }
+  function pwaDownload(text, name) {
+    var url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    var a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+  function pwaCopy(text, msg, said) {
+    var done = function () { msg.textContent = said || '복사했어요 · 메신저 「나에게」 같은 곳에 붙여 두면 백업'; };
+    var fallback = function () {
+      var ta = document.createElement('textarea'); ta.value = text; ta.readOnly = true; ta.className = 'vh';
+      msg.after(ta);
+      try { ta.select(); if (document.execCommand('copy')) { ta.remove(); done(); return; } } catch (e) { /* not allowed here */ }
+      ta.remove(); msg.textContent = '이 브라우저는 복사가 막혀 있어요 · 내보내기를 써 주세요';
+    };
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); return; } } catch (e) { /* fall through */ }
+    fallback();
+  }
+  // 내보내기: iOS 홈 화면 app cannot download a file, so there it goes through the share sheet (파일에 저장),
+  // or, if even that is missing, 복사 with a line saying why. Everywhere else: the plain file download, as before.
+  function pwaExport(text, name, msg) {
+    var ok = function () { msg.textContent = '파일로 내보냈어요 · ' + name; pwaPersist(); };
+    var copy = function () { pwaCopy(text, msg, '이 화면은 파일 저장이 안 돼서 복사했어요 · 메모나 메신저에 붙여 두면 백업'); };
+    try {
+      if (pwaIOS(navigator) && pwaStandalone(window, navigator)) {
+        var f = typeof File === 'function' ? new File([text], name, { type: 'application/json' }) : null;
+        if (f && navigator.canShare && navigator.canShare({ files: [f] })) {
+          navigator.share({ files: [f] }).then(ok, function (e) {
+            if (e && e.name === 'AbortError') msg.textContent = '내보내기를 그만뒀어요';
+            else copy();
+          });
+          return;
+        }
+        copy(); return;
+      }
+      pwaDownload(text, name); ok();
+    } catch (e) { copy(); }
+  }
+
+  // ⚙ 설정 rows, appended by renderSet(): 세이브 백업, 설치, 후원, privacy line
+  function pwaSettings() {
+    var h3 = document.createElement('h3'); h3.textContent = '세이브 백업'; setEl.appendChild(h3);
+    var row = document.createElement('div'); row.className = 'setBtns';
+    var mk = function (label) { var b = document.createElement('button'); b.type = 'button'; b.textContent = label; row.appendChild(b); return b; };
+    var exp = mk('내보내기'), imp = mk('불러오기'), cp = mk('복사');
+    var file = document.createElement('input'); file.type = 'file'; file.accept = '.json,application/json,text/plain'; file.hidden = true;
+    row.appendChild(file); setEl.appendChild(row);
+    var msg = document.createElement('p'); msg.className = 'note'; msg.setAttribute('role', 'status');
+    msg.textContent = '세이브는 이 브라우저에만 있어요 · 가끔 파일로 내보내 두세요';
+    setEl.appendChild(msg);
+    var ask = document.createElement('div'); ask.className = 'setBtns'; ask.hidden = true;
+    var yes = document.createElement('button'); yes.type = 'button'; yes.textContent = '덮어쓰기';
+    var no = document.createElement('button'); no.type = 'button'; no.textContent = '그만두기';
+    ask.appendChild(yes); ask.appendChild(no); setEl.appendChild(ask);
+    var picked = '';
+    // check → confirm → apply: the file and the pasted text both come through here
+    var bad = function () { picked = ''; ask.hidden = true; msg.textContent = '세이브 파일이 아니에요 · 지금 세이브는 그대로예요'; };
+    var offer = function (text, what) {
+      if (!pwaCheck(text)) { bad(); return; }
+      picked = String(text);
+      msg.textContent = what + ' 지금 세이브를 덮어쓸까요? · 지금 세이브는 따로 보관돼요';
+      ask.hidden = false; yes.focus();
+    };
+    exp.addEventListener('click', function () { save(); pwaExport(L.encode(S), pwaFileName(new Date()), msg); });
+    cp.addEventListener('click', function () { save(); pwaCopy(L.encode(S), msg); });
+    imp.addEventListener('click', function () { ask.hidden = true; picked = ''; file.value = ''; file.click(); });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (f.size > 4e6) { bad(); return; }
+      var rd = new FileReader();
+      rd.onerror = bad;
+      rd.onload = function () { offer(rd.result, '이 파일로'); };
+      rd.readAsText(f);
+    });
+    // 복사 backups come back here: paste the text, same check and the same 덮어쓰기 question as a file
+    var paste = document.createElement('textarea'); paste.className = 'field code setPaste'; paste.rows = 2;
+    paste.spellcheck = false; paste.autocomplete = 'off'; paste.setAttribute('aria-label', '복사해 둔 세이브');
+    paste.placeholder = '복사해 둔 세이브 붙여 넣기';
+    var prow = document.createElement('div'); prow.className = 'setBtns';
+    var pgo = document.createElement('button'); pgo.type = 'button'; pgo.textContent = '붙여넣어 불러오기';
+    prow.appendChild(pgo);
+    msg.before(paste); msg.before(prow);
+    pgo.addEventListener('click', function () {
+      var t = paste.value.trim();
+      if (!t) { picked = ''; ask.hidden = true; msg.textContent = '복사해 둔 세이브를 위 칸에 붙여 넣어요'; paste.focus(); return; }
+      offer(t, '붙여 넣은 세이브로');
+    });
+    no.addEventListener('click', function () { picked = ''; ask.hidden = true; msg.textContent = '불러오기를 그만뒀어요 · 지금 세이브는 그대로예요'; });
+    yes.addEventListener('click', function () {
+      if (!picked) return;
+      var was = saveBlocked;
+      saveBlocked = true;   // the 5 s save must not write the old farm back before the reload
+      var ok = false;
+      try { ok = pwaApply(picked, pwaStore(), SAVE_KEY); } catch (e) { ok = false; }
+      if (!ok) { saveBlocked = was; msg.textContent = '이 브라우저는 저장이 막혀 있어요 · 지금 세이브는 그대로예요'; return; }
+      location.reload();
+    });
+    var env = pwaEnv(), standalone = env.standalone;
+    if (pwaPrompt && !standalone && !env.inapp) {
+      h3 = document.createElement('h3'); h3.textContent = '앱으로 설치'; setEl.appendChild(h3);
+      var ir = document.createElement('div'); ir.className = 'setRow setInstall';
+      var it = document.createElement('span'); it.textContent = '홈 화면에 설치';
+      var is = document.createElement('small'); is.textContent = '앱처럼 열리고 세이브가 더 안전해요'; it.appendChild(is);
+      var ib = document.createElement('button'); ib.type = 'button'; ib.textContent = '설치';
+      ib.addEventListener('click', function () {
+        var p = pwaPrompt; if (!p) return;
+        pwaPrompt = null; ir.remove(); h3.remove();
+        try {
+          p.prompt();
+          p.userChoice.then(function (c) { if (c && c.outcome === 'accepted') pwaHintMark(pwaStore(), Date.now(), true); }, function () {});
+        } catch (e) { /* prompt already used */ }
+      });
+      ir.appendChild(it); ir.appendChild(ib); setEl.appendChild(ir);
+    } else if (pwaInstallTip(env)) {
+      var tip = document.createElement('p'); tip.className = 'note'; tip.textContent = pwaInstallTip(env); setEl.appendChild(tip);
+    } else if (env.ios && standalone && !hadSave) {
+      var at = document.createElement('p'); at.className = 'note'; at.textContent = PWA_APP_TIP; setEl.appendChild(at);
+    }
+    if (DONATE_URL) {
+      var a = document.createElement('a'); a.className = 'setLink'; a.href = DONATE_URL;
+      a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = '☕ 후원하기';
+      setEl.appendChild(a);
+    }
+    var foot = document.createElement('p'); foot.className = 'setFoot';
+    foot.textContent = '이 게임은 데이터를 서버로 보내지 않아요. 세이브는 이 기기 브라우저에만 저장돼요.';
+    setEl.appendChild(foot);
+  }
+
+  function pwaNewToast() {   // toast() itself clears the click again when this one goes or another replaces it
+    toast(PWA_NEW, 15000);
+    toastEl.style.pointerEvents = 'auto'; toastEl.style.cursor = 'pointer';
+    toastEl.onclick = function () { if (toastEl.textContent === PWA_NEW) { save(); location.reload(); } };
+  }
+  function pwaHint() {
+    if (toastEl.classList.contains('on')) return;   // never over another message
+    var env = pwaEnv(), store = pwaStore();
+    if (!store || !pwaHintDue(pwaHintState(store), Date.now(), env)) return;
+    pwaHintMark(store, Date.now());
+    toast(env.ios ? PWA_IOS_TIP : '⚙ 설정 → 설치하면 세이브가 안전해요', 7000);
+  }
+  // ask to keep this site's storage: only in the installed app, or right after an export the player just did.
+  // Firefox shows a permission prompt for this, so a browser-tab player is never asked out of the blue.
+  function pwaPersist() {
+    try {
+      var st = navigator.storage;
+      if (st && st.persist && st.persisted) st.persisted().then(function (p) { if (!p) return st.persist(); }).catch(function () {});
+    } catch (e) { /* not supported */ }
+  }
+  // every browser API here may be missing or throw (Firefox with site data blocked throws on navigator.serviceWorker):
+  // each part is guarded on its own, so one failure never stops the others or the game
+  function pwaStart() {
+    try {
+      if (location.protocol === 'http:' || location.protocol === 'https:') {   // not on file: (it would only log a CORS error)
+        var ml = document.createElement('link'); ml.rel = 'manifest'; ml.href = 'manifest.webmanifest'; document.head.appendChild(ml);
+      }
+    } catch (e) { /* no manifest */ }
+    try {
+      if (pwaCanSW(location, navigator)) {
+        var sw = navigator.serviceWorker;
+        // a newly activated worker posts its build id; only a different one than this page's is news
+        // (the page is network-first, so after a deploy a reload is already the new build: no toast)
+        sw.addEventListener('message', function (e) {
+          var d = e && e.data;
+          if (d && d.farmfish === 'build' && pwaNewBuild(PWA_BUILD, d.id)) pwaNewToast();
+        });
+        if (sw.startMessages) sw.startMessages();
+        var reg = function () { try { sw.register('sw.js', { scope: './', updateViaCache: 'none' }).then(function (r) { pwaReg = r; }, function () {}); } catch (e) { /* blocked */ } };
+        if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
+        document.addEventListener('visibilitychange', function () {   // long-lived app windows: look for a new build at most hourly
+          if (document.hidden || !pwaReg || Date.now() - pwaChecked < 3600e3) return;
+          pwaChecked = Date.now(); pwaReg.update().catch(function () {});
+        });
+      }
+    } catch (e) { /* no service worker: the game still plays */ }
+    try {
+      window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); pwaPrompt = e; });
+      window.addEventListener('appinstalled', function () { pwaPrompt = null; var st = pwaStore(); if (st) pwaHintMark(st, Date.now(), true); });
+    } catch (e) { /* no install events */ }
+    var played = 0;
+    setInterval(function () {
+      try {
+        if (document.hidden) return;
+        played += 15;
+        if (played === 60 && pwaStandalone(window, navigator)) pwaPersist();   // installed app: a minute in
+        if (played >= PWA_PLAY) pwaHint();
+      } catch (e) { /* never break the timer */ }
+    }, 15000);
+  }
+  if (typeof window !== 'undefined' && window.document) { try { pwaStart(); } catch (e) { /* the game must start anyway */ } }
+  // ---------- 처음 안내: 6 coach marks on the real 밭·연못·바구니·도감·⚙, new players only, 건너뛰기 any time ----------
+  // Progress lives in localStorage farmfish.tut (a step number while running, 'done' after), never in the save, and the
+  // 안내 gives nothing: it only watches S (read-only) to move on when the player has really done the step.
+  // Who gets it is L.tutWant (logic/title.js): no save string at load, or a reload mid-안내 on a still-young farm.
+  // Replay: 「처음 안내 다시 보기」 at the end of the 도감 놀거리 tab.
+  var TUT_KEY = SPEED === 1 ? 'farmfish.tut' : 'farmfish.debug.tut';
+  var tutStep = -1, tutEl = null, tutCard = null, tutRings = [], tutBase = 0, tutTimer = 0;
+  function tutCrops() { var n = 0; for (var k in S.dex.crops) n += S.dex.crops[k]; return n; }
+  function tutFish() { var n = 0; for (var k in S.dex.fish) n += S.dex.fish[k].n; return n; }
+  function tutPlot(want) {   // first plot that is empty ('empty'), growing ('crop') or ready ('ready')
+    for (var i = 0; i < S.plots.length; i++) {
+      var p = S.plots[i];
+      if (want === 'empty' ? !p.crop : want === 'ready' ? L.isReady(p) : !!p.crop) return plotRect(i);
+    }
+    return null;
+  }
+  function tutCv(r) { return r && { x: r.x * 2, y: 36 + r.y * 2, w: r.w * 2, h: r.h * 2 }; }   // canvas px → #app px
+  function tutDom(el) {
+    var a = app.getBoundingClientRect(), r = el.getBoundingClientRect(), k = a.width / 360 || 1;
+    return { x: (r.left - a.left) / k, y: (r.top - a.top) / k, w: r.width / k, h: r.height / k };
+  }
+  var TUT_MIN = Math.round(L.CROPS.radish.grow / 60e3);
+  // each step: card text (t title, s line), where the card sits, what to ring, when it is done (from S, read-only)
+  var TUT = [
+    { t: '씨앗 심기', s: '빈 밭을 눌러 무를 심어요', at: 'low',
+      ring: function () { return [tutCv(tutPlot('empty') || tutPlot('crop'))]; },
+      done: function () { return !!tutPlot('crop'); } },
+    { t: '기다리기', s: '물 줄 필요 없이 저절로 자라요 · 무는 ' + TUT_MIN + '분 · 비 오면 더 빨리', at: 'low',
+      ring: function () { return [tutCv(tutPlot('crop'))]; },
+      done: function () { return !!tutPlot('ready'); } },
+    { t: '수확', s: '다 자라 반짝이는 작물을 눌러요', at: 'low',
+      ring: function () { return [tutCv(tutPlot('ready') || tutPlot('crop'))]; },
+      done: function () { return tutCrops() > tutBase; }, base: tutCrops },
+    { t: '낚시', s: '', at: 'top',
+      ring: function () {
+        var f = S.fish;
+        if (f.phase === 'wait' || f.phase === 'bite') return [tutCv({ x: f.x - 7, y: f.y - 6, w: 14, h: 12 })];
+        if (f.phase !== 'idle') return [];
+        return [tutCv({ x: POND.cx - POND.rx, y: POND.cy - POND.ry, w: POND.rx * 2, h: POND.ry * 2 })];
+      },
+      line: function () {
+        var ph = S.fish.phase;
+        return ph === 'bite' ? '지금! 눌러서 챔질' : ph === 'wait' ? '찌가 쑥 잠기면 바로 눌러요'
+          : ph === 'idle' ? '연못을 눌러 찌를 던져요' : '누르고 있으면 감겨요 · 줄이 팽팽하면 떼기';
+      },
+      done: function () { return tutFish() > tutBase; }, base: tutFish, oval: true },
+    { t: '팔기', s: '바구니에서 팔거나 주문에 납품해요', at: 'low',
+      ring: function () { return [tutDom(bagBtn)]; },
+      done: function () { return !bagEl.hidden; } },
+    { t: '수첩과 설정', s: '도감 › 놀거리 탭이 할 거리 수첩 · ⚙에서 소리·진동', at: 'low', last: true,
+      ring: function () { return [tutDom(dexBtn), tutDom(setBtn)]; },
+      done: function () { return false; } }
+  ];
+  function tutMark(v) { try { localStorage.setItem(TUT_KEY, String(v)); } catch (e) { /* storage blocked: this session only */ } }
+  function tutBoot() {
+    var mark = null;
+    try { mark = localStorage.getItem(TUT_KEY); } catch (e) { /* storage blocked */ }
+    var k = L.tutWant({ hasSave: !fresh || saveBlocked, blocked: saveBlocked, mark: mark, state: S, bypass: TTL_BYPASS });
+    if (k >= 0) tutGo(k);
+  }
+  function tutGo(k) {
+    if (k >= TUT.length) { tutEnd(); return; }
+    if (!tutEl) tutBuild();
+    tutStep = k; tutMark(k);
+    var st = TUT[k];
+    tutBase = st.base ? st.base() : 0;
+    tutCard.className = 'tutCard ' + st.at;
+    tutCard.querySelector('.tutN').textContent = (k + 1) + ' / ' + TUT.length;
+    tutCard.querySelector('.tutT').textContent = st.t;
+    tutCard.querySelector('.tutS').textContent = st.line ? st.line() : st.s;
+    tutCard.querySelector('.tutNext').textContent = st.last ? '끝' : '다음';
+    tutTick();
+  }
+  function tutBuild() {
+    tutEl = document.createElement('div'); tutEl.id = 'tut';
+    tutCard = document.createElement('div'); tutCard.setAttribute('role', 'region'); tutCard.setAttribute('aria-label', '처음 안내');
+    tutCard.innerHTML = '<p class="tutN"></p><b class="tutT"></b><p class="tutS" aria-live="polite"></p>' +
+      '<div class="tutB"><button type="button" class="tutSkip">건너뛰기</button><button type="button" class="tutNext"></button></div>';
+    tutCard.querySelector('.tutSkip').addEventListener('click', function () { tutEnd(); toast('처음 안내는 도감 › 놀거리에서 다시 볼 수 있어요', 3200); });
+    tutCard.querySelector('.tutNext').addEventListener('click', function () { tutGo(tutStep + 1); });
+    tutEl.appendChild(tutCard);
+    app.appendChild(tutEl);
+    tutTimer = setInterval(tutTick, 250);
+  }
+  function tutEnd() {
+    tutMark('done'); tutStep = -1;
+    clearInterval(tutTimer); tutTimer = 0;
+    if (tutEl) tutEl.remove();
+    tutEl = null; tutCard = null; tutRings = [];
+  }
+  // follow the player: move on when the step is really done, keep the rings on their targets, refresh the 낚시 line
+  function tutTick() {
+    if (tutStep < 0) return;
+    var st = TUT[tutStep];
+    if (st.done()) { tutGo(tutStep + 1); return; }
+    if (st.line) { var tx = st.line(), sl = tutCard.querySelector('.tutS'); if (sl.textContent !== tx) sl.textContent = tx; }
+    var boxes = view === 'farm' && !trnTrip() ? st.ring().filter(Boolean) : [];   // canvas rings only on the 밭·연못 scene
+    while (tutRings.length < boxes.length) { var r = document.createElement('i'); r.className = 'tutRing'; tutEl.appendChild(r); tutRings.push(r); }
+    tutRings.forEach(function (r, i) {
+      var b = boxes[i];
+      r.hidden = !b;
+      if (!b) return;
+      var pad = 4;
+      r.style.left = Math.round(b.x - pad) + 'px'; r.style.top = Math.round(b.y - pad) + 'px';
+      r.style.width = Math.round(b.w + pad * 2) + 'px'; r.style.height = Math.round(b.h + pad * 2) + 'px';
+      r.classList.toggle('oval', !!st.oval);
+    });
+  }
+  // 도감 놀거리 tab, after its note: 「처음 안내 다시 보기」
+  function tutGuideBtn(el) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'tutAgain'; b.textContent = '처음 안내 다시 보기';
+    b.addEventListener('click', function () { dexEl.hidden = true; tutGo(0); });
+    el.appendChild(b);
+  }
+  // FF.tut() → current step (-1 none); FF.tut(n) jumps to step n; FF.tut('skip') ends it like 건너뛰기
+  function tutHook(cmd) {
+    if (cmd === 'skip') { if (tutCard) tutCard.querySelector('.tutSkip').click(); }
+    else if (typeof cmd === 'number') tutGo(cmd);
+    return tutStep;
+  }
+  // ---------- 타이틀 화면: 「Pixel Pastoral」 over the live scene · 시작하기/이어하기 · ⚙ (the real 설정 panel) ----------
+  // The game has already booted underneath and keeps running: same clock, same catch-up, same boot toasts. This file
+  // never reads the clock into S, never writes S and never saves; it only covers the scene until one tap or Enter/Space.
+  // A returning player back within L.TTL_RECENT (last visit in localStorage farmfish.title, not the save) skips it.
+  // Automation skips it too: #dev, ?notitle, or a headless / WebDriver browser unless ?title=1 (headless smoke tests of the title).
+  var TTL_KEY = 'farmfish.title';
+  var TTL_BYPASS = /\bdev\b/.test(location.hash) || qs.has('notitle') || ((navigator.webdriver === true || /HeadlessChrome/.test(navigator.userAgent)) && qs.get('title') !== '1');
+  var ttlBack = !fresh || saveBlocked;   // a save string was there at load (even one that would not decode)
+  var ttlEl = null;
+  function ttlStamp() { if (!ttlEl) try { localStorage.setItem(TTL_KEY, String(Date.now())); } catch (e) { /* storage blocked */ } }
+  function ttlShowNow() {
+    var last = null;
+    try { var v = localStorage.getItem(TTL_KEY); if (v !== null) last = Number(v); } catch (e) { /* storage blocked */ }
+    return L.ttlShow({ hasSave: ttlBack, last: last, now: Date.now(), bypass: TTL_BYPASS });
+  }
+  function ttlOpen() {
+    var el = document.createElement('div'); el.id = 'ttl';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'ttlName');
+    var card = document.createElement('div'); card.className = 'ttlCard';
+    var h = document.createElement('h1'); h.id = 'ttlName'; h.textContent = 'Pixel Pastoral';
+    var p = document.createElement('p'); p.textContent = '심고 · 낚고 · 쉬어 가는 작은 농장';
+    card.appendChild(h); card.appendChild(p);
+    var app1 = pwaAppTip();   // iOS 홈 화면 app with no save: once, where a Safari farm comes from
+    if (app1) { var ap = document.createElement('p'); ap.className = 'ttlApp'; ap.textContent = app1; card.appendChild(ap); }
+    var row = document.createElement('div'); row.className = 'ttlRow';
+    var go = document.createElement('button'); go.type = 'button'; go.id = 'ttlGo'; go.textContent = ttlBack ? '이어하기' : '시작하기';
+    var gear = document.createElement('button'); gear.type = 'button'; gear.id = 'ttlSet'; gear.title = '설정'; gear.setAttribute('aria-label', '설정');
+    var ic = document.createElement('canvas'); ic.width = setIcon.width; ic.height = setIcon.height;
+    ic.getContext('2d').drawImage(setIcon, 0, 0); gear.appendChild(ic);
+    row.appendChild(go); row.appendChild(gear);
+    var key = document.createElement('p'); key.className = 'ttlKey'; key.textContent = 'Enter · Space';
+    el.appendChild(card); el.appendChild(row); el.appendChild(key);
+    gear.addEventListener('click', function (e) { e.stopPropagation(); setBtn.click(); });
+    el.addEventListener('click', function (e) { if (!gear.contains(e.target)) ttlGo(); });   // one tap anywhere but ⚙ goes in (also in PiP)
+    app.appendChild(el);
+    app.classList.add('ttlUp');
+    if (ttlBack) app.classList.add('ttlBack');   // the 「다녀오셨어요」 toast shows on top of the title
+    ttlEl = el;
+    try { go.focus({ preventScroll: true }); } catch (e) { /* old browsers */ }
+  }
+  function ttlGo() {
+    if (!ttlEl) return;
+    sndWake();   // same as the first gesture anywhere (it is idempotent; bindDoc's capture listener already ran)
+    var el = ttlEl; ttlEl = null;
+    app.classList.remove('ttlUp', 'ttlBack');
+    ttlStamp();
+    if (reduceMotion) el.remove();
+    else { el.classList.add('out'); setTimeout(function () { el.remove(); }, 200); }
+    tutBoot();
+  }
+  // while the title is up the game behind gets no keys: Enter/Space go in, Tab moves focus, the 설정 panel keeps its own.
+  // Bound by bindDoc (input.js) on the tab and on a PiP window, ahead of the auto-PiP key that swallows the first key.
+  function ttlKey(e) {
+    if (!ttlEl) return;
+    if (!setEl.hidden) {   // Esc closes 설정 (input.js); the header ⚙ it refocuses is hidden, so focus 시작하기 again
+      if (e.key === 'Escape') setTimeout(function () { if (ttlEl) ttlEl.querySelector('#ttlGo').focus(); }, 0);
+      return;
+    }
+    if (e.key === 'Tab') return;
+    e.stopPropagation();
+    if (e.target && e.target.id === 'ttlSet' && (e.key === 'Enter' || e.key === ' ')) return;   // the button's own click
+    if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) ttlGo(); }
+  }
+  // the first tap goes in on pointerdown: auto-PiP swallows that gesture's click, and the title must still take one tap only
+  window.addEventListener('pointerdown', function (e) {
+    if (ttlEl && ttlEl.contains(e.target) && !ttlEl.querySelector('#ttlSet').contains(e.target)) ttlGo();
+  }, true);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) ttlStamp(); });
+  window.addEventListener('pagehide', ttlStamp);
+  setInterval(function () { if (!document.hidden) ttlStamp(); }, 60e3);
+  if (ttlShowNow()) ttlOpen();
+  else { ttlStamp(); tutBoot(); }
+
+  function addTtlHooks(FF) {
+    // FF.title() → { up, bypass }; FF.title('go') dismisses it like a tap
+    FF.title = function (cmd) { if (cmd === 'go') ttlGo(); return { up: !!ttlEl, bypass: TTL_BYPASS }; };
+    FF.tut = tutHook;
+  }
   // ---------- boot ----------
   renderTray();
   fit();
@@ -24879,6 +25465,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   addMysHooks(globalThis.FF);      // 내 가게: FF.myshop() opens the shop sheet, FF.myshop('build') builds it
   addCmpHooks(globalThis.FF);      // 캠핑: FF.camp() open, FF.camp('fire' | 'cook', rid | 'done' | 'sleep' | 'morning' | 'gear' | 'sheet' | 'stamps')
   addCftHooks(globalThis.FF);      // 가공 공방: FF.craft() sheet, FF.craft('build' | 'buy', k | 'put', i, id, n | 'done' | 'take')
+  addTtlHooks(globalThis.FF);      // 타이틀·처음 안내: FF.title('go'), FF.tut(n | 'skip')
   addTrnHooks(globalThis.FF);      // 기차 여행: FF.train() station sheet, FF.train('valley') open + ticket + ride, FF.train('pick')
   // stage 4 hooks
   globalThis.FF.daily = function (done) {
@@ -24904,6 +25491,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // 환경음: what should play here now (layers with levels, one-shots per second) and the layers actually running
   globalThis.FF.ambient = function () { var w = ambWant(); ambTick(); return { lay: w.lay, ev: w.ev, live: Object.keys(ambLive) }; };
   globalThis.FF.born =function (daysAgo) { S.born = now() - (daysAgo || 0) * 86400e3; refresh(); return L.farmYear(S, now()); };
+  if (!pwaDev(location)) delete globalThis.FF;   // pwa.js: debug/cheat hooks only on file:, localhost or #dev
 })();
 </script>
 </body>
