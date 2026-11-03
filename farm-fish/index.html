@@ -11081,6 +11081,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function doStrike() {
     var f = S.fish, res = L.strike(S, now(), Math.random, curEnv(now()));
     if (!res) return;
+    haptTap();   // 진동: the strike tap itself (pointerdown / Space). ponytail: iOS tick from pointerdown needs a real-device check
     if (res.type === 'scared') {
       // the fish bolts away from the bobber; the wait starts over
       scareFx = { t: 0, x: f.x + 4, y: f.y + 3, dir: f.x > POND.cx ? 1 : -1 };
@@ -12248,6 +12249,32 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       navigator.vibrate(pattern);
     } catch (e) { /* no buzz */ }
   }
+  // iOS has no vibrate. iOS 18+ Safari ticks the Taptic Engine when a <label> tied to <input type=checkbox switch> is clicked
+  // synchronously inside a user gesture, so haptTap() is only for real tap handlers (never bite, timers or collisions).
+  function haptIOS() {
+    try { return typeof navigator !== 'undefined' && typeof document !== 'undefined' && !haptOK() && (/iP(hone|ad|od)/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)); } catch (e) { return false; }
+  }
+  var haptLbl = null;
+  // ms: Android length (default 10); iOS always gets its one fixed tick
+  function haptTap(ms) {
+    try {
+      if (!haptOn) return;
+      if (haptOK()) { hapt(ms || 10); return; }
+      if (!haptIOS()) return;
+      var t = performance.now();
+      if (t - haptLast < HAPT_GAP) return;
+      haptLast = t;
+      if (!haptLbl) {
+        haptLbl = document.createElement('label'); haptLbl.setAttribute('aria-hidden', 'true');
+        haptLbl.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none';
+        var sw = document.createElement('input'); sw.type = 'checkbox'; sw.setAttribute('switch', ''); sw.tabIndex = -1;
+        haptLbl.appendChild(sw);
+        haptLbl.addEventListener('click', function (e) { e.stopPropagation(); });   // keep it from sndClick and the other document click handlers
+        document.body.appendChild(haptLbl);
+      }
+      haptLbl.click();
+    } catch (e) { /* no tick */ }
+  }
   function haptSet(on) {
     haptOn = on;
     try { localStorage.setItem(HAPT_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
@@ -12275,13 +12302,13 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     setVolRow('setMus', musOn, '음악', '시간마다 바뀌는 배경 음악', musSet, 'music');
     setVolRow('setAmb', ambOn, '환경음', '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요', ambSet, 'ambient');
     bndSettings();   // 마을 음악회: 악기마다 켜고 끄기 (only once one is owned)
-    if (haptOK()) {   // 진동: only where the browser can buzz
+    if (haptOK() || haptIOS()) {   // 진동: only where the browser can buzz
       h3 = document.createElement('h3'); h3.textContent = '진동'; setEl.appendChild(h3);
       var vl = document.createElement('label'); vl.className = 'setRow';
       var vc = document.createElement('input'); vc.type = 'checkbox'; vc.checked = haptOn;
       vc.addEventListener('change', function () { haptSet(vc.checked); });
       var vt = document.createElement('span'); vt.textContent = '진동';
-      var vs = document.createElement('small'); vs.textContent = '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만'; vt.appendChild(vs);
+      var vs = document.createElement('small'); vs.textContent = haptOK() ? '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만' : '아이폰은 터치할 때만 짧게'; vt.appendChild(vs);
       vl.appendChild(vc); vl.appendChild(vt); setEl.appendChild(vl);
     }
     if (!pipOK) return;
@@ -17058,8 +17085,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     sfx('pick');
     if (r.done || (r.more && r.more.done)) { sfx('fossilDone'); hapt([50, 50, 50, 50, 120], 400); }
     else if (r.kind === 'part' && !r.dup) { sfx('fossilPart'); hapt([40, 50, 40], 400); }
-    else if (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함') { sfx('oreRare'); hapt(25); }
-    else { sfx('ore'); hapt(25); }   // 진동: pickaxe on a mineral
+    else if (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함') { sfx('oreRare'); haptTap(25); }
+    else { sfx('ore'); haptTap(25); }   // 진동: pickaxe on a mineral. ponytail: runs on pointerup (chRelease); a gauge timeout has no gesture, iOS skips it silently
     burst(rr[0] + rr[2] / 2, rr[1] + rr[3] / 2, won ? 16 : 9, won ? 0 : 2, won ? 70 : 45);
     var parts = [mineText(r)];
     if (r.more) parts.push(mineText(r.more));
@@ -24309,7 +24336,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     });
     var j = best && L.bndJudge(off);
     if (!j) { sfx('bandMiss'); bnd.flash.push({ lane: lane, at: gt, bad: true }); bndTip.textContent = '조금 이르게 · 음표가 선에 닿을 때'; return; }
-    if (j === 'perfect') hapt(12);   // 진동: a tick on an exact hit only
+    if (j === 'perfect') haptTap(12);   // 진동: a tick on an exact hit only. ponytail: bndTap runs in pointerdown/keydown (timing stays there); iOS tick from pointerdown needs a real-device check
     best.hit = j; bnd.hits[j]++; bnd.combo++; bnd.cheer = gt;
     bnd.flash.push({ lane: lane, at: gt });
     bndTip.textContent = (j === 'perfect' ? '딱!' : '좋아요') + (bnd.combo > 2 ? ' · ' + bnd.combo + '연속' : '');
