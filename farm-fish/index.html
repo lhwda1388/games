@@ -5523,6 +5523,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // ---------- 새 소식: newest first, one card per update. Add an entry at the top when a deploy has news ----------
   // id = deploy date (YYYY-MM-DD, sorts as text); a second update the same day adds a letter suffix (b, c…), only the date is shown. Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
   var NEWS = [
+    { id: '2026-11-04b', title: '✨ 입질 신호·챔질 콤보', lines: ['희귀·전설이 물면 찌 둘레가 반짝이고 더 세게 흔들린다', '완벽한 챔질을 이어 가면 ×2 ×3… 3번째부터 릴이 더 앞서 시작'] },
     { id: '2026-11-04', title: '🎣 손맛 더하기', lines: ['찌가 잠기자마자 채면 「완벽한 챔질!」 · 릴 감기가 앞서 시작', '줄이 끊기기 직전에 끌어올리면 「아슬아슬!」', '낚시 중에는 화면이 꺼지지 않는다'] },
     { id: '2026-11-03e', title: '🌙 꿈 낚시', lines: ['집 안 침대에서 「잠들기」 · 하루 한 번 거꾸로 뒤집힌 꿈 연못', '별 조각·구름 물고기·꿈 고래… 도감 기록 탭에 꿈 도감'] },
     { id: '2026-11-03d', title: '🐟 말하는 물고기', lines: ['낚은 물고기가 아주 가끔 말을 건다 · 갖으면 값 ×20', '놓아주면 소원 하나 · 대풍년·반짝이·유성우'] },
@@ -9517,7 +9518,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function won(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '코인'; }
   var GUIDE = [
     { id: 'farm', name: '밭', how: '아래 씨앗을 고르고 빈 밭을 누르면 심기 · 다 자라면 눌러 수확 · 까마귀·잡초도 눌러 해결', lock: '' },
-    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질(잠기자마자 채면 「완벽한 챔질」, 릴이 앞서 시작) · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다 · 찌를 던져 둔 동안은 화면이 꺼지지 않는다', lock: '' },
+    { id: 'pond', name: '연못 낚시', how: '물을 누르면 던지기 · 찌가 쑥 잠기면 눌러 챔질(잠기자마자 채면 「완벽한 챔질」, 릴이 앞서 시작, 3번부터 이어지면 더 앞서 시작 · 찌 둘레가 반짝이면 희귀·전설) · 누르고 있으면 감기, 장력이 높으면 떼기 · 화면 위 가운데 이름표가 지금 있는 곳(연못·강·바다·섬 부두…), 옮기면 이름이 잠깐 크게 뜬다 · 찌를 던져 둔 동안은 화면이 꺼지지 않는다', lock: '' },
     { id: 'bag', name: '바구니·주문', how: '바구니 버튼 · 주문을 납품하면 코인과 신뢰도 ★ · 싫은 주문은 ×로 버리기', lock: '' },
     { id: 'cook', name: '요리', how: '바구니의 냄비 탭에서 재료로 요리 · 다 되면 냄비를 눌러 꺼내기', lock: '' },
     { id: 'shop', name: '상점', how: '낚싯대·미끼·밭 확장·허수아비·바구니 · 동물·장식·도구도 여기서', lock: '' },
@@ -11645,6 +11646,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!res) return;
     haptTap();   // 진동: the strike tap itself (pointerdown / Space). ponytail: iOS tick from pointerdown needs a real-device check
     if (res.type === 'scared') {
+      perfRun = 0;
       // the fish bolts away from the bobber; the wait starts over
       scareFx = { t: 0, x: f.x + 4, y: f.y + 3, dir: f.x > POND.cx ? 1 : -1 };
       burst(f.x, f.y, 4, 0, 30);
@@ -11657,6 +11659,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (catchJunk(res.roll, f)) return;   // stage 5B: sometimes a common bite is junk (no reel)
     reelRoll = res.roll;
     reel = L.newReel(res.roll, L.tier(S, 'rod'));
+    perfRun = res.roll.perfect ? perfRun + 1 : 0;
+    if (perfRun >= 3) reel.catch = Math.min(0.6, reel.catch + 0.05 * (perfRun - 2));   // 완벽 콤보: each one past 2 starts the reel a bit further. ponytail: session only, not saved
     reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false, phase: 0, air: 0 };
     reelIntro(res.roll);   // stage 8: a known fish says how it fights; a legend announces a boss fight
     reelHud.hidden = false;
@@ -11664,7 +11668,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     shake = 2;
     burst(f.x, f.y, 10, 0, 60);
     fxStrike(f.x, f.y);   // stage 8 ④: hit-stop + splash
-    if (res.roll.perfect) { floatText('완벽한 챔질!', f.x, f.y - 14); fxShake(3); burst(f.x, f.y, 8, 4, 70); hapt([30, 40, 30]); }
+    if (res.roll.perfect) { floatText(perfRun > 1 ? '완벽한 챔질! ×' + perfRun : '완벽한 챔질!', f.x, f.y - 14); fxShake(3); burst(f.x, f.y, 8, 4, 70); hapt([30, 40, 30]); }
   }
   function endReel(res) {
     reelHud.hidden = true; cueEl.hidden = true;
@@ -11894,14 +11898,17 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function tickFishing(t) {
     if (!reel) {
       var f = L.updateFishing(S, t, Math.random, SPEED, curEnv(t));
-      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('missed'); }
-      if (f === 'bite') { sfx('bite'); hapt([40, 60, 40]); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
+      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('missed'); perfRun = 0; }
+      if (f === 'bite') {
+        var bt = L.fxTier(L.fishById(S.fish.roll.id));   // 희귀·전설 입질은 더 세게: the player gets a heads-up before the strike
+        sfx('bite'); hapt(bt ? [60, 40, 60, 40, 60] : [40, 60, 40]); burst(S.fish.x, S.fish.y, 6 + bt * 6, 0, 45 + bt * 20); shake = Math.max(shake, 1 + bt * 1.5);
+      }
       if (f && f !== 'nibble') save();
     }
   }
   // keep the screen on while a line is in the water (찌 기다리기·입질·릴). The browser drops the lock
   // whenever the page hides, so this per-frame check simply asks again on return.
-  var wake = null, wakeAsk = false;
+  var wake = null, wakeAsk = false, perfRun = 0;
   function keepAwake(on) {
     if (!navigator.wakeLock) return;   // ponytail: old browsers just sleep as before
     if (on && !wake && !wakeAsk && !document.hidden) {
@@ -12013,6 +12020,15 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         ring(f.x, f.y + 1, 6 + (tt * 10 % 5), 3 + (tt * 5 % 2.5), 0);
         fishShadow(f.x + 3, f.y + 2, 11, -1, Math.round(Math.sin(tt * 20) * 2), 0.6);
         spr(BANG, f.x - 3, f.y - 18 + (Math.floor(tt * 6) % 2));
+        var bt2 = L.fxTier(L.fishById(f.roll.id));
+        if (bt2) {   // 희귀: sparkles circle the float · 전설: more of them, wider, and a second 「!」
+          for (var sk = 0; sk < 2 + bt2 * 2; sk++) {
+            var sa = tt * 4 + sk * Math.PI * 2 / (2 + bt2 * 2), sr = 9 + bt2 * 3;
+            if ((Math.floor(tt * 8) + sk) % 3) { var sxk = Math.round(f.x + Math.cos(sa) * sr), syk = Math.round(f.y - 2 + Math.sin(sa) * sr * 0.5);
+              px(sxk, syk - 1, 1, 3, 4); px(sxk - 1, syk, 3, 1, 4); }
+          }
+          if (bt2 > 1) spr(BANG, f.x + 4, f.y - 20 + (Math.floor(tt * 6 + 1) % 2));
+        }
       }
       drawLine(tip.x, tip.y, bx, byy - 3, castAnim ? 0 : (sunk ? 2 : 8), 0);
       if (sunk) { tip.y += 2; tip.x += 1; }
@@ -25879,7 +25895,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '5e9a13122bf8';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'f8a7915461fe';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
