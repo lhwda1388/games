@@ -441,6 +441,12 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .dx .recPlay{flex:none;padding:1px 6px;font:700 10px var(--font);box-shadow:0 1px 0 var(--g4)}
 .dx .recPlay:active{transform:translateY(1px)}
 @media (prefers-reduced-motion: reduce){ #recNote{animation:none;background:var(--g1)} }
+/* Hallmark · component: 낚싯대 세워두기 chip · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules in style.css) · shown/hidden; instant, no loading/error
+ * contrast: ink on paper as every button. Only tokens, no new colours, no motion.
+ */
+#propChip{position:absolute;left:3px;top:350px;z-index:2;height:24px;padding:0 7px;font:700 11px/1 var(--font);white-space:nowrap}
+#propChip[hidden]{display:none}
 /* Hallmark · component: 마을 음악회 ♪ chip + rhythm overlay (120×160 board, lane pads) · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
  * states: default · hover · focus-visible · active · disabled · pressed (악기 켬/끔 .on + aria-pressed, shared .up rules) · shown/hidden (chip);
  *   loading/error/success: none async — the round's 딱/좋아요/놓침 is the tip line (aria-live), the result is the stage picture + notes
@@ -513,6 +519,16 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .talkBtn{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;white-space:normal;line-height:1.3}
 .talkBtn small{font:400 10px/1.3 var(--font);color:var(--g3)}
 .talkBtn:disabled small{color:inherit}
+/* Hallmark · component: 작물 미끼 chip · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules in style.css) · on (a bait chosen: inverted, like #tray's picked seed); instant, no loading/error
+ * contrast: ink on paper as every button. Only tokens, no new colours, no motion.
+ */
+#baitChip{position:absolute;left:3px;top:380px;z-index:2;height:26px;min-width:44px;padding:0 5px;display:flex;align-items:center;justify-content:center;gap:2px;
+  font:700 11px var(--mono);white-space:nowrap}
+#baitChip[hidden]{display:none}
+#baitChip canvas{width:18px;height:18px;image-rendering:pixelated;flex:none}
+#baitChip.on{background:var(--g4);color:var(--g0)}
+#baitChip.on canvas{filter:invert(1)}
 /* 타이틀 화면 + 처음 안내. Same five --g* tokens and hard 2px ink edges as #result / .overlay; no hue, no new fonts.
  * The title covers the HUD and the tray with paper bands and leaves the live canvas showing between them. */
 #ttl{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;cursor:pointer;
@@ -934,10 +950,10 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // weights for a pool. A fish with `share` (점심 붕어, 퇴근 참치) takes that fraction of the pool while it is in,
   // whatever else swims there; better bait raises the odds like any rare fish, capped at POOL_SHARE_MAX.
   function fishWeights(pool, s, env) {
-    var rare = (s ? UPG.bait.rare[tier(s, 'bait')] : 1) * (stormOn(s, env) ? BOOM_RARE_MUL : 1), others = 0, shTot = 0;   // stage 8: 입질 폭풍
+    var rare = (s ? UPG.bait.rare[tier(s, 'bait')] : 1) * (stormOn(s, env) ? BOOM_RARE_MUL : 1) * baitRare(s), others = 0, shTot = 0;   // stage 8: 입질 폭풍, 작물 미끼
     var wt = pool.map(function (f) {
       if (f.share) return 0;
-      var w = f.w * (f.rarity === '흔함' ? 1 : rare);
+      var w = f.w * (f.rarity === '흔함' ? 1 : rare) * baitFam(s, f);   // 작물 미끼 (logic/bait.js)
       if (firstMeet(s, f)) w *= f.rarity === '전설' ? FIRST_MUL_LEGEND : FIRST_MUL;
       others += w;
       return w;
@@ -958,7 +974,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     for (k = 0; k < pool.length; k++) tot += wt[k];
     var r = rng() * tot, pick = pool[pool.length - 1];
     for (k = 0; k < pool.length; k++) { r -= wt[k]; if (r < 0) { pick = pool[k]; break; } }
-    var size = Math.round((pick.min + (pick.max - pick.min) * Math.pow(rng(), dayIs(s, 'bigfish') ? DAY_BIG_POW : 1.6)) * 10) / 10;
+    var size = Math.round((pick.min + (pick.max - pick.min) * Math.pow(rng(), baitPow(s, dayIs(s, 'bigfish') ? DAY_BIG_POW : 1.6))) * 10) / 10;
     return { id: pick.id, size: size };
   }
   function sizeFrac(roll) {
@@ -967,12 +983,15 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // stage 8: 입질 폭풍 at this spot and 입질 좋은 날 shorten the wait; so does an 온천욕 within its hour (train.js)
   function waitMs(s, rng, env, now) {
-    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1) * trnBathMul(s, now));
+    return Math.round((WAIT_MIN + rng() * WAIT_SPAN) * UPG.bait.wait[tier(s, 'bait')] * (stormOn(s, env) ? BOOM_WAIT_MUL : 1) * (dayIs(s, 'bite') ? DAY_BITE_MUL : 1) * trnBathMul(s, now) * baitWait(s));
   }
   function nextNibble(s, from, rng) { return from + Math.round((NIB_MIN + rng() * NIB_SPAN) * UPG.bait.wait[tier(s, 'bait')]); }
   function cast(s, now, rng, x, y, env) {
     if (s.fish.phase !== 'idle') return false;
-    s.fish = { phase: 'wait', x: x, y: y, biteAt: now + waitMs(s, rng, env, now), nibAt: 0, nibEnd: 0 };
+    s.fish = { phase: 'wait', x: x, y: y, biteAt: 0, nibAt: 0, nibEnd: 0 };
+    var bt = baitTake(s);   // 작물 미끼: one use per cast, carried by this line
+    if (bt) s.fish.bt = bt;
+    s.fish.biteAt = now + waitMs(s, rng, env, now);
     s.fish.nibAt = nextNibble(s, now, rng);
     return true;
   }
@@ -995,7 +1014,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (f.phase === 'wait' && now >= f.biteAt) {
       var end = f.biteAt + BITE_MS * actScale;
       if (now > end) { s.fish = { phase: 'idle' }; return 'missed'; }
-      f.phase = 'bite'; f.biteEnd = end; f.roll = rollFish(new Date(f.biteAt), rng, s, env);
+      f.phase = 'bite'; f.biteEnd = end; f.roll = tagBite(s, rollFish(new Date(f.biteAt), rng, s, env), f.biteAt, rng);   // 방생 표식 (tag.js)
       return 'bite';
     }
     if (f.phase === 'bite' && now > f.biteEnd) { s.fish = { phase: 'idle' }; return 'missed'; }
@@ -1005,7 +1024,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var f = s.fish;
     if (f.phase !== 'bite' || now > f.biteEnd) return null;
     f.phase = 'reel';
-    f.roll.perfect = now - f.biteAt <= PERFECT_MS * (f.biteEnd - f.biteAt) / BITE_MS;   // same slow-down as the bite window
+    f.roll.perfect = !f.held && now - f.biteAt <= PERFECT_MS * (f.biteEnd - f.biteAt) / BITE_MS;   // same slow-down as the bite window; a held bite (세워두기) never
     return f.roll;
   }
   // Player jerks the rod. On a real bite this hooks; any earlier it spooks the fish and the wait starts over.
@@ -1021,10 +1040,16 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // Reel minigame: holding raises catch and tension; the fish pulls in telegraphed bursts toward r.dir.
   // Stage 8: the fish's personality (logic/temper.js) picks what each burst is; 순한 fish keep exactly this model.
+  // head start (완벽한 챔질 / 콤보) never reaches a boss's first phase mark, so no fight phase is skipped
+  function reelHead(r, extra) {
+    var n = r.phases ? r.phases.length : 1;
+    r.catch = Math.min(n > 1 ? PHASE_AT[n][0] - 0.1 : 0.6, r.catch + extra);
+    return r;
+  }
   function newReel(roll, rodTier) {
     var f = fishById(roll.id);
-    return temperReel({ tension: 0, catch: roll.perfect ? 0.45 : 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
-      tgain: UPG.rod.tgain[rodTier || 0], dir: 1, burst: 0, warn: 0, next: 0.9, result: null }, roll.id);
+    return reelHead(temperReel({ tension: 0, catch: 0.25, t: 0, power: f.power * (0.85 + 0.3 * sizeFrac(roll)),
+      tgain: UPG.rod.tgain[rodTier || 0], dir: 1, burst: 0, warn: 0, next: 0.9, result: null }, roll.id), roll.perfect ? 0.2 : 0);
   }
   function reelStep(r, dt, holding, rng) {
     if (r.result) return r.result;
@@ -1068,7 +1093,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function loseFish(s) { s.fish = { phase: 'idle' }; }
 
   expose({
-    FISH: FISH, BITE_MS: BITE_MS, PERFECT_MS: PERFECT_MS, REEL_MAX: REEL_MAX, NIBBLE_MS: NIBBLE_MS,
+    FISH: FISH, BITE_MS: BITE_MS, PERFECT_MS: PERFECT_MS, reelHead: reelHead, REEL_MAX: REEL_MAX, NIBBLE_MS: NIBBLE_MS,
     fishById: fishById, inWindow: inWindow, availableFish: availableFish, fishWeights: fishWeights, firstMeet: firstMeet, rollFish: rollFish, sizeFrac: sizeFrac,
     waitMs: waitMs, cast: cast, reelIn: reelIn, updateFishing: updateFishing, hook: hook, strike: strike,
     newReel: newReel, reelStep: reelStep, landFish: landFish, loseFish: loseFish
@@ -3070,7 +3095,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // which junk (if any) a hooked roll turns into; null = keep the fish
   function rollJunk(roll, rng) {
     var f = roll && fishById(roll.id);
-    if (!f || f.rarity !== '흔함' || f.egg || f.fest) return null;
+    if (!f || f.rarity !== '흔함' || f.egg || f.fest || roll.tag != null) return null;   // a 방생 표식 fish is never junk
     if (rng() >= JUNK_CHANCE) return null;
     var tot = 0, k; for (k = 0; k < JUNK.length; k++) tot += JUNK[k].w;
     var r = rng() * tot;
@@ -5523,6 +5548,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // ---------- 새 소식: newest first, one card per update. Add an entry at the top when a deploy has news ----------
   // id = deploy date (YYYY-MM-DD, sorts as text); a second update the same day adds a letter suffix (b, c…), only the date is shown. Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
   var NEWS = [
+    { id: '2026-11-04e', title: '🎣 낚싯대 세워두기', lines: ['찌를 던져 두고 「세워두기」 · 자리를 비워도 문 물고기가 기다린다', '돌아오면 「세워 둔 낚싯대에 뭔가 걸려 있다!」 · 넉넉히 챔질하고 감기 · 하루 3번'] },
+    { id: '2026-11-04d', title: '🏷 방생 표식', lines: ['낚은 물고기에 표식을 달아 놓아주면 하루 뒤 그 낚시터에서 더 커져 돌아온다', '「그때 그 녀석!」 · 도감 크기를 넘어 신기록이 날지도'] },
+    { id: '2026-11-04c', title: '🥕 작물 미끼', lines: ['연못 옆 「미끼」 · 거둔 작물 하나로 미끼 3번', '무는 입질이 빠르게, 옥수수는 붕어·잉어, 호박은 큰 물고기…'] },
     { id: '2026-11-04b', title: '✨ 입질 신호·챔질 콤보', lines: ['희귀·전설이 물면 찌 둘레가 반짝이고 더 세게 흔들린다', '완벽한 챔질을 이어 가면 ×2 ×3… 3번째부터 릴이 더 앞서 시작'] },
     { id: '2026-11-04', title: '🎣 손맛 더하기', lines: ['찌가 잠기자마자 채면 「완벽한 챔질!」 · 릴 감기가 앞서 시작', '줄이 끊기기 직전에 끌어올리면 「아슬아슬!」', '낚시 중에는 화면이 꺼지지 않는다'] },
     { id: '2026-11-03e', title: '🌙 꿈 낚시', lines: ['집 안 침대에서 「잠들기」 · 하루 한 번 거꾸로 뒤집힌 꿈 연못', '별 조각·구름 물고기·꿈 고래… 도감 기록 탭에 꿈 도감'] },
@@ -6710,7 +6738,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!contestOk(s) || !fishById(roll.id)) return null;
     contestTick(s, now, tzMin);
     var c = contestOf(s, contestWeek(now, tzMin)), f = Math.round(sizeFrac(roll) * 1000) / 1000, mk = weekMark(s, c);
-    if (roll.id !== mk.fish) return null;
+    if (roll.id !== mk.fish || roll.tag != null) return null;   // a 방생 표식 comeback is not entered (BALANCE.md 2026-11-04)
     var better = !c.best || c.best.id !== mk.fish || f > c.best.f;
     if (better) c.best = { id: roll.id, size: roll.size, f: f };
     return { best: better, ahead: c.best.f >= mk.f, f: f, mark: mk };
@@ -9291,6 +9319,56 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     SHINY_P_FISH: SHINY_P_FISH, SHINY_P_CROP: SHINY_P_CROP, SHINY_MUL: SHINY_MUL,
     shinyOk: shinyOk, shinyRoll: shinyRoll, shinyKinds: shinyKinds, shinyFound: shinyFound, shinyGet: shinyGet, decodeShiny: decodeShiny
   });
+  // ---------- 낚싯대 세워두기: prop the rod while the line waits; a bite that comes while the player is away waits on the hook ----------
+  // The flag lives on the line (s.fish.prop), so reelIn, a spot change or any other reset of s.fish drops it.
+  // The UI does not run updateFishing on a propped line while nobody looks (other scene, hidden tab, app closed) and calls
+  // propCatch on the way back. s.prop = { day, n } = held catches on that real day (cap PROP_DAY_MAX), made on the first one.
+  var PROP_DAY_MAX = 3;      // propped catches per real day
+  var PROP_HOLD_MS = 8000;   // a held bite's strike window from the moment the player is back (an ordinary bite: BITE_MS)
+
+  function propLeft(s, key) {
+    var p = s.prop;
+    return !p || p.day !== key ? PROP_DAY_MAX : Math.max(0, PROP_DAY_MAX - p.n);
+  }
+  function propRod(s, key) {
+    var f = s.fish;
+    if (f.phase !== 'wait' || f.prop || propLeft(s, key) <= 0) return false;
+    f.prop = true;
+    return true;
+  }
+  // On the player's return. A propped line whose bite came and went while away (past the ordinary window) has a fish
+  // waiting: phase 'bite' + held, window PROP_HOLD_MS from now, rolled for when it bit (env = that moment), one of today's.
+  // A held bite whose window ran out while away gets a fresh window (already counted). Back in time = nothing (play on).
+  // → 'held' | 'again' | null
+  function propCatch(s, now, rng, actScale, env, key) {
+    actScale = actScale || 1;
+    var f = s.fish;
+    if (f.phase === 'bite' && f.held) {
+      if (now <= f.biteEnd) return null;
+      f.biteAt = now; f.biteEnd = now + PROP_HOLD_MS * actScale;
+      return 'again';
+    }
+    if (!f.prop || (f.phase !== 'wait' && f.phase !== 'bite')) return null;
+    if (now <= (f.phase === 'bite' ? f.biteEnd : f.biteAt + BITE_MS * actScale)) return null;
+    if (propLeft(s, key) <= 0) { delete f.prop; return null; }   // clock set back into a used-up day: an ordinary miss
+    if (!s.prop || s.prop.day !== key) s.prop = { day: key, n: 0 };
+    s.prop.n++;
+    var roll = f.phase === 'bite' ? f.roll : tagBite(s, rollFish(new Date(f.biteAt), rng, s, env), f.biteAt, rng);   // 방생 표식 can come back on a propped rod too
+    s.fish = { phase: 'bite', x: f.x, y: f.y, held: true, biteAt: now, biteEnd: now + PROP_HOLD_MS * actScale, roll: roll };
+    return 'held';
+  }
+
+  // ---------- save: called by decode() (the line's prop / held flags are kept by decode's s.fish part) ----------
+  function decodeProp(o, s) {
+    var q = o.prop;
+    if (!q || typeof q !== 'object' || !DAY_RE.test(q.day) || typeof q.n !== 'number' || !isFinite(q.n)) return;
+    s.prop = { day: q.day, n: Math.max(0, Math.min(PROP_DAY_MAX, Math.floor(q.n))) };
+  }
+
+  expose({
+    PROP_DAY_MAX: PROP_DAY_MAX, PROP_HOLD_MS: PROP_HOLD_MS,
+    propLeft: propLeft, propRod: propRod, propCatch: propCatch, decodeProp: decodeProp
+  });
   // ---------- 꿈 낚시: sleep in the 침대 once a real day → an upside-down dream pond, DREAM_CASTS casts ----------
   // Dream catches never touch the basket, orders or the market: each one is paid in coins at once and counted in
   // s.dream.got (the 꿈 도감). s.dream = { day, n, got: { id: count } } is made lazily; older saves have none.
@@ -9422,8 +9500,12 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // 놓아준다: undo what landFish did with this fish. bagAdd pushed { id, v: value } (also when it swapped out a cheaper
   // one), so the newest matching entry is it. Not there = it went straight to coins (full basket) or was sold meanwhile:
   // take its value back instead (never below 0). The 도감 keeps it — you did meet it. → { back } (coins taken back)
+  // catchUndo is shared with 방생 표식 (logic/tag.js)
   function talkFree(s, id, value) {
     talkOf(s).freed++;
+    return catchUndo(s, id, value);
+  }
+  function catchUndo(s, id, value) {
     for (var k = s.bag.length - 1; k >= 0; k--) {
       if (s.bag[k].id === id && s.bag[k].v === value) { s.bag.splice(k, 1); return { back: 0 }; }
     }
@@ -9508,9 +9590,147 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     TALK_P: TALK_P, TALK_DAY_MAX: TALK_DAY_MAX, TALK_KEEP_MUL: TALK_KEEP_MUL, TALK_BOOM_MS: TALK_BOOM_MS,
     TALK_WISHES: TALK_WISHES, TALK_WISH_NAME: TALK_WISH_NAME, TALK_LINES: TALK_LINES,
     talkOk: talkOk, talkLeft: talkLeft, talkRoll: talkRoll, talkMeet: talkMeet, talkPhrase: talkPhrase, talkMet: talkMet,
-    talkKeep: talkKeep, talkFree: talkFree, talkWishOk: talkWishOk, talkNight: talkNight, talkWish: talkWish, talkWishOf: talkWishOf,
+    talkKeep: talkKeep, talkFree: talkFree, catchUndo: catchUndo, talkWishOk: talkWishOk, talkNight: talkNight, talkWish: talkWish, talkWishOf: talkWishOf,
     talkArm: talkArm, talkExpire: talkExpire, talkBoom: talkBoom, talkMeteorOn: talkMeteorOn, talkShinyTake: talkShinyTake,
     decodeTalk: decodeTalk
+  });
+  // ---------- 방생 표식: tag a just-caught fish and let it go; after a real day it may bite again at that spot, bigger ----------
+  // s.tag = { list: [{ id, size, spot, at }], back, last } is made lazily on the first tag; older saves have none.
+  // at = release time (ms, also the tag's key), back = how many came back, last = { id, from, to, days } of the latest one.
+  var TAG_MAX = 3;                // tags waiting at once (a new one pushes out the oldest)
+  var TAG_P = 0.2;                // per bite at a spot with a ready tag
+  var TAG_WAIT = 86400e3;         // one real day before it comes back
+  var TAG_GROW = [0.1, 0.3];      // size grows 10–30% (may go past the species max → a new 신기록)
+  var TAG_OVER = 0.1;             // …but never past the species max by more than this (BALANCE.md 2026-11-04)
+
+  // like 말하는 물고기: not 전설, not a 반짝이 catch, not the talking fish's card, not one that already came back
+  function tagOk(id, shiny, talked, back) { return !talked && !back && talkOk(id, shiny); }
+  function tagList(s) { return s.tag ? s.tag.list : []; }
+  // 놓아주기: undo the catch (as 말하는 물고기 does) and remember it → { back } (coins taken back)
+  function tagFree(s, roll, value, now, spot) {
+    if (!s.tag) s.tag = { list: [], back: 0, last: null };
+    var r = catchUndo(s, roll.id, value);
+    s.tag.list.push({ id: roll.id, size: roll.size, spot: spot || curSpot(s), at: now });
+    while (s.tag.list.length > TAG_MAX) s.tag.list.shift();
+    return r;
+  }
+  function tagDays(t, now) { return Math.floor((now - t.at) / TAG_WAIT); }
+  function tagReady(s, now) {
+    var sp = curSpot(s);
+    return tagList(s).filter(function (t) { return t.spot === sp && tagDays(t, now) >= 1; });
+  }
+  // fishing.js updateFishing, right after rollFish: sometimes the tagged one bites instead (no rng used without a ready tag)
+  function tagBite(s, roll, now, rng) {
+    var c = tagReady(s, now);
+    if (!c.length || rng() >= TAG_P) return roll;
+    var t = c[Math.floor(rng() * c.length) % c.length];
+    var g = TAG_GROW[0] + (TAG_GROW[1] - TAG_GROW[0]) * rng();
+    return { id: t.id, size: Math.round(Math.min(t.size * (1 + g), fishById(t.id).max * (1 + TAG_OVER)) * 10) / 10, tag: t.at };
+  }
+  // pond.js endReel after landFish: landing it uses the tag up → { id, from, to, days } or null. Escaping keeps it.
+  function tagLand(s, roll, now) {
+    if (!roll || roll.tag == null || !s.tag) return null;
+    var l = s.tag.list;
+    for (var k = 0; k < l.length; k++) {
+      if (l[k].at !== roll.tag) continue;
+      var t = l.splice(k, 1)[0];
+      s.tag.back++;
+      s.tag.last = { id: t.id, from: t.size, to: roll.size, days: tagDays(t, now) };
+      return s.tag.last;
+    }
+    return null;
+  }
+
+  // ---------- save: called by decode() ----------
+  function decodeTag(o, s) {
+    var q = o.tag, num = function (x) { return typeof x === 'number' && isFinite(x); };
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var t = { list: [], back: num(q.back) && q.back >= 0 ? Math.min(1e6, Math.floor(q.back)) : 0, last: null };
+    if (Array.isArray(q.list)) q.list.forEach(function (e) {
+      if (e && fishById(e.id) && num(e.size) && e.size > 0 && e.size < 1e4 && typeof e.spot === 'string' && num(e.at) && t.list.length < TAG_MAX) {
+        t.list.push({ id: e.id, size: e.size, spot: e.spot, at: e.at });
+      }
+    });
+    var w = q.last;
+    if (w && fishById(w.id) && num(w.from) && num(w.to) && num(w.days) && w.days >= 0) t.last = { id: w.id, from: w.from, to: w.to, days: Math.floor(w.days) };
+    s.tag = t;
+  }
+
+  expose({
+    TAG_MAX: TAG_MAX, TAG_P: TAG_P, TAG_WAIT: TAG_WAIT, TAG_GROW: TAG_GROW, TAG_OVER: TAG_OVER,
+    tagOk: tagOk, tagList: tagList, tagFree: tagFree, tagDays: tagDays, tagReady: tagReady, tagBite: tagBite, tagLand: tagLand,
+    decodeTag: decodeTag
+  });
+  // ---------- 작물 미끼: one harvested crop → BAIT_USES casts of that bait; the chosen one is used up one per cast ----------
+  // s.bait2 = { n: { cropId: casts left }, on: cropId | null } is made on the first one made; older saves have none.
+  // The cast carries its bait as s.fish.bt (cast in fishing.js), so the effect holds for that cast even when it was the last.
+  // Effects multiply on top of the shop bait (UPG.bait): fam = these fish ×mul, rare = non-흔함 ×rare, pow = size curve
+  // (lower = bigger; rollFish takes the lower of it and 큰 물고기 날), wait = 입질 대기 ×wait.
+  var BAIT_USES = 3, BAIT_MAX = 99;
+  var BAIT = {
+    radish:  { name: '무 미끼',     how: '입질 대기 ×0.75',     wait: 0.75 },
+    potato:  { name: '감자 미끼',   how: '바닥 고기 ×3 (메기·미꾸라지·뱀장어·광어·우럭·대구)', mul: 3, fam: ['catfish', 'loach', 'eel', 'flounder', 'rockfish', 'cod'] },
+    berry:   { name: '딸기 미끼',   how: '드묾·희귀·전설 ×2',   rare: 2 },
+    corn:    { name: '옥수수 미끼', how: '붕어·잉어 무리 ×3 (붕어·비단잉어·끄리·갈겨니)', mul: 3, fam: ['crucian', 'carp', 'chub', 'dace'] },
+    pumpkin: { name: '호박 미끼',   how: '큰 물고기가 잘 문다', pow: 0.8 }
+  };
+  var BAIT_IDS = Object.keys(BAIT);
+
+  function baitOf(s) {
+    if (!s.bait2) s.bait2 = { n: {}, on: null };
+    return s.bait2;
+  }
+  function baitCount(s, id) { return s.bait2 && s.bait2.n[id] || 0; }
+  function baitHave(s, id) { return bagCount(s, id) + shedCount(s, id); }
+  // 만들기: one crop (basket first, cheapest; then 창고) → BAIT_USES casts → { ok, why }
+  function baitMake(s, id) {
+    if (!BAIT[id]) return { ok: false, why: 'id' };
+    if (baitCount(s, id) + BAIT_USES > BAIT_MAX) return { ok: false, why: 'max' };
+    if (!bagTake(s, id, 1) && !shedUse(s, id, 1)) return { ok: false, why: 'crop' };
+    var b = baitOf(s);
+    b.n[id] = baitCount(s, id) + BAIT_USES;
+    return { ok: true, n: b.n[id] };
+  }
+  // choose the bait for the next casts (null = none, fishing exactly as without)
+  function baitPick(s, id) {
+    if (id == null) { if (s.bait2) s.bait2.on = null; return true; }
+    if (!baitCount(s, id)) return false;
+    baitOf(s).on = id;
+    return true;
+  }
+  function baitOnNow(s) { return s.bait2 && s.bait2.on && baitCount(s, s.bait2.on) ? s.bait2.on : null; }
+  // cast: one use of the chosen bait → its id (it comes off when it runs out), or null
+  function baitTake(s) {
+    var id = baitOnNow(s);
+    if (!id) { if (s.bait2) s.bait2.on = null; return null; }
+    var b = s.bait2;
+    if (!--b.n[id]) { delete b.n[id]; b.on = null; }
+    return id;
+  }
+  // ---------- effects of the bait on the line now (fishing.js) ----------
+  function baitLine(s) { return s && s.fish && BAIT[s.fish.bt] || null; }
+  function baitRare(s) { var b = baitLine(s); return b && b.rare || 1; }
+  function baitFam(s, f) { var b = baitLine(s); return b && b.fam && b.fam.indexOf(f.id) >= 0 ? b.mul : 1; }
+  function baitPow(s, p) { var b = baitLine(s); return b && b.pow ? Math.min(p, b.pow) : p; }
+  function baitWait(s) { var b = baitLine(s); return b && b.wait || 1; }
+
+  // ---------- save: called by decode() ----------
+  function decodeBait(o, s) {
+    var q = o.bait2;
+    if (!q || typeof q !== 'object' || Array.isArray(q) || !q.n || typeof q.n !== 'object') return;
+    var b = { n: {}, on: null };
+    BAIT_IDS.forEach(function (id) {
+      var x = q.n[id];
+      if (typeof x === 'number' && isFinite(x) && x >= 1) b.n[id] = Math.min(BAIT_MAX, Math.floor(x));
+    });
+    if (BAIT_IDS.indexOf(q.on) >= 0 && b.n[q.on]) b.on = q.on;
+    s.bait2 = b;
+  }
+
+  expose({
+    BAIT_USES: BAIT_USES, BAIT_MAX: BAIT_MAX, BAIT: BAIT, BAIT_IDS: BAIT_IDS,
+    baitCount: baitCount, baitHave: baitHave, baitMake: baitMake, baitPick: baitPick, baitOnNow: baitOnNow, baitTake: baitTake,
+    baitRare: baitRare, baitFam: baitFam, baitPow: baitPow, baitWait: baitWait, decodeBait: decodeBait
   });
   // ---------- 놀거리 수첩: one line per place/activity, open or locked from the real state (s.guide, optional) ----------
   // s.guide = { seen: { id: true }, tip: { scene: true } } is made on first use; older saves simply have none.
@@ -9573,10 +9793,16 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'chain', name: '밭 연쇄', how: '다 자란 작물을 ' + (FX_COMBO_MS / 1000) + '초 안에 이어 거두면 연쇄(×2 ×3…) · ' + CHAIN_MIN + '연쇄부터 거둘 때마다 ' + Math.round(CHAIN_P * 100) + '% 확률로 같은 작물 +1', lock: '' },
     // 반짝이 (logic/shiny.js)
     { id: 'shiny', name: '반짝이', how: '낚시·수확 중 아주 가끔(물고기 약 1/' + Math.round(1 / SHINY_P_FISH) + ' · 작물 약 1/' + Math.round(1 / SHINY_P_CROP) + ') 반짝이 · 값 ×' + SHINY_MUL + ', 더 받는 몫은 바로 코인 · 전설은 빼고 · 도감 기록 탭에 모인다', lock: '' },
+    // 낚싯대 세워두기 (logic/prop.js)
+    { id: 'prop', name: '낚싯대 세워두기', how: '찌를 던져 둔 동안 낚싯대 옆 「세워두기」 · 다른 곳에 가거나 앱을 닫아도 그 사이 문 물고기가 기다린다(현실 하루 ' + PROP_DAY_MAX + '번) · 돌아오면 찌가 잠겨 있으니 ' + (PROP_HOLD_MS / 1000) + '초 안에 눌러 챔질하고 감기 · 완벽한 챔질은 없음 · 물을 눌러 줄을 걷으면 풀린다', lock: '' },
     // 꿈 낚시 (logic/dream.js)
     { id: 'dream', name: '꿈 낚시', how: '집 안 침대를 누르고 「잠들기」 · 현실 하루 ' + DREAM_DAY_MAX + '번 · 거꾸로 뒤집힌 꿈 연못에 ' + DREAM_CASTS + '번 던지기, 찌가 「!」 하면 눌러 낚기 · 낚은 건 바로 코인 · 깨면 꿈 일기, 도감 기록 탭 꿈 도감', lock: '집 안에 침대를 놓으면 (상점 마당 칸)' },
     // 말하는 물고기 (logic/talk.js)
     { id: 'talk', name: '말하는 물고기', how: '낚은 물고기가 아주 가끔(약 1/' + Math.round(1 / TALK_P) + ', 하루 ' + TALK_DAY_MAX + '번까지, 전설·반짝이 빼고) 말을 건다 · 갖으면 값 ×' + TALK_KEEP_MUL + ' · 놓아주면 소원 하나: ' + TALK_WISHES.map(function (k) { return TALK_WISH_NAME[k]; }).join(' · ') + ' (대풍년은 다음 날 처음 들어올 때부터 ' + (TALK_BOOM_MS / 60e3) + '분, 유성우는 망원경이 있어야) · 기다리는 소원은 달력에', lock: '' },
+    // 방생 표식 (logic/tag.js)
+    { id: 'tag', name: '방생 표식', how: '낚은 물고기 카드의 「표식 달고 놓아주기」(전설·반짝이·말하는 물고기 빼고, ' + TAG_MAX + '마리까지) · 현실 하루 지나면 그 낚시터에서 입질할 때 ' + Math.round(TAG_P * 100) + '% 확률로 그 녀석이 ' + Math.round(TAG_GROW[0] * 100) + '~' + Math.round(TAG_GROW[1] * 100) + '% 커져 돌아온다(최대 크기를 넘으면 신기록, 넘는 건 ' + Math.round(TAG_OVER * 100) + '%까지 · 박 영감 대회엔 안 쳐 줌) · 놓치면 다음에 또 · 도감 기록 탭에', lock: '' },
+    // 작물 미끼 (logic/bait.js)
+    { id: 'bait2', name: '작물 미끼', how: '연못 왼쪽 아래 「미끼」 · 바구니·창고의 작물 하나로 미끼 ' + BAIT_USES + '번 · 고른 미끼는 던질 때마다 하나씩 · ' + BAIT_IDS.map(function (k) { return BAIT[k].name + ': ' + BAIT[k].how; }).join(' · ') + ' · 상점 미끼 위에 더해진다', lock: '' },
     // stage 8 ③
     { id: 'rumor', name: '소문 수첩', how: '마을 주민 대화·병 편지·손님에게서 가끔 소문 · 들은 소문은 도감 기록 탭에 모인다', lock: '' },
     // stage 9 ②
@@ -9799,9 +10025,14 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       var f = o.fish;
       if (f && f.phase === 'wait' && num(f.biteAt) && num(f.x) && num(f.y)) {
         s.fish = { phase: 'wait', x: f.x, y: f.y, biteAt: f.biteAt, nibAt: num(f.nibAt) ? f.nibAt : f.biteAt, nibEnd: 0 };
+        if (f.prop === true) s.fish.prop = true;   // 낚싯대 세워두기
+        if (BAIT_IDS.indexOf(f.bt) >= 0) s.fish.bt = f.bt;   // 작물 미끼 on the line
       } else if (f && f.phase === 'bite' && num(f.biteAt) && num(f.biteEnd) && num(f.x) && num(f.y) &&
                f.roll && fishById(f.roll.id) && num(f.roll.size)) {
         s.fish = { phase: 'bite', x: f.x, y: f.y, biteAt: f.biteAt, biteEnd: f.biteEnd, roll: { id: f.roll.id, size: f.roll.size } };
+        if (num(f.roll.tag)) s.fish.roll.tag = f.roll.tag;   // 방생 표식: a tagged fish biting survives a reload
+        if (f.prop === true) s.fish.prop = true;
+        if (f.held === true) s.fish.held = true;   // 세워 둔 낚싯대에 걸린 것
       }
       if (o.dex && typeof o.dex === 'object') {
         if (o.dex.crops && typeof o.dex.crops === 'object') {
@@ -9877,6 +10108,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       decodeShiny(o, s);   // 반짝이: s.shiny (id → 몇 번; optional)
       decodeDream(o, s);   // 꿈 낚시: s.dream (오늘 꾼 날·횟수, 꿈 도감; optional)
       decodeTalk(o, s);    // 말하는 물고기: s.talk (오늘 몇 번·소원·만난 것·가짐/놓아줌; optional)
+      decodeProp(o, s);    // 낚싯대 세워두기: s.prop (오늘 몇 번; optional)
+      decodeTag(o, s);     // 방생 표식: s.tag (기다리는 표식·돌아온 횟수·마지막; optional)
+      decodeBait(o, s);    // 작물 미끼: s.bait2 (미끼마다 남은 횟수·고른 것; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -11408,11 +11642,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (reel) return;
       if (!resultEl.hidden) hideResult();
       if (S.fish.phase === 'bite' || S.fish.phase === 'wait') doStrike();
-      else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden && setEl.hidden) {
+      else if (S.fish.phase === 'idle' && dexEl.hidden && shopEl.hidden && bagEl.hidden && setEl.hidden && sheetEl.hidden) {
         if (bagStop()) return;
         var a = Math.random() * Math.PI * 2, k = Math.sqrt(Math.random()) * 0.6;
         L.cast(S, now(), Math.random, Math.round(POND.cx + Math.cos(a) * POND.rx * k), Math.round(POND.cy + Math.sin(a) * POND.ry * k), curEnv(now()));
-        castAnim = { t: 0 }; sfx('cast'); refresh();
+        castAnim = { t: 0 }; sfx('cast'); baitCast(); refresh();
       }
     }
   }
@@ -11642,7 +11876,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // ---------- fishing flow ----------
   function doStrike() {
-    var f = S.fish, res = L.strike(S, now(), Math.random, curEnv(now()));
+    var f = S.fish, held = !!f.held, res = L.strike(S, now(), Math.random, curEnv(now()));
     if (!res) return;
     haptTap();   // 진동: the strike tap itself (pointerdown / Space). ponytail: iOS tick from pointerdown needs a real-device check
     if (res.type === 'scared') {
@@ -11659,8 +11893,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (catchJunk(res.roll, f)) return;   // stage 5B: sometimes a common bite is junk (no reel)
     reelRoll = res.roll;
     reel = L.newReel(res.roll, L.tier(S, 'rod'));
-    perfRun = res.roll.perfect ? perfRun + 1 : 0;
-    if (perfRun >= 3) reel.catch = Math.min(0.6, reel.catch + 0.05 * (perfRun - 2));   // 완벽 콤보: each one past 2 starts the reel a bit further. ponytail: session only, not saved
+    perfRun = res.roll.perfect ? perfRun + 1 : held ? perfRun : 0;   // a propped (held) bite can't be perfect: it neither counts nor breaks the combo
+    if (perfRun >= 3 && res.roll.perfect) L.reelHead(reel, 0.05 * (perfRun - 2));   // 완벽 콤보: each one past 2 starts the reel a bit further. ponytail: session only, not saved
     reelVis = { x: f.x, y: f.y, sx: f.x, sy: f.y, jx: 0, jy: 0, pulling: false, phase: 0, air: 0 };
     reelIntro(res.roll);   // stage 8: a known fish says how it fights; a legend announces a boss fight
     reelHud.hidden = false;
@@ -11684,7 +11918,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       showResult(f, reelRoll, out);
       bountyAfterReel(res, reelRoll);   // 연속 손맛 + 오늘의 현상수배
       var shn = shinyAfter('fish', f.id, out.coins, reelVis.x, reelVis.y);   // 반짝이: last toast, so it wins
-      talkAfter(f, out, shn);   // 말하는 물고기: a rare card after the catch card (not on a 반짝이)
+      var talked = talkAfter(f, out, shn);   // 말하는 물고기: a rare card after the catch card (not on a 반짝이)
+      tagAfter(f, reelRoll, out, shn, talked);   // 방생 표식: 「표식 달고 놓아주기」 or 「그때 그 녀석!」 (ui/tag.js)
       milestones();
     } else {
       L.loseFish(S);
@@ -11736,7 +11971,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     function reveal() {
       if (pic.parentNode !== resultEl) return;   // the card was reused (junk / bug) meanwhile
       if (wait) { resultEl.replaceChild(fishCanvas(f.id), pic); nm.textContent = name; }
-      if (tg) { resultEl.appendChild(tg); fxStamp(tg); }
+      if (tg) { resultEl.insertBefore(tg, resultEl.querySelector('.bugAct')); fxStamp(tg); }   // above a 방생 표식 button
     }
     resultEl.hidden = false;
     clearTimeout(showResult.r);
@@ -11760,6 +11995,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
         L.cast(S, now(), Math.random, Math.round(bx), Math.round(by), curEnv(now()));
         castAnim = { t: 0 }; sfx('cast');
+        baitCast();     // 작물 미끼: says when the last one went on
         bountyHint();   // 오늘의 현상수배: the day's first cast says what's wanted
         return refresh();
       }
@@ -11896,7 +12132,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!reel) drawSwimmers(tt, dt);
   }
   function tickFishing(t) {
-    if (!reel) {
+    if (!reel && !propTick(t)) {   // 낚싯대 세워두기: a propped line waits while nobody looks
       var f = L.updateFishing(S, t, Math.random, SPEED, curEnv(t));
       if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('missed'); perfRun = 0; }
       if (f === 'bite') {
@@ -11908,21 +12144,21 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // keep the screen on while a line is in the water (찌 기다리기·입질·릴). The browser drops the lock
   // whenever the page hides, so this per-frame check simply asks again on return.
-  var wake = null, wakeAsk = false, perfRun = 0;
+  var wake = null, wakeAsk = false, wakeNo = false, perfRun = 0;
+  document.addEventListener('visibilitychange', function () { wakeNo = false; });   // refused once → try again only after a hide/show
   function keepAwake(on) {
     if (!navigator.wakeLock) return;   // ponytail: old browsers just sleep as before
-    if (on && !wake && !wakeAsk && !document.hidden) {
+    if (on && !wake && !wakeAsk && !wakeNo && !document.hidden) {
       wakeAsk = true;
       navigator.wakeLock.request('screen').then(function (l) {
         wake = l; wakeAsk = false;
         l.addEventListener('release', function () { if (wake === l) wake = null; });
-      }, function () { wakeAsk = false; });
+      }, function () { wakeAsk = false; wakeNo = true; });
     } else if (!on && wake) { wake.release(); wake = null; }
   }
   // line, bobber, hooked fish and the reel HUD; returns where the rod tip ends up
   function drawFishing(tt, dt) {
     var f = S.fish, tip = { x: ROD_TIP.x, y: ROD_TIP.y }, nowT = now();
-    keepAwake(!!reel || f.phase === 'wait' || f.phase === 'bite');
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
@@ -14713,6 +14949,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     renderShinyRec();        // 반짝이 모음 (ui/shiny.js)
     renderDreamRec();        // 꿈 도감 (ui/dream.js)
     renderTalkRec();         // 말하는 물고기 (ui/talk.js)
+    renderTagRec();          // 방생 표식 (ui/tag.js)
     renderBottleLetters();   // stage 5B: 병 편지 + the 고물 상자
     renderTreasure();        // stage 8 ③: 보물 지도 + 소문 수첩
     renderContestRec();      // stage 10 ①: 낚시 대회 트로피·편지, 한 해 결산 카드
@@ -19160,6 +19397,63 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       return cmd === 'next' ? 'next' : S.shiny;
     };
   }
+  // ---------- 낚싯대 세워두기: the 「세워두기」 chip while the line waits, the rod in its holder, the held bite on return ----------
+  // Logic in logic/prop.js. A propped (or held) line only runs updateFishing while someone looks at the water; the first tick
+  // back (boot included) asks propCatch whether a fish bit meanwhile.
+  var propChip = document.createElement('button');
+  propChip.type = 'button'; propChip.id = 'propChip'; propChip.hidden = true;
+  app.appendChild(propChip);
+  var propAway = true;   // boot counts as coming back
+  function propLook() { return view === 'farm' && (!document.hidden || !!pipWin); }
+  // pond.js tickFishing, before updateFishing → true = skip it this tick
+  function propTick(t) {
+    var f = S.fish, look = propLook();
+    if (!f.prop && !f.held) { propAway = !look; return false; }
+    if (!look) { propAway = true; return true; }
+    if (!propAway) return false;
+    propAway = false;
+    var r = L.propCatch(S, t, Math.random, SPEED, curEnv(f.biteAt), todayKey(t));
+    if (!r) return false;
+    var bt = L.fxTier(L.fishById(S.fish.roll.id));
+    burst(S.fish.x, S.fish.y, 6 + bt * 6, 0, 45 + bt * 20); shake = Math.max(shake, 1 + bt * 1.5);
+    var msg = function () { toast('세워 둔 낚싯대에 뭔가 걸려 있다! · 찌를 눌러 챔질', 3200); };
+    if (booted) msg(); else setTimeout(msg, 3100);   // after the boot 「다녀오셨어요」
+    save();
+    return true;
+  }
+  function propChipTick(t) {
+    var on = view === 'farm' && !reel && S.fish.phase === 'wait' && !castAnim;
+    propChip.hidden = !on;
+    if (!on) return;
+    var left = L.propLeft(S, todayKey(t)), txt, dis;
+    if (S.fish.prop) { txt = '세워 둠'; dis = true; }
+    else if (left > 0) { txt = '세워두기 ' + left + '/' + L.PROP_DAY_MAX; dis = false; }
+    else { txt = '오늘은 다 세웠다'; dis = true; }
+    if (propChip.textContent !== txt) propChip.textContent = txt;
+    propChip.disabled = dis;
+    propChip.setAttribute('aria-label', S.fish.prop ? '낚싯대를 세워 두었어요 · 물을 누르면 걷기'
+      : left > 0 ? '낚싯대 세워두기 · 오늘 ' + left + '번 남음' : '오늘 세워두기를 다 썼어요');
+  }
+  propChip.addEventListener('click', function () {
+    if (!L.propRod(S, todayKey(now()))) return;
+    toast('낚싯대를 세워 두었다 · 다른 일 하다 와도 걸린 건 기다린다', 2800);
+    propChipTick(now()); save();
+  });
+  // loop.js, after drawRod: a forked stick under the rod and a stake at its butt (the line stays as it is)
+  function propDraw() {
+    var f = S.fish;
+    if (!(f.prop || f.held) || (f.phase !== 'wait' && f.phase !== 'bite')) return;
+    px(63, 128, 1, 10, 3); px(62, 127, 1, 1, 3); px(64, 126, 1, 2, 3);
+    px(56, 134, 3, 4, 3); px(56, 138, 3, 1, 4);
+  }
+
+  function addPropHooks(FF) {
+    // FF.prop() = s.prop; FF.prop('away') = a propped line whose bite was long ago, as if just back from away
+    FF.prop = function (cmd) {
+      if (cmd === 'away' && S.fish.phase === 'wait') { S.fish.prop = true; S.fish.biteAt = now() - 60e3 * SPEED; propAway = true; }
+      return S.prop;
+    };
+  }
   // ---------- 꿈 낚시: the dream view ('dream'), the 꿈 일기 card, 꿈 도감 rows, FF.dream ----------
   // Logic in logic/dream.js. The dream is a plain landscape (sky, hills, grass, a pond holding the night sky) drawn
   // upside down (y mirrored) with the palette turned over (g0↔g4, g1↔g3): no new colours, and it reads at once as
@@ -19347,6 +19641,85 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       return view;
     };
   }
+  // ---------- 작물 미끼: the 「미끼」 chip by the pond, its sheet (미끼 고르기 · 만들기), FF.bait ----------
+  // Logic in logic/bait.js. The chip shows on the 밭·연못 view once a bait crop was ever harvested (or bait is left),
+  // and reads the chosen bait and its casts left. Taps on it never reach the canvas.
+  var BAIT_WHY = { crop: '바구니·창고에 그 작물이 없어요', max: '그 미끼는 ' + L.BAIT_MAX + '번까지만 모아 둬요' };
+  var baitChip = document.createElement('button');
+  baitChip.type = 'button'; baitChip.id = 'baitChip'; baitChip.hidden = true;
+  var baitChipIcon = document.createElement('span'), baitChipLabel = document.createElement('span');
+  baitChip.appendChild(baitChipIcon); baitChip.appendChild(baitChipLabel);
+  app.appendChild(baitChip);
+  baitChip.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  baitChip.addEventListener('click', function (e) { e.stopPropagation(); if (!reel) openBait(); });
+  var baitChipOn;
+  function baitSeen() {
+    return L.BAIT_IDS.some(function (id) { return L.baitCount(S, id) > 0 || !!S.dex.crops[id]; });
+  }
+  function baitTick() {
+    var show = view === 'farm' && !reel && baitSeen();
+    baitChip.hidden = !show;
+    if (!show) return;
+    var on = L.baitOnNow(S), key = on ? on + L.baitCount(S, on) : '';
+    if (key === baitChipOn) return;
+    baitChipOn = key;
+    baitChipIcon.innerHTML = '';
+    if (on) baitChipIcon.appendChild(iconCanvas(on));
+    baitChipLabel.textContent = on ? '×' + L.baitCount(S, on) : '미끼';
+    baitChip.classList.toggle('on', !!on);
+    baitChip.setAttribute('aria-label', on ? L.BAIT[on].name + ' · ' + L.baitCount(S, on) + '번 남음 · 바꾸기' : '작물 미끼 고르기');
+  }
+  function openBait() {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true;
+    sheetKind = 'bait'; sheetEl.hidden = false;
+    renderBait();
+  }
+  function baitBtn(r, text, fn, label, off, cls) {
+    var a = r.querySelector('.acts');
+    if (!a) { a = document.createElement('div'); a.className = 'acts'; r.appendChild(a); }
+    a.appendChild(act(text, fn, { cls: cls || 'max b', label: label || text, off: off }));
+  }
+  function renderBait() {
+    var keep = sheetEl.scrollTop, on = L.baitOnNow(S);
+    sheetHead('작물 미끼');
+    var say = document.createElement('p'); say.className = 'say';
+    say.textContent = '거둔 작물 하나로 미끼 ' + L.BAIT_USES + '번 · 고른 미끼는 던질 때마다 하나씩 써요. 상점 미끼 위에 더해져요.';
+    sheetEl.appendChild(say);
+    var none = sheetRow(document.createElement('span'), '미끼 없이', '평소처럼 낚기', on ? '' : 'idle');
+    baitBtn(none, on ? '고르기' : '고름', function () { L.baitPick(S, null); save(); renderBait(); baitTick(); }, '미끼 없이 낚기', !on);
+    L.BAIT_IDS.forEach(function (id) {
+      var b = L.BAIT[id], n = L.baitCount(S, id), have = L.baitHave(S, id);
+      var r = sheetRow(iconCanvas(id), b.name + (n ? ' ×' + n : ''), b.how + ' · ' + L.CROPS[id].name + ' ' + have + '개 있음', on === id ? 'idle' : '');
+      baitBtn(r, '만들기', function () {
+        var res = L.baitMake(S, id);
+        if (!res.ok) { toast(BAIT_WHY[res.why] || '못 만들어요'); return; }
+        if (!L.baitOnNow(S)) L.baitPick(S, id);   // nothing chosen yet: the new one goes on
+        toast(b.name + ' · ' + res.n + '번', 1800);
+        save(); refresh(); renderBait(); baitTick();
+      }, b.name + ' 만들기 (' + L.CROPS[id].name + ' 1개)', !have || n + L.BAIT_USES > L.BAIT_MAX);
+      baitBtn(r, on === id ? '고름' : '고르기', function () { L.baitPick(S, id); save(); renderBait(); baitTick(); }, b.name + ' 고르기', !n || on === id);
+    });
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '바구니의 싼 것부터, 없으면 창고에서 · 줄을 걷어도 던진 미끼는 돌아오지 않아요 · 다 쓰면 미끼 없이로';
+    sheetEl.appendChild(p);
+    sheetEl.scrollTop = keep;
+  }
+  // after a cast (ui/pond.js, ui/input.js): the last one says so
+  function baitCast() {
+    var bt = S.fish.bt;
+    if (bt && !L.baitCount(S, bt)) toast(L.BAIT[bt].name + '를 다 썼다 · 다음은 미끼 없이', 2200);
+    baitTick();
+  }
+
+  // ---------- console hooks ----------
+  function addBaitHooks(FF) {
+    // FF.bait() = s.bait2 (opens the sheet); FF.bait(id) gives 1 of that crop, makes its bait and picks it
+    FF.bait = function (id) {
+      if (id && L.BAIT[id]) { L.bagAdd(S, id, L.CROPS[id].sell); L.baitMake(S, id); L.baitPick(S, id); save(); baitTick(); }
+      openBait();
+      return S.bait2 || null;
+    };
+  }
   // ---------- 말하는 물고기: the card after the catch card (갖는다 / 놓아준다 → 소원), 달력 소원 줄, 도감 기록 칸, FF.talk ----------
   // Logic in logic/talk.js. The card is the 설치 sheet's look (#talkSheet shares #pwaSheet's rules in pwa.css) inside #app,
   // so it follows the game into the PiP window. No tap-outside close: the choice matters; Esc = 갖는다 (the safe one).
@@ -19485,6 +19858,68 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     FF.talk = function (cmd) {
       if (cmd === 'next') talkNext = true;
       return cmd === 'next' ? 'next' : S.talk;
+    };
+  }
+  // ---------- 방생 표식: 「표식 달고 놓아주기」 on the catch card, 「그때 그 녀석!」 when it comes back, 도감 기록 칸, FF.tag ----------
+  // Logic in logic/tag.js. The button row reuses the 곤충 card's .bugAct look.
+  function tagCm(x) { return String(Math.round(x * 10) / 10) + 'cm'; }
+  // pond.js endReel, after talkAfter. shn = the 반짝이 result or null, talked = the 말하는 물고기 card is coming
+  function tagAfter(f, roll, out, shn, talked) {
+    var back = L.tagLand(S, roll, now()), wait = L.fxTier(f) > 1 ? 900 : L.fxTier(f) ? 450 : 0;
+    if (back) {
+      var tg = document.createElement('div'); tg.className = 'tag';
+      tg.textContent = '그때 그 녀석! ' + tagCm(back.from) + ' → ' + tagCm(back.to);
+      resultEl.insertBefore(tg, resultEl.querySelector('.tag'));
+      if (!shn) toast('🏷 그때 그 녀석! ' + back.days + '일 전 놓아준 ' + f.name + ' ' + tagCm(back.from) + ' → ' + tagCm(back.to), 4000);   // 반짝이 keeps its toast
+      clearTimeout(showResult.t);
+      showResult.t = setTimeout(hideResult, 4200 + wait);
+      save();
+      return;
+    }
+    if (!L.tagOk(f.id, !!shn, talked, roll.tag != null)) return;
+    var row = document.createElement('div'); row.className = 'bugAct';
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = '표식 달고 놓아주기';
+    var used = false, sp = L.curSpot(S);   // where it was caught, even if the spot changes before the tap
+    b.addEventListener('click', function () {
+      if (used) return;
+      used = true;
+      var r = L.tagFree(S, roll, out.coins, now(), sp);
+      hideResult();
+      toast('🏷 ' + josa(f.name, '을', '를') + ' 표식 달고 놓아주었다 · 하루 지나면 이 낚시터에서 더 커져 돌아올지도' +
+        (r.back ? ' (바로 팔린 ' + r.back + '코인은 돌려놓았어요)' : ''), 3600);
+      save(); refresh();
+    });
+    row.appendChild(b); resultEl.appendChild(row);
+    clearTimeout(showResult.t);
+    showResult.t = setTimeout(hideResult, 6000 + wait);
+  }
+  // 도감 기록 탭, after 말하는 물고기
+  function renderTagRec() {
+    var t = S.tag, h3 = document.createElement('h3'); h3.textContent = '방생 표식';
+    var b = document.createElement('b'); b.textContent = (t ? t.back : 0) + '번 돌아옴'; h3.appendChild(b); dexEl.appendChild(h3);
+    var q = document.createElement('p'); q.className = 'note';
+    if (!t) q.textContent = '낚은 물고기를 「표식 달고 놓아주기」 · 하루 지나면 그 낚시터에서 더 커져 돌아올지도 (전설·반짝이 빼고, ' + L.TAG_MAX + '마리까지)';
+    else {
+      var nt = now();
+      q.textContent = (t.list.length ? '기다리는 녀석 ' + t.list.map(function (e) { return L.fishById(e.id).name + ' ' + tagCm(e.size) + (L.tagDays(e, nt) >= 1 ? '' : ' (내일부터)'); }).join(' · ') : '기다리는 녀석 없음') +
+        (t.last ? ' · 마지막: ' + L.fishById(t.last.id).name + ' ' + tagCm(t.last.from) + ' → ' + tagCm(t.last.to) + ' (' + t.last.days + '일 만에)' : '');
+    }
+    dexEl.appendChild(q);
+  }
+
+  // ---------- FF test hooks ----------
+  function addTagHooks(FF) {
+    // FF.tag() = s.tag; FF.tag('age') makes every tag a day older; FF.tag('hook') starts a reel with the first ready tag here
+    FF.tag = function (cmd) {
+      if (cmd === 'age' && S.tag) { S.tag.list.forEach(function (e) { e.at -= L.TAG_WAIT; }); save(); }
+      if (cmd === 'hook') {
+        var c = L.tagReady(S, now())[0];
+        if (!c || reel) return false;
+        S.fish = { phase: 'bite', x: POND.cx, y: POND.cy, biteAt: now(), biteEnd: now() + 60e3, roll: L.tagBite(S, {}, now(), function () { return 0; }) };
+        doStrike();
+        return S.fish.roll;
+      }
+      return S.tag;
     };
   }
   // ---------- 소문과 보물 지도 (stage 8 ③): map pictures, piece/rumor toasts, 꾹 눌러 파기, 기록 tab, FF hooks ----------
@@ -25698,6 +26133,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     tickGardenUI(t);   // stage 10 ②: 꽃 교배, 새끼
     tickCraftUI(t);    // 가공 공방 sheet
     tickCampUI(t);     // 캠핑: morning wake-up, camp sheets
+    propChipTick(t);   // 낚싯대 세워두기: the 「세워두기」 chip
     talkTick(t);       // 말하는 물고기: start the 대풍년 wish, clear spent wishes (before the boom chip reads it)
     tickEventsUI(t);   // stage 8 ①: 오늘의 날 card, boom chip
     tickContestUI(t);  // stage 10 ①: 낚시 대회 week, 결산 카드 year
@@ -25706,6 +26142,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     trnTick(t);        // 기차 여행: 온천욕 chip
     recTick(t);      // 소리 도감: auto recording, ♪ chip, 축음기 (nothing without a 녹음기)
     bndTick(t);        // 마을 음악회: resident instruments, ♪ 연주/무대 chip (nothing without an instrument)
+    baitTick();        // 작물 미끼: the chip by the pond
     plcTick();         // 지금 있는 곳: the place tag, the arrival card on a new spot
     renderTray();
     updateTitle();
@@ -25722,6 +26159,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     tickArcade(dt);    // 게임장: the round on its own board
     bndFrame();        // 마을 음악회: the round on its own board (nothing unless a round is on)
     mysTick();         // 내 가게: customers while the game is open
+    keepAwake(view === 'farm' && (!!reel || S.fish.phase === 'wait' || S.fish.phase === 'bite'));   // only while watching the line
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if (reel && reel.tension > 0.7) shake = Math.max(shake, (reel.tension - 0.7) * 5);
@@ -25748,6 +26186,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     drawFarmer(tt);
     if (!trip) drawPet(tt, dt, 'farm');   // stage 5A
     drawRod(tip);
+    propDraw();        // 낚싯대 세워두기: the rod holder
     drawBugs(tt);      // stage 6A
     drawParticles(dt);
     drawFx(tt);               // stage 8 ④: splash, fly-to-basket, pops, coins, legend beam
@@ -25895,7 +26334,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = 'f8a7915461fe';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'fda5454030ef';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
@@ -26526,7 +26965,10 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   addBountyHooks(globalThis.FF);  // 현상수배·연속 손맛: FF.bounty(cmd | fishId), FF.streak(n)
   addShinyHooks(globalThis.FF);   // 반짝이: FF.shiny(), FF.shiny('next')
   addDreamHooks(globalThis.FF);   // 꿈 낚시: FF.dream() (now, ignoring the day), FF.dream('state' | 'bite' | 'tap' | 'wake')
+  addPropHooks(globalThis.FF);    // 낚싯대 세워두기: FF.prop(), FF.prop('away')
   addTalkHooks(globalThis.FF);    // 말하는 물고기: FF.talk(), FF.talk('next')
+  addTagHooks(globalThis.FF);     // 방생 표식: FF.tag(), FF.tag('age' | 'hook')
+  addBaitHooks(globalThis.FF);    // 작물 미끼: FF.bait(), FF.bait(cropId)
   addRecHooks(globalThis.FF);     // 소리 도감: FF.rec('all'), FF.recNow(), FF.recNote(id)
   addBandHooks(globalThis.FF);    // 마을 음악회: FF.band('all'), FF.bandPlay(), FF.bandShow(), FF.bandStart(), FF.bandAuto()
   addMuseumHooks(globalThis.FF);  // stage 7 박물관: FF.museum(room), FF.museumFill(room, left)
