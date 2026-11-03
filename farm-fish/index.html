@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pixel Pastoral</title>
 <meta name="theme-color" content="#f2f2ef">
+<meta name="description" content="심고 · 낚고 · 쉬어 가는 작은 농장">
+<!-- link previews (카톡·메신저): absolute URLs, or crawlers fall back to the GitHub profile picture -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pixel Pastoral">
+<meta property="og:title" content="Pixel Pastoral">
+<meta property="og:description" content="심고 · 낚고 · 쉬어 가는 작은 농장">
+<meta property="og:url" content="https://lhwda1388.github.io/games/farm-fish/">
+<meta property="og:image" content="https://lhwda1388.github.io/games/farm-fish/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -25255,7 +25266,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '2cccd49767af';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'e55dcb885c41';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
