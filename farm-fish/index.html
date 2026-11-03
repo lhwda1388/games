@@ -25255,10 +25255,20 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '2c2481e8e4c4';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '2cccd49767af';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
+  // 설치 앱 has no reload button and is resumed, not reopened: a new build must reach it without closing the app
+  var PWA_CHECK_MS = 60e3;   // look for a new build on every return to the game, at most once a minute
+  var PWA_FRESH_MS = 8e3;    // a new build found this soon after the player came back: just reload (they only just opened it)
+  var pwaStale = false, pwaShownAt = Date.now();
+  // back to the game (visible again): 'reload' if a new build is already waiting, 'check' to ask for one, '' = nothing
+  function pwaResume(stale, now, checked) { return stale ? 'reload' : now - checked >= PWA_CHECK_MS ? 'check' : ''; }
+  // a new build announced itself: reload right away if the player only just came back, else the tappable toast
+  // (and the next return to the game reloads)
+  function pwaFound(now, shownAt) { return now - shownAt < PWA_FRESH_MS ? 'reload' : 'toast'; }
+  function pwaReload() { try { save(); } catch (e) { /* still reload */ } location.reload(); }
 
   function pwaLocal(h) { return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1' || /\.localhost$/.test(h); }
   // debug/cheat hooks (window.FF) only on file:, localhost, or with #dev in the URL
@@ -25473,7 +25483,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function pwaNewToast() {   // toast() itself clears the click again when this one goes or another replaces it
     toast(PWA_NEW, 15000);
     toastEl.style.pointerEvents = 'auto'; toastEl.style.cursor = 'pointer';
-    toastEl.onclick = function () { if (toastEl.textContent === PWA_NEW) { save(); location.reload(); } };
+    toastEl.onclick = function () { if (toastEl.textContent === PWA_NEW) pwaReload(); };
   }
   // ---- 「📲 앱으로 설치」: a button the player presses; every install path starts from its click and nowhere else ----
   function pwaInstallButton(mode) {
@@ -25586,14 +25596,19 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         // (the page is network-first, so after a deploy a reload is already the new build: no toast)
         sw.addEventListener('message', function (e) {
           var d = e && e.data;
-          if (d && d.farmfish === 'build' && pwaNewBuild(PWA_BUILD, d.id)) pwaNewToast();
+          if (!(d && d.farmfish === 'build' && pwaNewBuild(PWA_BUILD, d.id))) return;
+          pwaStale = true;
+          if (pwaFound(Date.now(), pwaShownAt) === 'reload') pwaReload(); else pwaNewToast();
         });
         if (sw.startMessages) sw.startMessages();
         var reg = function () { try { sw.register('sw.js', { scope: './', updateViaCache: 'none' }).then(function (r) { pwaReg = r; }, function () {}); } catch (e) { /* blocked */ } };
         if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
-        document.addEventListener('visibilitychange', function () {   // long-lived app windows: look for a new build at most hourly
-          if (document.hidden || !pwaReg || Date.now() - pwaChecked < 3600e3) return;
-          pwaChecked = Date.now(); pwaReg.update().catch(function () {});
+        document.addEventListener('visibilitychange', function () {   // long-lived app windows: every return to the game
+          if (document.hidden) return;
+          pwaShownAt = Date.now();
+          var what = pwaResume(pwaStale, pwaShownAt, pwaChecked);
+          if (what === 'reload') { pwaReload(); return; }
+          if (what === 'check' && pwaReg) { pwaChecked = pwaShownAt; pwaReg.update().catch(function () {}); }
         });
       }
     } catch (e) { /* no service worker: the game still plays */ }
