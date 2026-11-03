@@ -42,7 +42,13 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;overflow-x:c
 body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
 #stage{position:fixed;inset:0;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);place-items:center}
 #app{position:relative;width:360px;height:480px;flex:none;transform-origin:center;background:var(--bg);
-  user-select:none;-webkit-user-select:none;touch-action:none;overflow:hidden;outline:2px solid var(--g4)}
+  user-select:none;-webkit-user-select:none;touch-action:none;outline:2px solid var(--g4);
+  --ex:0px;clip-path:inset(calc(-1*var(--ex) - 2px) -2px)}
+/* tall screens (phone portrait): fit() sets --ex = the spare height above/below the 360×480 board, in board px.
+ * The header and every bottom strip slide out to the screen edges, full-board sheets stretch with them; the pond stays put. */
+#app #hud{translate:0 calc(-1*var(--ex))}
+#app #tray,#app #tideTag,#app #vilBar,#app #itemBar,#app #bndChip{translate:0 var(--ex)}
+#app .overlay,#app #ttl,#app #pwaSheet{top:calc(-1*var(--ex));bottom:calc(-1*var(--ex))}
 #hud{position:absolute;left:0;top:0;right:0;height:36px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 8px;background:var(--g0);border-bottom:2px solid var(--g4)}
 .coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
@@ -5509,6 +5515,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // ---------- 새 소식: newest first, one card per update. Add an entry at the top when a deploy has news ----------
   // id = deploy date (YYYY-MM-DD, sorts as text); a second update the same day adds a letter suffix (b, c…), only the date is shown. Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
   var NEWS = [
+    { id: '2026-11-03e', title: '🌙 꿈 낚시', lines: ['집 안 침대에서 「잠들기」 · 하루 한 번 거꾸로 뒤집힌 꿈 연못', '별 조각·구름 물고기·꿈 고래… 도감 기록 탭에 꿈 도감'] },
     { id: '2026-11-03c', title: '✨ 반짝이 등장', lines: ['낚시·수확 중 아주 가끔 반짝이 · 값 ×10', '도감 기록 탭에 반짝이 모으기'] },
     { id: '2026-11-03b', title: '낚시·밭이 더 쫄깃하게', lines: ['오늘의 현상수배 · 달력에 뜬 물고기를 그 크기 이상 낚으면 큰 보상', '연속 손맛 · 놓치지 않고 이어 낚으면 3·5·10연속 보너스', '밭 연쇄 · 쉬지 않고 이어 거두면 가끔 하나 더'] },
     { id: '2026-11-03', title: '정식 출시', lines: ['「📲 앱으로 설치」 · 타이틀과 ⚙ 설정에서 홈 화면에 설치', '⚙ 세이브 백업 · 내보내기·복사·붙여넣어 불러오기', '처음 오면 타이틀 화면과 6단계 안내'] }
@@ -9273,6 +9280,79 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     SHINY_P_FISH: SHINY_P_FISH, SHINY_P_CROP: SHINY_P_CROP, SHINY_MUL: SHINY_MUL,
     shinyOk: shinyOk, shinyRoll: shinyRoll, shinyKinds: shinyKinds, shinyFound: shinyFound, shinyGet: shinyGet, decodeShiny: decodeShiny
   });
+  // ---------- 꿈 낚시: sleep in the 침대 once a real day → an upside-down dream pond, DREAM_CASTS casts ----------
+  // Dream catches never touch the basket, orders or the market: each one is paid in coins at once and counted in
+  // s.dream.got (the 꿈 도감). s.dream = { day, n, got: { id: count } } is made lazily; older saves have none.
+  var DREAM_DAY_MAX = 1;   // dreams per real day (toyDay: local midnight)
+  var DREAM_CASTS = 5;     // casts in one dream; a missed bite uses one up too
+  // w = roll weight (out of the total), v = coins
+  var DREAM_TABLE = [
+    { id: 'dstar',  name: '별 조각',     w: 30, v: 30 },
+    { id: 'dcloud', name: '구름 물고기', w: 24, v: 40 },
+    { id: 'dmoon',  name: '달 붕어',     w: 16, v: 60 },
+    { id: 'dboat',  name: '종이배',      w: 12, v: 50 },
+    { id: 'dkey',   name: '잃어버린 열쇠', w: 10, v: 80 },
+    { id: 'dclock', name: '깃털 시계',   w: 6,  v: 120 },
+    { id: 'dwhale', name: '꿈 고래',     w: 2,  v: 500, rare: true }
+  ];
+  var DREAM_W = DREAM_TABLE.reduce(function (a, d) { return a + d.w; }, 0);
+  function dreamById(id) { for (var i = 0; i < DREAM_TABLE.length; i++) if (DREAM_TABLE[i].id === id) return DREAM_TABLE[i]; return null; }
+  function dreamOf(s) { if (!s.dream) s.dream = { day: -1, n: 0, got: {} }; return s.dream; }
+
+  // dreams left today; a clock turned back keeps today's count (only a later day resets it)
+  function dreamLeft(s, now, tzMin) {
+    var q = s.dream;
+    return !q || toyDay(now, tzMin) > q.day ? DREAM_DAY_MAX : Math.max(0, DREAM_DAY_MAX - q.n);
+  }
+  // force (FF.dream): ignores the limit and does not use today's dream up
+  function dreamStart(s, now, tzMin, force) {
+    if (!force && dreamLeft(s, now, tzMin) <= 0) return { ok: false, why: 'today' };
+    var q = dreamOf(s), d = toyDay(now, tzMin);
+    if (!force) { if (d > q.day) { q.day = d; q.n = 0; } q.n++; }
+    return { ok: true, run: { left: DREAM_CASTS, got: [] } };
+  }
+  function dreamRoll(rng) {
+    var r = rng() * DREAM_W;
+    for (var i = 0; i < DREAM_TABLE.length; i++) { r -= DREAM_TABLE[i].w; if (r < 0) return DREAM_TABLE[i].id; }
+    return DREAM_TABLE[0].id;
+  }
+  // a hooked bite: roll, pay, count → { id, coins, first, done }
+  function dreamCast(run, s, rng) {
+    if (!run || run.left <= 0) return null;
+    var id = dreamRoll(rng), d = dreamById(id), q = dreamOf(s);
+    var n = (q.got[id] || 0) + 1;
+    q.got[id] = n; s.coins += d.v;
+    run.left--; run.got.push(id);
+    return { id: id, coins: d.v, first: n === 1, done: run.left <= 0 };
+  }
+  // a bite let go → true when that was the last cast
+  function dreamMiss(run) {
+    if (!run || run.left <= 0) return true;
+    run.left--;
+    return run.left <= 0;
+  }
+  function dreamFound(s) { return s.dream ? Object.keys(s.dream.got).length : 0; }
+
+  // ---------- save: called by decode() ----------
+  function decodeDream(o, s) {
+    var q = o.dream;
+    if (!q || typeof q !== 'object' || Array.isArray(q)) return;
+    var got = {}, g = q.got && typeof q.got === 'object' && !Array.isArray(q.got) ? q.got : {};
+    Object.keys(g).forEach(function (id) {
+      var n = g[id];
+      if (dreamById(id) && typeof n === 'number' && isFinite(n) && n >= 1) got[id] = Math.min(1e6, Math.floor(n));
+    });
+    var day = typeof q.day === 'number' && isFinite(q.day) && q.day >= -1 ? Math.floor(q.day) : -1;
+    var n = typeof q.n === 'number' && isFinite(q.n) ? Math.max(0, Math.min(DREAM_DAY_MAX, Math.floor(q.n))) : 0;
+    if (day < 0 && !Object.keys(got).length) return;
+    s.dream = { day: day, n: day < 0 ? 0 : n, got: got };
+  }
+
+  expose({
+    DREAM_DAY_MAX: DREAM_DAY_MAX, DREAM_CASTS: DREAM_CASTS, DREAM_TABLE: DREAM_TABLE,
+    dreamById: dreamById, dreamLeft: dreamLeft, dreamStart: dreamStart, dreamRoll: dreamRoll, dreamCast: dreamCast,
+    dreamMiss: dreamMiss, dreamFound: dreamFound, decodeDream: decodeDream
+  });
   // ---------- 놀거리 수첩: one line per place/activity, open or locked from the real state (s.guide, optional) ----------
   // s.guide = { seen: { id: true }, tip: { scene: true } } is made on first use; older saves simply have none.
   // Lock hints are built from the same constants the game checks, so they never drift from the real numbers.
@@ -9334,6 +9414,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'chain', name: '밭 연쇄', how: '다 자란 작물을 ' + (FX_COMBO_MS / 1000) + '초 안에 이어 거두면 연쇄(×2 ×3…) · ' + CHAIN_MIN + '연쇄부터 거둘 때마다 ' + Math.round(CHAIN_P * 100) + '% 확률로 같은 작물 +1', lock: '' },
     // 반짝이 (logic/shiny.js)
     { id: 'shiny', name: '반짝이', how: '낚시·수확 중 아주 가끔(물고기 약 1/' + Math.round(1 / SHINY_P_FISH) + ' · 작물 약 1/' + Math.round(1 / SHINY_P_CROP) + ') 반짝이 · 값 ×' + SHINY_MUL + ', 더 받는 몫은 바로 코인 · 전설은 빼고 · 도감 기록 탭에 모인다', lock: '' },
+    // 꿈 낚시 (logic/dream.js)
+    { id: 'dream', name: '꿈 낚시', how: '집 안 침대를 누르고 「잠들기」 · 현실 하루 ' + DREAM_DAY_MAX + '번 · 거꾸로 뒤집힌 꿈 연못에 ' + DREAM_CASTS + '번 던지기, 찌가 「!」 하면 눌러 낚기 · 낚은 건 바로 코인 · 깨면 꿈 일기, 도감 기록 탭 꿈 도감', lock: '집 안에 침대를 놓으면 (상점 마당 칸)' },
     // stage 8 ③
     { id: 'rumor', name: '소문 수첩', how: '마을 주민 대화·병 편지·손님에게서 가끔 소문 · 들은 소문은 도감 기록 탭에 모인다', lock: '' },
     // stage 9 ②
@@ -9402,7 +9484,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     garden: gardenOk, brood: function (s) { return !!s.animals && ANIMAL_IDS.some(function (id) { return s.animals[id] > 0; }); }, scaredress: function (s) { return tier(s, 'scare') > 0; },   // stage 10 ②
     contest: contestOk,   // stage 10 ①
     townday: villageOk, newres: function (s) { return RES_EXTRA.some(function (r) { return resMoved(s, r.id); }); },   // stage 10 ③
-    port: portShown   // stage 11 ①
+    port: portShown,   // stage 11 ①
+    dream: function (s) { return furnPlaced(s, 'bed'); }   // 꿈 낚시: the 침대 must stand in the house
   };
   // first visit to a scene → the entry whose how-line is shown once ('farm' is where the game starts: no tip)
   var GUIDE_SCENE = { yard: 'yard', house: 'house', forest: 'forest', orchard: 'orchard', village: 'village',
@@ -9631,6 +9714,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       decodeBand(o, s);    // 마을 음악회: s.band (악기·끈 악기·연주 횟수·음악회 날·칭호·곡; optional)
       decodeBounty(o, s);  // 오늘의 현상수배: s.bounty (오늘 목표·이번 주 횟수·칭호; optional)
       decodeShiny(o, s);   // 반짝이: s.shiny (id → 몇 번; optional)
+      decodeDream(o, s);   // 꿈 낚시: s.dream (오늘 꾼 날·횟수, 꿈 도감; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -10392,6 +10476,12 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     starTitle: function (t) { sndSeq('square', [587, 587, 880], t, 0.08, 0.08, 0.03); sndSeq('triangle', [587, 587, 880], t, 0.08, 0.08, 0.07); return sndBells([1175, 1480], t + 0.3, 0.02, 0.3, 0.045, 2); },
     starSet:  function (t) { return sndBells([831, 1047, 1245, 1397, 1661], t, 0.05, 0.14, 0.05); },
     shiny:    function (t) { sndBells([1661, 1397, 1245, 1661, 2093, 2489], t, 0.045, 0.16, 0.045, 2); return sndFM(3322, 3.5, 1, t + 0.3, 0.35, 0.025); },   // 반짝이: a bell run down then up, a high glint
+    // ---- 꿈 낚시 (ui/dream.js): soft high bells, slower and rounder than the waking world ----
+    dreamIn:    function (t) { sndOsc('sine', 523, 262, t, 0.7, 0.03); return sndBells([1047, 880, 698, 587], t + 0.05, 0.16, 0.4, 0.035, 2); },   // falling asleep: a bell run down
+    dreamBite:  function (t) { sndFM(1568, 2, 1.2, t, 0.16, 0.04); return sndFM(2093, 2, 1.2, t + 0.12, 0.22, 0.035); },   // the float's 「!」: two glassy plinks
+    dreamCatch: function (t) { return sndBells([784, 1175, 1568], t, 0.07, 0.3, 0.045, 3); },
+    dreamWhale: function (t) { sndOsc('sine', 98, 196, t, 0.8, 0.06); return sndBells([523, 659, 784, 1047, 1319], t + 0.25, 0.09, 0.4, 0.045, 2); },   // 꿈 고래: a low song, then bells
+    dreamWake:  function (t) { return sndBells([587, 740, 880, 1175], t, 0.08, 0.25, 0.04, 2); },   // waking: a bell run up
     error:    function (t) { return sndSeq('triangle', [196, 175], t, 0.09, 0.08, 0.05); },
     bagFull:  function (t) { for (var k = 0; k < 3; k++) sndHiss('bandpass', 1300 + k * 300, 900, t + k * 0.03, 0.03, 0.04); return sndOsc('triangle', 150, 130, t + 0.08, 0.16, 0.055); },
     // ---- 곤충 ----
@@ -10499,7 +10589,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   var SND_FAM = {
     tapOpen: 'tap', tapClose: 'tap', tapOk: 'tap', cardFlip: 'tap', balTap: 'tap', diveSee: 'tap',
     missed: 'lost', chestFail: 'lost', burnt: 'lost', arcLose: 'lost', rideFail: 'lost',
-    junkCatch: 'catch', bugCatch: 'catch', rideDone: 'catch',
+    junkCatch: 'catch', bugCatch: 'catch', rideDone: 'catch', dreamCatch: 'catch', dreamIn: 'chime', dreamBite: 'bite', dreamWake: 'star', dreamWhale: 'catchRare',
     bugRare: 'catchRare', fossilPart: 'catchRare', oreRare: 'catchRare', divePickNew: 'catchRare', diveSeeNew: 'catchRare',
     diveTreasure: 'catchLegend',
     lockPick: 'hit', cardPair: 'hit',
@@ -13519,9 +13609,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   var PLACE = { farm: ['밭', '밭과 연못으로'], yard: ['마당', '마당으로'], forest: ['숲', '숲으로'], orchard: ['과수원', '과수원으로'], village: ['마을', '마을로'], flat: ['갯벌', '갯벌로'], island: ['섬', '섬으로'] };
   PLACE.cave = ['동굴', '동굴로'];   // stage 7
   PLACE.port = ['포구', '옛 포구로'];   // stage 11 ①
+  PLACE.dreamwake = ['깨기', '꿈에서 깨기'];   // 꿈 낚시: the scene button wakes you (ui/dream.js)
   function goScene(sc) {
     if (reel) return;
     if (view === 'dive' && sc !== 'dive' && dv) return endDive();   // stage 12: surfacing toast, dive state cleared
+    if (view === 'dream' && sc !== 'dream' && drm) return wakeDream();   // 꿈 낚시: leaving = waking, with the 꿈 일기
     if (sc === 'trnback' || sc === 'trnskip' || sc === 'trnup') { closeSceneMenu(); trnGo(sc); return; }   // 기차 여행: 「역으로」 / 내리기 / back up from the 물가
     var co = cmpOutTo(sc); if (co) sc = co;   // 캠핑: 「숲으로」·「계곡으로」·「바다로」, and up from a camp's water
     if (view === 'farm' && sc !== 'farm') { trnLeaveFarm(sc); cmpLeaveFarm(); }   // 기차 여행·캠핑: a trip's spot is not kept off the trip
@@ -13541,13 +13633,14 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (view === 'stars') return [starHome];   // stage 7: out of the 별 잇기 view (stage 9: back to the 산꼭대기 too)
     if (view === 'museum') return ['village']; // stage 7 박물관
     if (view === 'dive') return [diveHome()];  // stage 12 ③: the button surfaces (포구, else 마을)
+    if (view === 'dream') return ['dreamwake'];   // 꿈 낚시
     if (trnIsView(view)) return trnDests();   // 기차 여행: 「역으로」 / 내리기
     if (cmpIsView(view)) return cmpDests();   // 캠핑: 「숲으로」·「계곡으로」·「바다로」
     if (trnTrip()) return trnTripDests();     // 기차 여행 물가: that destination / 「역으로」
     return ['farm', 'yard', 'forest', 'cave', 'orchard', 'village', 'flat', 'island', 'deep', 'peak', 'port'].filter(function (sc) { return sc !== view && (sc !== 'port' || L.portShown(S)) && (sc !== 'deep' || L.rideOk(S, 'deep')) && (sc !== 'peak' || L.rideOk(S, 'peak')) && (sc !== 'forest' || forestShown()) && (sc !== 'cave' || caveShown()) && (sc !== 'orchard' || orchardShown()) && (sc !== 'village' || L.villageOk(S)) && (sc !== 'flat' || flatShown()) && (sc !== 'island' || L.isleOk(S)); });
   }
   function placeAttention(sc) {
-    if (sc === 'trnback' || sc === 'trnskip' || sc === 'trnup' || cmpOutKey(sc)) return false;   // 기차 여행, 캠핑
+    if (sc === 'trnback' || sc === 'trnskip' || sc === 'trnup' || sc === 'dreamwake' || cmpOutKey(sc)) return false;   // 기차 여행, 캠핑, 꿈
     if (boomAttention(sc)) return true;   // stage 8: 입질 폭풍 / 대풍년 here
     if (sc === 'forest') return !!forestAttention() || cmpAttention();   // 캠핑: a morning gift or done food
     if (sc === 'cave') return caveAttention();   // stage 7
@@ -13564,7 +13657,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function renderSceneBtn() {
     if (!quiet()) return;   // don't swap this button's insides under a press
     var ds = sceneDests(), at = ds.map(placeAttention);
-    var bite = view !== 'farm' && S.fish.phase === 'bite';
+    var bite = view !== 'farm' && view !== 'dream' && S.fish.phase === 'bite';   // 꿈 낚시: a real bite doesn't pull you out of the dream
     var key = view + ds.join() + at.join() + !!reel + bite;
     if (key === sceneKey) return;
     sceneKey = key;
@@ -13638,6 +13731,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (view === 'farisle') { drawFarIsle(tt); return true; }       // stage 9 ① 먼 섬
     if (view === 'port') { drawPort(tt, dt); return true; }         // stage 11 ① 옛 포구
     if (view === 'dive') { drawDive(tt, dt); return true; }         // stage 12 ③ 잠수
+    if (view === 'dream') { drawDream(tt); return true; }           // 꿈 낚시
     if (trnIsView(view)) { trnDrawView(tt); return true; }   // 기차 여행
     if (cmpIsView(view)) { drawCamp(tt, dt); return true; }   // 캠핑
     return false;
@@ -13661,6 +13755,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (view === 'farisle') { tapFarIsle(x, y); return true; }   // stage 9 ① 먼 섬
     if (view === 'port') { tapPort(x, y); return true; }         // stage 11 ① 옛 포구
     if (view === 'dive') { tapDive(x, y); return true; }         // stage 12 ③ 잠수
+    if (view === 'dream') { tapDream(x, y); return true; }       // 꿈 낚시
     if (trnIsView(view)) { trnTapView(x, y); return true; }   // 기차 여행
     if (cmpIsView(view)) { tapCamp(x, y); return true; }   // 캠핑
     if (S.fish.phase === 'bite') return false;
@@ -14168,7 +14263,14 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // the old one-tap reactions stay; the bed's line is long, so it keeps its toast and the bar says 잠자리
   function tapFurn(f, r) {
-    if (f.id === 'bed') { var b = L.tapBed(S, now(), YTZ); toast(b.text, 2800); if (b.egg) eggFound(b.egg); refresh(); openPick('furn', f.id, '포근한 잠자리'); return; }
+    if (f.id === 'bed') {
+      var b = L.tapBed(S, now(), YTZ), can = dreamCanStart();   // 꿈 낚시: with a dream left the bar offers 「잠들기」
+      if (b.egg || !can) toast(b.text, 2800);
+      if (b.egg) eggFound(b.egg);
+      refresh();
+      openPick('furn', f.id, can ? '잠들면 꿈 낚시 · 오늘 ' + L.dreamLeft(S, now(), YTZ) + '번' : '포근한 잠자리 · 꿈은 내일 또', can ? ['잠들기', function () { startDream(false); }] : null);
+      return;
+    }
     if (f.id === 'clock') { var d = new Date(); openPick('furn', f.id, '지금 ' + d.getHours() + '시 ' + String(d.getMinutes()).padStart(2, '0') + '분 · 진짜 시계'); return; }
     if (f.id === 'radio') { toast('♪ 라디오: "정각을 알려 드립니다… 연못 근처 계신 분들은 낚싯대를…"', 3200); openPick('furn', f.id, '♪ 정각 안내 방송'); return; }
     if (f.id === 'piano') { burst(r[0] + 27, r[1] + 8, 6, 0, 40); openPick('furn', f.id, '도레미파솔~'); return; }
@@ -14414,6 +14516,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     });
     renderDiary();           // stage 8: 자리 비운 사이 일기
     renderShinyRec();        // 반짝이 모음 (ui/shiny.js)
+    renderDreamRec();        // 꿈 도감 (ui/dream.js)
     renderBottleLetters();   // stage 5B: 병 편지 + the 고물 상자
     renderTreasure();        // stage 8 ③: 보물 지도 + 소문 수첩
     renderContestRec();      // stage 10 ①: 낚시 대회 트로피·편지, 한 해 결산 카드
@@ -18857,6 +18960,193 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     FF.shiny = function (cmd) {
       if (cmd === 'next') shinyNext = true;
       return cmd === 'next' ? 'next' : S.shiny;
+    };
+  }
+  // ---------- 꿈 낚시: the dream view ('dream'), the 꿈 일기 card, 꿈 도감 rows, FF.dream ----------
+  // Logic in logic/dream.js. The dream is a plain landscape (sky, hills, grass, a pond holding the night sky) drawn
+  // upside down (y mirrored) with the palette turned over (g0↔g4, g1↔g3): no new colours, and it reads at once as
+  // another world. Fishing here is its own small loop, not the pond's S.fish flow (that one is saved, rolls spot
+  // tables and fills the basket): tap → cast, wait, the float jumps with 「!」 → tap within DREAM_BITE_MS to land it.
+  var DREAM_BITE_MS = 1100, DREAM_SHOW_MS = 1300;
+  var DREAM_POND = [26, 128, 128, 60];   // pond box in landscape coords (before the flip)
+  var DREAM_TIP = [36, 96];              // rod tip, landscape coords
+  var drm = null;   // { run, phase: 'idle'|'wait'|'bite'|'show', at, biteAt, bx, by, show, coins }
+  var DREAM_SPR = {
+    dstar:  ['...4...', '..404..', '4400044', '.40004.', '.40404.', '44...44'],
+    dcloud: ['..444......', '.40004.444.', '4000004000.', '40400000044', '.400000004.', '..4444444..'],
+    dmoon:  ['..4444....', '.42204..4.', '4202..4444', '420....44.', '4220..4444', '.42204..4.', '..4444....'],
+    dboat:  ['.....4.....', '....404....', '...40004...', '44444444444', '.400000004.', '..4444444..'],
+    dkey:   ['.44.......', '4004444444', '4004...4.4', '.44.......'],
+    dclock: ['.......44', '..444.440', '.40004.4.', '4000404..', '4004404..', '4000004..', '.40004...', '..444....', '.4...4...'],
+    dwhale: ['..........4.4...', '...........4....', '....444444444...', '..44000000000444', '.40400000000004.', '4000000000000044',
+      '4222222222222244', '.44444444444444.']
+  };
+  // mirrored helpers: y is the landscape's, drawn flipped
+  function dpx(x, y, w, h, c) { px(x, H - y - h, w, h, c); }
+  function dspr(rows, x, y, flip) { spr(rows.slice().reverse(), x, H - y - rows.length, flip); }
+  function dreamIcon(id) {
+    var rows = DREAM_SPR[id], c = document.createElement('canvas'); c.width = rows[0].length + 2; c.height = rows.length + 2;
+    spr(rows, 1, 1, false, c.getContext('2d'));
+    return c;
+  }
+
+  function dreamCanStart() {
+    if (drm) return false;
+    return L.dreamLeft(S, now(), YTZ) > 0;
+  }
+  // from the 침대 bar (house.js) or FF.dream(); force skips today's limit
+  function startDream(force) {
+    if (drm || reel) return false;
+    var r = L.dreamStart(S, now(), YTZ, !!force);
+    if (!r.ok) { toast('오늘은 이미 꿈을 꿨다 · 내일 다시 잠들어 보자', 2400); return false; }
+    drm = { run: r.run, phase: 'idle', at: performance.now(), biteAt: 0, bx: 90, by: 158, show: null, coins: 0 };
+    goScene('dream'); sfx('dreamIn');
+    toast('스르르… 꿈속 · 물을 눌러 던지기 · 찌가 「!」 하면 눌러요', 3200);
+    save();
+    return true;
+  }
+  // after the last cast, or 「깨기」: back in the house with the 꿈 일기
+  function wakeDream() {
+    if (!drm) return;
+    var got = drm.run.got, coins = drm.coins, cnt = {};
+    drm = null;
+    goScene('house'); sfx('dreamWake');
+    got.forEach(function (id) { cnt[id] = (cnt[id] || 0) + 1; });
+    var lines = Object.keys(cnt).map(function (id) { return L.dreamById(id).name + (cnt[id] > 1 ? ' ×' + cnt[id] : '') + ' · +' + L.dreamById(id).v * cnt[id]; });
+    if (!lines.length) lines = ['아무것도 못 낚았다… 그래도 포근한 꿈'];
+    else lines.push('모두 +' + coins + '코인');
+    showCard({ kicker: '꿈 일기', title: '🌙 거꾸로 뒤집힌 연못 꿈', lines: lines }, true);
+    save(); refresh();
+  }
+
+  function tapDream(x, y) {
+    if (!drm) return;
+    var t = performance.now(), ly = H - y;   // landscape y
+    if (drm.phase === 'idle') {
+      var p = DREAM_POND;
+      drm.bx = Math.max(p[0] + 10, Math.min(p[0] + p[2] - 10, x));
+      drm.by = Math.max(p[1] + 8, Math.min(p[1] + p[3] - 8, ly));
+      drm.phase = 'wait'; drm.at = t; drm.biteAt = t + 1500 + Math.random() * 2500;
+      sfx('cast');
+      return;
+    }
+    if (drm.phase === 'wait') { floatText('아직…', x, y - 8); return; }
+    if (drm.phase === 'bite') {
+      var r = L.dreamCast(drm.run, S, Math.random), d = L.dreamById(r.id);
+      drm.coins += r.coins;
+      drm.phase = 'show'; drm.at = t; drm.show = r;
+      sfx(d.rare ? 'dreamWhale' : 'dreamCatch');
+      burst(drm.bx, H - drm.by, d.rare ? 14 : 8, 0, 50);
+      floatText(d.name + ' +' + r.coins, drm.bx, H - drm.by - 22);
+      if (r.first) toast((d.rare ? '✦ ' : '') + '꿈 도감에 ' + josa(d.name, '이', '가') + ' 새로!', 2200);
+      save(); refresh();
+    }
+  }
+  // per frame: bite timing and the end of a dream
+  function dreamStep(t) {
+    if (!drm) return;
+    if (drm.phase === 'wait' && t >= drm.biteAt) { drm.phase = 'bite'; drm.at = t; sfx('dreamBite'); }
+    else if (drm.phase === 'bite' && t - drm.at > DREAM_BITE_MS) {
+      floatText('놓쳤다… 꿈처럼', drm.bx, H - drm.by - 14);   // no sound: it just fades, like a dream
+      drm.phase = 'idle'; drm.at = t;
+      if (L.dreamMiss(drm.run)) { drm.phase = 'show'; drm.show = null; }
+    } else if (drm.phase === 'show' && t - drm.at > DREAM_SHOW_MS) {
+      drm.show = null; drm.phase = 'idle';
+      if (drm.run.left <= 0) wakeDream();
+    }
+  }
+
+  function drawDream(tt) {
+    var t = performance.now();
+    dreamStep(t);
+    if (!drm) return;
+    var Gn = G, mv = reduceMotion ? 0 : tt, k;
+    G = [Gn[4], Gn[3], Gn[2], Gn[1], Gn[0]];   // the palette turned over
+    try {
+      // sky (comes out at the bottom), hazy rows toward the horizon
+      dpx(0, 0, W, 104, 0);
+      for (k = 70; k < 104; k += 4) dpx(0, k, W, k < 88 ? 1 : 2, 1);
+      // drifting specks and slow clouds
+      for (k = 0; k < 18; k++) {
+        var sx = (hash(k * 7 + 3) * W + mv * (2 + k % 3)) % W, sy = 6 + hash(k * 11 + 5) * 60;
+        dpx(sx, sy, 1, 1, Math.floor(mv * 1.5 + k) % 4 ? 2 : 3);
+      }
+      for (k = 0; k < 3; k++) {
+        var cx = ((hash(k * 13 + 1) * W + mv * (3 + k)) % (W + 40)) - 30, cy = 12 + k * 20;
+        dpx(cx + 4, cy, 18, 3, 1); dpx(cx, cy + 3, 28, 4, 1); dpx(cx + 2, cy + 7, 24, 1, 2);
+      }
+      // hills, then grass (comes out on top)
+      for (k = 0; k < W; k += 2) { var hh = 6 + Math.round(Math.sin(k / 17) * 3 + Math.sin(k / 7) * 2); dpx(k, 104 - hh, 2, hh, 3); }
+      dpx(0, 104, W, H - 104, 2);
+      for (k = 0; k < 40; k++) dpx(Math.floor(hash(k * 5 + 9) * W), 106 + Math.floor(hash(k * 3 + 1) * 90), 1, 2, 3);
+      // the pond holding a night sky
+      var p = DREAM_POND;
+      dpx(p[0] + 6, p[1] - 1, p[2] - 12, p[3] + 2, 3); dpx(p[0], p[1] + 5, p[2], p[3] - 10, 3);
+      dpx(p[0] + 7, p[1], p[2] - 14, p[3], 4); dpx(p[0] + 1, p[1] + 6, p[2] - 2, p[3] - 12, 4);
+      for (k = 0; k < 22; k++) {
+        var stx = p[0] + 4 + Math.floor(hash(k * 17 + 2) * (p[2] - 8)), sty = p[1] + 6 + Math.floor(hash(k * 19 + 4) * (p[3] - 12));
+        var tw = reduceMotion ? 1 : Math.floor(tt * 2 + k * 0.7) % 3;
+        dpx(stx, sty, 1, 1, tw ? 0 : 2);
+        if (k % 7 === 0 && tw) { dpx(stx - 1, sty, 3, 1, 1); dpx(stx, sty - 1, 1, 3, 1); dpx(stx, sty, 1, 1, 0); }
+      }
+      var mx = p[0] + p[2] - 30, my = p[1] + 12;   // crescent moon in the water
+      dpx(mx, my, 8, 8, 0); dpx(mx + 1, my - 1, 6, 10, 0); dpx(mx - 1, my + 1, 10, 6, 0); dpx(mx + 3, my, 7, 7, 4);
+      var rip = reduceMotion ? 0 : Math.round(Math.sin(tt * 1.3) * 2);   // slow ripple lines
+      dpx(p[0] + 20 + rip, p[1] + 40, 14, 1, 3); dpx(p[0] + 70 - rip, p[1] + 48, 10, 1, 3);
+      // the farmer on the bank, rod and line
+      dspr(SP.farmer, 14, 100);
+      var hx = 23, hy = 107;
+      for (k = 0; k <= 10; k++) dpx(Math.round(hx + (DREAM_TIP[0] - hx) * k / 10), Math.round(hy + (DREAM_TIP[1] - hy) * k / 10), 1, 1, 4);
+      if (drm.phase !== 'idle') {
+        var bob = drm.phase === 'bite' ? (Math.floor(tt * 10) % 2 ? 2 : 0) : (reduceMotion ? 0 : Math.round(Math.sin(tt * 2.5)));
+        var bx = drm.bx, by = drm.by + bob;
+        for (k = 0; k <= 20; k++) {   // the line sags toward the ground
+          var q = k / 20, lx = DREAM_TIP[0] + (bx - DREAM_TIP[0]) * q, ly = DREAM_TIP[1] + (by - DREAM_TIP[1]) * q + Math.sin(q * Math.PI) * 8;
+          dpx(Math.round(lx), Math.round(ly), 1, 1, 1);
+        }
+        dpx(bx - 1, by - 3, 3, 3, 1); dpx(bx - 1, by, 3, 2, 0); dpx(bx, by - 4, 1, 1, 0);
+        if (drm.phase === 'bite') {   // rings spread on the water
+          var ring = 5 + (reduceMotion ? 2 : Math.floor(tt * 8) % 4) * 2;
+          dpx(bx - ring, by + 1, ring * 2 + 1, 1, 0); dpx(bx - ring + 2, by - 2, ring * 2 - 3, 1, 0);
+        }
+        if (drm.phase === 'show' && drm.show) {
+          var rows = DREAM_SPR[drm.show.id], e = Math.min(1, (t - drm.at) / DREAM_SHOW_MS);
+          var rise = reduceMotion ? 10 : 6 + e * 14;
+          dspr(rows, bx - rows[0].length / 2, by - rise - rows.length);
+          if (!reduceMotion) sparkle(bx + rows[0].length / 2 + 2, H - (by - rise - rows.length), tt);
+        }
+      }
+      // casts left: pips along the sky edge (bottom of the screen)
+      for (k = 0; k < L.DREAM_CASTS; k++) {
+        var on = k < drm.run.left;
+        dpx(W - 8 - k * 8, 4, 6, 6, 4); dpx(W - 7 - k * 8, 5, 4, 4, on ? 4 : 0);   // left = filled
+      }
+    } finally { G = Gn; }
+    // the 「!」 in the waking palette, upright: it must read at a glance
+    if (drm.phase === 'bite' && (reduceMotion || Math.floor(tt * 6) % 3)) spr(SP.bang, drm.bx - 2, H - drm.by - 22);
+  }
+
+  // ---------- 도감 기록 탭 (records.js) ----------
+  function renderDreamRec() {
+    var h3 = document.createElement('h3'); h3.textContent = '꿈 도감';
+    var b = document.createElement('b'); b.textContent = L.dreamFound(S) + ' / ' + L.DREAM_TABLE.length; h3.appendChild(b); dexEl.appendChild(h3);
+    var got = (S.dream && S.dream.got) || {};
+    L.DREAM_TABLE.forEach(function (d) {
+      var n = got[d.id] || 0;
+      recRow(dreamIcon(d.id), n ? d.name : '???', n ? '꿈에서 낚은 것 · ' + d.v + '코인' + (d.rare ? ' · 아주 드묾' : '') : '침대에서 잠들면…', n ? n + '번' : '', !n);
+    });
+  }
+
+  // ---------- FF test hooks ----------
+  function addDreamHooks(FF) {
+    // FF.dream() = dream now (ignores today's limit); FF.dream('state') = s.dream; FF.dream('bite') = bite now
+    FF.dream = function (cmd) {
+      if (cmd === 'state') return S.dream;
+      if (cmd === 'bite') { if (drm && drm.phase === 'wait') drm.biteAt = 0; return drm && drm.phase; }
+      if (cmd === 'tap') { tapDream(drm ? drm.bx : 90, H - (drm ? drm.by : 158)); return drm && drm.phase; }
+      if (cmd === 'wake') { wakeDream(); return view; }
+      startDream(true);
+      return view;
     };
   }
   // ---------- 소문과 보물 지도 (stage 8 ③): map pictures, piece/rumor toasts, 꾹 눌러 파기, 기록 tab, FF hooks ----------
@@ -24997,7 +25287,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // (L.SPOTS names), home-made camp views by L.CMP_SITES, a resident's room by the resident.
   var PLC_VIEW = { yard: '마당', house: '집 안', forest: '숲', orchard: '과수원', village: '마을', flat: '갯벌', cave: '동굴', stars: '별 잇기',
     island: '섬', deep: '깊은 숲', peak: '산꼭대기', farisle: '먼 섬', port: '옛 포구', museum: '박물관', dive: '잠수',
-    trnvalley: '산골 계곡', trnonsen: '온천 마을', trnsnow: '설원 고개', trnride: '기차 안' };
+    dream: '꿈속', trnvalley: '산골 계곡', trnonsen: '온천 마을', trnsnow: '설원 고개', trnride: '기차 안' };
   // a spot whose plain name is also a view's name gets told apart (the 섬 scene vs fishing off its 부두); spotName() reads it
   var PLC_SPOT = { island: '섬 부두', valley: '산골 계곡 물가' };
   var PLC_SALT = { sea: true, island: true, offshore: true, ocean: true, cmpshore: true };
@@ -25149,6 +25439,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var w = curWin.innerWidth, h = curWin.innerHeight;
     var s = Math.min(w / 360, h / 480);
     app.style.transform = 'scale(' + s + ')';
+    var ex = Math.max(0, (h / s - 480) / 2);   // spare board px above and below (tall screens)
+    app.style.setProperty('--ex', ex + 'px');
+    app.style.outlineColor = ex ? 'transparent' : '';   // the board frame would cut across the gaps
     // the main-tab hint sits over the pond, scaled with the game, clear of the toast line
     if (curWin === window) pipHint.style.transform = 'translate(-50%,-50%) translateY(' + Math.round(80 * s) + 'px) scale(' + s + ')';
   }
@@ -25266,7 +25559,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = 'e55dcb885c41';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'd05b4c68ca9e';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
@@ -25896,6 +26189,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   addEventsHooks(globalThis.FF);  // stage 8 ①: FF.boom, FF.boomNext, FF.day, FF.diary
   addBountyHooks(globalThis.FF);  // 현상수배·연속 손맛: FF.bounty(cmd | fishId), FF.streak(n)
   addShinyHooks(globalThis.FF);   // 반짝이: FF.shiny(), FF.shiny('next')
+  addDreamHooks(globalThis.FF);   // 꿈 낚시: FF.dream() (now, ignoring the day), FF.dream('state' | 'bite' | 'tap' | 'wake')
   addRecHooks(globalThis.FF);     // 소리 도감: FF.rec('all'), FF.recNow(), FF.recNote(id)
   addBandHooks(globalThis.FF);    // 마을 음악회: FF.band('all'), FF.bandPlay(), FF.bandShow(), FF.bandStart(), FF.bandAuto()
   addMuseumHooks(globalThis.FF);  // stage 7 박물관: FF.museum(room), FF.museumFill(room, left)
