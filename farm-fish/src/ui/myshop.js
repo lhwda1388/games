@@ -90,7 +90,7 @@
     if (got.c) { toast('자리 비운 사이 ' + got.n + '개 팔림 · +' + got.c.toLocaleString('ko-KR') + '코인', 3200); refresh(); save(); }
     mysPend.at = -1e9;
     mysRender();
-    if (got.c) fxCoinsDom(sheetEl.querySelector('.wallet'));
+    if (got.c) fxCoinsDom(sheetEl.querySelector('.wallet'), 'shop');
   }
   function mysWhy(res) { toast(MYS_WHY[res.why] || '안 돼요'); }
   function mysDone(text) { if (text) toast(text); mysPend.at = -1e9; refresh(); save(); mysRender(); }
@@ -128,7 +128,7 @@
     // 금고: sales since the sheet opened
     var pk = L.mysPeek(S, t, TZ);
     var rt = sheetRow(mysIcon('till'), '금고', pk.c ? pk.n + '개 팔림 · ' + pk.c.toLocaleString('ko-KR') + '코인' : '비었어요 · 열 때마다 지갑으로');
-    mysBtn(rt, '받기', function () { var g = L.mysCollect(S, now(), TZ); if (g.c) fxCoinsDom(sheetEl.querySelector('.wallet')); mysDone(g.c ? '+' + g.c.toLocaleString('ko-KR') + '코인' : ''); }, '금고 받기', !pk.c);
+    mysBtn(rt, '받기', function () { var g = L.mysCollect(S, now(), TZ); if (g.c) fxCoinsDom(sheetEl.querySelector('.wallet'), 'shop'); mysDone(g.c ? '+' + g.c.toLocaleString('ko-KR') + '코인' : ''); }, '금고 받기', !pk.c);
     // 진열대
     var used = 0; q.it.forEach(function (e) { if (e) used++; });
     mysH3('진열대', used + ' / ' + q.sl + '칸 · 칸마다 ' + L.MYS_STACK + '개까지');

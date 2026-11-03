@@ -92,14 +92,15 @@
     }
     if (L.bugJudge(bug.fl, p) !== 'catch') {
       bug.flee = { x: q.x, y: q.y, t: p, dx: q.x < 90 ? -1 : 1 };
-      sfx('swing');
+      sfx('netMiss');
       if (bugMissTips++ < 3) toast('휙 날아갔다 · 앉아서 날개를 접었을 때 눌러요', 2200);
       return true;
     }
     var id = bug.id, c = L.catchBug(S, id);
     bug = null; bugNextAt = p + 20e3 + Math.random() * 30e3;
     burst(q.x, q.y - 3, 10, 0, 40);
-    sfx('swing'); sfx(L.bugById(id).rarity === '흔함' ? 'catch' : 'catchRare');
+    var plain = L.bugById(id).rarity === '흔함';
+    sfx('swing'); sfx(plain ? 'bugCatch' : 'bugRare');
     showBugCard(id, c);
     refresh();
     return true;
@@ -138,7 +139,7 @@
       if (k.ok) toast(b.name + ' · 표본 상자에 넣었다' + (k.gift ? ' · 집 안에 표본 상자가 생겼다' : ''), 2800);
       else choice = 'release';
     }
-    if (choice === 'release') { sfx('coin'); var got = L.releaseBug(S, pd.id); floatText('+' + got, 90, 90); toast(josa(b.name, '을', '를') + ' 놓아주었다 · 고맙다며 +' + got, 2200); }
+    if (choice === 'release') { sfx('bugFree'); var got = L.releaseBug(S, pd.id); floatText('+' + got, 90, 90); toast(josa(b.name, '을', '를') + ' 놓아주었다 · 고맙다며 +' + got, 2200); }
     refresh();
   }
 

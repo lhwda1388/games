@@ -52,6 +52,8 @@
     renderStage7BShop(); // stage 7: 곡괭이·만들기·망원경
     renderStage6Shop(); // stage 6A: 잠자리채
     renderCameraShop(); // stage 7: 사진기
+    recShop();    // 소리 도감: 녹음기
+    bndShop();    // 마을 음악회: 악기 (only once one is owned)
     renderRideShop();   // stage 9 ③: 자전거
     renderScareShop();  // stage 10 ②: 허수아비 꾸미기
     function row(id, nameHtml, sub, cost) {

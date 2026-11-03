@@ -19,6 +19,16 @@
     setVolRow('setSfx', sfxOn, '효과음', '낚시·수확·버튼 소리 · 끌어 보면 들려요', sfxSet, 'sfx');
     setVolRow('setMus', musOn, '음악', '시간마다 바뀌는 배경 음악', musSet, 'music');
     setVolRow('setAmb', ambOn, '환경음', '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요', ambSet, 'ambient');
+    bndSettings();   // 마을 음악회: 악기마다 켜고 끄기 (only once one is owned)
+    if (haptOK()) {   // 진동: only where the browser can buzz
+      h3 = document.createElement('h3'); h3.textContent = '진동'; setEl.appendChild(h3);
+      var vl = document.createElement('label'); vl.className = 'setRow';
+      var vc = document.createElement('input'); vc.type = 'checkbox'; vc.checked = haptOn;
+      vc.addEventListener('change', function () { haptSet(vc.checked); });
+      var vt = document.createElement('span'); vt.textContent = '진동';
+      var vs = document.createElement('small'); vs.textContent = '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만'; vt.appendChild(vs);
+      vl.appendChild(vc); vl.appendChild(vt); setEl.appendChild(vl);
+    }
     if (!pipOK) return;
     h3 = document.createElement('h3'); h3.textContent = '작은 창'; setEl.appendChild(h3);
     var lb = document.createElement('label'); lb.className = 'setRow';
@@ -44,7 +54,7 @@
     function show() { var p = rg.value + '%'; out.textContent = p; rg.setAttribute('aria-valuetext', p); rg.style.setProperty('--p', p); }
     rg.addEventListener('input', function () {
       volSet(k, +rg.value); show();
-      if (k === 'sfx' && performance.now() - setPing > 150) { setPing = performance.now(); sfx('coin'); }   // hear the level while dragging
+      if (k === 'sfx' && performance.now() - setPing > 150) { setPing = performance.now(); sfx('volPing'); }   // hear the level while dragging
     });
     show();
     row.appendChild(rl); row.appendChild(rg); row.appendChild(out); box.appendChild(row); setEl.appendChild(box);

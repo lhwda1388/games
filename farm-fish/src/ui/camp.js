@@ -561,7 +561,7 @@
     if (!cmpStay()) return;
     var t = now(), r = L.cmpLight(S, cmpSiteNow(), t, TZ, curEnv(t).phase);
     if (!r.ok) { toast(CMP_WHY[r.why] || '불을 못 피워요', 2200); return; }
-    burst(78, 146, 14, 0, 50); sfx('puff');
+    burst(78, 146, 14, 0, 50); sfx('fireLight');
     toast('모닥불을 피웠다 · 아침까지 타요 · 불을 누르면 굽기', 2600);
     cmpDone();
   }
@@ -571,7 +571,7 @@
     if (!r) return;
     var it = L.itemInfo(r.id);
     floatText('+' + it.name, 78, 128);
-    sfx(r.burnt ? 'lost' : 'harvest');
+    sfx(r.burnt ? 'burnt' : 'cookDone');
     toast(r.burnt ? '앗, 다 타 버렸다 · 탄 음식' : (r.first ? '★ 처음 · ' : '') + it.name + (r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에'), 2200);
     if (!quick || r.first) burst(78, 136, r.burnt ? 4 : 10, r.burnt ? 3 : 0, 30);
     cmpDone();

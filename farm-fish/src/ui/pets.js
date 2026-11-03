@@ -68,7 +68,7 @@
     var g = L.takePetGift(S, t, TZ, L.forestOk(S) ? fEnv(t) : null, Math.random);
     if (g) {
       petHearts.push({ x: p.x, y: p.y, t: 0 });
-      burst(p.x, p.y - 8, 8, 0, 40); sfx('harvest');
+      burst(p.x, p.y - 8, 8, 0, 40); sfx('petGift');
       toast(josa(nm, '이', '가') + ' 선물을 물고 왔다 · ' + L.itemInfo(g.id).name + (g.sold ? ' · 바구니가 꽉 차 팔았다 +' + g.sold : ' · 바구니에'), 2800);
       refresh(); return true;
     }

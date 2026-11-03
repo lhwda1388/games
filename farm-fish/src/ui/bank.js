@@ -46,7 +46,7 @@
       [['100', bal >= 100 ? 100 : 0], ['1,000', bal >= 1000 ? 1000 : 0], ['전부', bal]], function (n) {
         var res = L.bankTake(S, n, now(), TZ);
         if (!res.ok) { toast(BANK_WHY[res.why]); renderBank(); return; }
-        toast(res.n.toLocaleString('ko-KR') + '코인 찾았다'); fxCoinsDom(sheetEl.querySelector('.wallet')); refresh(); save(); renderBank();
+        toast(res.n.toLocaleString('ko-KR') + '코인 찾았다'); fxCoinsDom(sheetEl.querySelector('.wallet'), 'bank'); refresh(); save(); renderBank();
       });
     var p = document.createElement('p'); p.className = 'note';
     p.textContent = '현실 하루(자정)마다 이자 ' + rate + '% (소수점 버림) · ' + L.BANK_CAP.toLocaleString('ko-KR') + '코인까지 · 오래 비워도 이자는 ' +

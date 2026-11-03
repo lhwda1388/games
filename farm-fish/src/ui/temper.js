@@ -31,7 +31,7 @@
   }
   // boss phase change: shake, splash, and a blinking frame drawn by drawReelFrame
   function bossPhaseFx() {
-    sfx('sting');
+    sfx('sting'); hapt([70, 40, 70]);   // 진동: the boss lands a blow
     fxShake(5);
     burst(reelVis.x, reelVis.y, 20, 0, 110);
   }

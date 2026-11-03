@@ -36,6 +36,8 @@
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
     trnTick(t);        // 기차 여행: 온천욕 chip
+    recTick(t);      // 소리 도감: auto recording, ♪ chip, 축음기 (nothing without a 녹음기)
+    bndTick(t);        // 마을 음악회: resident instruments, ♪ 연주/무대 chip (nothing without an instrument)
     plcTick();         // 지금 있는 곳: the place tag, the arrival card on a new spot
     renderTray();
     updateTitle();
@@ -50,6 +52,7 @@
     tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     tickRide(dt);      // stage 9 ③: 자전거·썰매·열기구
     tickArcade(dt);    // 게임장: the round on its own board
+    bndFrame();        // 마을 음악회: the round on its own board (nothing unless a round is on)
     mysTick();         // 내 가게: customers while the game is open
     ctx.clearRect(0, 0, W, H);
     ctx.save();

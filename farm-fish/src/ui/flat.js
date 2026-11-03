@@ -150,7 +150,7 @@
       if (!td.low) {
         if (p) { toast('통발 · 썰물이 되면 걷어요 · 지금 ' + L.trapCount(p, t) + '마리쯤 (최대 ' + L.TRAP_CAP + ')', 2400); return true; }
         if (!L.setTrap(S, k, t, TZ, td).ok) return true;
-        burst(sp[0], sp[1] - 6, 8, 0, 40); sfx('plant');
+        burst(sp[0], sp[1] - 6, 8, 0, 40); sfx('trapSet');
         toast('통발을 놓았다 · 물이 빠지면 걷으러 와요', 2400); refresh();
         return true;
       }
@@ -159,7 +159,7 @@
       var r = L.pullTrap(S, k, t, Math.random, TZ, td);
       if (!r) return true;
       if (!r.got.length) { toast('통발이 아직 비었다 · 밀물이 한 번 더 지나면', 2200); return true; }
-      burst(sp[0], sp[1] - 6, 12, 3, 50); sfx('harvest');
+      burst(sp[0], sp[1] - 6, 12, 3, 50); sfx('trapPull');
       floatText('+' + r.got.length, sp[0], sp[1] - 16);
       toast('통발을 걷었다 · ' + r.got.map(function (id) { return L.flatById(id).name; }).join(', ') + (r.sold ? ' · 꽉 차서 바로 팔았다 +' + r.sold : ''), 3000);
       refresh();
@@ -189,7 +189,7 @@
     var f = L.flatById(r.id);
     flatLastDug = { id: r.id, at: performance.now() };
     burst(c.x, c.y + 8, won ? 16 : 8, won ? 4 : 3, won ? 70 : 40);
-    sfx('plant'); sfx(won ? 'level' : 'harvest');   // 소리: 삽질, then the find
+    sfx('dig'); sfx(won ? 'digRare' : 'digFind');   // 소리: 삽질, then the find
     floatText((won ? '★' : '+') + f.name + (r.n > 1 ? '×' + r.n : ''), c.x, c.y - 6);
     var tail = r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : r.first ? ' · 갯벌 도감 등록!' : ' · 바구니에';
     if (won) toast('도전 성공! ' + f.name + (r.n > 1 ? ' 두 개' : ' 하나 · 이번엔 덤이 없었다') + tail, 2600);

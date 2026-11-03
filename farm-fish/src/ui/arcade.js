@@ -160,9 +160,9 @@
     else if (a.game === 'slot') msg = ok ? '×' + win + '!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : '') : '꽝' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     else msg = ok ? '이겼다!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : ' (그냥 놀기)') : '아쉽다' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     arcTip.textContent = msg;
-    if (win !== null) sfx(ok ? 'level' : 'lost');
+    if (win !== null) sfx(ok ? 'arcWin' : 'arcLose');
     arcHeader(arcTitle.textContent);
-    if (pay) { fxCoinsDom(arcWallet); fxStamp(arcTip); }
+    if (pay) { fxCoinsDom(arcWallet, 'arc'); fxStamp(arcTip); }
     refresh();
     if (!arc || arc !== a || arcEl.hidden) return;
     arcActs.innerHTML = '';
@@ -200,7 +200,7 @@
         var p = holeAt(h);
         if (Math.abs(x - p[0]) > 17 || y < p[1] - 24 || y > p[1] + 5) continue;
         var r = L.moleTap(g, t, h);
-        if (r) { sfx(r === 'hog' ? 'error' : 'hit'); a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t }); }
+        if (r) { sfx(r === 'hog' ? 'moleHog' : 'hit'); a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t }); }
         return;
       }
     } else if (a.game === 'match') {
@@ -208,7 +208,7 @@
       for (var k = 0; k < g.cards.length; k++) {
         if (!hit(cardBox(k), x, y, 1)) continue;
         var f = L.matchFlip(g, k);
-        if (f) sfx(f === 'pair' ? 'hit' : 'tap');
+        if (f) sfx(f === 'pair' ? 'cardPair' : 'cardFlip');
         if (f === 'miss') a.hideAt = t + 700;
         if (f === 'pair' && L.matchOver(g)) a.endAt = t + 400;
         return;
@@ -216,9 +216,9 @@
     } else if (a.game === 'throw') {
       if (a.fly || a.endAt || t < a.ballAt) return;
       var hitIt = L.throwShot(g, t - a.ballAt);
-      if (hitIt !== null) { a.fly = { t: t, hit: hitIt }; sfx('cast'); }
+      if (hitIt !== null) { a.fly = { t: t, hit: hitIt }; sfx('ballThrow'); }
     } else if (!a.reels) {
-      a.reels = L.slotSpin(Math.random); a.spinAt = t; sfx('whoosh');
+      a.reels = L.slotSpin(Math.random); a.spinAt = t; sfx('slotSpin');
     }
   }
 

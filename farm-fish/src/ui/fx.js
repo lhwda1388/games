@@ -42,7 +42,8 @@
   // a caught fish jumps out and drops into the basket corner (or turns into coins when it was sold at once)
   function fxCatch(f, x, y, sold) {
     var tier = L.fxTier(f);
-    sfx(tier > 1 ? 'catchLegend' : tier ? 'catchRare' : 'catch');
+    sfx(tier > 1 ? 'catchLegend' : tier ? 'catchRare' : 'catch', false, f.max);   // 소리: a bigger species, a bigger splash
+    if (tier > 1) hapt([60, 50, 60, 50, 140]);   // 진동: legendary only
     if (tier) fxShake(tier > 1 ? 4 : 2.5);
     if (tier > 1 && !reduceMotion) fxAdd({ k: 'legend', x: x, y: y, dur: 1300 });
     if (sold) { fxCoins(x, y, sold); return; }
@@ -50,8 +51,9 @@
     fxAdd({ k: 'fly', img: fishCanvas(f.id), w: 16, h: 8, x0: x - 8, y0: y - 6, x1: 6, y1: 120, arc: 30, dur: 650, delay: tier > 1 ? 700 : 0, land: true });
   }
   // harvest / forage: the item pops up with dirt bits; 특상품 pops higher and sparkles; quick streaks show ×2 ×3
-  function fxHarvest(x, y, img, won) {
-    sfx(won ? 'level' : 'harvest');
+  // crop: the 밭 crop id (its own pulling sound); none = foraged (숲, 당나귀 길)
+  function fxHarvest(x, y, img, won, crop) {
+    sfx(crop && won ? 'harvestStar' : crop ? 'harvest' : won ? 'forageStar' : 'forage', false, crop);
     burst(x, y + 4, won ? 8 : 5, 4, 45);   // dirt bits
     harvestRun = L.fxCombo(harvestRun, fxT(), L.FX_COMBO_MS);
     if (harvestRun.n >= 2) floatText('×' + harvestRun.n, x + 12, y - 14);
@@ -60,14 +62,15 @@
   }
   // coins: a few pixel coins fly up to the wallet; the wallet number then rolls up (see coinsShown)
   function fxCoins(x, y, amount) {
-    if (amount > 0) sfx('coin');
+    if (amount > 0) sfx('coin', false, amount);   // 소리: more coins, more clinks
     if (reduceMotion || !(amount > 0)) return;
     var n = Math.min(5, 2 + Math.floor(Math.log(amount) / Math.LN10));
     for (var k = 0; k < n; k++) fxAdd({ k: 'coin', x0: x + (k - n / 2) * 3, y0: y, x1: 16, y1: -4, arc: 10 + k * 3, dur: 420, delay: k * 45 });
   }
   // DOM coins for panels that cover the canvas (바구니 sell / deliver): from the last press to the visible wallet
-  function fxCoinsDom(target) {
-    sfx('coin');
+  // kind (소리 only): 'bank' 찾기, 'shop' 내 가게 금고, 'arc' 게임장 상금, 'tip' 탈것 팁; none = 바구니 selling
+  function fxCoinsDom(target, kind) {
+    sfx(kind === 'bank' ? 'bankOut' : kind === 'shop' ? 'till' : kind === 'arc' ? 'arcPay' : kind === 'tip' ? 'tip' : 'sell');
     if (reduceMotion || !pressAt || !target || !app.animate) return;
     var doc = app.ownerDocument, ar = app.getBoundingClientRect(), sc = ar.width / 360 || 1, tr = target.getBoundingClientRect();
     if (app.querySelectorAll('.coinfly').length >= 8) return;
@@ -85,7 +88,7 @@
   }
   // 해금 · 신기록 · 도감 첫 등록: a short stamp landing
   function fxStamp(el) {
-    sfx('level');
+    sfx('stamp');
     if (!el || reduceMotion) return;
     el.classList.remove('stamp'); void el.offsetWidth; el.classList.add('stamp');
   }

@@ -130,6 +130,7 @@
       }
       r.appendChild(btn);
     });
+    bndTrader();   // 마을 음악회: 우쿨렐레 (apart from the 하루 하나 list)
   }
 
   // ----- 달력 row (renderToday) -----

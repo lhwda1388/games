@@ -35,7 +35,8 @@
     var first = !plcKey;
     plcKey = key;
     if (first || reel || mini || chal || rideOn() || arcOn() || view === 'dive' || view === 'stars') return;
-    sfx('whoosh');
+    // 소리: the place's own palette — 동굴 echo, 실내 short, 마을 bells, 바다 wide, 민물 water, the rest earth and wood
+    sfx(view === 'cave' ? 'arriveCave' : view === 'house' || view === 'home' || view === 'museum' || view === 'trnride' ? 'arriveIn' : view === 'village' || view === 'port' || view === 'trnonsen' ? 'arriveTown' : view === 'farm' && PLC_SALT[scene] || view === 'island' || view === 'farisle' || view === 'flat' ? 'arriveSea' : view === 'farm' || view === 'trnvalley' ? 'arriveWater' : 'arriveLand');
     plcBannerB.textContent = nm;
     plcBannerS.textContent = view === 'farm' ? (PLC_SALT[scene] ? '바다 물고기' : '민물고기') : '';
     plcBannerS.hidden = view !== 'farm';

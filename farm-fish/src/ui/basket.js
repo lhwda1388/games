@@ -163,7 +163,7 @@
   // 자동 판매 끔 and full: new catches/harvests wait (they stay in the pond/field/tree)
   function bagStop() {
     if (!L.bagBlocked(S)) return false;
-    sfx('error');
+    sfx('bagFull');
     toast('바구니가 꽉 찼어요 · 바구니에서 팔 것을 골라요', 2600); return true;
   }
   function tapPot() {

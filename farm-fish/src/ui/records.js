@@ -4,16 +4,17 @@
     var head = dexEl.querySelector('h2');
     if (!head) return;
     var tabs = document.createElement('div'); tabs.className = 'tabs'; tabs.setAttribute('role', 'group');
-    [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].forEach(function (tb) {
+    [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].concat(L.recOk(S) ? [['snd', '소리']] : []).forEach(function (tb) {   // 소리 도감: only once a 녹음기 is owned
       var b = document.createElement('button'); b.type = 'button'; b.textContent = tb[1];
       b.setAttribute('aria-pressed', String(dexTab === tb[0]));
       b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); decorateDex(); dexEl.scrollTop = 0; });
       tabs.appendChild(b);
     });
     head.after(tabs);
-    if (dexTab !== 'rec' && dexTab !== 'friend' && dexTab !== 'guide') return;
+    if (dexTab === 'snd' && !L.recOk(S)) dexTab = 'dex';
+    if (dexTab !== 'rec' && dexTab !== 'friend' && dexTab !== 'guide' && dexTab !== 'snd') return;
     while (tabs.nextSibling) tabs.nextSibling.remove();
-    if (dexTab === 'guide') renderGuide(); else if (dexTab === 'rec') renderRecords(); else renderShare();   // stage 4: 친구 기록 비교
+    if (dexTab === 'snd') recDex(); else if (dexTab === 'guide') renderGuide(); else if (dexTab === 'rec') renderRecords(); else renderShare();   // stage 4: 친구 기록 비교
   }
   dexBtn.addEventListener('click', decorateDex);
   function recRow(icon, name, sub, val, unk) {

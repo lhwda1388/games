@@ -37,7 +37,7 @@
       milestones();
     } else {
       L.loseFish(S);
-      sfx(res === 'snap' ? 'snap' : 'lost');
+      sfx(res === 'snap' ? 'snap' : 'lost'); hapt(120);   // 진동: one thud
       toast(res === 'snap' ? '툭… 줄이 끊어졌다' : (f.power >= 1.6 ? '묵직한 녀석이 도망갔다…' : '도망갔다…'), 2600);
       burst(reelVis.x, reelVis.y, 6, 2, 40);
     }
@@ -245,8 +245,8 @@
   function tickFishing(t) {
     if (!reel) {
       var f = L.updateFishing(S, t, Math.random, SPEED, curEnv(t));
-      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('lost'); }
-      if (f === 'bite') { sfx('bite'); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
+      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('missed'); }
+      if (f === 'bite') { sfx('bite'); hapt([40, 60, 40]); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
       if (f && f !== 'nibble') save();
     }
   }
@@ -256,7 +256,7 @@
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
-      if (held && reel.tension > 0.6) sfx('tick');   // 소리: the line creaks when it is close to snapping
+      if (held && reel.tension > 0.6) { sfx('tick'); hapt(25, 800); }   // 소리: the line creaks when it is close to snapping
       var pulling = reel.burst > 0, warning = reel.warn > 0, ev = reel.ev;
       var jumping = pulling && ev === 'jump', digging = pulling && ev === 'sound', running = pulling && ev === 'run', turning = running && reel.turn > 0;
       if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, jumping ? 3 : 2.5); }

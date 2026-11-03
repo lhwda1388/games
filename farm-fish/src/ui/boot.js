@@ -49,6 +49,8 @@
   addIsleHooks(globalThis.FF);    // stage 7 섬: FF.isle(), FF.drift(id), FF.lighthouse(k)
   addShipHooks(globalThis.FF);    // stage 9 ①: FF.ship(t), FF.far(id)
   addEventsHooks(globalThis.FF);  // stage 8 ①: FF.boom, FF.boomNext, FF.day, FF.diary
+  addRecHooks(globalThis.FF);     // 소리 도감: FF.rec('all'), FF.recNow(), FF.recNote(id)
+  addBandHooks(globalThis.FF);    // 마을 음악회: FF.band('all'), FF.bandPlay(), FF.bandShow(), FF.bandStart(), FF.bandAuto()
   addMuseumHooks(globalThis.FF);  // stage 7 박물관: FF.museum(room), FF.museumFill(room, left)
   addTemperHooks(globalThis.FF);  // stage 8 ② 손맛: FF.temper(id), FF.records(), FF.hookFish(id, size)
   addTreasureHooks(globalThis.FF); // stage 8 ③: FF.tmap(id), FF.rumor(n), FF.dig(id)

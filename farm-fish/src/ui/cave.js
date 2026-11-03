@@ -142,9 +142,10 @@
     tmapAfter('cave');   // stage 8 ③
     var rr = cellRect(c.k);
     sfx('pick');
-    if (r.done || (r.more && r.more.done)) sfx('level');
-    else if ((r.kind === 'part' && !r.dup) || (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함')) sfx('catchRare');
-    else sfx('harvest');
+    if (r.done || (r.more && r.more.done)) { sfx('fossilDone'); hapt([50, 50, 50, 50, 120], 400); }
+    else if (r.kind === 'part' && !r.dup) { sfx('fossilPart'); hapt([40, 50, 40], 400); }
+    else if (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함') { sfx('oreRare'); hapt(25); }
+    else { sfx('ore'); hapt(25); }   // 진동: pickaxe on a mineral
     burst(rr[0] + rr[2] / 2, rr[1] + rr[3] / 2, won ? 16 : 9, won ? 0 : 2, won ? 70 : 45);
     var parts = [mineText(r)];
     if (r.more) parts.push(mineText(r.more));

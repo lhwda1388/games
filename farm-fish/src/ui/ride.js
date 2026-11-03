@@ -38,9 +38,9 @@
     ride.taps.push(ride.t);
     if (ride.kind === 'bal') {
       var seen = L.balloonJudge(ride.lay, [ride.t]);
-      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; sfx('shutter'); }
-      else sfx('tap');
-    } else sfx(ride.kind === 'bike' ? 'jump' : 'swing');   // 자전거 점프, 썰매 옆 줄로
+      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; sfx('sight'); }
+      else sfx('balTap');
+    } else sfx(ride.kind === 'bike' ? 'jump' : 'sledSwerve');   // 자전거 점프, 썰매 옆 줄로
   }
   function startRide(kind, lay, title, tip, extra) {
     ride = { kind: kind, lay: lay, taps: [], t: 0, done: 0, flash: 0, seen: [], season: curEnv(now()).season };
@@ -48,7 +48,7 @@
     rideTitle.textContent = title; rideTip.textContent = tip;
     rideMenu.hidden = true; rideCv.hidden = false;
     rideStop.textContent = kind === 'bike' ? '그만 타기 (납품은 그대로)' : '그만 타기';
-    showRide(); drawRide(); sfx('whoosh');
+    showRide(); drawRide(); sfx('rideGo');
   }
 
   // ---------- 자전거 배달: 납품 first, then the ride for a tip ----------
@@ -88,11 +88,11 @@
     ride.t += dt; ride.flash = Math.max(0, ride.flash - dt);
     if (ride.kind === 'bike') {
       var b = L.bikeRun(ride.lay, ride.taps, ride.t);
-      if (b.crash) { sfx('bump'); endRide(false); return; }
+      if (b.crash) { sfx('crash'); hapt(120); endRide(false); return; }
     }
     if (ride.kind === 'sled') {
       var sr = L.sledRun(ride.lay, ride.taps, ride.t);
-      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; sfx('bump'); }
+      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; sfx('bump'); hapt(60); }
     }
     if (ride.t >= rideLen()) endRide(false);
     drawRide();
@@ -106,7 +106,7 @@
       m.crash = run.crash;
       var f = L.bikeFinish(S, m.pay, run);
       msg = run.crash ? (quit ? '걸어서 갔다 · 납품은 그대로' : '꽈당! · 괜찮아요, 납품은 그대로') : '무사히 배달! · 팁 +' + f.tip + (run.flowers ? ' · 꽃 ' + run.flowers : '');
-      if (f && f.tip) fxCoinsDom(rideTitle);
+      if (f && f.tip) fxCoinsDom(rideTitle, 'tip');
     } else if (m.kind === 'sled') {
       if (quit) msg = '썰매에서 내렸다';
       else {
@@ -121,7 +121,7 @@
       msg = (seen.length ? '본 것 ' + seen.length + '가지' : '구름 사이를 둥실') + (out.first.length ? ' · 새로 ' + out.first.length + ' (+' + out.coins + ')' : '') +
         (out.all ? ' · 하늘 도감 완성!' : '') + (shot ? ' · 앨범 +' + shot : '');
     }
-    if (!quit) sfx(m.kind === 'bike' && m.crash ? 'lost' : 'catch');   // 소리: the ride's result (신기록·팁 add their own)
+    if (!quit) sfx(m.kind === 'bike' && m.crash ? 'rideFail' : 'rideDone');   // 소리: the ride's result (신기록·팁 add their own)
     rideTip.textContent = msg; rideStop.textContent = '닫기';
     toast(msg, 3200);
     refresh(); drawRide();
@@ -183,7 +183,7 @@
     ride.lay.forEach(function (e) {
       if (e.kind === 'flower' && e.t <= t && jumps.some(function (j) { return e.t >= j && e.t < j + L.BIKE_JUMP; })) {
         ride.picked = ride.picked || [];
-        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; sfx('harvest'); }
+        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; sfx('flowerPick'); }
       }
     });
     var crashed = ride.done && ride.crash;

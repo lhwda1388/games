@@ -8,7 +8,8 @@
   var toastTimer = 0;
   var SND_ERR = /부족|못 해요|수 없어요|꽉 찼어요/;
   function toast(msg, ms) {
-    if (String(msg).charAt(0) === '★') sfx('level', true); else if (SND_ERR.test(msg)) sfx('error', true);   // 소리: 해금·칭호 / 막힘
+    if (String(msg).charAt(0) === '★') { var sk = sndStar(msg); sfx(sk === 'title' ? 'starTitle' : sk === 'set' ? 'starSet' : sk === 'open' ? 'starOpen' : sk === 'new' ? 'starNew' : 'level', true); }   // 소리: 칭호 · 수집 완성 · 해금 · 첫 발견 · 그 밖의 ★
+    else if (SND_ERR.test(msg)) sfx('error', true);   // 막힘
     toastEl.textContent = msg; toastEl.classList.add('on');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
   }

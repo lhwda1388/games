@@ -34,6 +34,7 @@
   function refresh() { renderTray(); save(); updateTitle(); }
 
   function onKeyDown(e) {
+    if (bndKey(e)) return;   // 마을 음악회 overlay: Esc, lane keys (false when it is closed)
     if (e.key === 'Escape') {
       e.preventDefault();
       if (closeSceneMenu()) { sceneBtn.focus(); return; }   // Esc first closes the 이동 list

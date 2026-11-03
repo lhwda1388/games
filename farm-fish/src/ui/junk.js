@@ -23,7 +23,8 @@
     if (!id) return false;
     var out = L.landJunk(S, id, Math.random);
     tmapAfter('junk'); if (id === 'letter') rumorAfter('letter');   // stage 8 ③
-    burst(f.x, f.y, 8, 0, 50); sfx('catch');
+    bndAfterJunk('junk');   // 마을 음악회: 오카리나, after the junk and every old roll (no rng)
+    burst(f.x, f.y, 8, 0, 50); sfx('junkCatch');
     floatText('+' + L.junkById(id).name, ROD_BASE.x, ROD_BASE.y - 16);
     showJunk(out);
     refresh();
@@ -169,8 +170,8 @@
     if (!mini || mini.done) return;
     if (mini.kind === 'pick') {
       var r = L.pickTap(mini.g, mini.t);
-      if (r === 'hit') { burstMini(); sfx('hit'); }
-      if (r === 'miss') sfx('error');
+      if (r === 'hit') { burstMini(); sfx('lockPick'); }
+      if (r === 'miss') sfx('lockMiss');
       if (r === 'miss') miniTip.textContent = '아깝다 · 한 번 더 놓치면 그냥 열려요';
       if (r === 'ok' || r === 'fail') endMini(r);
     } else { L.heatTap(mini.g); sfx('puff'); }
@@ -196,10 +197,11 @@
     var m = mini;
     m.done = 0.9;
     miniTip.textContent = r === 'ok' ? '성공!' : '괜찮아요 · 평소대로 받아요';
-    sfx(r === 'ok' ? 'level' : 'lost');
+    sfx(r === 'ok' ? 'chestOpen' : 'chestFail');
     if (m.kind === 'pick') {
       var res = L.openChest(S, Math.random, r === 'ok' ? 1 : 0);
       chestResult(res, r === 'ok');
+      if (res) bndAfterJunk('chest');   // 마을 음악회: 오카리나, after the chest is already opened (no rng)
     } else finishHeat(r === 'ok');
     drawMini();
   }

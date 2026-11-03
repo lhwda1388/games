@@ -22,7 +22,7 @@
   function endDive(why) {
     var n = dv ? dv.n : 0;
     dv = null;
-    goScene(diveHome()); sfx('splash');
+    goScene(diveHome()); sfx('diveOut');
     toast((why === 'o2' ? '숨이 차서 물 위로 · ' : '물 위로 · ') + (n ? '이번에 ' + n + '가지 · ' : '') + '주운 것·밝힌 방은 그대로', 3000);
     refresh();
   }
@@ -181,7 +181,7 @@
     var next = r.exits[d], can = L.diveCanEnter(S, next);
     var back = { w: [14, DIVE_MID], e: [W - 14, DIVE_MID], n: [90, 18], s: [90, H - 16] }[d];
     if (!can.ok) {
-      sfx('bump');
+      sfx('diveBlock'); hapt(60);
       dv.x = back[0]; dv.y = back[1]; dv.tx = dv.x + (d === 'w' ? 16 : d === 'e' ? -16 : 0); dv.ty = dv.y + (d === 'n' ? 16 : d === 's' ? -16 : 0);
       if (can.why === 'light') { dv.dark = 1.4; toast('너무 어둡다… 아무것도 안 보여 · 조선소에서 손전등을', 2800); }
       else if (can.why === 'key') toast('녹슨 문이 잠겨 있다 · 얕은 여 어딘가에 열쇠가', 2600);
@@ -206,7 +206,7 @@
     if (!res) return;
     dv.n++;
     burst(t.x, t.y - 4, 8, r.zone === 'deep' ? 0 : 4, 30);
-    sfx(res.kind === 'pick' ? (res.first ? 'catchRare' : 'harvest') : res.kind === 'see' ? (res.first ? 'catchRare' : 'tap') : res.kind === 'log' ? 'harvest' : 'catchLegend');   // 소리: 열쇠·상자 = 보물
+    sfx(res.kind === 'pick' && res.first ? 'divePickNew' : res.kind === 'pick' ? 'divePick' : res.kind === 'see' && res.first ? 'diveSeeNew' : res.kind === 'see' ? 'diveSee' : res.kind === 'log' ? 'diveLog' : 'diveTreasure');   // 소리: 열쇠·상자 = 보물
     if (res.kind === 'pick') {
       floatText('+' + dx.name, t.x, t.y - 10);
       toast((res.first ? '★ 처음 · 해저 도감에 · ' : '') + dx.name + ' 주웠다' + (res.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + res.sold : ''), 2000);
