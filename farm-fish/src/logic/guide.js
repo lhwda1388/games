@@ -28,7 +28,7 @@
     { id: 'friend', name: '친구 기록', how: '도감 친구 탭 · 내 기록 코드를 복사해 친구 기록과 나란히', lock: '' },
     { id: 'move', name: '세이브 옮기기', how: '도감 친구 탭 · 세이브를 복사해 카톡·메모장에 두면 백업, 다른 기기에서 붙여 넣고 불러오기 두 번이면 이어 하기', lock: '' },
     { id: 'pip', name: '작게 띄우기', how: '작게 버튼이나 P 키로 작은 창 · 다른 일을 하면서 곁에 띄워 두기', lock: '' },
-    { id: 'sound', name: '소리', how: '위의 ⚙ 설정에서 전체·효과음·음악·환경음 크기와 켜기·끄기 · M 키로 바로 끄고 켜기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음', lock: '' },
+    { id: 'sound', name: '소리', how: '위의 ⚙ 설정에서 전체·효과음·음악·환경음 크기와 켜기·끄기(폰은 진동도) · M 키로 바로 끄고 켜기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음', lock: '' },
     { id: 'forest', name: '숲', how: '돋아난 것을 눌러 채집 · 꾹 누르면 도전 · 철마다 다른 것이 돋는다', lock: '★' + FOREST_REP + ' · 숲 표지판에서 ' + won(FOREST_COST) },
     { id: 'pet', name: '반려동물', how: '쓰다듬으면 친밀도 · 하루 몇 번 선물 · 숲에서 킁킁 찾아 준다', lock: '상점 입양 · 강아지 ' + won(PET_KINDS.dog.cost) + ' · 고양이는 ' + PET_CAT_VISITS + '번 놀러 오면' },
     { id: 'orchard', name: '과수원', how: '빈 자리를 눌러 묘목 심기 · 다 자란 나무는 제철마다 열매', lock: '★' + ORCHARD_REP + ' · 과수원 팻말에서 ' + won(ORCHARD_COST) },
@@ -98,7 +98,11 @@
     // 가공 공방
     { id: 'craft', name: '가공 공방', how: '마당 집 오른쪽 아래 공방 터 · ' + won(CFT_PRICE) + '으로 짓고 ' + CFT_M.map(function (d) { return d.name + '(' + d.what + ' → ' + d.outName + ' ' + d.time / 3600e3 + '시간 ×' + d.mul + ')'; }).join(' · ') + ' · 기계마다 같은 재료 ' + CFT_CAP + '개까지, 나오는 값은 넣은 값 × 기계 배수(넣은 값 ' + won(CFT_VCAP) + '까지만 늘어남) · 게임을 꺼 둬도 익는다 · 같은 기계는 ' + CFT_MAX + '대까지', lock: '★' + CFT_REP + ' · 마당 공방 터에서 ' + won(CFT_PRICE) },
     // 캠핑
-    { id: 'camp', name: '캠핑', how: '숲 오른쪽 아래 캠핑장 팻말 · 저녁·밤에 솔방울 하나로 모닥불(그 밤 내내) · 석쇠에 캠핑 요리 ' + CMP_RECIPES.length + '가지(1~3분, 오래 두면 탄다) · 불 곁에 가끔 주민·반려동물이 앉아 이야기 · 밤에 텐트를 누르면 자고, 아침이 오면(꺼 둬도) 텐트 앞에 선물(현실 하루 ' + CMP_GIFT_DAY + '번) · 잔 밤마다 도장 수첩에 계절·날씨 도장 · 텐트 ' + CMP_TENTS.length + '단계·장비 ' + CMP_EQ.length + '가지 · 밤에만 오는 캠핑장 곤충 · 계곡 캠핑(산골 계곡 팻말, 그날 계곡 표)·바닷가 캠핑(바다 물가 팻말)에선 저녁·밤에 물을 누르면 밤 낚시(곳마다 ' + CMP_FISH.filter(function (f) { return f.spot === 'cmpbrook'; }).length + '종) · 비 오는 밤엔 빗소리 유리병, 눈 오는 밤엔 꼬마 눈사람 · 망원경이 있으면 캠프 밤하늘에서 별 잇기·유성우 소원 ×' + CMP_STAR_MUL + '(망원경 받침이면 더)', lock: '★' + CMP_REP + ' · 숲 캠핑장 팻말에서 캠핑 세트 ' + won(CMP_PRICE) }
+    { id: 'camp', name: '캠핑', how: '숲 오른쪽 아래 캠핑장 팻말 · 저녁·밤에 솔방울 하나로 모닥불(그 밤 내내) · 석쇠에 캠핑 요리 ' + CMP_RECIPES.length + '가지(1~3분, 오래 두면 탄다) · 불 곁에 가끔 주민·반려동물이 앉아 이야기 · 밤에 텐트를 누르면 자고, 아침이 오면(꺼 둬도) 텐트 앞에 선물(현실 하루 ' + CMP_GIFT_DAY + '번) · 잔 밤마다 도장 수첩에 계절·날씨 도장 · 텐트 ' + CMP_TENTS.length + '단계·장비 ' + CMP_EQ.length + '가지 · 밤에만 오는 캠핑장 곤충 · 계곡 캠핑(산골 계곡 팻말, 그날 계곡 표)·바닷가 캠핑(바다 물가 팻말)에선 저녁·밤에 물을 누르면 밤 낚시(곳마다 ' + CMP_FISH.filter(function (f) { return f.spot === 'cmpbrook'; }).length + '종) · 비 오는 밤엔 빗소리 유리병, 눈 오는 밤엔 꼬마 눈사람 · 망원경이 있으면 캠프 밤하늘에서 별 잇기·유성우 소원 ×' + CMP_STAR_MUL + '(망원경 받침이면 더)', lock: '★' + CMP_REP + ' · 숲 캠핑장 팻말에서 캠핑 세트 ' + won(CMP_PRICE) },
+    // 소리 도감
+    { id: 'rec', name: '소리 도감', how: '녹음기가 있으면 조건(시간·계절·곳·날씨)이 맞는 곳에 잠시 머물기만 해도 저절로 ★1 녹음(소리를 꺼 둬도) · 환경음이 켜져 있으면 그 소리가 날 때 화면 왼쪽에 ♪가 잠깐 뜨고, 누르면 ★2, 또 누르면 ★3 · 도감 소리 탭에서 ▶ 다시 듣기·힌트 · ' + REC_SOUNDS.length + '가지(전설 하나) · ' + REC_MS.map(function (m) { return m.n; }).join('·') + '개마다 코인과 칭호, 전부 모으면 마당 장식 축음기 · 박물관 별관 소리실에 기증', lock: '★' + REC_REP + ' · 상점 녹음기 ' + won(REC_COST) },
+    // 마을 음악회
+    { id: 'band', name: '마을 음악회', how: '악기 ' + BND_INS.length + '가지(' + BND_INS.map(function (d) { return d.name; }).join('·') + ') · 얻는 대로 배경음악에 그 악기가 한 겹 더해진다(⚙ 설정에서 악기마다 끄기) · 마당 ♪ 연주: 4줄로 내려오는 음표를 탭(키보드 D F J K) · 곡은 지금 시간대 음악 · 보상은 현실 하루 ' + BND_PLAY_CAP + '번(코인·주민 친밀도) · 악기 ' + BND_SHOW_MIN + '개부터 게임 저녁·밤에 마을 광장 음악회(현실 하루 한 번, 악기가 많을수록 줄이 늘어남) · 주민이 관객 · 동·은·금 · 첫 금에 칭호 「' + BND_TITLE + '」와 음악회 곡 · 계절 축제 날(수요일)은 특별 공연: 보상 ×' + BND_FEST_MUL + ', 은만 받아도 곡 해금, 축제 날 밤엔 그 곡이 흐른다 · 놓쳐도 잃는 것 없음', lock: '악기 하나부터 · 잡동사니·보물 상자의 오카리나, 주민 친밀도 ' + BND_FRIEND + '단계 선물(마을에 가면 직접 건네줌), 떠돌이 상인의 우쿨렐레 ' + won(BND_UKE_COST) }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -128,6 +132,8 @@
   GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
   GUIDE_OPEN.train = function (s) { return villageOk(s) && trnStatus(s, 'valley') !== 'rep'; }; GUIDE_SCENE.trnvalley = 'train'; GUIDE_SCENE.trnonsen = 'train'; GUIDE_SCENE.trnsnow = 'train';   // 기차 여행
   GUIDE_OPEN.craft = function (s) { return !!s.craft || s.rep >= CFT_REP; };   // 가공 공방
+  GUIDE_OPEN.rec = recOk;   // 소리 도감
+  GUIDE_OPEN.band = bndOk;  // 마을 음악회
   GUIDE_OPEN.camp = function (s) { return !!s.camp || (forestOk(s) && s.rep >= CMP_REP); }; GUIDE_SCENE.cmpforest = 'camp'; GUIDE_SCENE.cmpvalley = 'camp'; GUIDE_SCENE.cmpsea = 'camp';   // 캠핑
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }

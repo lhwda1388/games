@@ -128,6 +128,8 @@
       decodeCraft(o, s);   // 가공 공방: s.craft (기계·가공 중인 것·도감; optional)
       decodeTrain(o, s);   // 기차 여행: s.train (개통·기차표·특산물 자리; optional) + the route spots
       decodeCamp(o, s);    // 캠핑: s.camp (세트·텐트·장비·불·석쇠·잠·아침 선물·도장; optional)
+      decodeRec(o, s);     // 소리 도감: s.rec (녹음기·녹음한 것·보상·별관; optional)
+      decodeBand(o, s);    // 마을 음악회: s.band (악기·끈 악기·연주 횟수·음악회 날·칭호·곡; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {

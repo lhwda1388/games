@@ -1,0 +1,31 @@
+/* Hallmark · component: 마을 음악회 ♪ chip + rhythm overlay (120×160 board, lane pads) · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus-visible · active · disabled · pressed (악기 켬/끔 .on + aria-pressed, shared .up rules) · shown/hidden (chip);
+ *   loading/error/success: none async — the round's 딱/좋아요/놓침 is the tip line (aria-live), the result is the stage picture + notes
+ * contrast: ink on paper as every button. Only tokens, no new colours. Follows #arcade.
+ * motion: none in CSS (the 무대 chip shows, inverted with a ring, only while the 음악회 can start); falling notes are the game itself. Reduced motion:
+ *   the lane flash shrinks to a mark on the hit line, the audience stands still. Touch: pads ≥44px tall across a 375px phone; keys D F J K (S…L). */
+/* the chip sits in the 44px strip under the board, bottom right: off the canvas, so it covers no 마당 deco/spot or 마을 house.
+ * 마당: the seed tray is hidden there, the strip is empty. 마을: the 지금 할 일 bar gives up its right end while the chip shows.
+ * While a deco is being moved, #itemBar owns the strip and the chip steps aside. */
+#bndChip{position:absolute;right:6px;bottom:8px;z-index:2;width:52px;height:28px;padding:0;font:700 12px/1 var(--font);white-space:nowrap}
+#app:has(#bndChip:not([hidden])) #vilBar{right:64px}
+#app:has(#itemBar:not([hidden])) #bndChip{display:none}
+#bndChip[hidden]{display:none}
+#bndChip.on{background:var(--g4);color:var(--g0);box-shadow:0 0 0 2px var(--g0),0 0 0 4px var(--g4)}
+#band{z-index:7;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 16px}
+#band h2{width:100%;margin:0}
+#band h2 .wallet{font:700 12px var(--mono)}
+#band > canvas{width:240px;height:320px;max-height:52vh;aspect-ratio:3/4;object-fit:contain;image-rendering:pixelated;border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);flex:none;touch-action:none}
+#band .tip{margin:0;font:700 13px/1.4 var(--font);text-align:center;min-height:18px}
+#band .pads{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:4px;width:240px;max-width:100%}
+#band .pads[hidden]{display:none}
+#band .pads button{min-width:0;min-height:44px;padding:0;font:700 14px var(--mono);touch-action:none;user-select:none}
+#band .pads button:active{background:var(--g4);color:var(--g0)}
+#band .menu{width:100%}
+#band .menu[hidden]{display:none}
+#band .menu h3 b{font:700 10px var(--font);color:var(--g3)}
+#band .menu .note{margin:8px 0;font:400 11px/1.4 var(--font);color:var(--g3)}
+#band .menu .up.idle .n{color:var(--g3)}
+#band .menu .up > span{width:12px;flex:none}
+#band .menu > button.go{width:100%;background:var(--g4);color:var(--g0)}
+#band .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:auto}

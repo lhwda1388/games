@@ -1,0 +1,11 @@
+/* Hallmark · component: 소리 도감 ♪ chip + ▶ replay button · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules in style.css) · shown/hidden (chip); instant, no loading/error
+ * contrast: ink on paper as every button. Only tokens, no new colours. Motion: one 2-step blink on the chip, off for reduced motion.
+ */
+#recNote{position:absolute;left:3px;top:112px;z-index:2;width:32px;height:28px;padding:0;font:700 16px/1 var(--font);
+  display:flex;align-items:center;justify-content:center;animation:recNote 1s steps(2) infinite}
+#recNote[hidden]{display:none}
+@keyframes recNote{50%{background:var(--g4);color:var(--g0)}}
+.dx .recPlay{flex:none;padding:1px 6px;font:700 10px var(--font);box-shadow:0 1px 0 var(--g4)}
+.dx .recPlay:active{transform:translateY(1px)}
+@media (prefers-reduced-motion: reduce){ #recNote{animation:none;background:var(--g1)} }
