@@ -473,6 +473,24 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .setLink:hover{background:var(--g1)}
 .setLink:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .setFoot{margin:14px 0 0;padding-top:8px;border-top:1px dashed var(--g2);font:400 10px/1.4 var(--font);color:var(--g3)}
+/* 「📲 앱으로 설치」 sheet (iOS 홈 화면 steps, in-app browser → Safari·Chrome): a card over a 25% ink dither, same tokens */
+[hidden].pwaInst{display:none!important}
+#pwaSheet{position:absolute;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;
+  background:conic-gradient(var(--g4) 25%,transparent 0) 0 0/4px 4px}
+.pwaCard{width:300px;max-width:100%;max-height:100%;overflow:auto;box-sizing:border-box;padding:10px 12px 12px;
+  background:var(--g0);border:2px solid var(--g4);box-shadow:4px 4px 0 var(--g4)}
+.pwaCard h2{margin:0 0 4px;font:700 15px var(--font);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pwaCard .note{margin:0 0 4px}
+.pwaSteps{margin:6px 0 0;padding:0;list-style:none;counter-reset:pwaS}
+.pwaSteps li{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px dashed var(--g2);font:700 12px/1.35 var(--font);counter-increment:pwaS}
+.pwaSteps li:first-child{border-top:0}
+.pwaSteps li::before{content:counter(pwaS);flex:none;width:10px;font:700 10px var(--mono);color:var(--g3)}
+.pwaIc{flex:none;width:16px;height:16px;image-rendering:pixelated}
+.pwaSave{margin:10px 0 0;padding:6px 8px;border:2px solid var(--g4);background:var(--g1);font:700 12px/1.4 var(--font)}
+.pwaUrl{display:block;width:100%;box-sizing:border-box;margin-top:6px}
+.pwaArrow{display:block;margin:8px auto 0;width:27px;height:27px;image-rendering:pixelated;animation:pwaBob 1s steps(2) infinite}
+@keyframes pwaBob{50%{transform:translateY(3px)}}
+@media (prefers-reduced-motion: reduce){ .pwaArrow{animation:none} }
 /* 타이틀 화면 + 처음 안내. Same five --g* tokens and hard 2px ink edges as #result / .overlay; no hue, no new fonts.
  * The title covers the HUD and the tray with paper bands and leaves the live canvas showing between them. */
 #ttl{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;cursor:pointer;
@@ -488,7 +506,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 .ttlCard p{margin:9px 0 0;padding-top:8px;font:700 12px/1.3 var(--font);color:var(--g3);
   background:repeating-linear-gradient(90deg,var(--g4) 0 4px,transparent 4px 8px) top/100% 2px no-repeat}
 .ttlCard p.ttlApp{font:400 11px/1.4 var(--font);color:var(--g4)}
-.ttlRow{position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;gap:8px}
+.ttlFoot{position:absolute;left:0;right:0;bottom:56px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.ttlRow{display:flex;justify-content:center;gap:8px}
+/* 「📲 앱으로 설치」: quiet, under 시작하기/이어하기 — thin dark-grey edge, no drop shadow */
+#ttlInst{padding:5px 12px;font:700 11px var(--font);color:var(--g3);border-color:var(--g3);box-shadow:none}
+#ttlInst:hover{background:var(--g1);color:var(--g4)}
 #ttlGo{min-width:150px;padding:9px 20px;font:800 16px var(--font);background:var(--g4);color:var(--g0);box-shadow:0 3px 0 var(--g2)}
 #ttlGo:hover{background:var(--g3)}
 #ttlGo:active{transform:translateY(3px);box-shadow:none}
@@ -500,7 +522,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 @media (pointer:coarse){ .ttlKey{display:none} }
 /* behind the title only the live canvas shows: chips, cards and toasts wait (still there, just not drawn) until it goes.
  * ⚙ from the title opens the real 설정 panel over it; a returning player's boot toast reads on top of it */
-#app.ttlUp > :where(:not(#ttl):not(#cv):not(#set)){visibility:hidden}
+#app.ttlUp > :where(:not(#ttl):not(#cv):not(#set):not(#pwaSheet)){visibility:hidden}
 #app.ttlUp #set{z-index:10}
 #app.ttlUp.ttlBack #toast{visibility:visible;z-index:10}
 
@@ -24858,6 +24880,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     pipAuto.addEventListener('change', function () { setAutoPip(pipAuto.checked); });
     window.addEventListener('pointerdown', function (e) {
       if (!pipArmed || pipAuto.parentNode.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('.pwaInst, #pwaSheet')) return;   // 「📲 앱으로 설치」 needs its own click (prompt() in this window)
       // this gesture only opens PiP: it must not also plant, cast or press a button
       e.preventDefault(); e.stopPropagation();
       swallowClickUntil = performance.now() + 1500;
@@ -24916,20 +24939,22 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   [dexEl, shopEl].forEach(function (panel) {
     new MutationObserver(function () { applyFolds(panel); }).observe(panel, { childList: true });
   });
-  // ---------- 앱 설치 (PWA): sw.js, 새 버전 toast, install hint, storage.persist, ⚙ 세이브 백업, FF gating, 후원 ----------
+  // ---------- 앱 설치 (PWA): sw.js, 새 버전 toast, 「📲 앱으로 설치」 button + sheet, storage.persist, ⚙ 세이브 백업, FF gating, 후원 ----------
   // Nothing here touches the save format: 백업 is exactly L.encode(S), 불러오기 only ever goes through L.decode.
-  // Install-hint state lives in localStorage 'farmfish.install', never in the save. No network calls of our own.
+  // Installing is only ever offered as a button the player presses (title card, ⚙ 설정): nothing about it pops up on
+  // its own, nothing waits on a timer. Install state lives in localStorage 'farmfish.install', never in the save.
+  // No network calls of our own.
   var DONATE_URL = '';   // 후원 링크: empty shows nothing in ⚙ 설정; the user fills this in
-  var PWA_KEY = 'farmfish.install', PWA_DAYS = 14, PWA_PLAY = 4 * 60;   // hint after 4 min of visible play, then not again for 14 days
+  var PWA_KEY = 'farmfish.install';
   var PWA_NEW = '새 버전이 있어요 · 다시 열기';
-  var PWA_IOS_TIP = '공유 → 홈 화면에 추가하면 세이브가 안전해요';
+  var PWA_KAKAO = 'Safari·Chrome으로 열기';
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
-  var PWA_IOS_SAVE = '홈 화면 앱은 세이브가 따로예요 · 먼저 ⚙ 내보내기/복사 → 앱에서 불러오기';
+  var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = 'cdb1ab7fe012';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'bdc3534931e6';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
-  var pwaPrompt = null, pwaReg = null, pwaChecked = 0;
+  var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
 
   function pwaLocal(h) { return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1' || /\.localhost$/.test(h); }
   // debug/cheat hooks (window.FF) only on file:, localhost, or with #dev in the URL
@@ -24949,23 +24974,38 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function pwaHintState(store) {
     try { var o = JSON.parse(store.getItem(PWA_KEY) || 'null'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
   }
-  // env: { mobile, standalone, ios, prompt, inapp, hadSave }. Android hints only once the browser has offered to install.
-  // iOS: never to a player who had a save at load (the 홈 화면 app would open an empty farm). In-app browsers: never.
-  function pwaHintDue(st, nowMs, env) {
-    if (!env.mobile || env.standalone || st.done || env.inapp) return false;
-    if (env.ios && env.hadSave) return false;
-    if (!env.ios && !env.prompt) return false;
-    return !(st.at && nowMs - st.at < PWA_DAYS * 86400e3);
-  }
+  // env: { mobile, standalone, ios, prompt, inapp, kakao, ios26, hadSave }
   function pwaEnv() {
-    var env = { mobile: false, standalone: false, ios: false, inapp: false, prompt: !!pwaPrompt, hadSave: hadSave };
-    try { env.ios = pwaIOS(navigator); env.mobile = pwaMobile(navigator); env.inapp = pwaInApp(navigator); env.standalone = pwaStandalone(window, navigator); } catch (e) { /* odd navigator */ }
+    var env = { mobile: false, standalone: false, ios: false, inapp: false, kakao: false, ios26: false, prompt: !!pwaPrompt, hadSave: hadSave };
+    try {
+      env.ios = pwaIOS(navigator); env.mobile = pwaMobile(navigator); env.inapp = pwaInApp(navigator); env.standalone = pwaStandalone(window, navigator);
+      env.kakao = /KAKAOTALK/i.test(navigator.userAgent || ''); env.ios26 = pwaIOS26(navigator.userAgent || '');
+    } catch (e) { /* odd navigator */ }
     return env;
   }
-  // ⚙ 설정 line where the install row would be (iOS has no install button): '' = nothing
-  function pwaInstallTip(env) {
-    if (env.inapp || env.standalone || !env.ios) return '';
-    return env.hadSave ? PWA_IOS_SAVE : PWA_IOS_TIP;
+  // iOS 26 Safari keeps 「OS 18_6」 in the UA but says Version/26; other iOS browsers only carry the OS number
+  function pwaIOS26(ua) {
+    var v = /Version\/(\d+)/.exec(ua) || /OS (\d+)_/.exec(ua);
+    return !!v && +v[1] >= 26;
+  }
+  // what the 「📲 앱으로 설치」 button does here: 'prompt' (Chrome's own install dialog), 'ios' (how-to sheet),
+  // 'kakao' (open this page in Safari/Chrome), 'inapp' (sheet: open in a browser), '' = no button at all (no dead buttons)
+  function pwaInstallMode(env) {
+    if (env.standalone) return '';
+    if (env.inapp) return env.kakao ? 'kakao' : 'inapp';
+    if (env.prompt) return 'prompt';
+    if (env.ios) return 'ios';
+    return '';
+  }
+  function pwaKakaoUrl(href) { return 'kakaotalk://web/openExternal?url=' + encodeURIComponent(href); }
+  // the sheet's words: { head, steps: [[icon, text]], say, save } (save = the 세이브 옮기기 line, only for a player with a farm)
+  function pwaSheetText(mode, env) {
+    if (mode === 'inapp') return { head: 'Safari·Chrome에서 열기', steps: [], save: '',
+      say: '이 앱 안의 화면에서는 설치가 안 돼요 · 앱 메뉴(⋯)에서 「다른 브라우저로 열기」를 누르거나, 주소를 복사해 Safari나 Chrome에 붙여 넣어요' };
+    var steps = env.ios26
+      ? [['more', '주소창 옆 ⋯ 누르기'], ['share', '「공유」'], ['add', '「홈 화면에 추가」'], ['on', '「웹 앱으로 열기」 켜기'], ['ok', '「추가」']]
+      : [['share', '아래 공유 □↑ 누르기'], ['add', '「홈 화면에 추가」'], ['ok', '「추가」']];
+    return { head: '홈 화면에 추가', steps: steps, say: '앱처럼 열리고 세이브가 더 안전해요', save: env.hadSave ? PWA_IOS_SAVE : '' };
   }
   // iOS 홈 화면 app opened with no save: once ever, say where a Safari farm can come from
   function pwaAppTipDue(env, st) { return env.ios && env.standalone && !env.hadSave && !st.app; }
@@ -25013,13 +25053,13 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
   }
-  function pwaCopy(text, msg, said) {
+  function pwaCopy(text, msg, said, failSaid) {
     var done = function () { msg.textContent = said || '복사했어요 · 메신저 「나에게」 같은 곳에 붙여 두면 백업'; };
     var fallback = function () {
       var ta = document.createElement('textarea'); ta.value = text; ta.readOnly = true; ta.className = 'vh';
       msg.after(ta);
       try { ta.select(); if (document.execCommand('copy')) { ta.remove(); done(); return; } } catch (e) { /* not allowed here */ }
-      ta.remove(); msg.textContent = '이 브라우저는 복사가 막혀 있어요 · 내보내기를 써 주세요';
+      ta.remove(); msg.textContent = failSaid || '이 브라우저는 복사가 막혀 있어요 · 내보내기를 써 주세요';
     };
     try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); return; } } catch (e) { /* fall through */ }
     fallback();
@@ -25104,24 +25144,15 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (!ok) { saveBlocked = was; msg.textContent = '이 브라우저는 저장이 막혀 있어요 · 지금 세이브는 그대로예요'; return; }
       location.reload();
     });
-    var env = pwaEnv(), standalone = env.standalone;
-    if (pwaPrompt && !standalone && !env.inapp) {
-      h3 = document.createElement('h3'); h3.textContent = '앱으로 설치'; setEl.appendChild(h3);
-      var ir = document.createElement('div'); ir.className = 'setRow setInstall';
-      var it = document.createElement('span'); it.textContent = '홈 화면에 설치';
-      var is = document.createElement('small'); is.textContent = '앱처럼 열리고 세이브가 더 안전해요'; it.appendChild(is);
-      var ib = document.createElement('button'); ib.type = 'button'; ib.textContent = '설치';
-      ib.addEventListener('click', function () {
-        var p = pwaPrompt; if (!p) return;
-        pwaPrompt = null; ir.remove(); h3.remove();
-        try {
-          p.prompt();
-          p.userChoice.then(function (c) { if (c && c.outcome === 'accepted') pwaHintMark(pwaStore(), Date.now(), true); }, function () {});
-        } catch (e) { /* prompt already used */ }
-      });
+    var env = pwaEnv(), standalone = env.standalone, mode = pwaInstallMode(env);
+    if (mode) {   // the same 「📲 앱으로 설치」 button as on the title card; hidden again once Chrome's prompt is used up
+      h3 = document.createElement('h3'); h3.className = 'pwaInst'; h3.textContent = '앱으로 설치'; setEl.appendChild(h3);
+      var ir = document.createElement('div'); ir.className = 'setRow setInstall pwaInst';
+      var it = document.createElement('span'); it.textContent = mode === 'kakao' || mode === 'inapp' ? '브라우저로 열기' : '홈 화면에 설치';
+      var is = document.createElement('small');
+      is.textContent = mode === 'kakao' || mode === 'inapp' ? '이 화면에서는 설치가 안 돼요' : '앱처럼 열리고 세이브가 더 안전해요'; it.appendChild(is);
+      var ib = pwaInstallButton(mode); ib.className = 'pwaInstB';
       ir.appendChild(it); ir.appendChild(ib); setEl.appendChild(ir);
-    } else if (pwaInstallTip(env)) {
-      var tip = document.createElement('p'); tip.className = 'note'; tip.textContent = pwaInstallTip(env); setEl.appendChild(tip);
     } else if (env.ios && standalone && !hadSave) {
       var at = document.createElement('p'); at.className = 'note'; at.textContent = PWA_APP_TIP; setEl.appendChild(at);
     }
@@ -25140,13 +25171,94 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     toastEl.style.pointerEvents = 'auto'; toastEl.style.cursor = 'pointer';
     toastEl.onclick = function () { if (toastEl.textContent === PWA_NEW) { save(); location.reload(); } };
   }
-  function pwaHint() {
-    if (toastEl.classList.contains('on')) return;   // never over another message
-    var env = pwaEnv(), store = pwaStore();
-    if (!store || !pwaHintDue(pwaHintState(store), Date.now(), env)) return;
-    pwaHintMark(store, Date.now());
-    toast(env.ios ? PWA_IOS_TIP : '⚙ 설정 → 설치하면 세이브가 안전해요', 7000);
+  // ---- 「📲 앱으로 설치」: a button the player presses; every install path starts from its click and nowhere else ----
+  function pwaInstallButton(mode) {
+    var b = document.createElement('button'); b.type = 'button';
+    if (mode === 'kakao') b.textContent = PWA_KAKAO;
+    else { var ic = document.createElement('span'); ic.className = 'mono-emoji'; ic.setAttribute('aria-hidden', 'true'); ic.textContent = '📲'; b.appendChild(ic); b.appendChild(document.createTextNode(' 앱으로 설치')); }
+    b.addEventListener('click', function (e) { e.stopPropagation(); pwaInstall(b); });
+    return b;
   }
+  // every .pwaInst (title button, ⚙ row) shows only while there is something real to do
+  function pwaInstSync() {
+    try {
+      var off = !pwaInstallMode(pwaEnv()), els = document.querySelectorAll('.pwaInst');
+      for (var i = 0; i < els.length; i++) els[i].hidden = off;
+    } catch (e) { /* no DOM */ }
+  }
+  function pwaInstall(from) {
+    var env = pwaEnv(), mode = pwaInstallMode(env);
+    if (mode === 'prompt') {
+      var p = pwaPrompt; pwaPrompt = null; pwaInstSync();   // one prompt() per event: the button goes until Chrome offers again
+      try {
+        p.prompt();
+        p.userChoice.then(function (c) { if (c && c.outcome === 'accepted') { var st = pwaStore(); if (st) pwaHintMark(st, Date.now(), true); } }, function () {});
+      } catch (e) { /* prompt already used */ }
+    } else if (mode === 'kakao') {
+      location.href = pwaKakaoUrl(location.href);
+    } else if (mode === 'ios' || mode === 'inapp') {
+      pwaSheetOpen(mode, env, from);
+    }
+  }
+  var PWA_ICONS = {
+    more: ['........', '........', '........', '44.44.44', '44.44.44', '........', '........', '........'],
+    share: ['...44...', '..4444..', '.4.44.4.', '...44...', '44.44.44', '4..44..4', '4......4', '44444444'],
+    add: ['44444444', '4......4', '4..44..4', '4.4444.4', '4.4444.4', '4..44..4', '4......4', '44444444'],
+    on: ['........', '.444444.', '44440004', '44440004', '44440004', '.444444.', '........', '........'],
+    ok: ['........', '.......4', '......44', '4....44.', '44..44..', '.4444...', '..44....', '........'],
+    down: ['...444...', '...444...', '...444...', '...444...', '444444444', '.4444444.', '..44444..', '...444...', '....4....']
+  };
+  function pwaIcon(name, cls) {
+    var rows = PWA_ICONS[name], c = document.createElement('canvas');
+    c.width = rows[0].length; c.height = rows.length; c.className = cls; c.setAttribute('aria-hidden', 'true');
+    spr(rows, 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  // a small card over whatever is open (title, ⚙): 닫기, a tap outside the card or Esc closes it and focus goes back
+  function pwaSheetOpen(mode, env, from) {
+    pwaSheetClose();
+    var t = pwaSheetText(mode, env);
+    var el = document.createElement('div'); el.id = 'pwaSheet';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'pwaSheetH');
+    var card = document.createElement('div'); card.className = 'pwaCard';
+    var h = document.createElement('h2'); h.id = 'pwaSheetH'; h.textContent = t.head;
+    var close = document.createElement('button'); close.type = 'button'; close.textContent = '닫기';
+    h.appendChild(close); card.appendChild(h);
+    var say = document.createElement('p'); say.className = 'note'; say.textContent = t.say; card.appendChild(say);
+    if (t.steps.length) {
+      var ol = document.createElement('ol'); ol.className = 'pwaSteps';
+      t.steps.forEach(function (st) {
+        var li = document.createElement('li'); li.appendChild(pwaIcon(st[0], 'pwaIc'));
+        var sp = document.createElement('span'); sp.textContent = st[1]; li.appendChild(sp); ol.appendChild(li);
+      });
+      card.appendChild(ol);
+    }
+    var msg = document.createElement('p'); msg.className = 'note'; msg.setAttribute('role', 'status');
+    var row = document.createElement('div'); row.className = 'setBtns';
+    if (mode === 'inapp') {
+      var u = document.createElement('input'); u.className = 'field code pwaUrl'; u.readOnly = true; u.value = location.href;
+      u.setAttribute('aria-label', '이 게임 주소'); card.appendChild(u);
+      var cu = document.createElement('button'); cu.type = 'button'; cu.textContent = '주소 복사'; row.appendChild(cu);
+      cu.addEventListener('click', function () { pwaCopy(location.href, msg, '주소를 복사했어요 · Safari나 Chrome 주소창에 붙여 넣어요', '복사가 막혀 있어요 · 위 주소를 길게 눌러 복사해요'); });
+      card.appendChild(row); card.appendChild(msg);
+    } else if (t.save) {
+      var sv = document.createElement('p'); sv.className = 'pwaSave'; sv.textContent = t.save; card.appendChild(sv);
+      var cp = document.createElement('button'); cp.type = 'button'; cp.textContent = '지금 복사'; row.appendChild(cp);
+      cp.addEventListener('click', function () { save(); pwaCopy(L.encode(S), msg, '복사했어요 · 홈 화면 앱의 ⚙ 붙여넣어 불러오기에 넣어요'); });
+      card.appendChild(row); card.appendChild(msg);
+    }
+    if (mode === 'ios') card.appendChild(pwaIcon('down', 'pwaArrow'));   // Safari's bar (⋯ / 공유) sits at the bottom of the screen
+    el.appendChild(card);
+    var done = function () { pwaSheetClose(); try { if (from && from.isConnected) from.focus({ preventScroll: true }); } catch (e) { /* old browsers */ } };
+    close.addEventListener('click', done);
+    // nothing in here reaches the title's tap-anywhere or the game's keys
+    el.addEventListener('click', function (e) { e.stopPropagation(); if (e.target === el) done(); });
+    el.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    el.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); done(); } });
+    app.appendChild(el); pwaSheetEl = el;
+    try { close.focus({ preventScroll: true }); } catch (e) { /* old browsers */ }
+  }
+  function pwaSheetClose() { if (pwaSheetEl) { pwaSheetEl.remove(); pwaSheetEl = null; } }
   // ask to keep this site's storage: only in the installed app, or right after an export the player just did.
   // Firefox shows a permission prompt for this, so a browser-tab player is never asked out of the blue.
   function pwaPersist() {
@@ -25182,8 +25294,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       }
     } catch (e) { /* no service worker: the game still plays */ }
     try {
-      window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); pwaPrompt = e; });
-      window.addEventListener('appinstalled', function () { pwaPrompt = null; var st = pwaStore(); if (st) pwaHintMark(st, Date.now(), true); });
+      // only kept for the button: no preventDefault, so Chrome's own install UI is left as the browser decides
+      window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); pwaPrompt = e; pwaInstSync(); });   // no Chrome mini-infobar: install only from our button (user: 강제로 하게 하지 말고)
+      window.addEventListener('appinstalled', function () { pwaPrompt = null; pwaInstSync(); var st = pwaStore(); if (st) pwaHintMark(st, Date.now(), true); });
     } catch (e) { /* no install events */ }
     var played = 0;
     setInterval(function () {
@@ -25191,7 +25304,6 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         if (document.hidden) return;
         played += 15;
         if (played === 60 && pwaStandalone(window, navigator)) pwaPersist();   // installed app: a minute in
-        if (played >= PWA_PLAY) pwaHint();
       } catch (e) { /* never break the timer */ }
     }, 15000);
   }
@@ -25346,16 +25458,23 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var ic = document.createElement('canvas'); ic.width = setIcon.width; ic.height = setIcon.height;
     ic.getContext('2d').drawImage(setIcon, 0, 0); gear.appendChild(ic);
     row.appendChild(go); row.appendChild(gear);
+    // 「📲 앱으로 설치」 under them: only where it can do something (pwa.js), and it never also goes in
+    var mode = pwaInstallMode(pwaEnv());
+    var inst = pwaInstallButton(mode); inst.id = 'ttlInst'; inst.className = 'pwaInst'; inst.hidden = !mode;
+    var foot = document.createElement('div'); foot.className = 'ttlFoot';
+    foot.appendChild(row); foot.appendChild(inst);
     var key = document.createElement('p'); key.className = 'ttlKey'; key.textContent = 'Enter · Space';
-    el.appendChild(card); el.appendChild(row); el.appendChild(key);
+    el.appendChild(card); el.appendChild(foot); el.appendChild(key);
     gear.addEventListener('click', function (e) { e.stopPropagation(); setBtn.click(); });
-    el.addEventListener('click', function (e) { if (!gear.contains(e.target)) ttlGo(); });   // one tap anywhere but ⚙ goes in (also in PiP)
+    el.addEventListener('click', function (e) { if (!ttlStay(e.target)) ttlGo(); });   // one tap anywhere but ⚙ / 설치 goes in (also in PiP)
     app.appendChild(el);
     app.classList.add('ttlUp');
     if (ttlBack) app.classList.add('ttlBack');   // the 「다녀오셨어요」 toast shows on top of the title
     ttlEl = el;
     try { go.focus({ preventScroll: true }); } catch (e) { /* old browsers */ }
   }
+  // ⚙ and 「📲 앱으로 설치」 on the title are their own buttons, not "go in"
+  function ttlStay(t) { return !!(t && t.closest && t.closest('#ttlSet, #ttlInst')); }
   function ttlGo() {
     if (!ttlEl) return;
     sndWake();   // same as the first gesture anywhere (it is idempotent; bindDoc's capture listener already ran)
@@ -25369,19 +25488,19 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // while the title is up the game behind gets no keys: Enter/Space go in, Tab moves focus, the 설정 panel keeps its own.
   // Bound by bindDoc (input.js) on the tab and on a PiP window, ahead of the auto-PiP key that swallows the first key.
   function ttlKey(e) {
-    if (!ttlEl) return;
+    if (!ttlEl || pwaSheetEl) return;   // the 설치 sheet keeps its own keys (Esc closes it, back to the title)
     if (!setEl.hidden) {   // Esc closes 설정 (input.js); the header ⚙ it refocuses is hidden, so focus 시작하기 again
       if (e.key === 'Escape') setTimeout(function () { if (ttlEl) ttlEl.querySelector('#ttlGo').focus(); }, 0);
       return;
     }
     if (e.key === 'Tab') return;
     e.stopPropagation();
-    if (e.target && e.target.id === 'ttlSet' && (e.key === 'Enter' || e.key === ' ')) return;   // the button's own click
+    if (ttlStay(e.target) && (e.key === 'Enter' || e.key === ' ')) return;   // the button's own click
     if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) ttlGo(); }
   }
   // the first tap goes in on pointerdown: auto-PiP swallows that gesture's click, and the title must still take one tap only
   window.addEventListener('pointerdown', function (e) {
-    if (ttlEl && ttlEl.contains(e.target) && !ttlEl.querySelector('#ttlSet').contains(e.target)) ttlGo();
+    if (ttlEl && ttlEl.contains(e.target) && !ttlStay(e.target)) ttlGo();
   }, true);
   document.addEventListener('visibilitychange', function () { if (document.hidden) ttlStamp(); });
   window.addEventListener('pagehide', ttlStamp);
