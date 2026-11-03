@@ -31,7 +31,9 @@ const STYLE = [
   'contest.css',        // 농장 간판 name tag, 간판 모양 picker, 결산 카드 sheet
   // 게임장
   'arcade.css',         // 게임장 overlay: board canvas, game rows, 난이도·내기 buttons
-  'place.css'           // 지금 있는 곳: place tag under the header, arrival card
+  'place.css',          // 지금 있는 곳: place tag under the header, arrival card
+  'rec.css',            // 소리 도감: ♪ chip at the left edge, ▶ replay in the 도감 소리 tab
+  'band.css'            // 마을 음악회: ♪ 연주/무대 chip, rhythm overlay (board, lane pads)
 ];
 
 const BODY = [
@@ -121,6 +123,10 @@ const LOGIC = [
   'logic/craft.js',     // 가공 공방: machines, lazy real-time batches, crafted goods with per-unit values (s.craft); after train/orchard/flat, before guide.js
   // 캠핑
   'logic/camp.js',      // 캠핑: camp sites, 모닥불·석쇠, 불가 손님, 텐트 잠·아침 선물, 장비, 도장 수첩, camp night insects (s.camp); after bugs/museum/town/pets, before guide.js
+  // 소리 도감
+  'logic/rec.js',       // 소리 도감: 녹음기, sound conditions, ★1–3, milestones, 박물관 별관 소리실 (s.rec); after museum/junk/yard, before guide.js
+  // 마을 음악회
+  'logic/band.js',      // 마을 음악회: 악기 6종, 연주 하루 보상, 광장 음악회·축제 날, chart/judge/grade (s.band); after residents/festivals/toys/auction/junk, before guide.js
   // stage 8 ④ 이펙트
   'logic/fx.js',        // pure effect timing: easing, count-up, caps, stale drop, streaks
   'logic/guide.js',     // 놀거리 수첩: GUIDE table, open/locked, 새 marks, scene tips (s.guide)
@@ -145,6 +151,7 @@ const UI = [
   'ui/weather.js',      // sky effects, night tint, corner clock indicator, FF sky hooks
   'ui/calendar.js',     // 달력 panel (today / 낚시터)
   'ui/dex.js',          // 도감 panel, milestone toasts
+  'ui/haptic.js',       // 진동: hapt(pattern) navigator.vibrate, 「진동」 on/off in localStorage; after sound.js
   'ui/settings.js',     // ⚙ 설정 panel: 소리 on/off + 크기 sliders, 작게 띄우기
   'ui/shop.js',         // 상점 panel
   'ui/basket.js',       // 바구니·주문·냄비 panel and the basket corner on the map
@@ -221,6 +228,10 @@ const UI = [
   'ui/craft.js',        // 공방 building in the 마당 (공방 터 sign first), machine sheet, goods icons, 도감 rows, FF.craft
   // 캠핑
   'ui/camp.js',         // 숲 캠핑장 sign, camp view (fire glow, grill, tent, gear, guests), camp/도장 수첩 sheets, food icons, 도감 rows, FF.camp
+  // 소리 도감
+  'ui/rec.js',          // 녹음기: auto/tap recording, ♪ chip, 도감 소리 tab, 상점 row, 박물관 별관, 축음기, FF.rec
+  // 마을 음악회
+  'ui/band.js',         // 악기 arrivals, ♪ 연주/무대 chip, 4-lane rhythm overlay, 음악회 곡, ⚙ 악기 rows, 상점 악기, 상인 우쿨렐레, FF.band
   // 지금 있는 곳
   'ui/place.js',        // place names (one table, also the canvas aria-label), the place tag under the header, the arrival card
   'ui/loop.js',         // title badge, logic tick, frame, rAF loop, fit

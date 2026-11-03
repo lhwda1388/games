@@ -75,6 +75,8 @@ test('entries open under the real conditions', () => {
   s.isle.lit = true; assert.ok(L.townArrive(s).length); assert.ok(L.guideOpen(s, 'newres'));   // stage 10 ③: 등대 점등 → 바다 이사
   s.port = s.port || { got: {}, done: {} }; s.port.done.market = s.port.done.station = true;   // stage 11 ②: 어판장, 기차역
   s.port = s.port || { got: {}, done: {} }; s.port.done.shipyard = true; assert.ok(L.guideOpen(s, 'dive'));   // stage 12 ③: 조선소 → 잠수
+  assert.ok(!L.guideOpen(s, 'rec')); assert.ok(L.recBuy(s).ok); assert.ok(L.guideOpen(s, 'rec'));   // 소리 도감: 녹음기
+  assert.ok(!L.guideOpen(s, 'band')); assert.ok(L.bndGive(s, 'drum').ok); assert.ok(L.guideOpen(s, 'band'));   // 마을 음악회: 악기 하나
   assert.deepEqual(open(s), L.GUIDE.map((g) => g.id), 'everything open');
 });
 

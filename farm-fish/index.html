@@ -413,6 +413,48 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 #plcBanner span{font:700 11px var(--font);color:var(--g3)}
 #plcBanner span[hidden]{display:none}
 @media (prefers-reduced-motion: reduce){ #plcBanner,#plcBanner.on{transition:none} }
+/* Hallmark · component: 소리 도감 ♪ chip + ▶ replay button · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus · active · disabled (shared button rules in style.css) · shown/hidden (chip); instant, no loading/error
+ * contrast: ink on paper as every button. Only tokens, no new colours. Motion: one 2-step blink on the chip, off for reduced motion.
+ */
+#recNote{position:absolute;left:3px;top:112px;z-index:2;width:32px;height:28px;padding:0;font:700 16px/1 var(--font);
+  display:flex;align-items:center;justify-content:center;animation:recNote 1s steps(2) infinite}
+#recNote[hidden]{display:none}
+@keyframes recNote{50%{background:var(--g4);color:var(--g0)}}
+.dx .recPlay{flex:none;padding:1px 6px;font:700 10px var(--font);box-shadow:0 1px 0 var(--g4)}
+.dx .recPlay:active{transform:translateY(1px)}
+@media (prefers-reduced-motion: reduce){ #recNote{animation:none;background:var(--g1)} }
+/* Hallmark · component: 마을 음악회 ♪ chip + rhythm overlay (120×160 board, lane pads) · genre: playful · theme: existing farm-fish grayscale (--g0..--g4)
+ * states: default · hover · focus-visible · active · disabled · pressed (악기 켬/끔 .on + aria-pressed, shared .up rules) · shown/hidden (chip);
+ *   loading/error/success: none async — the round's 딱/좋아요/놓침 is the tip line (aria-live), the result is the stage picture + notes
+ * contrast: ink on paper as every button. Only tokens, no new colours. Follows #arcade.
+ * motion: none in CSS (the 무대 chip shows, inverted with a ring, only while the 음악회 can start); falling notes are the game itself. Reduced motion:
+ *   the lane flash shrinks to a mark on the hit line, the audience stands still. Touch: pads ≥44px tall across a 375px phone; keys D F J K (S…L). */
+/* the chip sits in the 44px strip under the board, bottom right: off the canvas, so it covers no 마당 deco/spot or 마을 house.
+ * 마당: the seed tray is hidden there, the strip is empty. 마을: the 지금 할 일 bar gives up its right end while the chip shows.
+ * While a deco is being moved, #itemBar owns the strip and the chip steps aside. */
+#bndChip{position:absolute;right:6px;bottom:8px;z-index:2;width:52px;height:28px;padding:0;font:700 12px/1 var(--font);white-space:nowrap}
+#app:has(#bndChip:not([hidden])) #vilBar{right:64px}
+#app:has(#itemBar:not([hidden])) #bndChip{display:none}
+#bndChip[hidden]{display:none}
+#bndChip.on{background:var(--g4);color:var(--g0);box-shadow:0 0 0 2px var(--g0),0 0 0 4px var(--g4)}
+#band{z-index:7;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 16px}
+#band h2{width:100%;margin:0}
+#band h2 .wallet{font:700 12px var(--mono)}
+#band > canvas{width:240px;height:320px;max-height:52vh;aspect-ratio:3/4;object-fit:contain;image-rendering:pixelated;border:2px solid var(--g4);box-shadow:3px 3px 0 var(--g4);flex:none;touch-action:none}
+#band .tip{margin:0;font:700 13px/1.4 var(--font);text-align:center;min-height:18px}
+#band .pads{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:4px;width:240px;max-width:100%}
+#band .pads[hidden]{display:none}
+#band .pads button{min-width:0;min-height:44px;padding:0;font:700 14px var(--mono);touch-action:none;user-select:none}
+#band .pads button:active{background:var(--g4);color:var(--g0)}
+#band .menu{width:100%}
+#band .menu[hidden]{display:none}
+#band .menu h3 b{font:700 10px var(--font);color:var(--g3)}
+#band .menu .note{margin:8px 0;font:400 11px/1.4 var(--font);color:var(--g3)}
+#band .menu .up.idle .n{color:var(--g3)}
+#band .menu .up > span{width:12px;flex:none}
+#band .menu > button.go{width:100%;background:var(--g4);color:var(--g0)}
+#band .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:auto}
 </style>
 </head>
 <body>
@@ -8586,6 +8628,333 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     CMP_WX_GIFT: CMP_WX_GIFT, CMP_STAR_MUL: CMP_STAR_MUL, CMP_FISH: CMP_FISH, CMP_BUGS_B: CMP_BUGS_B, cmpSiteBySpot: cmpSiteBySpot,
     cmpGoStatus: cmpGoStatus, cmpSpotsSync: cmpSpotsSync, cmpFishOk: cmpFishOk, cmpStarMul: cmpStarMul
   });
+  // ---------- 소리 도감: 녹음기, sounds with conditions, quality ★1–3, milestones, 박물관 별관 소리실 (s.rec, made when bought) ----------
+  // recNow(ctx) is pure: the UI describes where/when it is and gets back the sounds that could be recorded right now.
+  // ctx = { now, view, spot (fishing spot when view is 'farm'), phase, season, weather, festival, fire, chime }
+  // Recording: 'auto' (conditions held a while: ★1, sound on or off) or 'tap' (the ♪ chip while it plays: ★2, then ★3).
+  // s.rec = { tool: true, has: { id: q 1–3 }, got: { m5…: true, annex: true }, mus: { id: true } }. No dice rolled anywhere here.
+  // The 별관 소리실 is NOT one of the six museum rooms: museumTotal/museumAllDone/curatorLine/명예 관장 never read s.rec.
+  var REC_COST = 3000, REC_REP = 5, REC_DECO = 'gramophone';
+  // when: alternatives (any one matching is enough); in each, every listed field must match.
+  // phase/season/weather like fish defs; where = any one place tag (recPlace); fest = festival id; fire / chime = ctx flags.
+  // ev = the ambient one-shot (ui/sound.js AMB_EV) that plays it; rare = only in 1 of that many game minutes
+  var REC_SOUNDS = [
+    { id: 'sparrow',   name: '참새',         grp: '새',   ev: 'bird',      hint: '아침·낮 · 마당·밭·마을 · 비·눈 없는 날', when: [{ phase: ['morning', 'day'], season: ['spring', 'summer', 'autumn'], weather: ['clear', 'fog'], where: ['yard', 'farm', 'village', 'orchard'] }] },
+    { id: 'cuckoo',    name: '뻐꾸기',       grp: '새',   ev: 'cuckoo',    hint: '봄·여름 아침·낮 · 숲', when: [{ phase: ['morning', 'day'], season: ['spring', 'summer'], weather: ['clear', 'fog'], where: ['forest'] }] },
+    { id: 'woodpk',    name: '딱따구리',     grp: '새',   ev: 'woodpk',    hint: '낮 · 숲 · 겨울 빼고', when: [{ phase: ['day'], season: ['spring', 'summer', 'autumn'], weather: ['clear', 'fog'], where: ['forest'] }] },
+    { id: 'oriole',    name: '꾀꼬리',       grp: '새',   ev: 'oriole',    hint: '여름 맑은 아침 · 과수원·숲', when: [{ phase: ['morning'], season: ['summer'], weather: ['clear'], where: ['orchard', 'forest'] }] },
+    { id: 'gull',      name: '갈매기',       grp: '새',   ev: 'gull',      hint: '아침·낮 · 바다', when: [{ phase: ['morning', 'day'], weather: ['clear', 'fog', 'rain'], where: ['sea'] }] },
+    { id: 'cicada',    name: '매미',         grp: '벌레', ev: 'cicada',    hint: '여름 낮 · 비 없는 날', when: [{ phase: ['day'], season: ['summer'], weather: ['clear', 'fog'], where: ['yard', 'farm', 'village', 'orchard', 'forest'] }] },
+    { id: 'bigcicada', name: '말매미',       grp: '벌레', ev: 'bigcicada', hint: '여름 맑은 낮 · 마을·과수원 나무', when: [{ phase: ['day'], season: ['summer'], weather: ['clear'], where: ['village', 'orchard'] }] },
+    { id: 'cricket',   name: '귀뚜라미',     grp: '벌레', ev: 'cricket',   hint: '여름·가을 저녁·밤', when: [{ phase: ['evening', 'night'], season: ['summer', 'autumn'], where: ['yard', 'farm', 'village', 'orchard', 'forest'] }] },
+    { id: 'bellbug',   name: '방울벌레',     grp: '벌레', ev: 'bellbug',   hint: '가을 밤 · 숲·마당', when: [{ phase: ['night'], season: ['autumn'], weather: ['clear', 'fog'], where: ['forest', 'yard'] }] },
+    { id: 'frog',      name: '개구리',       grp: '물가', ev: 'frog',      hint: '봄·여름 밤 · 물가', when: [{ phase: ['night'], season: ['spring', 'summer'], where: ['water'] }] },
+    { id: 'toad',      name: '맹꽁이',       grp: '물가', ev: 'toad',      hint: '여름 비 오는 저녁·밤 · 물가', when: [{ phase: ['evening', 'night'], season: ['summer'], weather: ['rain'], where: ['water', 'farm'] }] },
+    { id: 'kingfish',  name: '물총새 첨벙',  grp: '물가', ev: 'kingfish',  hint: '맑은 아침·낮 · 강·계곡', when: [{ phase: ['morning', 'day'], season: ['spring', 'summer', 'autumn'], weather: ['clear'], where: ['brook', 'valley'] }] },
+    { id: 'owl',       name: '부엉이',       grp: '밤',   ev: 'owl',       hint: '맑은 밤', when: [{ phase: ['night'], weather: ['clear'], where: ['yard', 'farm', 'village', 'orchard', 'forest'] }] },
+    { id: 'scops',     name: '소쩍새',       grp: '밤',   ev: 'scops',     hint: '봄·여름 밤 · 깊은 숲', when: [{ phase: ['night'], season: ['spring', 'summer'], weather: ['clear', 'fog'], where: ['deep'] }] },
+    { id: 'brook',     name: '시냇물',       grp: '물',   ev: 'trickle',   hint: '강·계곡 캠핑장 물가', when: [{ where: ['brook'] }] },
+    { id: 'fall',      name: '폭포',         grp: '물',   ev: 'fall',      hint: '기차 타고 산골 계곡', when: [{ where: ['valley'] }] },
+    { id: 'bubble',    name: '온천 보글',    grp: '물',   ev: 'bubble',    hint: '기차 타고 온천 마을', when: [{ where: ['onsen'] }] },
+    { id: 'surf',      name: '파도',         grp: '물',   ev: 'surf',      hint: '바다·섬·갯벌', when: [{ where: ['sea'] }] },
+    { id: 'rain',      name: '빗소리',       grp: '물',   ev: 'drop',      hint: '비 오는 날 밖에서', when: [{ weather: ['rain'], where: ['out'] }] },
+    { id: 'whale',     name: '고래 노래',    grp: '먼 곳', ev: 'whale',    hint: '먼바다·난바다·먼 섬·잠수', when: [{ where: ['far'] }] },
+    { id: 'whistle',   name: '기차 기적',    grp: '먼 곳', ev: 'whistle',  hint: '기차 안에서', when: [{ where: ['train'] }] },
+    { id: 'campfire',  name: '모닥불',       grp: '먼 곳', ev: 'crackle',  hint: '캠핑장 모닥불 곁', when: [{ fire: true }] },
+    { id: 'firework',  name: '불꽃놀이 펑',  grp: '축제', ev: 'boom',      hint: '여름 축제 저녁·밤', when: [{ phase: ['evening', 'night'], fest: 'summer', where: ['out'] }] },
+    { id: 'windbell',  name: '풍경 소리',    grp: '축제', ev: 'windbell',  hint: '마당에 풍경을 달거나 · 바람 부는 곳', when: [{ where: ['yard'], chime: true }, { where: ['wind'] }] },
+    { id: 'snowstep',  name: '눈 밟는 소리', grp: '축제', ev: 'crunch',    hint: '눈 오는 날 밖에서 · 설원', when: [{ weather: ['snow'], where: ['out'] }, { where: ['snowfield'] }] },
+    { id: 'mistsong',  name: '새벽 물안개 노래', grp: '전설', ev: 'mist', legend: true, rare: 4, hint: '안개 낀 이른 아침 · 계곡 물가 · 아주 드물게', when: [{ phase: ['morning'], weather: ['fog'], where: ['valley', 'brook'] }] }
+  ];
+  var REC_BY = {};
+  REC_SOUNDS.forEach(function (d) { REC_BY[d.id] = d; });
+  // n = sounds recorded (any ★); the last one is every sound
+  var REC_MS = [
+    { id: 'm5',   n: 5,  coins: 500,   title: '소리 줍는 아이' },
+    { id: 'm10',  n: 10, coins: 1500,  title: '귀 밝은 농부' },
+    { id: 'm15',  n: 15, coins: 3000,  title: '숲의 녹음사' },
+    { id: 'm20',  n: 20, coins: 5000,  title: '소리 수집가' },
+    { id: 'mall', n: REC_SOUNDS.length, coins: 10000, title: '소리 박사', deco: REC_DECO }
+  ];
+  var REC_ANNEX = { coins: 8000, title: '소리실 지기' };
+  DECOS.push({ id: REC_DECO, name: '축음기', cost: 0, merchant: true, from: 'rec', sz: [14, 18] });
+
+  function recById(id) { return REC_BY.hasOwnProperty(id) ? REC_BY[id] : null; }
+  function recOk(s) { return !!(s.rec && s.rec.tool); }
+  function recBuyWhy(s) { return recOk(s) ? 'owned' : s.rep < REC_REP ? 'rep' : s.coins < REC_COST ? 'coins' : 'ok'; }
+  function recBuy(s) {
+    var why = recBuyWhy(s);
+    if (why !== 'ok') return { ok: false, why: why };
+    s.coins -= REC_COST; s.rec = { tool: true, has: {}, got: {}, mus: {} };
+    return { ok: true };
+  }
+  // the place tags of a view (and of the fishing spot on the 'farm' view)
+  var REC_SPOT = { pond: ['farm', 'water'], river: ['farm', 'water', 'brook'], sea: ['sea'], island: ['sea'], offshore: ['sea', 'far'], ocean: ['sea', 'far'],
+    valley: ['valley', 'water'], onsen: ['onsen', 'water'], snow: ['snowfield', 'wind'], cmpbrook: ['brook', 'water', 'forest'], cmpshore: ['sea'] };
+  var REC_VIEW = { yard: ['yard'], forest: ['forest'], deep: ['forest', 'deep'], orchard: ['orchard'], village: ['village'], flat: ['sea'],
+    island: ['sea'], farisle: ['sea', 'far'], port: ['sea'], peak: ['wind'], trnvalley: ['valley', 'water'], trnonsen: ['onsen'],
+    trnsnow: ['snowfield', 'wind'], cmpforest: ['forest'], trnride: ['train'], dive: ['far'] };
+  var REC_INDOOR = { house: true, home: true, museum: true, cave: true, stars: true, trnride: true, dive: true };
+  function recPlace(view, spot) {
+    var t = view === 'farm' ? (REC_SPOT[spot] || REC_SPOT.pond) : REC_VIEW[view] || [];
+    return REC_INDOOR[view] ? t.slice() : t.concat(['out']);
+  }
+  // 1 in n game minutes, the same for every player (hash of the minute, like weatherAt)
+  function recRareOk(now, n) {
+    var h = Math.imul(Math.floor((now || 0) / 60e3) ^ 0x2f6b9a1d, 0x45d9f3b); h ^= h >>> 16;
+    return (h >>> 0) % n === 0;
+  }
+  function recMatch(d, c) {
+    var tags = recPlace(c.view, c.spot);
+    var hit = d.when.some(function (w) {
+      return (!w.phase || w.phase.indexOf(c.phase) >= 0) && (!w.season || w.season.indexOf(c.season) >= 0) &&
+        (!w.weather || w.weather.indexOf(c.weather) >= 0) && (!w.fest || w.fest === c.festival) &&
+        (!w.fire || !!c.fire) && (!w.chime || !!c.chime) &&
+        (!w.where || w.where.some(function (p) { return tags.indexOf(p) >= 0; }));
+    });
+    return hit && (!d.rare || recRareOk(c.now, d.rare));
+  }
+  function recNow(c) { return REC_SOUNDS.filter(function (d) { return recMatch(d, c); }).map(function (d) { return d.id; }); }
+  function recCount(s) { return s.rec ? Object.keys(s.rec.has).length : 0; }
+  function recQ(s, id) { return (s.rec && s.rec.has[id]) || 0; }
+  // the milestones just reached: coins paid, the last one gives the 축음기
+  function recMilestones(s) {
+    var n = recCount(s), out = [];
+    REC_MS.forEach(function (m) {
+      if (n < m.n || s.rec.got[m.id]) return;
+      s.rec.got[m.id] = true; s.coins += m.coins;
+      var r = { id: m.id, n: m.n, coins: m.coins, title: m.title };
+      if (m.deco) { var g = grantDeco(s, m.deco); r.deco = g.ok ? m.deco : null; r.stored = !!g.stored; }
+      out.push(r);
+    });
+    return out;
+  }
+  // how: 'auto' → ★1 only into an empty slot; 'tap' → ★2, or ★3 when it is ★2 already
+  // → { ok, why?, q, first, up, ms: [milestones reached] }
+  function recTake(s, id, how) {
+    if (!recOk(s)) return { ok: false, why: 'tool' };
+    if (!recById(id)) return { ok: false, why: 'none' };
+    var cur = recQ(s, id), q = how === 'tap' ? (cur >= 2 ? 3 : 2) : 1;
+    if (q <= cur) return { ok: false, why: cur >= 3 ? 'max' : 'got', q: cur };
+    s.rec.has[id] = q;
+    return { ok: true, q: q, first: !cur, up: !!cur, ms: cur ? [] : recMilestones(s) };
+  }
+  function recTitles(s) {
+    var out = REC_MS.filter(function (m) { return !!(s.rec && s.rec.got[m.id]); }).map(function (m) { return m.title; });
+    if (s.rec && s.rec.got.annex) out.push(REC_ANNEX.title);
+    return out;
+  }
+
+  // ---------- 박물관 별관 소리실: one recording per sound (the recording stays in the 도감) ----------
+  function recAnnexOk(s) { return recOk(s) && museumOk(s); }
+  function recAnnexCount(s) { return { n: s.rec ? Object.keys(s.rec.mus).length : 0, m: REC_SOUNDS.length }; }
+  function recAnnexCan(s) {
+    if (!recAnnexOk(s)) return [];
+    return REC_SOUNDS.filter(function (d) { return s.rec.has[d.id] && !s.rec.mus[d.id]; }).map(function (d) { return d.id; });
+  }
+  // → { ok, why?, done?, reward?: { coins, title } }
+  function recDonate(s, id) {
+    if (!recAnnexOk(s)) return { ok: false, why: 'closed' };
+    if (!recById(id)) return { ok: false, why: 'room' };
+    if (s.rec.mus[id]) return { ok: false, why: 'got' };
+    if (!s.rec.has[id]) return { ok: false, why: 'need' };
+    s.rec.mus[id] = true;
+    var c = recAnnexCount(s), out = { ok: true, done: c.n >= c.m };
+    if (out.done && !s.rec.got.annex) { s.rec.got.annex = true; s.coins += REC_ANNEX.coins; out.reward = { coins: REC_ANNEX.coins, title: REC_ANNEX.title }; }
+    return out;
+  }
+
+  // ---------- save: called by decode() (absent in older saves); one broken field never loses the others ----------
+  function decodeRec(o, s) {
+    var q = o.rec;
+    function obj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+    if (!obj(q) || q.tool !== true) return;
+    var r = { tool: true, has: {}, got: {}, mus: {} };
+    if (obj(q.has)) REC_SOUNDS.forEach(function (d) { var v = q.has[d.id]; if (v === 1 || v === 2 || v === 3) r.has[d.id] = v; });
+    if (obj(q.got)) REC_MS.map(function (m) { return m.id; }).concat(['annex']).forEach(function (k) { if (q.got[k] === true) r.got[k] = true; });
+    if (obj(q.mus)) REC_SOUNDS.forEach(function (d) { if (q.mus[d.id] === true && r.has[d.id]) r.mus[d.id] = true; });
+    s.rec = r;
+  }
+
+  expose({
+    REC_COST: REC_COST, REC_REP: REC_REP, REC_DECO: REC_DECO, REC_SOUNDS: REC_SOUNDS, REC_MS: REC_MS, REC_ANNEX: REC_ANNEX,
+    recById: recById, recOk: recOk, recBuyWhy: recBuyWhy, recBuy: recBuy, recPlace: recPlace, recMatch: recMatch, recNow: recNow,
+    recCount: recCount, recQ: recQ, recTake: recTake, recTitles: recTitles,
+    recAnnexOk: recAnnexOk, recAnnexCount: recAnnexCount, recAnnexCan: recAnnexCan, recDonate: recDonate, decodeRec: decodeRec
+  });
+  // ---------- 마을 음악회: 악기 6종, 마당 연주 (하루 보상 3번), 광장 음악회 (현실 하루 한 번, 게임 저녁·밤), 축제 날 특별 공연 ----------
+  // s.band = { ins: { id: true }, mute: { id: true }, play: { d, n }, show: day, best: 0–3, gold: true, song: true }
+  // is made only when the first instrument arrives; a save without one never gets it. No dice rolled anywhere here:
+  // the 오카리나 find is a hash of the player's birth time and the junk count (rolled AFTER the junk/chest is decided,
+  // never instead of it), resident instruments come when their 친밀도 is already high enough and the player visits them in the 마을 (residents.js untouched).
+  // Every judge/score function is pure; the UI hands in its own clock (audio or performance.now) and the phase.
+  var BND_INS = [
+    { id: 'ocarina',   name: '오카리나', lane: 'oca', from: 'find',    hint: '낚시 잡동사니·보물 상자에서 아주 가끔', adds: '멜로디를 한 옥타브 위에서' },
+    { id: 'drum',      name: '작은 북',  lane: 'drm', from: 'kid',     hint: '꼬마 도윤 친밀도 3단계 · 마을에서',       adds: '북 한 겹 (밤엔 아주 약하게)' },
+    { id: 'harmonica', name: '하모니카', lane: 'hrm', from: 'fisher',  hint: '박 영감 친밀도 3단계 · 마을에서',         adds: '화음을 길게' },
+    { id: 'xylo',      name: '실로폰',   lane: 'xyl', from: 'teacher', hint: '하늘 선생님 친밀도 3단계 · 마을에서',     adds: '반짝이는 아르페지오' },
+    { id: 'accordion', name: '아코디언', lane: 'acc', from: 'grandma', hint: '순자 할머니 친밀도 3단계 · 마을에서',     adds: '베이스 아래 저음' },
+    { id: 'uke',       name: '우쿨렐레', lane: 'uke', from: 'trader',  hint: '기차 떠돌이 상인 (포구 기차역 복구 후)', adds: '리듬 반주' }
+  ];
+  var BND_BY = {};
+  BND_INS.forEach(function (d) { BND_BY[d.id] = d; });
+  var BND_FRIEND = 3;                       // 친밀도 level at which a resident brings their instrument
+  var BND_UKE_COST = 12000;                 // 우쿨렐레 at the 떠돌이 상인 (outside his 3-a-day list: that list stays as it was)
+  var BND_FIND = { junk: 40, chest: 6 };    // 오카리나: 1 in n junk catches / opened chests (same for a given save)
+  var BND_PLAY_MIN = 1, BND_SHOW_MIN = 2;   // instruments to 연주 / to stand on the 광장 stage
+  var BND_PLAY_CAP = 3;                     // 연주 rewards per real day
+  var BND_WIN = { perfect: 80, good: 160 }; // ms either side of the note
+  var BND_GRADE = [0.45, 0.7, 0.88];        // score share for 동 · 은 · 금
+  var BND_GRADE_NAME = ['', '동', '은', '금'];
+  var BND_PLAY_PAY = [40, 150, 300, 500];   // 연주 coins by grade (none · 동 · 은 · 금)
+  var BND_SHOW_PAY = [200, 800, 1500, 3000];// 음악회 coins by grade; ×BND_FEST_MUL on a 계절 축제 day
+  var BND_FEST_MUL = 2;
+  var BND_TITLE = '마을 악단';
+  var BND_FANS = ['grandma', 'fisher', 'kid', 'teacher', 'chef'];   // the audience; 연주 cheers one of them a day in turn
+
+  function bndById(id) { return BND_BY.hasOwnProperty(id) ? BND_BY[id] : null; }
+  function bndHas(s, id) { return !!(s.band && s.band.ins[id]); }
+  function bndCount(s) { return s.band ? BND_INS.filter(function (d) { return s.band.ins[d.id]; }).length : 0; }
+  function bndOk(s) { return bndCount(s) >= BND_PLAY_MIN; }
+  function bndLive(s, id) { return bndHas(s, id) && !s.band.mute[id]; }
+  function bndOf(s) { if (!s.band) s.band = { ins: {}, mute: {}, play: null, show: null, best: 0 }; return s.band; }
+  // → { ok, first } ; the first instrument makes s.band
+  function bndGive(s, id) {
+    if (!bndById(id)) return { ok: false, why: 'none' };
+    if (bndHas(s, id)) return { ok: false, why: 'owned' };
+    var first = !s.band;
+    bndOf(s).ins[id] = true;
+    return { ok: true, first: first };
+  }
+  function bndMute(s, id, off) {
+    if (!bndHas(s, id)) return false;
+    if (off) s.band.mute[id] = true; else delete s.band.mute[id];
+    return true;
+  }
+  // resident instruments due now (친밀도 already high enough); nothing is written
+  function bndDue(s) {
+    return BND_INS.filter(function (d) { return residentById(d.from) && !bndHas(s, d.id) && friendLevel(s, d.from) >= BND_FRIEND; }).map(function (d) { return d.id; });
+  }
+  // called by the UI tick only while the player is in the 마을 (who = the resident whose home they are in, else everyone):
+  // hands over every due instrument → [ids] (no s.band unless one is due)
+  function bndTakeDue(s, who) {
+    var ids = bndDue(s).filter(function (id) { return !who || BND_BY[id].from === who; });
+    ids.forEach(function (id) { bndGive(s, id); });
+    return ids;
+  }
+  // 오카리나: after a junk catch (src 'junk') or an opened chest ('chest') has already been handed out.
+  // A hash of this save's birth time and the junk counters: no dice, the junk/chest result is never changed.
+  function bndFind(s, src) {
+    if (bndHas(s, 'ocarina') || !s.junk || !BND_FIND[src]) return null;
+    var key = 'bnd:' + (s.born || 0) + ':' + src + ':' + s.junk.total + ':' + (src === 'chest' ? s.junk.box : '');
+    if (strHash(key) % BND_FIND[src] !== 0) return null;
+    bndGive(s, 'ocarina');
+    return 'ocarina';
+  }
+  function bndUkeWhy(s) { return bndHas(s, 'uke') ? 'owned' : !traderOpen(s) ? 'closed' : s.coins < BND_UKE_COST ? 'coins' : 'ok'; }
+  function bndBuyUke(s) {
+    var why = bndUkeWhy(s);
+    if (why !== 'ok') return { ok: false, why: why };
+    s.coins -= BND_UKE_COST; bndGive(s, 'uke');
+    return { ok: true };
+  }
+
+  // ---------- the chart: melody notes → lanes, judging, grade ----------
+  // mel = [{ t: seconds, m: midi }] in time order → [{ t, m, lane }]; higher notes sit further right
+  function bndChart(mel, lanes) {
+    var ps = [];
+    mel.forEach(function (n) { if (ps.indexOf(n.m) < 0) ps.push(n.m); });
+    ps.sort(function (a, b) { return a - b; });
+    return mel.map(function (n) {
+      var k = ps.length > 1 ? Math.min(lanes - 1, Math.floor(ps.indexOf(n.m) * lanes / ps.length)) : 0;
+      return { t: n.t, m: n.m, lane: k };
+    });
+  }
+  // |off| ms from the note → 'perfect' | 'good' | null (too far: the tap counts for nothing)
+  function bndJudge(off) { var a = Math.abs(off); return a <= BND_WIN.perfect ? 'perfect' : a <= BND_WIN.good ? 'good' : null; }
+  // hits = { perfect, good } out of n notes → share 0–1 (a perfect is worth 2, a good 1)
+  function bndScore(hits, n) { return n ? Math.min(1, ((hits.perfect || 0) * 2 + (hits.good || 0)) / (2 * n)) : 0; }
+  function bndGrade(share) { var g = 0; BND_GRADE.forEach(function (x, k) { if (share >= x) g = k + 1; }); return g; }
+  // lanes: 연주 is always 4; the 음악회 gets one more per instrument past two (2 → 4, 3 → 5, 4+ → 6)
+  function bndShowLanes(s) { return Math.min(6, Math.max(4, bndCount(s) + 2)); }
+
+  // ---------- 마당 연주: any number of plays, rewards BND_PLAY_CAP times a real day ----------
+  function bndPlayLeft(s, now, tzMin) {
+    var q = s.band && s.band.play, d = toyDay(now, tzMin);
+    return !q || q.d !== d ? BND_PLAY_CAP : Math.max(0, BND_PLAY_CAP - q.n);
+  }
+  // a finished 연주 → { coins, who, ups, grade, left } (coins 0 once today's rewards are used)
+  function bndPlayPay(s, share, now, tzMin) {
+    if (!bndOk(s)) return { ok: false, why: 'ins' };
+    var g = bndGrade(share), d = toyDay(now, tzMin), left = bndPlayLeft(s, now, tzMin), out = { ok: true, grade: g, coins: 0, who: null, ups: [] };
+    if (left <= 0) { out.left = 0; return out; }
+    s.band.play = { d: d, n: BND_PLAY_CAP - left + 1 };
+    out.coins = BND_PLAY_PAY[g]; s.coins += out.coins;
+    if (g >= 1) { out.who = BND_FANS[(((d + s.band.play.n) % BND_FANS.length) + BND_FANS.length) % BND_FANS.length]; out.ups = befriendPts(s, out.who, 1); }
+    out.left = left - 1;
+    return out;
+  }
+
+  // ---------- 광장 음악회: once a real day, game evening or night; a 계절 축제 day (Wednesday) is a special show ----------
+  // the festival id when today (local) is a 계절 축제 day, else null
+  function bndFestDay(now, tzMin) {
+    var w = festWeek(now, tzMin);
+    return toyDay(w.start, tzMin) === toyDay(now, tzMin) ? w.id : null;
+  }
+  // 'ok' | 'ins' (fewer than BND_SHOW_MIN) | 'time' (not evening/night) | 'done' (today's show is over)
+  function bndShowWhy(s, now, tzMin, phase) {
+    if (bndCount(s) < BND_SHOW_MIN) return 'ins';
+    if (phase !== 'evening' && phase !== 'night') return 'time';
+    if (s.band.show === toyDay(now, tzMin)) return 'done';
+    return 'ok';
+  }
+  // a finished show → { coins, grade, fest, title, song, ups: [{ who, ups }] }; quitting before the end pays nothing and keeps the day
+  function bndShowPay(s, share, now, tzMin, phase) {
+    var why = bndShowWhy(s, now, tzMin, phase);
+    if (why !== 'ok') return { ok: false, why: why };
+    var b = s.band, g = bndGrade(share), fest = bndFestDay(now, tzMin), mul = fest ? BND_FEST_MUL : 1;
+    var out = { ok: true, grade: g, fest: fest, coins: BND_SHOW_PAY[g] * mul, title: false, song: false, ups: [] };
+    b.show = toyDay(now, tzMin);
+    if (g > (b.best || 0)) b.best = g;
+    s.coins += out.coins;
+    if (g >= 1) BND_FANS.forEach(function (who) { out.ups.push({ who: who, ups: befriendPts(s, who, mul) }); });
+    if (g >= 3 && !b.gold) { b.gold = true; out.title = true; }
+    // the concert song: the first 금, or a 은 on a festival day (the special show's chance)
+    if (!b.song && (g >= 3 || (fest && g >= 2))) { b.song = true; out.song = true; }
+    return out;
+  }
+  function bndTitles(s) { return s.band && s.band.gold ? [BND_TITLE] : []; }
+  // the unlocked song plays as the music of a festival day's night
+  function bndSongNow(s, now, tzMin, phase) { return !!(s.band && s.band.song && phase === 'night' && bndFestDay(now, tzMin)); }
+
+  // ---------- save: called by decode() (absent in older saves); one broken field never loses an instrument ----------
+  function decodeBand(o, s) {
+    var q = o.band;
+    function obj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+    function int(x) { return typeof x === 'number' && isFinite(x) ? Math.floor(x) : null; }
+    if (!obj(q) || !obj(q.ins)) return;
+    var b = { ins: {}, mute: {}, play: null, show: null, best: 0 };
+    BND_INS.forEach(function (d) { if (q.ins[d.id] === true) b.ins[d.id] = true; });
+    if (!Object.keys(b.ins).length) return;
+    if (obj(q.mute)) BND_INS.forEach(function (d) { if (q.mute[d.id] === true && b.ins[d.id]) b.mute[d.id] = true; });
+    if (obj(q.play) && int(q.play.d) !== null && int(q.play.n) !== null && q.play.n >= 0) b.play = { d: int(q.play.d), n: Math.min(BND_PLAY_CAP, int(q.play.n)) };
+    if (int(q.show) !== null) b.show = int(q.show);
+    if (int(q.best) !== null) b.best = Math.max(0, Math.min(3, int(q.best)));
+    if (q.gold === true) b.gold = true;
+    if (q.song === true) b.song = true;
+    s.band = b;
+  }
+
+  expose({
+    BND_INS: BND_INS, BND_FRIEND: BND_FRIEND, BND_UKE_COST: BND_UKE_COST, BND_FIND: BND_FIND, BND_PLAY_MIN: BND_PLAY_MIN, BND_SHOW_MIN: BND_SHOW_MIN,
+    BND_PLAY_CAP: BND_PLAY_CAP, BND_WIN: BND_WIN, BND_GRADE: BND_GRADE, BND_GRADE_NAME: BND_GRADE_NAME, BND_PLAY_PAY: BND_PLAY_PAY,
+    BND_SHOW_PAY: BND_SHOW_PAY, BND_FEST_MUL: BND_FEST_MUL, BND_TITLE: BND_TITLE, BND_FANS: BND_FANS,
+    bndById: bndById, bndHas: bndHas, bndCount: bndCount, bndOk: bndOk, bndLive: bndLive, bndGive: bndGive, bndMute: bndMute,
+    bndDue: bndDue, bndTakeDue: bndTakeDue, bndFind: bndFind, bndUkeWhy: bndUkeWhy, bndBuyUke: bndBuyUke,
+    bndChart: bndChart, bndJudge: bndJudge, bndScore: bndScore, bndGrade: bndGrade, bndShowLanes: bndShowLanes,
+    bndPlayLeft: bndPlayLeft, bndPlayPay: bndPlayPay, bndFestDay: bndFestDay, bndShowWhy: bndShowWhy, bndShowPay: bndShowPay,
+    bndTitles: bndTitles, bndSongNow: bndSongNow, decodeBand: decodeBand
+  });
   // ---------- stage 8 ④ 이펙트: pure timing helpers (time comes in as an argument; nothing here touches game state) ----------
   var FX_PARTICLES = 140;   // hard cap on live canvas particles
   var FX_LIVE = 16;         // hard cap on live timed effects (fly, pop, splash, beam)
@@ -8652,7 +9021,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'friend', name: '친구 기록', how: '도감 친구 탭 · 내 기록 코드를 복사해 친구 기록과 나란히', lock: '' },
     { id: 'move', name: '세이브 옮기기', how: '도감 친구 탭 · 세이브를 복사해 카톡·메모장에 두면 백업, 다른 기기에서 붙여 넣고 불러오기 두 번이면 이어 하기', lock: '' },
     { id: 'pip', name: '작게 띄우기', how: '작게 버튼이나 P 키로 작은 창 · 다른 일을 하면서 곁에 띄워 두기', lock: '' },
-    { id: 'sound', name: '소리', how: '위의 ⚙ 설정에서 전체·효과음·음악·환경음 크기와 켜기·끄기 · M 키로 바로 끄고 켜기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음', lock: '' },
+    { id: 'sound', name: '소리', how: '위의 ⚙ 설정에서 전체·효과음·음악·환경음 크기와 켜기·끄기(폰은 진동도) · M 키로 바로 끄고 켜기 · 아침·낮·저녁·밤마다 배경 음악이 바뀌어요 · 곳·날씨·시간 따라 물소리·빗소리·새·벌레 환경음', lock: '' },
     { id: 'forest', name: '숲', how: '돋아난 것을 눌러 채집 · 꾹 누르면 도전 · 철마다 다른 것이 돋는다', lock: '★' + FOREST_REP + ' · 숲 표지판에서 ' + won(FOREST_COST) },
     { id: 'pet', name: '반려동물', how: '쓰다듬으면 친밀도 · 하루 몇 번 선물 · 숲에서 킁킁 찾아 준다', lock: '상점 입양 · 강아지 ' + won(PET_KINDS.dog.cost) + ' · 고양이는 ' + PET_CAT_VISITS + '번 놀러 오면' },
     { id: 'orchard', name: '과수원', how: '빈 자리를 눌러 묘목 심기 · 다 자란 나무는 제철마다 열매', lock: '★' + ORCHARD_REP + ' · 과수원 팻말에서 ' + won(ORCHARD_COST) },
@@ -8722,7 +9091,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     // 가공 공방
     { id: 'craft', name: '가공 공방', how: '마당 집 오른쪽 아래 공방 터 · ' + won(CFT_PRICE) + '으로 짓고 ' + CFT_M.map(function (d) { return d.name + '(' + d.what + ' → ' + d.outName + ' ' + d.time / 3600e3 + '시간 ×' + d.mul + ')'; }).join(' · ') + ' · 기계마다 같은 재료 ' + CFT_CAP + '개까지, 나오는 값은 넣은 값 × 기계 배수(넣은 값 ' + won(CFT_VCAP) + '까지만 늘어남) · 게임을 꺼 둬도 익는다 · 같은 기계는 ' + CFT_MAX + '대까지', lock: '★' + CFT_REP + ' · 마당 공방 터에서 ' + won(CFT_PRICE) },
     // 캠핑
-    { id: 'camp', name: '캠핑', how: '숲 오른쪽 아래 캠핑장 팻말 · 저녁·밤에 솔방울 하나로 모닥불(그 밤 내내) · 석쇠에 캠핑 요리 ' + CMP_RECIPES.length + '가지(1~3분, 오래 두면 탄다) · 불 곁에 가끔 주민·반려동물이 앉아 이야기 · 밤에 텐트를 누르면 자고, 아침이 오면(꺼 둬도) 텐트 앞에 선물(현실 하루 ' + CMP_GIFT_DAY + '번) · 잔 밤마다 도장 수첩에 계절·날씨 도장 · 텐트 ' + CMP_TENTS.length + '단계·장비 ' + CMP_EQ.length + '가지 · 밤에만 오는 캠핑장 곤충 · 계곡 캠핑(산골 계곡 팻말, 그날 계곡 표)·바닷가 캠핑(바다 물가 팻말)에선 저녁·밤에 물을 누르면 밤 낚시(곳마다 ' + CMP_FISH.filter(function (f) { return f.spot === 'cmpbrook'; }).length + '종) · 비 오는 밤엔 빗소리 유리병, 눈 오는 밤엔 꼬마 눈사람 · 망원경이 있으면 캠프 밤하늘에서 별 잇기·유성우 소원 ×' + CMP_STAR_MUL + '(망원경 받침이면 더)', lock: '★' + CMP_REP + ' · 숲 캠핑장 팻말에서 캠핑 세트 ' + won(CMP_PRICE) }
+    { id: 'camp', name: '캠핑', how: '숲 오른쪽 아래 캠핑장 팻말 · 저녁·밤에 솔방울 하나로 모닥불(그 밤 내내) · 석쇠에 캠핑 요리 ' + CMP_RECIPES.length + '가지(1~3분, 오래 두면 탄다) · 불 곁에 가끔 주민·반려동물이 앉아 이야기 · 밤에 텐트를 누르면 자고, 아침이 오면(꺼 둬도) 텐트 앞에 선물(현실 하루 ' + CMP_GIFT_DAY + '번) · 잔 밤마다 도장 수첩에 계절·날씨 도장 · 텐트 ' + CMP_TENTS.length + '단계·장비 ' + CMP_EQ.length + '가지 · 밤에만 오는 캠핑장 곤충 · 계곡 캠핑(산골 계곡 팻말, 그날 계곡 표)·바닷가 캠핑(바다 물가 팻말)에선 저녁·밤에 물을 누르면 밤 낚시(곳마다 ' + CMP_FISH.filter(function (f) { return f.spot === 'cmpbrook'; }).length + '종) · 비 오는 밤엔 빗소리 유리병, 눈 오는 밤엔 꼬마 눈사람 · 망원경이 있으면 캠프 밤하늘에서 별 잇기·유성우 소원 ×' + CMP_STAR_MUL + '(망원경 받침이면 더)', lock: '★' + CMP_REP + ' · 숲 캠핑장 팻말에서 캠핑 세트 ' + won(CMP_PRICE) },
+    // 소리 도감
+    { id: 'rec', name: '소리 도감', how: '녹음기가 있으면 조건(시간·계절·곳·날씨)이 맞는 곳에 잠시 머물기만 해도 저절로 ★1 녹음(소리를 꺼 둬도) · 환경음이 켜져 있으면 그 소리가 날 때 화면 왼쪽에 ♪가 잠깐 뜨고, 누르면 ★2, 또 누르면 ★3 · 도감 소리 탭에서 ▶ 다시 듣기·힌트 · ' + REC_SOUNDS.length + '가지(전설 하나) · ' + REC_MS.map(function (m) { return m.n; }).join('·') + '개마다 코인과 칭호, 전부 모으면 마당 장식 축음기 · 박물관 별관 소리실에 기증', lock: '★' + REC_REP + ' · 상점 녹음기 ' + won(REC_COST) },
+    // 마을 음악회
+    { id: 'band', name: '마을 음악회', how: '악기 ' + BND_INS.length + '가지(' + BND_INS.map(function (d) { return d.name; }).join('·') + ') · 얻는 대로 배경음악에 그 악기가 한 겹 더해진다(⚙ 설정에서 악기마다 끄기) · 마당 ♪ 연주: 4줄로 내려오는 음표를 탭(키보드 D F J K) · 곡은 지금 시간대 음악 · 보상은 현실 하루 ' + BND_PLAY_CAP + '번(코인·주민 친밀도) · 악기 ' + BND_SHOW_MIN + '개부터 게임 저녁·밤에 마을 광장 음악회(현실 하루 한 번, 악기가 많을수록 줄이 늘어남) · 주민이 관객 · 동·은·금 · 첫 금에 칭호 「' + BND_TITLE + '」와 음악회 곡 · 계절 축제 날(수요일)은 특별 공연: 보상 ×' + BND_FEST_MUL + ', 은만 받아도 곡 해금, 축제 날 밤엔 그 곡이 흐른다 · 놓쳐도 잃는 것 없음', lock: '악기 하나부터 · 잡동사니·보물 상자의 오카리나, 주민 친밀도 ' + BND_FRIEND + '단계 선물(마을에 가면 직접 건네줌), 떠돌이 상인의 우쿨렐레 ' + won(BND_UKE_COST) }
   ];
   // '유목 4 · 낡은 밧줄 3 · 철광석 3'
   function shipNeedText(t) { return t.need.map(function (q) { return itemInfo(q[0]).name + ' ' + q[1]; }).join(' · '); }
@@ -8752,6 +9125,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   GUIDE_OPEN.arcade = villageOk; GUIDE_OPEN.myshop = villageOk;   // 게임장, 내 가게
   GUIDE_OPEN.train = function (s) { return villageOk(s) && trnStatus(s, 'valley') !== 'rep'; }; GUIDE_SCENE.trnvalley = 'train'; GUIDE_SCENE.trnonsen = 'train'; GUIDE_SCENE.trnsnow = 'train';   // 기차 여행
   GUIDE_OPEN.craft = function (s) { return !!s.craft || s.rep >= CFT_REP; };   // 가공 공방
+  GUIDE_OPEN.rec = recOk;   // 소리 도감
+  GUIDE_OPEN.band = bndOk;  // 마을 음악회
   GUIDE_OPEN.camp = function (s) { return !!s.camp || (forestOk(s) && s.rep >= CMP_REP); }; GUIDE_SCENE.cmpforest = 'camp'; GUIDE_SCENE.cmpvalley = 'camp'; GUIDE_SCENE.cmpsea = 'camp';   // 캠핑
 
   function guideById(id) { for (var k = 0; k < GUIDE.length; k++) if (GUIDE[k].id === id) return GUIDE[k]; return null; }
@@ -8963,6 +9338,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       decodeCraft(o, s);   // 가공 공방: s.craft (기계·가공 중인 것·도감; optional)
       decodeTrain(o, s);   // 기차 여행: s.train (개통·기차표·특산물 자리; optional) + the route spots
       decodeCamp(o, s);    // 캠핑: s.camp (세트·텐트·장비·불·석쇠·잠·아침 선물·도장; optional)
+      decodeRec(o, s);     // 소리 도감: s.rec (녹음기·녹음한 것·보상·별관; optional)
+      decodeBand(o, s);    // 마을 음악회: s.band (악기·끈 악기·연주 횟수·음악회 날·칭호·곡; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -9295,7 +9672,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   var toastTimer = 0;
   var SND_ERR = /부족|못 해요|수 없어요|꽉 찼어요/;
   function toast(msg, ms) {
-    if (String(msg).charAt(0) === '★') sfx('level', true); else if (SND_ERR.test(msg)) sfx('error', true);   // 소리: 해금·칭호 / 막힘
+    if (String(msg).charAt(0) === '★') { var sk = sndStar(msg); sfx(sk === 'title' ? 'starTitle' : sk === 'set' ? 'starSet' : sk === 'open' ? 'starOpen' : sk === 'new' ? 'starNew' : 'level', true); }   // 소리: 칭호 · 수집 완성 · 해금 · 첫 발견 · 그 밖의 ★
+    else if (SND_ERR.test(msg)) sfx('error', true);   // 막힘
     toastEl.textContent = msg; toastEl.classList.add('on');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
   }
@@ -9365,7 +9743,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // a caught fish jumps out and drops into the basket corner (or turns into coins when it was sold at once)
   function fxCatch(f, x, y, sold) {
     var tier = L.fxTier(f);
-    sfx(tier > 1 ? 'catchLegend' : tier ? 'catchRare' : 'catch');
+    sfx(tier > 1 ? 'catchLegend' : tier ? 'catchRare' : 'catch', false, f.max);   // 소리: a bigger species, a bigger splash
+    if (tier > 1) hapt([60, 50, 60, 50, 140]);   // 진동: legendary only
     if (tier) fxShake(tier > 1 ? 4 : 2.5);
     if (tier > 1 && !reduceMotion) fxAdd({ k: 'legend', x: x, y: y, dur: 1300 });
     if (sold) { fxCoins(x, y, sold); return; }
@@ -9373,8 +9752,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     fxAdd({ k: 'fly', img: fishCanvas(f.id), w: 16, h: 8, x0: x - 8, y0: y - 6, x1: 6, y1: 120, arc: 30, dur: 650, delay: tier > 1 ? 700 : 0, land: true });
   }
   // harvest / forage: the item pops up with dirt bits; 특상품 pops higher and sparkles; quick streaks show ×2 ×3
-  function fxHarvest(x, y, img, won) {
-    sfx(won ? 'level' : 'harvest');
+  // crop: the 밭 crop id (its own pulling sound); none = foraged (숲, 당나귀 길)
+  function fxHarvest(x, y, img, won, crop) {
+    sfx(crop && won ? 'harvestStar' : crop ? 'harvest' : won ? 'forageStar' : 'forage', false, crop);
     burst(x, y + 4, won ? 8 : 5, 4, 45);   // dirt bits
     harvestRun = L.fxCombo(harvestRun, fxT(), L.FX_COMBO_MS);
     if (harvestRun.n >= 2) floatText('×' + harvestRun.n, x + 12, y - 14);
@@ -9383,14 +9763,15 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // coins: a few pixel coins fly up to the wallet; the wallet number then rolls up (see coinsShown)
   function fxCoins(x, y, amount) {
-    if (amount > 0) sfx('coin');
+    if (amount > 0) sfx('coin', false, amount);   // 소리: more coins, more clinks
     if (reduceMotion || !(amount > 0)) return;
     var n = Math.min(5, 2 + Math.floor(Math.log(amount) / Math.LN10));
     for (var k = 0; k < n; k++) fxAdd({ k: 'coin', x0: x + (k - n / 2) * 3, y0: y, x1: 16, y1: -4, arc: 10 + k * 3, dur: 420, delay: k * 45 });
   }
   // DOM coins for panels that cover the canvas (바구니 sell / deliver): from the last press to the visible wallet
-  function fxCoinsDom(target) {
-    sfx('coin');
+  // kind (소리 only): 'bank' 찾기, 'shop' 내 가게 금고, 'arc' 게임장 상금, 'tip' 탈것 팁; none = 바구니 selling
+  function fxCoinsDom(target, kind) {
+    sfx(kind === 'bank' ? 'bankOut' : kind === 'shop' ? 'till' : kind === 'arc' ? 'arcPay' : kind === 'tip' ? 'tip' : 'sell');
     if (reduceMotion || !pressAt || !target || !app.animate) return;
     var doc = app.ownerDocument, ar = app.getBoundingClientRect(), sc = ar.width / 360 || 1, tr = target.getBoundingClientRect();
     if (app.querySelectorAll('.coinfly').length >= 8) return;
@@ -9408,7 +9789,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // 해금 · 신기록 · 도감 첫 등록: a short stamp landing
   function fxStamp(el) {
-    sfx('level');
+    sfx('stamp');
     if (!el || reduceMotion) return;
     el.classList.remove('stamp'); void el.offsetWidth; el.classList.add('stamp');
   }
@@ -9529,9 +9910,13 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   document.addEventListener('visibilitychange', sndVis);
 
+  // per-play variation (소리 다양성): sfx sets these for the one sound it plays — pitch ±3%, length ±10% — then puts them
+  // back to 1, so the ambient one-shots and the 소리 도감 replays that share sndOsc/sndHiss are never touched. UI Math.random only.
+  var sndP = 1, sndD = 1;
   // one voice: oscillator from f0 (slide to f1) with a short attack and an exponential fall; returns its end time
   function sndOsc(type, f0, f1, t, dur, vol, dest) {
     var o = sndCtx.createOscillator(), g = sndCtx.createGain();
+    f0 *= sndP; f1 *= sndP; dur *= sndD;
     o.type = type; o.frequency.setValueAtTime(f0, t);
     if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -9541,6 +9926,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // filtered noise (filter freq slides f0 → f1)
   function sndHiss(kind, f0, f1, t, dur, vol, dest) {
     var s = sndCtx.createBufferSource(), f = sndCtx.createBiquadFilter(), g = sndCtx.createGain();
+    f0 *= sndP; f1 *= sndP; dur *= sndD;
     s.buffer = sndNoise; f.type = kind; f.frequency.setValueAtTime(f0, t);
     if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -9548,72 +9934,312 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     return t + dur;
   }
   // notes one after another, each `step` apart
-  function sndSeq(type, fs, t, step, dur, vol) {
+  function sndSeq(type, fs, t, step, dur, vol, dest) {
     var end = t;
-    fs.forEach(function (f, k) { end = sndOsc(type, f, f, t + k * step, k === fs.length - 1 ? dur * 1.6 : dur, vol); });
+    step *= sndD;
+    fs.forEach(function (f, k) { end = sndOsc(type, f, f, t + k * step, k === fs.length - 1 ? dur * 1.6 : dur, vol, dest); });
     return end;
   }
+  // ---- materials ----
+  // metal: a 2-operator FM bell; the modulator (ratio × f) fades so the clang clears into a ring
+  function sndFM(f, ratio, index, t, dur, vol, dest) {
+    var c = sndCtx.createOscillator(), m = sndCtx.createOscillator(), mg = sndCtx.createGain(), g = sndCtx.createGain();
+    f *= sndP; dur *= sndD;
+    c.frequency.value = f; m.frequency.value = f * ratio;
+    mg.gain.setValueAtTime(f * index, t); mg.gain.exponentialRampToValueAtTime(f * index * 0.04 + 0.01, t + dur * 0.6);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    m.connect(mg); mg.connect(c.frequency); c.connect(g); g.connect(dest || sndSfx);
+    c.start(t); m.start(t); c.stop(t + dur + 0.02); m.stop(t + dur + 0.02);
+    return t + dur;
+  }
+  // bells one after another
+  function sndBells(fs, t, step, dur, vol, ratio, dest) {
+    var end = t;
+    step *= sndD;
+    fs.forEach(function (f, k) { end = sndFM(f, ratio || 3.5, 1.4, t + k * step, k === fs.length - 1 ? dur * 1.8 : dur, vol, dest); });
+    return end;
+  }
+  // string: a short Karplus-Strong pluck (a burst of noise looped through a one-period delay that averages itself down)
+  function sndPluck(f, t, dur, vol, dest) {
+    f *= sndP; dur *= sndD;
+    var sr = sndCtx.sampleRate, n = Math.ceil(sr * dur), N = Math.max(2, Math.round(sr / f - 0.5)), b = sndCtx.createBuffer(1, n, sr), d = b.getChannelData(0), k;
+    for (k = 0; k < N && k < n; k++) d[k] = Math.random() * 2 - 1;
+    for (; k < n; k++) d[k] = 0.498 * (d[k - N] + (k > N ? d[k - N - 1] : 0));
+    var s = sndCtx.createBufferSource(), g = sndCtx.createGain();
+    s.buffer = b; vol *= 0.3; g.gain.setValueAtTime(vol, t); g.gain.setValueAtTime(vol, t + dur * 0.7);   // the noise burst peaks near 1: a third
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    s.connect(g); g.connect(dest || sndSfx); s.start(t); s.stop(t + dur + 0.02);
+    return t + dur;
+  }
+  function sndPlucks(fs, t, step, dur, vol, dest) {
+    var end = t;
+    step *= sndD;
+    fs.forEach(function (f, k) { end = sndPluck(f, t + k * step, k === fs.length - 1 ? dur * 1.6 : dur, vol, dest); });
+    return end;
+  }
+  // wood: a click of band-passed noise over a short resonant tone
+  function sndWood(f, t, dur, vol, dest) {
+    sndHiss('bandpass', f * 4, f * 3, t, 0.02, vol * 1.4, dest);
+    return sndOsc('triangle', f * 1.25, f, t, dur, vol, dest);
+  }
+  // water: a sine that pops upward
+  function sndDrop(f, t, vol, dest) { return sndOsc('sine', f, f * 2.3, t, 0.07, vol, dest); }
+  // ---- place palettes: 동굴 = an echo send, 바다·잠수 = wide (left dry, right a few ms later) ----
+  var sndEchoIn = null, sndWideIn = null;
+  function sndCave() {
+    if (sndEchoIn && sndEchoIn.context === sndCtx) return sndEchoIn;
+    var i = sndCtx.createGain(), d = sndCtx.createDelay(1), fb = sndCtx.createGain(), lp = sndCtx.createBiquadFilter(), w = sndCtx.createGain();
+    d.delayTime.value = 0.13; fb.gain.value = 0.36; lp.type = 'lowpass'; lp.frequency.value = 1700; w.gain.value = 0.55;
+    i.connect(sndSfx); i.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(w); w.connect(sndSfx);
+    return (sndEchoIn = i);
+  }
+  function sndWide() {
+    if (sndWideIn && sndWideIn.context === sndCtx) return sndWideIn;
+    var i = sndCtx.createGain(), l = sndCtx.createStereoPanner(), r = sndCtx.createStereoPanner(), d = sndCtx.createDelay(0.1);
+    l.pan.value = -0.6; r.pan.value = 0.6; d.delayTime.value = 0.019;
+    i.connect(l); i.connect(d); d.connect(r); l.connect(sndSfx); r.connect(sndSfx);
+    return (sndWideIn = i);
+  }
+  // ---- context args ----
+  // a fish's species length (L.fishById(id).max, cm) → 0 (피라미) … 1 (the biggest): the splash grows with it
+  function sndBig(a) { return a > 0 ? Math.max(0, Math.min(1, Math.log(a / 8) / Math.log(30))) : 0.3; }
+  // coins received → how many clinks: 1–9 one, 10s two, 100s three, 1000s four, more five
+  function sndCount(a) { return a > 0 ? Math.max(1, Math.min(5, 1 + Math.floor(Math.log(a) / Math.LN10))) : 2; }
+  // crop → how it comes out of the ground: root (a dull pull), pop (juicy), snap (a crisp stalk); unknown ids get one by name
+  var SND_CROP = { radish: ['root', 230], potato: ['root', 170], sweetpotato: ['root', 150], pumpkin: ['root', 120], berry: ['pop', 780],
+    tomato: ['pop', 560], melon: ['pop', 300], cucumber: ['pop', 640], pepper: ['snap', 900], corn: ['snap', 700], cabbage: ['snap', 480], ssuk: ['snap', 1100] };
+  function sndCrop(id) {
+    if (SND_CROP[id]) return SND_CROP[id];
+    var h = 0, s = String(id || '');
+    for (var k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) % 997;
+    return [['root', 'pop', 'snap'][h % 3], 200 + h % 600];
+  }
+  function sndPull(t, id) {
+    var c = sndCrop(id);
+    sndHiss('lowpass', 700, 220, t, 0.1, 0.07);   // soil
+    if (c[0] === 'root') { sndWood(c[1], t + 0.04, 0.11, 0.05); return sndOsc('sine', c[1] / 2, c[1] / 3, t + 0.04, 0.12, 0.045); }
+    if (c[0] === 'pop') { sndDrop(c[1], t + 0.04, 0.08); return sndDrop(c[1] * 1.5, t + 0.1, 0.05); }
+    sndHiss('highpass', 3500, 3500, t + 0.04, 0.03, 0.08);
+    return sndWood(c[1], t + 0.04, 0.06, 0.08);
+  }
   var SND = {
-    tap:     function (t) { return sndOsc('triangle', 1100, 900, t, 0.035, 0.05); },
-    cast:    function (t) { sndOsc('triangle', 520, 260, t, 0.12, 0.03); return sndHiss('bandpass', 1800, 500, t, 0.22, 0.12); },
-    bite:    function (t) { sndOsc('sine', 900, 300, t, 0.09, 0.12); return sndOsc('sine', 700, 250, t + 0.11, 0.08, 0.09); },
-    strike:  function (t) { sndOsc('triangle', 300, 120, t, 0.12, 0.1); return sndHiss('lowpass', 1200, 300, t, 0.2, 0.18); },
-    tick:    function (t) { return sndOsc('square', 1400, 1400, t, 0.018, 0.025); },
-    catch:   function (t) { return sndSeq('triangle', [523, 784], t, 0.07, 0.1, 0.09); },
-    catchRare: function (t) { sndSeq('square', [523, 659, 784, 1047], t, 0.07, 0.12, 0.03); return sndSeq('triangle', [523, 659, 784, 1047], t, 0.07, 0.12, 0.08); },
-    catchLegend: function (t) {
-      sndSeq('square', [392, 523, 659, 784], t, 0.09, 0.1, 0.025);
-      sndSeq('triangle', [392, 523, 659, 784], t, 0.09, 0.1, 0.07);
-      [784, 1047, 1319].forEach(function (f) { sndOsc('triangle', f, f, t + 0.38, 0.6, 0.05); });
-      return sndOsc('square', 1047, 1047, t + 0.38, 0.6, 0.02);
+    // ---- buttons and sheets (실내: short and dry) ----
+    tap:      function (t) { return sndOsc('triangle', 1100, 900, t, 0.035, 0.05); },
+    tapOpen:  function (t) { sndHiss('bandpass', 1400, 2800, t, 0.07, 0.05); return sndOsc('triangle', 660, 990, t, 0.06, 0.05); },
+    tapClose: function (t) { sndHiss('bandpass', 2600, 1200, t, 0.06, 0.045); return sndOsc('triangle', 990, 590, t, 0.06, 0.05); },
+    tapOk:    function (t) { sndOsc('triangle', 990, 990, t, 0.03, 0.03); return sndOsc('triangle', 1480, 1480, t + 0.05, 0.05, 0.028); },
+    // ---- fishing (물가: water) ----
+    cast:     function (t) { sndOsc('triangle', 520, 260, t, 0.12, 0.03); sndHiss('bandpass', 1800, 500, t, 0.22, 0.12); return sndDrop(520, t + 0.3, 0.04); },
+    bite:     function (t) { sndDrop(380, t, 0.12); sndHiss('lowpass', 1500, 400, t, 0.12, 0.05); return sndDrop(300, t + 0.12, 0.1); },
+    strike:   function (t) { sndOsc('triangle', 300, 120, t, 0.12, 0.1); return sndHiss('lowpass', 1200, 300, t, 0.2, 0.18); },
+    tick:     function (t) { return sndOsc('square', 1400, 1400, t, 0.018, 0.025); },
+    // a = species length (cm): bigger fish, bigger splash
+    catch:    function (t, a) { var s = sndBig(a); sndHiss('lowpass', 1200 + 1800 * s, 300, t, 0.15 + 0.25 * s, 0.05 + 0.12 * s); return sndPlucks([587, 880], t + 0.05, 0.08, 0.16, 0.2); },
+    catchRare: function (t, a) {
+      var s = sndBig(a); sndHiss('lowpass', 1500 + 1800 * s, 300, t, 0.2 + 0.3 * s, 0.06 + 0.12 * s);
+      sndPlucks([659, 740, 988, 1319], t + 0.05, 0.07, 0.16, 0.2); return sndFM(1976, 3.5, 1, t + 0.3, 0.5, 0.04);
     },
-    lost:    function (t) { return sndSeq('triangle', [440, 330, 247], t, 0.1, 0.14, 0.07); },
-    snap:    function (t) { sndHiss('highpass', 3000, 3000, t, 0.05, 0.15); return sndSeq('triangle', [330, 220], t + 0.06, 0.1, 0.14, 0.07); },
-    plant:   function (t) { sndHiss('lowpass', 600, 600, t, 0.06, 0.06); return sndOsc('triangle', 180, 110, t, 0.09, 0.12); },
-    water:   function (t) { sndOsc('sine', 1200, 1800, t + 0.03, 0.04, 0.04); sndOsc('sine', 1500, 2200, t + 0.1, 0.04, 0.04); return sndHiss('bandpass', 2500, 1200, t, 0.25, 0.05); },
-    harvest: function (t) { sndOsc('triangle', 440, 880, t, 0.08, 0.09); return sndOsc('triangle', 1320, 1320, t + 0.07, 0.06, 0.05); },
-    coin:    function (t) { return sndSeq('square', [988, 1319], t, 0.06, 0.1, 0.035); },
-    buy:     function (t) { sndHiss('bandpass', 3000, 3000, t, 0.03, 0.04); return sndSeq('triangle', [784, 587], t, 0.06, 0.09, 0.07); },
-    level:   function (t) { sndSeq('square', [523, 659, 784, 1047], t, 0.06, 0.1, 0.035); return sndSeq('triangle', [523, 659, 784, 1047], t, 0.06, 0.1, 0.06); },
-    error:   function (t) { return sndSeq('triangle', [196, 175], t, 0.09, 0.08, 0.05); },
-    splash:  function (t) { sndOsc('sine', 400, 120, t, 0.15, 0.08); return sndHiss('lowpass', 2000, 300, t, 0.4, 0.2); },
-    whoosh:  function (t) { return sndHiss('bandpass', 400, 1400, t, 0.25, 0.04); },
-    hit:     function (t) { sndHiss('bandpass', 2000, 2000, t, 0.03, 0.05); return sndOsc('square', 660, 330, t, 0.06, 0.04); },
-    // active play: 잠수, 탈것, 사진기, 곤충, 별 잇기, 동굴, 도전, 보스전, 쓰다듬기
-    swim:    function (t) { sndOsc('sine', 220, 150, t + 0.02, 0.12, 0.03); return sndHiss('lowpass', 500, 200, t, 0.22, 0.06); },
-    beep:    function (t) { sndOsc('square', 880, 880, t, 0.05, 0.025); return sndOsc('square', 880, 880, t + 0.1, 0.05, 0.025); },
-    jump:    function (t) { sndOsc('square', 300, 700, t, 0.1, 0.025); return sndOsc('triangle', 300, 700, t, 0.1, 0.06); },
-    bump:    function (t) { sndHiss('lowpass', 800, 200, t, 0.1, 0.12); return sndOsc('triangle', 160, 70, t, 0.12, 0.12); },
-    shutter: function (t) { sndHiss('highpass', 4000, 4000, t, 0.02, 0.1); sndOsc('square', 1800, 1800, t + 0.06, 0.015, 0.02); return sndHiss('bandpass', 2500, 2500, t + 0.06, 0.03, 0.08); },
-    swing:   function (t) { return sndHiss('bandpass', 800, 2500, t, 0.12, 0.05); },
-    // p = how many stars are joined so far: each one a step up a pentatonic scale
-    star:    function (t, p) {
+    catchLegend: function (t, a) {
+      var s = sndBig(a); sndHiss('lowpass', 2500 + 1000 * s, 250, t, 0.5 + 0.3 * s, 0.1 + 0.08 * s); sndOsc('sine', 110, 70, t, 0.6, 0.08);
+      sndBells([466, 587, 698, 880], t + 0.08, 0.09, 0.25, 0.045, 2);
+      return sndFM(1319, 3.5, 1.5, t + 0.45, 0.8, 0.05);
+    },
+    lost:     function (t) { sndHiss('lowpass', 1200, 300, t + 0.1, 0.25, 0.08); return sndOsc('triangle', 330, 150, t, 0.4, 0.09); },
+    missed:   function (t) { sndOsc('sine', 600, 380, t, 0.12, 0.05); return sndPlucks([494, 415], t + 0.08, 0.1, 0.16, 0.18); },
+    snap:     function (t) { sndHiss('highpass', 3000, 3000, t, 0.05, 0.15); return sndSeq('triangle', [330, 220], t + 0.06, 0.1, 0.14, 0.07); },
+    junkCatch: function (t) { sndHiss('lowpass', 1500, 300, t, 0.2, 0.06); return sndFM(220, 2.76, 3, t + 0.03, 0.3, 0.08); },
+    // 상자 열기 (자물쇠 / 불 조절)
+    lockPick: function (t) { sndHiss('highpass', 4000, 4000, t, 0.02, 0.06); return sndFM(1800, 1.5, 1, t, 0.08, 0.05); },
+    lockMiss: function (t) { return sndWood(140, t, 0.12, 0.09); },
+    puff:     function (t) { sndOsc('sine', 90, 60, t, 0.12, 0.04); return sndHiss('lowpass', 900, 250, t, 0.18, 0.08); },
+    chestOpen: function (t) { sndOsc('sawtooth', 110, 160, t, 0.22, 0.02); return sndBells([784, 988, 1175, 1397], t + 0.15, 0.07, 0.18, 0.05); },
+    chestFail: function (t) { sndWood(110, t, 0.14, 0.09); return sndPlucks([392, 330], t + 0.1, 0.12, 0.2, 0.2); },
+    // ---- 밭 (earth and wood) ----
+    plant:    function (t) { sndHiss('lowpass', 600, 600, t, 0.06, 0.06); return sndOsc('triangle', 180, 110, t, 0.09, 0.12); },
+    fertilize: function (t) { sndHiss('highpass', 5000, 3000, t, 0.25, 0.06); return sndOsc('sine', 170, 120, t, 0.12, 0.08); },
+    offSeason: function (t) { sndWood(180, t, 0.08, 0.045); return sndWood(150, t + 0.11, 0.1, 0.04); },
+    // a = crop id
+    harvest:  function (t, a) { return sndPull(t, a); },
+    harvestStar: function (t, a) { sndPull(t, a); return sndPlucks([659, 831, 988], t + 0.12, 0.06, 0.14, 0.2); },
+    forage:   function (t) { sndHiss('bandpass', 2600, 1800, t, 0.09, 0.07); return sndWood(520, t + 0.03, 0.06, 0.08); },
+    forageStar: function (t) { sndHiss('bandpass', 2600, 1800, t, 0.09, 0.07); sndWood(520, t + 0.03, 0.06, 0.08); return sndPlucks([698, 880, 1047], t + 0.1, 0.06, 0.14, 0.2); },
+    // ---- coins and shops (metal) ----
+    // a = coins: more coins, more clinks
+    coin:     function (t, a) {
+      var n = sndCount(a), end = t, fs = [1760, 1976, 2349, 2637, 2093];
+      for (var k = 0; k < n; k++) end = sndFM(fs[(k + Math.floor(Math.random() * 3)) % 5], 1.4, 1.5, t + k * 0.055, 0.14, 0.04);
+      return end;
+    },
+    sell:     function (t) { sndHiss('lowpass', 600, 300, t + 0.1, 0.08, 0.06); sndFM(2349, 3.5, 1.2, t, 0.12, 0.04); return sndFM(2793, 3.5, 1.2, t + 0.06, 0.16, 0.04); },
+    bankOut:  function (t) { sndHiss('bandpass', 900, 500, t, 0.12, 0.05); sndFM(1397, 3.5, 1.5, t + 0.08, 0.16, 0.045); return sndFM(1568, 3.5, 1.5, t + 0.14, 0.2, 0.045); },
+    till:     function (t) { sndOsc('square', 2000, 2000, t, 0.012, 0.02); sndHiss('bandpass', 1200, 700, t + 0.03, 0.1, 0.05); return sndFM(1760, 1, 2, t + 0.08, 0.4, 0.05); },
+    arcPay:   function (t) { return sndBells([1760, 2217, 1760, 2637], t, 0.06, 0.12, 0.04); },
+    tip:      function (t) { sndFM(2637, 3.5, 1.2, t, 0.12, 0.04); return sndFM(3136, 3.5, 1.2, t + 0.07, 0.16, 0.04); },
+    bugFree:  function (t) { for (var k = 0; k < 3; k++) sndHiss('bandpass', 1800 + k * 500, 1800 + k * 500, t + k * 0.05, 0.035, 0.05); return sndFM(2349, 3.5, 1, t + 0.18, 0.14, 0.035); },
+    volPing:  function (t) { return sndOsc('sine', 1000, 1000, t, 0.09, 0.08); },
+    buy:      function (t) { sndHiss('bandpass', 3000, 3000, t, 0.03, 0.04); sndWood(420, t + 0.03, 0.06, 0.06); return sndFM(1568, 3.5, 1, t + 0.05, 0.1, 0.04); },
+    stamp:    function (t) { sndHiss('lowpass', 900, 200, t, 0.08, 0.12); sndOsc('sine', 130, 60, t, 0.14, 0.12); return sndHiss('highpass', 5000, 5000, t + 0.02, 0.04, 0.04); },
+    // ---- ★ notes (hud.js toast: kind read from the message) and blocked actions ----
+    level:    function (t) { sndPluck(587, t, 0.22, 0.18); return sndFM(1175, 3.5, 1.4, t + 0.02, 0.5, 0.06); },
+    starNew:  function (t) { sndPlucks([784, 1319], t, 0.09, 0.18, 0.22); return sndFM(2637, 3.5, 1, t + 0.18, 0.3, 0.03); },
+    starOpen: function (t) { sndOsc('sawtooth', 120, 180, t, 0.2, 0.015); return sndBells([698, 932, 1245], t + 0.08, 0.1, 0.22, 0.06, 2); },
+    starTitle: function (t) { sndSeq('square', [587, 587, 880], t, 0.08, 0.08, 0.03); sndSeq('triangle', [587, 587, 880], t, 0.08, 0.08, 0.07); return sndBells([1175, 1480], t + 0.3, 0.02, 0.3, 0.045, 2); },
+    starSet:  function (t) { return sndBells([831, 1047, 1245, 1397, 1661], t, 0.05, 0.14, 0.05); },
+    error:    function (t) { return sndSeq('triangle', [196, 175], t, 0.09, 0.08, 0.05); },
+    bagFull:  function (t) { for (var k = 0; k < 3; k++) sndHiss('bandpass', 1300 + k * 300, 900, t + k * 0.03, 0.03, 0.04); return sndOsc('triangle', 150, 130, t + 0.08, 0.16, 0.055); },
+    // ---- 곤충 ----
+    netMiss:  function (t) { sndHiss('bandpass', 600, 2000, t, 0.14, 0.06); return sndOsc('square', 220, 330, t + 0.1, 0.1, 0.02); },
+    swing:    function (t) { sndHiss('bandpass', 800, 2500, t, 0.12, 0.05); return sndOsc('sine', 200, 120, t + 0.08, 0.08, 0.035); },
+    bugCatch: function (t) { for (var k = 0; k < 3; k++) sndOsc('sine', k % 2 ? 2800 : 2400, k % 2 ? 2800 : 2400, t + k * 0.04, 0.03, 0.04); return sndPluck(988, t + 0.12, 0.2, 0.2); },
+    bugRare:  function (t) { for (var k = 0; k < 4; k++) sndOsc('sine', k % 2 ? 2800 : 2400, k % 2 ? 2800 : 2400, t + k * 0.04, 0.03, 0.022); return sndPlucks([988, 1245, 1480], t + 0.15, 0.07, 0.16, 0.16); },
+    // ---- 동굴 (stone, with an echo) ----
+    pick:     function (t) { var e = sndCave(); sndHiss('bandpass', 3000, 2500, t, 0.03, 0.06, e); sndOsc('triangle', 260, 170, t, 0.07, 0.045, e); return sndOsc('square', 1300, 1100, t, 0.03, 0.02, e); },
+    ore:      function (t) { var e = sndCave(); for (var k = 0; k < 3; k++) sndHiss('bandpass', 1800 + Math.random() * 1500, 1500, t + k * 0.045, 0.025, 0.09, e); return sndWood(330, t + 0.02, 0.07, 0.06, e); },
+    oreRare:  function (t) { return sndBells([1319, 1568, 1976], t, 0.07, 0.16, 0.045, 3.5, sndCave()); },
+    fossilPart: function (t) { var e = sndCave(); sndWood(240, t, 0.1, 0.08, e); return sndPlucks([494, 740], t + 0.08, 0.09, 0.2, 0.2, e); },
+    fossilDone: function (t) { var e = sndCave(); sndFM(139, 1.4, 4, t, 0.9, 0.04, e); return sndBells([554, 698, 831, 1109], t + 0.05, 0.08, 0.22, 0.035, 3.5, e); },
+    // ---- 사진기·캠핑·반려동물 ----
+    shutter:  function (t) { sndHiss('highpass', 4000, 4000, t, 0.02, 0.1); sndOsc('square', 1800, 1800, t + 0.06, 0.015, 0.02); return sndHiss('bandpass', 2500, 2500, t + 0.06, 0.03, 0.08); },
+    fireLight: function (t) { sndHiss('lowpass', 300, 1500, t, 0.35, 0.1); for (var k = 0; k < 3; k++) sndHiss('bandpass', 3000, 3000, t + 0.15 + k * 0.06, 0.02, 0.012); return t + 0.35; },
+    cookDone: function (t) { sndHiss('highpass', 3000, 5000, t, 0.25, 0.05); return sndWood(660, t + 0.1, 0.08, 0.07); },
+    burnt:    function (t) { sndHiss('highpass', 2000, 1200, t, 0.3, 0.05); return sndPlucks([233, 196], t + 0.08, 0.14, 0.24, 0.24); },
+    petGift:  function (t) { sndOsc('sine', 900, 1300, t, 0.08, 0.045); return sndWood(300, t + 0.1, 0.08, 0.045); },
+    pet:      function (t) { sndOsc('sine', 700, 900, t, 0.06, 0.05); return sndOsc('sine', 900, 1200, t + 0.08, 0.08, 0.05); },
+    donkeyPet: function (t) { sndHiss('lowpass', 500, 300, t, 0.1, 0.05); sndOsc('triangle', 300, 250, t + 0.06, 0.1, 0.045); return sndOsc('triangle', 260, 220, t + 0.18, 0.12, 0.045); },
+    // ---- 잠수 (바다: wide, underwater) ----
+    splash:   function (t) { var w = sndWide(); sndOsc('sine', 400, 120, t, 0.15, 0.08, w); sndHiss('lowpass', 2000, 300, t, 0.4, 0.2, w); return sndDrop(300, t + 0.3, 0.04, w); },
+    diveOut:  function (t) { var w = sndWide(); sndDrop(320, t, 0.06, w); sndDrop(420, t + 0.07, 0.06, w); return sndHiss('lowpass', 300, 2200, t + 0.1, 0.3, 0.26, w); },
+    swim:     function (t) { sndOsc('sine', 220, 150, t + 0.02, 0.12, 0.03); return sndHiss('lowpass', 500, 200, t, 0.22, 0.06); },
+    beep:     function (t) { sndOsc('square', 880, 880, t, 0.05, 0.025); return sndOsc('square', 880, 880, t + 0.1, 0.05, 0.025); },
+    diveBlock: function (t) { var w = sndWide(); sndHiss('lowpass', 300, 150, t, 0.15, 0.12, w); return sndOsc('sine', 90, 50, t, 0.2, 0.12, w); },
+    whoosh:   function (t) { return sndHiss('lowpass', 200, 800, t, 0.35, 0.1, sndWide()); },
+    divePickNew: function (t) { var w = sndWide(); sndDrop(500, t, 0.05, w); return sndPlucks([784, 988, 1175], t + 0.05, 0.07, 0.16, 0.2, w); },
+    divePick: function (t) { var w = sndWide(); sndDrop(450, t, 0.06, w); return sndPluck(587, t + 0.04, 0.2, 0.2, w); },
+    diveSeeNew: function (t) { var w = sndWide(); sndOsc('sine', 440, 660, t, 0.3, 0.05, w); return sndBells([880, 1109], t + 0.2, 0.09, 0.2, 0.04, 3.5, w); },
+    diveSee:  function (t) { return sndOsc('sine', 1200, 1150, t, 0.15, 0.03, sndWide()); },
+    diveLog:  function (t) { var w = sndWide(); sndHiss('bandpass', 3000, 2000, t, 0.1, 0.05, w); return sndWood(330, t + 0.05, 0.09, 0.08, w); },
+    diveTreasure: function (t) { var w = sndWide(); sndFM(185, 1.4, 3, t, 0.8, 0.06, w); return sndBells([740, 932, 1109, 1480], t + 0.08, 0.08, 0.24, 0.045, 3.5, w); },
+    // ---- 갯벌 (mud on the shore: wide) ----
+    trapSet:  function (t) { var w = sndWide(); sndWood(220, t, 0.08, 0.07, w); sndHiss('lowpass', 600, 200, t + 0.05, 0.1, 0.08, w); return sndDrop(260, t + 0.1, 0.05, w); },
+    trapPull: function (t) { var w = sndWide(); sndHiss('bandpass', 1500, 900, t, 0.15, 0.06, w); for (var k = 0; k < 3; k++) sndWood(1800 + k * 400, t + 0.08 + k * 0.05, 0.03, 0.05, w); return t + 0.25; },
+    dig:      function (t) { var w = sndWide(); sndHiss('lowpass', 900, 300, t, 0.12, 0.12, w); return sndOsc('triangle', 120, 80, t, 0.1, 0.1, w); },
+    digFind:  function (t) { var w = sndWide(); sndDrop(420, t + 0.06, 0.07, w); return sndDrop(630, t + 0.12, 0.06, w); },
+    digRare:  function (t) { return sndBells([1245, 1568, 1865], t + 0.06, 0.07, 0.18, 0.045, 3.5, sndWide()); },
+    // ---- 게임장 (마을: bells) ----
+    arcWin:   function (t) { return sndBells([1319, 1760, 1319, 1760, 2217], t, 0.06, 0.12, 0.05, 1.4); },
+    arcLose:  function (t) { sndOsc('square', 160, 150, t, 0.2, 0.025); return sndSeq('triangle', [311, 294, 277], t + 0.05, 0.11, 0.12, 0.08); },
+    hit:      function (t) { sndWood(330, t, 0.06, 0.08); return sndOsc('sine', 1400, 900, t + 0.02, 0.06, 0.04); },
+    moleHog:  function (t) { sndOsc('square', 230, 230, t, 0.06, 0.03); return sndOsc('square', 205, 205, t + 0.08, 0.08, 0.03); },
+    cardPair: function (t) { sndFM(1175, 3.5, 1.2, t, 0.25, 0.04); return sndFM(1568, 3.5, 1.2, t + 0.04, 0.3, 0.04); },
+    cardFlip: function (t) { return sndHiss('bandpass', 2500, 4000, t, 0.05, 0.08); },
+    ballThrow: function (t) { sndHiss('bandpass', 600, 1800, t, 0.12, 0.08); return sndOsc('sine', 400, 700, t, 0.08, 0.05); },
+    slotSpin: function (t) { for (var k = 0; k < 8; k++) sndOsc('square', 1500, 1500, t + k * 0.03, 0.01, 0.01); return sndFM(2093, 1.4, 1.5, t + 0.26, 0.2, 0.018); },
+    // ---- arriving somewhere (place.js): one per place palette ----
+    arriveLand: function (t) { sndHiss('lowpass', 500, 300, t, 0.06, 0.03); sndHiss('lowpass', 500, 300, t + 0.14, 0.06, 0.03); return sndWood(400, t + 0.24, 0.06, 0.025); },
+    arriveWater: function (t) { sndHiss('lowpass', 400, 900, t, 0.3, 0.03); sndDrop(500, t + 0.05, 0.022); return sndDrop(700, t + 0.17, 0.02); },
+    arriveSea: function (t) { var w = sndWide(); sndHiss('lowpass', 300, 1300, t, 0.6, 0.07, w); return sndHiss('highpass', 3000, 2000, t + 0.35, 0.4, 0.012, w); },
+    arriveCave: function (t) { var e = sndCave(); sndOsc('sine', 70, 55, t, 0.4, 0.025, e); return sndDrop(900, t + 0.1, 0.022, e); },
+    arriveTown: function (t) { sndFM(784, 1.4, 2, t, 0.5, 0.02); return sndFM(659, 1.4, 2, t + 0.22, 0.6, 0.018); },
+    arriveIn: function (t) { sndWood(200, t, 0.07, 0.03); return sndOsc('square', 2400, 2400, t + 0.09, 0.012, 0.008); },
+    // ---- 탈것 ----
+    rideGo:   function (t) { sndHiss('bandpass', 400, 1400, t, 0.3, 0.035); return sndFM(2093, 2, 1.5, t + 0.05, 0.3, 0.018); },
+    sight:    function (t) { sndHiss('highpass', 4000, 4000, t, 0.02, 0.08); return sndFM(1568, 3.5, 1, t + 0.04, 0.25, 0.04); },
+    balTap:   function (t) { return sndHiss('bandpass', 1200, 900, t, 0.06, 0.12); },
+    jump:     function (t) { sndOsc('square', 300, 700, t, 0.1, 0.025); return sndOsc('triangle', 300, 700, t, 0.1, 0.06); },
+    sledSwerve: function (t) { return sndHiss('highpass', 2000, 5000, t, 0.15, 0.035); },
+    crash:    function (t) { sndHiss('lowpass', 1200, 200, t, 0.25, 0.09); for (var k = 0; k < 3; k++) sndWood(260 - k * 40, t + k * 0.06, 0.06, 0.045); return t + 0.25; },
+    bump:     function (t) { sndHiss('lowpass', 600, 150, t, 0.1, 0.12); return sndOsc('sine', 110, 70, t, 0.12, 0.12); },
+    rideFail: function (t) { return sndPlucks([392, 349, 311], t, 0.11, 0.18, 0.22); },
+    rideDone: function (t) { sndPlucks([587, 659, 880], t, 0.08, 0.16, 0.2); return sndFM(1175, 3.5, 1.2, t + 0.24, 0.35, 0.04); },
+    flowerPick: function (t) { sndDrop(900, t, 0.06); return sndOsc('sine', 2600, 2600, t + 0.05, 0.08, 0.025); },
+    // ---- 별 잇기 (p = how many stars are joined so far: each one a step up a pentatonic scale) ----
+    star:     function (t, p) {
       var f = 523 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24][Math.max(0, Math.min(10, p || 0))] / 12);
       sndOsc('triangle', f * 2, f * 2, t, 0.06, 0.015);
       return sndOsc('sine', f, f, t, 0.18, 0.06);
     },
-    chime:   function (t) { [523, 784].forEach(function (f) { sndOsc('triangle', f, f, t + 0.3, 0.6, 0.04); }); return sndSeq('sine', [1047, 1319, 1568, 2093], t, 0.08, 0.2, 0.05); },
-    pick:    function (t) { sndOsc('triangle', 180, 90, t, 0.06, 0.06); sndHiss('bandpass', 3500, 3500, t, 0.04, 0.08); sndOsc('square', 1300, 1100, t, 0.04, 0.025); return sndOsc('triangle', 2600, 2400, t, 0.09, 0.03); },
-    sting:   function (t) {
+    chime:    function (t) { [523, 784].forEach(function (f) { sndOsc('triangle', f, f, t + 0.3, 0.6, 0.04); }); return sndBells([1047, 1175, 1568, 1760, 2093], t, 0.07, 0.2, 0.04, 3.5); },
+    starWrong: function (t) { sndOsc('sine', 660, 660, t, 0.12, 0.04); return sndOsc('sine', 622, 600, t + 0.02, 0.16, 0.04); },
+    sting:    function (t) {
       sndOsc('triangle', 110, 55, t, 0.5, 0.12); sndHiss('lowpass', 3000, 200, t, 0.45, 0.14);
       sndSeq('square', [220, 233], t, 0.12, 0.1, 0.03);
       return sndOsc('square', 466, 440, t + 0.24, 0.3, 0.025);
     },
-    puff:    function (t) { return sndHiss('lowpass', 900, 300, t, 0.15, 0.08); },
-    pet:     function (t) { sndOsc('sine', 700, 900, t, 0.06, 0.05); return sndOsc('sine', 900, 1200, t + 0.08, 0.08, 0.05); }
+    // ---- 장난감 ----
+    water:    function (t) { sndHiss('lowpass', 1500, 300, t, 0.15, 0.08); sndDrop(400, t + 0.02, 0.05); return sndDrop(650, t + 0.07, 0.04); },
+    leaves:   function (t) { for (var k = 0; k < 3; k++) sndHiss('bandpass', 3000 + k * 600, 2400, t + k * 0.04 + Math.random() * 0.02, 0.05, 0.06); return t + 0.17; },
+    snowStep: function (t) { sndHiss('bandpass', 1200, 800, t, 0.07, 0.1); return sndHiss('highpass', 4000, 4000, t + 0.02, 0.04, 0.025); },
+    // ---- 마을 음악회 ----
+    // a resident hands over an instrument: three wooden 실로폰 bars up, a bell on top
+    bandGet:  function (t) { [784, 988, 1175].forEach(function (f, k) { sndWood(f, t + k * 0.09, 0.22, 0.05); }); return sndFM(1568, 3.93, 0.8, t + 0.3, 0.6, 0.035); },
+    // an 오카리나 comes up with the junk: a breath, then two soft round notes
+    bandFind: function (t) { sndHiss('bandpass', 1800, 1400, t, 0.12, 0.03); sndOsc('sine', 1047, 1047, t + 0.05, 0.22, 0.07); return sndOsc('sine', 1397, 1397, t + 0.25, 0.45, 0.07); },
+    // the 우쿨렐레 bought: one down-strum
+    bandBuy:  function (t) { return sndPlucks([392, 523, 659, 880], t, 0.022, 0.5, 0.25); },
+    // a tap with no note near it, or a note let go by: a muffled wood knock
+    bandMiss: function (t) { return sndWood(150, t, 0.07, 0.05); },
+    // 마당 연주 over: a strummed cadence
+    bandEnd:  function (t) { sndPlucks([392, 494, 587], t, 0.02, 0.3, 0.2); return sndPlucks([523, 659, 784, 1047], t + 0.28, 0.02, 0.5, 0.22); },
+    // 음악회 over: the audience claps (noise bursts) under a bell chord
+    bandCheer: function (t) {
+      for (var k = 0; k < 16; k++) sndHiss('bandpass', 1400 + Math.random() * 1200, 1100, t + k * 0.055 + Math.random() * 0.03, 0.035, 0.06);
+      return sndBells([784, 988, 1175, 1568], t + 0.1, 0.06, 0.4, 0.03, 3.5);
+    }
   };
   var SND_GAPS = { tick: 150, swim: 700, beep: 300 };
+  // the gap rule is kept per family: each sound that split off an older one shares that one's gap and last-played time, so
+  // whatever the old sound held back (a ★ toast then a stamp, two harvests at once) is still held back the same way
+  var SND_FAM = {
+    tapOpen: 'tap', tapClose: 'tap', tapOk: 'tap', cardFlip: 'tap', balTap: 'tap', diveSee: 'tap',
+    missed: 'lost', chestFail: 'lost', burnt: 'lost', arcLose: 'lost', rideFail: 'lost',
+    junkCatch: 'catch', bugCatch: 'catch', rideDone: 'catch',
+    bugRare: 'catchRare', fossilPart: 'catchRare', oreRare: 'catchRare', divePickNew: 'catchRare', diveSeeNew: 'catchRare',
+    diveTreasure: 'catchLegend',
+    lockPick: 'hit', cardPair: 'hit',
+    lockMiss: 'error', offSeason: 'error', bagFull: 'error', moleHog: 'error', starWrong: 'error',
+    chestOpen: 'level', harvestStar: 'level', forageStar: 'level', stamp: 'level', starNew: 'level', starOpen: 'level', starTitle: 'level',
+    starSet: 'level', fossilDone: 'level', digRare: 'level', arcWin: 'level',
+    fertilize: 'water',
+    forage: 'harvest', ore: 'harvest', cookDone: 'harvest', petGift: 'harvest', divePick: 'harvest', diveLog: 'harvest', trapPull: 'harvest',
+    digFind: 'harvest', flowerPick: 'harvest',
+    sell: 'coin', bankOut: 'coin', till: 'coin', arcPay: 'coin', tip: 'coin', bugFree: 'coin', volPing: 'coin',
+    trapSet: 'plant', dig: 'plant', snowStep: 'plant',
+    diveOut: 'splash',
+    slotSpin: 'whoosh', rideGo: 'whoosh', arriveLand: 'whoosh', arriveWater: 'whoosh', arriveSea: 'whoosh', arriveCave: 'whoosh',
+    arriveTown: 'whoosh', arriveIn: 'whoosh',
+    diveBlock: 'bump', crash: 'bump',
+    sight: 'shutter',
+    netMiss: 'swing', sledSwerve: 'swing', leaves: 'swing',
+    fireLight: 'puff',
+    donkeyPet: 'pet',
+    ballThrow: 'cast',
+    bandGet: 'level', bandFind: 'catchRare', bandBuy: 'buy', bandMiss: 'error', bandEnd: 'chime', bandCheer: 'catchLegend'
+  };
+  // tuned sounds keep their pitch (each 별 a scale step, the 크기 slider's reference ping); only their length varies
+  var SND_TUNED = { star: true, chime: true, volPing: true };
   // soft: a fallback sound (button tap, wallet spend) that stays quiet when something else just played; arg: passed to the sound
   function sfx(name, soft, arg) {
     if (!sndOn || !sfxOn || !sndCtx || sndCtx.state !== 'running' || !SND[name]) return;
-    var p = performance.now();
-    if (p - (sndLast[name] || -1e9) < (SND_GAPS[name] || SND_GAP)) return;
+    var p = performance.now(), fam = SND_FAM[name] || name;
+    if (p - (sndLast[fam] || -1e9) < (SND_GAPS[fam] || SND_GAP)) return;
     if (soft && p - sndAny < SND_SOFT) return;
     var t = sndCtx.currentTime;
     sndEnds = sndEnds.filter(function (e) { return e > t; });
     if (sndEnds.length >= SND_VOICES) return;
-    sndLast[name] = sndAny = p;
-    try { sndEnds.push(SND[name](t + 0.005, arg)); } catch (e) { /* a browser without some node type: stay quiet */ }
+    sndLast[fam] = sndAny = p;
+    sndPlay(name, t + 0.005, arg);
+  }
+  function sndPlay(name, t, arg) {
+    sndP = SND_TUNED[name] ? 1 : 0.97 + Math.random() * 0.06; sndD = 0.9 + Math.random() * 0.2;
+    try { sndEnds.push(SND[name](t, arg)); } catch (e) { /* a browser without some node type: stay quiet */ }
+    sndP = sndD = 1;
+  }
+  // which ★ toast this is (hud.js): '' while there is no sound to play, so a muted game reads nothing
+  var SND_STAR = [['title', /칭호/], ['set', /완성|완결|모든 |완료|다 모았/], ['open', /열렸다|열린다|개통|생겼다|해금|됐다|왔다|샀다|켜졌다|복구|이제 /], ['new', /처음|새 /]];
+  function sndStar(msg) {
+    if (!sndOn || !sfxOn || !sndCtx || sndCtx.state !== 'running') return '';
+    for (var k = 0; k < SND_STAR.length; k++) if (SND_STAR[k][1].test(msg)) return SND_STAR[k][0];
+    return '';
   }
 
   // ---------- 음악: one small loop per time of day (curEnv phase), crossfaded ----------
@@ -9627,29 +10253,29 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   var musOn = (function () { try { return localStorage.getItem(MUS_KEY) !== '0'; } catch (e) { return true; } })();
   var MUS_AHEAD = 1.5, MUS_BUS = 0.3, MUS_DUCK = 0.45, MUS_FADE = 2.5;
   var MUS = {
-    morning: {   // D major, 108 bpm: bright, a little bounce
-      bpm: 108, swing: 0, lead: ['square', 0.022], bassV: 0.07, arpV: 0, form: 'AABC',
+    morning: {   // D major, 108 bpm: bright, a little bounce; 종 (FM bell) lead
+      bpm: 108, swing: 0, lead: ['bell', 0.042], bassV: 0.07, arpV: 0, form: 'AABC',
       bass: 'r . 5 . o . 5 .', arp: '', drum: 'k . h . s . h .',
       A: { ch: 'D Bm G A', mel: 'F#5 . A5 B5 A5 - F#5 . | D5 - F#5 . E5 D5 B4 . | D5 . E5 F#5 G5 - B5 . | A5 - - - E5 - . .' },
       B: { ch: 'G A F#m Bm', mel: 'B5 . A5 G5 F#5 - G5 . | A5 - E5 . C#5 - E5 . | F#5 . E5 F#5 A5 - F#5 . | D5 - F#5 . B4 - - .' },
       C: { ch: 'Em A D D', mel: 'G5 . F#5 E5 D5 - E5 . | C#5 . E5 . A5 - G5 . | F#5 - D5 . A4 . D5 . | D5 - - - . . . .' }
     },
-    day: {       // F major, 88 bpm, swung: relaxed lo-fi sevenths
-      bpm: 88, swing: 0.14, lead: ['triangle', 0.075], bassV: 0.08, arpV: 0.018, form: 'ABAC',
+    day: {       // F major, 88 bpm, swung: relaxed lo-fi sevenths; 기타풍 plucked lead and arp
+      bpm: 88, swing: 0.14, lead: ['pluck', 0.08], voice: { arp: 'pluck' }, bassV: 0.08, arpV: 0.018, form: 'ABAC',
       bass: 'r - - 5 . r 5 .', arp: '. . 3 . . . 7 .', drum: 'k . h . s . h k',
       A: { ch: 'FM7 Am7 Dm7 C', mel: 'A4 - C5 . E5 - D5 C5 | E5 - - . C5 . A4 . | F4 . A4 C5 D5 - C5 . | G4 - - - . . . .' },
       B: { ch: 'BbM7 Am7 Gm7 C', mel: 'D5 - F5 . E5 D5 C5 . | C5 - E5 . A4 - . . | Bb4 . D5 . F5 - E5 D5 | E5 - - - G4 - . .' },
       C: { ch: 'BbM7 C FM7 FM7', mel: 'D5 - F5 . A5 - G5 F5 | E5 - D5 . C5 - . . | A4 . C5 . E5 - C5 . | F5 - - - . . . .' }
     },
-    evening: {   // Eb major, 76 bpm, swung: warm and slow, broken chords underneath
-      bpm: 76, swing: 0.1, lead: ['triangle', 0.07], bassV: 0.08, arpV: 0.014, form: 'ABAC',
+    evening: {   // Eb major, 76 bpm, swung: warm and slow, broken chords underneath; soft pad lead, e-piano arp
+      bpm: 76, swing: 0.1, lead: ['pad', 0.055], voice: { arp: 'epiano' }, bassV: 0.08, arpV: 0.014, form: 'ABAC',
       bass: 'r - - - 5 - - .', arp: 'r 3 5 7 o 7 5 3', drum: 'k . . . s . . h',
       A: { ch: 'EbM7 Cm7 AbM7 Bb', mel: 'G4 - Bb4 - Eb5 - D5 . | C5 - - - G4 - . . | Ab4 . C5 . Eb5 - F5 . | D5 - - - - - . .' },
       B: { ch: 'Gm7 Cm7 Fm7 Bb', mel: 'Bb4 - D5 - F5 - Eb5 . | Eb5 - - - C5 - . . | Ab4 - C5 . F5 - Eb5 D5 | D5 - - - Bb4 - . .' },
       C: { ch: 'AbM7 Bb EbM7 EbM7', mel: 'C5 - Eb5 . Ab5 - G5 F5 | F5 - D5 . Bb4 - . . | G4 . Bb4 . Eb5 - D5 . | Eb5 - - - - - . .' }
     },
-    night: {     // A minor, 62 bpm: sparse, no drums
-      bpm: 62, swing: 0, lead: ['triangle', 0.06], bassV: 0.06, arpV: 0.016, form: 'ABAC',
+    night: {     // A minor, 62 bpm: sparse, no drums; 오르골 (music box) lead and arp, sine bass
+      bpm: 62, swing: 0, lead: ['box', 0.06], voice: { bass: 'sine', arp: 'box' }, bassV: 0.06, arpV: 0.016, form: 'ABAC',
       bass: 'r - - - - - - -', arp: 'r . . 5 . . 7 .', drum: '',
       A: { ch: 'Am7 FM7 Dm7 Em', mel: 'E5 - - - C5 - . . | A4 - - - . . . . | D5 - F5 - E5 - D5 - | B4 - - - - - . .' },
       B: { ch: 'FM7 Em7 Dm7 E', mel: 'C5 - - - A4 - . . | B4 - G4 - . . . . | F4 - A4 - D5 - C5 - | B4 - - - G#4 - . .' },
@@ -9667,16 +10293,21 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     toks.forEach(function (x, i) { if (x === '-') { if (out.length) out[out.length - 1].len++; } else if (x !== '.') out.push({ i: i, len: 1, v: x }); });
     return out;
   }
-  // a track → steps[eighth] = [[kind, hz, eighths, vol]]; built once
+  // a track → steps[eighth] = [[kind, hz, eighths, vol]]; built once.
+  // 마을 음악회: the six instrument lanes go into bsteps[eighth] = [[lane, hz, eighths, vol, instrument id]], apart from
+  // steps, and musStep plays them only for an instrument owned and not muted (L.bndLive), so with no band the tune is
+  // the same call for call. hz is an array of chord notes for the 우쿨렐레 strum.
   function musBuild(tr) {
     if (tr.steps) return tr;
-    var steps = [], bar = 0;
+    var steps = [], bsteps = [], bar = 0, lv = tr.lead[1];
     function add(i, ev) { (steps[i] = steps[i] || []).push(ev); }
+    function addB(i, ev) { (bsteps[i] = bsteps[i] || []).push(ev); }
     tr.form.split('').forEach(function (sec) {
       var S2 = tr[sec], base = bar * 8;
       musHits(musToks(S2.mel)).forEach(function (h) {
         var m = /^([A-G][#b]?)(\d)$/.exec(h.v);
         add(base + h.i, ['lead', musHz(12 * (+m[2] + 1) + musPc(m[1])), h.len, tr.lead[1]]);
+        addB(base + h.i, ['oca', musHz(12 * (+m[2] + 2) + musPc(m[1])), h.len, lv * 0.35, 'ocarina']);
       });
       S2.ch.split(' ').forEach(function (c, b) {
         var m = /^([A-G][#b]?)(m7|M7|m)?$/.exec(c), pc = (musPc(m[1]) + 12) % 12, iv = MUS_CH[m[2] || ''];
@@ -9685,10 +10316,16 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         musHits(musToks(tr.bass)).forEach(function (h) { add(base + b * 8 + h.i, ['bass', musHz(note(h.v, bassRoot)), h.len, tr.bassV]); });
         if (tr.arpV) musHits(musToks(tr.arp)).forEach(function (h) { add(base + b * 8 + h.i, ['arp', musHz(note(h.v, arpRoot)), h.len, tr.arpV]); });
         if (tr.drum) musToks(tr.drum).forEach(function (d, i) { if (d !== '.') add(base + b * 8 + i, [d]); });
+        var at = base + b * 8, tone = function (k) { return musHz(arpRoot + iv[k % iv.length] + (k >= iv.length ? 12 : 0)); };
+        [0, 3, 6].forEach(function (i, k) { addB(at + i, ['drm', k ? 150 : 110, 1, tr.drum ? 0.05 : 0.012, 'drum']); });
+        [0, 1, 2].forEach(function (k) { addB(at, ['hrm', tone(k), 8, 0.006, 'harmonica']); });
+        [1, 3, 5, 7].forEach(function (i, k) { addB(at + i, ['xyl', 2 * tone(k), 1, 0.012, 'xylo']); });
+        addB(at, ['acc', musHz(bassRoot - 12), 8, 0.02, 'accordion']);
+        [2, 6].forEach(function (i) { addB(at + i, ['uke', [0, 1, 2, 3].map(tone), 1, 0.008, 'uke']); });
       });
       bar += 4;
     });
-    tr.steps = steps; tr.n = bar * 8; tr.eighth = 30 / tr.bpm;
+    tr.steps = steps; tr.bsteps = bsteps; tr.n = bar * 8; tr.eighth = 30 / tr.bpm;
     return tr;
   }
   var sndMus = null, musLanes = [], musTrack = '', musForce = null, musDucked = false, musNotes = 0;
@@ -9712,14 +10349,119 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     g2.gain.setValueAtTime(d === 's' ? 0.035 : 0.018, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f); f.connect(g2); g2.connect(dest); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
   }
+  // instruments (dest, Hz, start, length, volume). A track names one per lane: lead[0] for the melody, voice: { lane: name }
+  // for the rest (MUS_VOICE when it says nothing). A lane added to musBuild later only needs its name here and a voice.
+  function musEnv(g, t, vol, attack, hold, end) {
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(Math.max(vol * hold, 0.0001), Math.max(t + attack + 0.01, end - 0.05)); g.gain.linearRampToValueAtTime(0, end);
+  }
+  var MUS_INST = {
+    triangle: function (d, f, t, dur, v) { musVoice(d, 'triangle', f, t, dur, v); },
+    sine: function (d, f, t, dur, v) { musVoice(d, 'sine', f, t, dur, v); },
+    square: function (d, f, t, dur, v) { musVoice(d, 'square', f, t, dur, v); },
+    // 종: FM, the clang (modulator at 3.5×) fading in a quarter second, then a ring past the note
+    bell: function (d, f, t, dur, v) {
+      var c = sndCtx.createOscillator(), m = sndCtx.createOscillator(), mg = sndCtx.createGain(), g = sndCtx.createGain(), end = t + Math.max(dur, 0.25) + 0.45;
+      c.frequency.value = f; m.frequency.value = f * 3.5;
+      mg.gain.setValueAtTime(f * 1.1, t); mg.gain.exponentialRampToValueAtTime(f * 0.03, t + 0.3);
+      musEnv(g, t, v, 0.004, 0.08, end);
+      m.connect(mg); mg.connect(c.frequency); c.connect(g); g.connect(d); c.start(t); m.start(t); c.stop(end + 0.02); m.stop(end + 0.02);
+    },
+    // 기타풍: a sawtooth whose low-pass closes fast after the attack
+    pluck: function (d, f, t, dur, v) {
+      var o = sndCtx.createOscillator(), lp = sndCtx.createBiquadFilter(), g = sndCtx.createGain(), end = t + dur + 0.12;
+      o.type = 'sawtooth'; o.frequency.value = f; lp.type = 'lowpass'; lp.Q.value = 2;
+      lp.frequency.setValueAtTime(Math.min(f * 8, 5000), t); lp.frequency.exponentialRampToValueAtTime(f * 1.3, t + 0.35);
+      musEnv(g, t, v, 0.004, 0.25, end);
+      o.connect(lp); lp.connect(g); g.connect(d); o.start(t); o.stop(end + 0.02);
+    },
+    // 패드: two detuned sawtooths, soft low-pass, slow swell and release
+    pad: function (d, f, t, dur, v) {
+      var lp = sndCtx.createBiquadFilter(), g = sndCtx.createGain(), end = t + dur + 0.35;
+      lp.type = 'lowpass'; lp.frequency.value = 1200; lp.Q.value = 0.5;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + Math.min(0.15, dur * 0.5));
+      g.gain.setValueAtTime(v, t + dur * 0.8); g.gain.linearRampToValueAtTime(0, end);
+      [-6, 6].forEach(function (c) { var o = sndCtx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = c; o.connect(lp); o.start(t); o.stop(end + 0.02); });
+      lp.connect(g); g.connect(d);
+    },
+    // 전자 피아노 (저녁 arp): FM at 1:1, the bite fading
+    epiano: function (d, f, t, dur, v) {
+      var c = sndCtx.createOscillator(), m = sndCtx.createOscillator(), mg = sndCtx.createGain(), g = sndCtx.createGain(), end = t + dur + 0.2;
+      c.frequency.value = f; m.frequency.value = f;
+      mg.gain.setValueAtTime(f * 0.8, t); mg.gain.exponentialRampToValueAtTime(f * 0.05, t + 0.4);
+      musEnv(g, t, v, 0.006, 0.3, end);
+      m.connect(mg); mg.connect(c.frequency); c.connect(g); g.connect(d); c.start(t); m.start(t); c.stop(end + 0.02); m.stop(end + 0.02);
+    },
+    // 오르골: a sine tine with a quick high partial, ringing on past the note
+    box: function (d, f, t, dur, v) {
+      var end = t + Math.max(dur, 0.6) + 0.5, g = sndCtx.createGain(), h = sndCtx.createGain(), o = sndCtx.createOscillator(), o2 = sndCtx.createOscillator();
+      o.frequency.value = f; o2.frequency.value = f * 4.2;
+      musEnv(g, t, v, 0.003, 0.05, end);
+      h.gain.setValueAtTime(v * 0.25, t); h.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+      o.connect(g); o2.connect(h); g.connect(d); h.connect(d); o.start(t); o2.start(t); o.stop(end + 0.02); o2.stop(t + 0.27);
+    },
+    // ---------- 마을 음악회 instruments (bsteps lanes) ----------
+    // 오카리나: a sine with a breathy swell and a slow vibrato
+    ocarina: function (d, f, t, dur, v) {
+      var o = sndCtx.createOscillator(), lfo = sndCtx.createOscillator(), lg = sndCtx.createGain(), g = sndCtx.createGain(), end = t + dur + 0.1;
+      o.frequency.value = f; lfo.frequency.value = 5; lg.gain.value = f * 0.006;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.04); g.gain.setValueAtTime(v, t + dur * 0.8); g.gain.linearRampToValueAtTime(0, end);
+      lfo.connect(lg); lg.connect(o.frequency); o.connect(g); g.connect(d); o.start(t); lfo.start(t); o.stop(end + 0.02); lfo.stop(end + 0.02);
+    },
+    // 작은 북: a short sine thump falling an octave
+    tom: function (d, f, t, dur, v) {
+      var o = sndCtx.createOscillator(), g = sndCtx.createGain();
+      o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.5, t + 0.14);
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      o.connect(g); g.connect(d); o.start(t); o.stop(t + 0.22);
+    },
+    // 하모니카: a reedy square through a low-pass, slow in, held
+    reed: function (d, f, t, dur, v) {
+      var o = sndCtx.createOscillator(), lp = sndCtx.createBiquadFilter(), g = sndCtx.createGain(), end = t + dur + 0.15;
+      o.type = 'square'; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.7;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.12); g.gain.setValueAtTime(v, t + dur * 0.85); g.gain.linearRampToValueAtTime(0, end);
+      o.connect(lp); lp.connect(g); g.connect(d); o.start(t); o.stop(end + 0.02);
+    },
+    // 실로폰: a wooden bar, the tone and its bright 4th partial, quick decay
+    xylo: function (d, f, t, dur, v) {
+      var o = sndCtx.createOscillator(), o2 = sndCtx.createOscillator(), g = sndCtx.createGain(), h = sndCtx.createGain();
+      o.frequency.value = f; o2.frequency.value = f * 3.93;
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      h.gain.setValueAtTime(v * 0.3, t); h.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+      o.connect(g); o2.connect(h); g.connect(d); h.connect(d); o.start(t); o2.start(t); o.stop(t + 0.37); o2.stop(t + 0.1);
+    },
+    // 아코디언: two detuned sawtooths under a low-pass, the bellows breathing a little
+    accord: function (d, f, t, dur, v) {
+      var lp = sndCtx.createBiquadFilter(), g = sndCtx.createGain(), end = t + dur + 0.1;
+      lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 0.5;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.06); g.gain.linearRampToValueAtTime(v * 0.75, t + dur * 0.5);
+      g.gain.linearRampToValueAtTime(v * 0.85, t + dur * 0.85); g.gain.linearRampToValueAtTime(0, end);
+      [-8, 8].forEach(function (c) { var o = sndCtx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = c; o.connect(lp); o.start(t); o.stop(end + 0.02); });
+      lp.connect(g); g.connect(d);
+    },
+    // 우쿨렐레: a quick down-strum, each string a triangle that dies away
+    strum: function (d, fs, t, dur, v) {
+      fs.forEach(function (f, k) {
+        var o = sndCtx.createOscillator(), g = sndCtx.createGain(), t0 = t + k * 0.018;
+        o.type = 'triangle'; o.frequency.value = f;
+        g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+        o.connect(g); g.connect(d); o.start(t0); o.stop(t0 + 0.42);
+      });
+    }
+  };
+  var MUS_VOICE = { bass: 'triangle', arp: 'sine', oca: 'ocarina', drm: 'tom', hrm: 'reed', xyl: 'xylo', acc: 'accord', uke: 'strum' };
   function musStep(ln, t) {
     var tr = ln.tr, len = tr.eighth;
     (tr.steps[ln.step] || []).forEach(function (ev) {
       musNotes++;
-      if (ev[0] === 'lead') musVoice(ln.g, tr.lead[0], ev[1], t, ev[2] * len * 0.95, ev[3]);
-      else if (ev[0] === 'bass') musVoice(ln.g, 'triangle', ev[1], t, ev[2] * len * 0.9, ev[3]);
-      else if (ev[0] === 'arp') musVoice(ln.g, 'sine', ev[1], t, Math.max(2, ev[2]) * len, ev[3]);
-      else musDrum(ln.g, ev[0], t);
+      var k = ev[0], inst = MUS_INST[k === 'lead' ? tr.lead[0] : (tr.voice && tr.voice[k]) || MUS_VOICE[k]];
+      if (!inst) musDrum(ln.g, k, t);
+      else inst(ln.g, ev[1], t, k === 'arp' ? Math.max(2, ev[2]) * len : ev[2] * len * (k === 'bass' ? 0.9 : 0.95), ev[3]);
+    });
+    if (S.band) (tr.bsteps[ln.step] || []).forEach(function (ev) {   // 마을 음악회: owned, unmuted instruments only
+      if (!L.bndLive(S, ev[4])) return;
+      musNotes++;
+      MUS_INST[MUS_VOICE[ev[0]]](ln.g, ev[1], t, ev[2] * len * 0.95, ev[3]);
     });
   }
   // start `name` (or silence for ''), fading every older lane out over MUS_FADE
@@ -9740,7 +10482,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       var lp = sndCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(sndMaster);
       sndMus = sndCtx.createGain(); sndMus.gain.value = volBus('music'); sndMus.connect(lp);
     }
-    var t = sndCtx.currentTime, want = musOn ? (musForce || curEnv(now()).phase) : '';
+    var t = sndCtx.currentTime, want = musOn ? (musForce || bndTrack(curEnv(now()).phase)) : '';   // bndTrack: the phase itself unless a 음악회 is on
     if (want !== musTrack) musSwitch(want);
     var duck = !!(reel || mini || arcOn());
     if (duck !== musDucked) { musDucked = duck; sndMus.gain.setTargetAtTime(volBus('music'), t, 0.4); }
@@ -9816,7 +10558,27 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     frog: function (t, d) { var f = 130 + Math.random() * 60; sndOsc('triangle', f, f * 0.8, t, 0.07, 0.03, d); sndOsc('triangle', f * 1.1, f * 0.85, t + 0.11, 0.08, 0.03, d); },
     owl: function (t, d) { sndOsc('sine', 420, 390, t, 0.25, 0.025, d); sndOsc('sine', 400, 370, t + 0.6, 0.4, 0.02, d); },
     drop: function (t, d) { var f = 1500 + Math.random() * 1500; sndOsc('sine', f, f * 0.6, t, 0.04, 0.012, d); },
-    crackle: function (t, d) { for (var k = 0, n = 1 + Math.floor(Math.random() * 3); k < n; k++) sndHiss('highpass', 2500, 2500, t + k * 0.03, 0.015, 0.03 + Math.random() * 0.04, d); }
+    crackle: function (t, d) { for (var k = 0, n = 1 + Math.floor(Math.random() * 3); k < n; k++) sndHiss('highpass', 2500, 2500, t + k * 0.03, 0.015, 0.03 + Math.random() * 0.04, d); },
+    // 소리 도감 (ui/rec.js): booked only while a 녹음기 is owned and that sound's conditions hold (recAmbAdd); never on their own
+    cuckoo: function (t, d) { sndOsc('sine', 740, 700, t, 0.22, 0.03, d); sndOsc('sine', 590, 560, t + 0.3, 0.32, 0.03, d); },
+    woodpk: function (t, d) { for (var k = 0, n = 8 + Math.floor(Math.random() * 6); k < n; k++) sndOsc('triangle', 900, 500, t + k * 0.055, 0.02, 0.03, d); },
+    oriole: function (t, d) { [1300, 1700, 1500, 2000].forEach(function (f, k) { sndOsc('sine', f, f * 1.1, t + k * 0.13, 0.11, 0.022, d); }); },
+    gull: function (t, d) { for (var k = 0; k < 3; k++) { sndOsc('sawtooth', 1500, 1000, t + k * 0.28, 0.2, 0.008, d); sndOsc('sine', 1500, 1000, t + k * 0.28, 0.2, 0.02, d); } },
+    bigcicada: function (t, d) { for (var k = 0; k < 14; k++) sndOsc('square', 2600, 2500, t + k * 0.07, 0.05, 0.006 + (k < 7 ? k : 14 - k) * 0.001, d); },
+    bellbug: function (t, d) { for (var k = 0; k < 4; k++) sndOsc('sine', 4100, 4100, t + k * 0.16, 0.12, 0.012, d); },
+    toad: function (t, d) { sndOsc('square', 260, 230, t, 0.12, 0.01, d); sndOsc('triangle', 260, 230, t, 0.12, 0.03, d); sndOsc('triangle', 300, 250, t + 0.3, 0.12, 0.03, d); },
+    kingfish: function (t, d) { sndOsc('sine', 3200, 3600, t, 0.06, 0.02, d); sndOsc('sine', 600, 200, t + 0.12, 0.12, 0.03, d); sndHiss('lowpass', 2000, 400, t + 0.12, 0.3, 0.06, d); },
+    scops: function (t, d) { sndOsc('sine', 980, 940, t, 0.14, 0.02, d); sndOsc('sine', 980, 900, t + 0.22, 0.2, 0.02, d); },
+    trickle: function (t, d) { for (var k = 0; k < 4; k++) { var f = 900 + Math.random() * 900; sndOsc('sine', f, f * 1.4, t + k * 0.09, 0.05, 0.01, d); } },
+    fall: function (t, d) { sndHiss('lowpass', 900, 700, t, 2.5, 0.05, d); sndHiss('bandpass', 2500, 2000, t, 2.5, 0.02, d); },
+    bubble: function (t, d) { for (var k = 0; k < 5; k++) { var f = 300 + Math.random() * 300; sndOsc('sine', f, f * 1.8, t + k * 0.12 + Math.random() * 0.05, 0.05, 0.03, d); } },
+    surf: function (t, d) { sndHiss('lowpass', 400, 1600, t, 1.2, 0.07, d); sndHiss('highpass', 3000, 2000, t + 0.8, 1.4, 0.02, d); },
+    whale: function (t, d) { sndOsc('sine', 220, 330, t, 1.4, 0.03, d); sndOsc('sine', 330, 180, t + 1.4, 1.6, 0.025, d); },
+    whistle: function (t, d) { sndOsc('triangle', 660, 640, t, 0.9, 0.02, d); sndOsc('triangle', 830, 800, t, 0.9, 0.015, d); },
+    boom: function (t, d) { sndOsc('sine', 120, 45, t, 0.5, 0.06, d); sndHiss('lowpass', 1200, 200, t, 0.6, 0.08, d); sndHiss('highpass', 4000, 4000, t + 0.4, 0.5, 0.015, d); },
+    windbell: function (t, d) { [2093, 2637, 3136].forEach(function (f, k) { sndOsc('sine', f, f, t + k * 0.11 + Math.random() * 0.05, 1.1, 0.012, d); }); },
+    crunch: function (t, d) { for (var k = 0; k < 3; k++) sndHiss('bandpass', 1500, 900, t + k * 0.38, 0.12, 0.05, d); },
+    mist: function (t, d) { [523, 659, 784, 659, 880].forEach(function (f, k) { sndOsc('sine', f, f, t + k * 0.35, 0.6, 0.02, d); sndOsc('triangle', f / 2, f / 2, t + k * 0.35, 0.6, 0.008, d); }); }
   };
   // what should be playing now: { lay: { layer: level }, ev: { one-shot: per second } }
   function ambWant() {
@@ -9866,6 +10628,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     }
     var t = sndCtx.currentTime, w = ambNow = ambWant(), id;
+    recAmbAdd(w);   // 소리 도감: adds its own one-shots only (a 녹음기 owned, 환경음 on); the ones above are untouched
     for (id in AMB_LAYERS) {
       var lv = w.lay[id] || 0, ly = ambLive[id];
       if (!ly && !lv) continue;
@@ -9877,6 +10640,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     }
     for (id in w.ev) {   // about rate × 0.5s of each one-shot this tick, at random moments in the next half second
       var c = w.ev[id] * AMB_DT, k = Math.floor(c) + (Math.random() < c % 1 ? 1 : 0);
+      if (k > 0) recHeard(id);   // 소리 도감: a ♪ chip when it is a sound you can record here
       while (k-- > 0) AMB_EV[id](t + 0.05 + Math.random() * AMB_DT, sndAmb);
     }
   }
@@ -9923,8 +10687,18 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return false;
     return e.code === 'KeyM' || (typeof e.key === 'string' && (e.key.toLowerCase() === 'm' || e.key === 'ㅡ'));
   }
-  // any button press that made no sound of its own gets a soft click (bubble phase: after the button's own handler)
-  function sndClick(e) { var b = e.target && e.target.closest && e.target.closest('button,label'); if (b && !b.disabled) sfx('tap', true); }
+  // any button press that made no sound of its own gets a soft click (bubble phase: after the button's own handler): a sheet
+  // opening (the header buttons), closing (닫기 · ✕ · 그만), a purchase or confirm (a price, 사기·짓기·받기…), or a plain tap.
+  // The button is not even looked at while there is no sound to play.
+  var SND_OPEN_IDS = { bagBtn: 1, shopBtn: 1, dexBtn: 1, clockBtn: 1, setBtn: 1, pipBtn: 1, sceneBtn: 1 };
+  var SND_CLOSE = /^(닫기|✕|×|그만)/, SND_OK = /^[\d,]+$|코인|사기|짓기|받기|팔기|기증|개통|고치기|확인|넣기|맡기/;
+  function sndClick(e) {
+    if (!sndOn || !sfxOn || !sndCtx) return;
+    var b = e.target && e.target.closest && e.target.closest('button,label');
+    if (!b || b.disabled || b.closest('#band .pads')) return;   // 마을 음악회 pads sound their own note
+    var x = (b.textContent || '').trim(), k = SND_OPEN_IDS[b.id] ? 1 : SND_CLOSE.test(x) ? 2 : SND_OK.test(x) ? 3 : 0;
+    sfx(k === 1 ? 'tapOpen' : k === 2 ? 'tapClose' : k === 3 ? 'tapOk' : 'tap', true);
+  }
   // ---------- tray (seed shop) ----------
   var TRAY = L.SEEDS.concat(['gold', 'fert']);
   var trayBtns = {}, trayPage = 0, PAGE = 3;
@@ -10052,6 +10826,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function refresh() { renderTray(); save(); updateTitle(); }
 
   function onKeyDown(e) {
+    if (bndKey(e)) return;   // 마을 음악회 overlay: Esc, lane keys (false when it is closed)
     if (e.key === 'Escape') {
       e.preventDefault();
       if (closeSceneMenu()) { sceneBtn.focus(); return; }   // Esc first closes the 이동 list
@@ -10227,7 +11002,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!hv) return;
     var extra = won ? L.premiumHarvest(S, hv) : 0;
     burst(r.x + 22, r.y + 14, won ? 18 : 10, won ? 4 : 3, won ? 80 : 60);
-    fxHarvest(r.x + 22, r.y + 16, iconCanvas(hv.crop), won);   // stage 8 ④: pop, dirt, ×2 ×3
+    fxHarvest(r.x + 22, r.y + 16, iconCanvas(hv.crop), won, hv.crop);   // stage 8 ④: pop, dirt, ×2 ×3
     if (hv.sold) fxCoins(r.x + 22, r.y + 6, hv.sold + extra);
     floatText(hv.sold ? '+' + (hv.sold + extra) : (won ? '★' : '+') + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
     if (hv.boom) floatText('대풍년 +' + hv.boom, r.x + 22, r.y - 6);   // stage 8
@@ -10261,14 +11036,14 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (L.isReady(p)) { if (!bagStop()) holdHarvest(i, r); return true; }   // stage 5A: a tap harvests on release, a long hold is the 도전
       if (S.sel === 'fert') {
         if (!p.crop) { toast('비료는 자라는 작물에 · 씨앗을 골라 심어요'); return true; }
-        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); sfx('water'); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
+        if (L.fertilize(S, i, t)) { burst(r.x + 22, r.y + 18, 8, 2, 40); sfx('fertilize'); toast('비료 · ' + L.CROPS[p.crop].name + ' 두 배로 자란다'); }
         else toast(p.fert ? '이미 비료를 줬어요' : '비료가 없어요');
         refresh(); return true;
       }
       if (!p.crop) {
         var id = S.sel;
         if (L.plant(S, i, id, t, curEnv(t).season)) { sfx('plant'); burst(r.x + 22, r.y + 20, 5, 2, 30); floatText(id === 'gold' ? '★' : '-' + L.CROPS[id].cost, r.x + 22, r.y + 6); }
-        else if (!seedInSeason(id)) { sfx('error'); toast(L.CROPS[id].name + '는 ' + L.SEASON_NAME[L.CROPS[id].season] + '에만 심을 수 있어요'); }
+        else if (!seedInSeason(id)) { sfx('offSeason'); toast(L.CROPS[id].name + '는 ' + L.SEASON_NAME[L.CROPS[id].season] + '에만 심을 수 있어요'); }
         else { toast('코인이 부족해요'); var tb = trayBtns[id].b; tb.classList.remove('shake'); void tb.offsetWidth; tb.classList.add('shake'); }
         refresh(); return true;
       }
@@ -10341,7 +11116,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       milestones();
     } else {
       L.loseFish(S);
-      sfx(res === 'snap' ? 'snap' : 'lost');
+      sfx(res === 'snap' ? 'snap' : 'lost'); hapt(120);   // 진동: one thud
       toast(res === 'snap' ? '툭… 줄이 끊어졌다' : (f.power >= 1.6 ? '묵직한 녀석이 도망갔다…' : '도망갔다…'), 2600);
       burst(reelVis.x, reelVis.y, 6, 2, 40);
     }
@@ -10549,8 +11324,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function tickFishing(t) {
     if (!reel) {
       var f = L.updateFishing(S, t, Math.random, SPEED, curEnv(t));
-      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('lost'); }
-      if (f === 'bite') { sfx('bite'); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
+      if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('missed'); }
+      if (f === 'bite') { sfx('bite'); hapt([40, 60, 40]); burst(S.fish.x, S.fish.y, 6, 0, 45); shake = Math.max(shake, 1); }
       if (f && f !== 'nibble') save();
     }
   }
@@ -10560,7 +11335,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (reel) {
       var held = holdPointer || holdSpace;
       var rs = L.reelStep(reel, dt, held, Math.random);
-      if (held && reel.tension > 0.6) sfx('tick');   // 소리: the line creaks when it is close to snapping
+      if (held && reel.tension > 0.6) { sfx('tick'); hapt(25, 800); }   // 소리: the line creaks when it is close to snapping
       var pulling = reel.burst > 0, warning = reel.warn > 0, ev = reel.ev;
       var jumping = pulling && ev === 'jump', digging = pulling && ev === 'sound', running = pulling && ev === 'run', turning = running && reel.turn > 0;
       if (pulling && !reelVis.pulling) { burst(reelVis.x, reelVis.y - 1, 14, 0, 90); shake = Math.max(shake, jumping ? 3 : 2.5); }
@@ -11458,6 +12233,26 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (got.length) setTimeout(function () { toast('★ ' + MS_TOAST[got[got.length - 1]], 4000); fxStamp(toastEl); }, 1400);   // stage 8 ④: stamp
   }
 
+  // ---------- 진동: navigator.vibrate buzzes beside a few sfx calls (bite, snap, bumps, ...), never in logic/ ----------
+  // hapt(pattern, minGap) is a silent no-op without navigator.vibrate (iOS Safari, desktop) or with ⚙ 설정 「진동」 off.
+  // On/off lives in localStorage, not in the save. Buzzes never stack: at least HAPT_GAP ms apart (minGap widens it).
+  var HAPT_KEY = 'farmfish.vibe', HAPT_GAP = 150, haptLast = -1e9;
+  var haptOn = (function () { try { return localStorage.getItem(HAPT_KEY) !== '0'; } catch (e) { return true; } })();
+  function haptOK() { try { return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'; } catch (e) { return false; } }
+  function hapt(pattern, minGap) {
+    try {
+      if (!haptOn || !haptOK()) return;
+      var t = performance.now();
+      if (t - haptLast < (minGap || HAPT_GAP)) return;
+      haptLast = t;
+      navigator.vibrate(pattern);
+    } catch (e) { /* no buzz */ }
+  }
+  function haptSet(on) {
+    haptOn = on;
+    try { localStorage.setItem(HAPT_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: setting lasts this session */ }
+    if (on) hapt(30);
+  }
   // ---------- 설정: ⚙ in the header → one panel: 전체·효과음·음악·환경음 on/off + 크기, 작게 띄우기 ----------
   // Everything here lives in localStorage (sound.js, pip.js), never in the save. M stays the quick 전체 on/off (sndShow
   // keeps #setSnd in step). The panel sits inside #app like 도감, so it travels into the PiP window too.
@@ -11479,6 +12274,16 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     setVolRow('setSfx', sfxOn, '효과음', '낚시·수확·버튼 소리 · 끌어 보면 들려요', sfxSet, 'sfx');
     setVolRow('setMus', musOn, '음악', '시간마다 바뀌는 배경 음악', musSet, 'music');
     setVolRow('setAmb', ambOn, '환경음', '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요', ambSet, 'ambient');
+    bndSettings();   // 마을 음악회: 악기마다 켜고 끄기 (only once one is owned)
+    if (haptOK()) {   // 진동: only where the browser can buzz
+      h3 = document.createElement('h3'); h3.textContent = '진동'; setEl.appendChild(h3);
+      var vl = document.createElement('label'); vl.className = 'setRow';
+      var vc = document.createElement('input'); vc.type = 'checkbox'; vc.checked = haptOn;
+      vc.addEventListener('change', function () { haptSet(vc.checked); });
+      var vt = document.createElement('span'); vt.textContent = '진동';
+      var vs = document.createElement('small'); vs.textContent = '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만'; vt.appendChild(vs);
+      vl.appendChild(vc); vl.appendChild(vt); setEl.appendChild(vl);
+    }
     if (!pipOK) return;
     h3 = document.createElement('h3'); h3.textContent = '작은 창'; setEl.appendChild(h3);
     var lb = document.createElement('label'); lb.className = 'setRow';
@@ -11504,7 +12309,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     function show() { var p = rg.value + '%'; out.textContent = p; rg.setAttribute('aria-valuetext', p); rg.style.setProperty('--p', p); }
     rg.addEventListener('input', function () {
       volSet(k, +rg.value); show();
-      if (k === 'sfx' && performance.now() - setPing > 150) { setPing = performance.now(); sfx('coin'); }   // hear the level while dragging
+      if (k === 'sfx' && performance.now() - setPing > 150) { setPing = performance.now(); sfx('volPing'); }   // hear the level while dragging
     });
     show();
     row.appendChild(rl); row.appendChild(rg); row.appendChild(out); box.appendChild(row); setEl.appendChild(box);
@@ -11567,6 +12372,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     renderStage7BShop(); // stage 7: 곡괭이·만들기·망원경
     renderStage6Shop(); // stage 6A: 잠자리채
     renderCameraShop(); // stage 7: 사진기
+    recShop();    // 소리 도감: 녹음기
+    bndShop();    // 마을 음악회: 악기 (only once one is owned)
     renderRideShop();   // stage 9 ③: 자전거
     renderScareShop();  // stage 10 ②: 허수아비 꾸미기
     function row(id, nameHtml, sub, cost) {
@@ -11769,7 +12576,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // 자동 판매 끔 and full: new catches/harvests wait (they stay in the pond/field/tree)
   function bagStop() {
     if (!L.bagBlocked(S)) return false;
-    sfx('error');
+    sfx('bagFull');
     toast('바구니가 꽉 찼어요 · 바구니에서 팔 것을 골라요', 2600); return true;
   }
   function tapPot() {
@@ -13213,16 +14020,17 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var head = dexEl.querySelector('h2');
     if (!head) return;
     var tabs = document.createElement('div'); tabs.className = 'tabs'; tabs.setAttribute('role', 'group');
-    [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].forEach(function (tb) {
+    [['guide', guideTabLabel()], ['dex', '도감'], ['rec', '기록 ' + L.eggCount(S) + '/' + L.EGGS.length], ['friend', '친구']].concat(L.recOk(S) ? [['snd', '소리']] : []).forEach(function (tb) {   // 소리 도감: only once a 녹음기 is owned
       var b = document.createElement('button'); b.type = 'button'; b.textContent = tb[1];
       b.setAttribute('aria-pressed', String(dexTab === tb[0]));
       b.addEventListener('click', function () { dexTab = tb[0]; renderDex(); decorateDex(); dexEl.scrollTop = 0; });
       tabs.appendChild(b);
     });
     head.after(tabs);
-    if (dexTab !== 'rec' && dexTab !== 'friend' && dexTab !== 'guide') return;
+    if (dexTab === 'snd' && !L.recOk(S)) dexTab = 'dex';
+    if (dexTab !== 'rec' && dexTab !== 'friend' && dexTab !== 'guide' && dexTab !== 'snd') return;
     while (tabs.nextSibling) tabs.nextSibling.remove();
-    if (dexTab === 'guide') renderGuide(); else if (dexTab === 'rec') renderRecords(); else renderShare();   // stage 4: 친구 기록 비교
+    if (dexTab === 'snd') recDex(); else if (dexTab === 'guide') renderGuide(); else if (dexTab === 'rec') renderRecords(); else renderShare();   // stage 4: 친구 기록 비교
   }
   dexBtn.addEventListener('click', decorateDex);
   function recRow(icon, name, sub, val, unk) {
@@ -13562,7 +14370,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       [['100', bal >= 100 ? 100 : 0], ['1,000', bal >= 1000 ? 1000 : 0], ['전부', bal]], function (n) {
         var res = L.bankTake(S, n, now(), TZ);
         if (!res.ok) { toast(BANK_WHY[res.why]); renderBank(); return; }
-        toast(res.n.toLocaleString('ko-KR') + '코인 찾았다'); fxCoinsDom(sheetEl.querySelector('.wallet')); refresh(); save(); renderBank();
+        toast(res.n.toLocaleString('ko-KR') + '코인 찾았다'); fxCoinsDom(sheetEl.querySelector('.wallet'), 'bank'); refresh(); save(); renderBank();
       });
     var p = document.createElement('p'); p.className = 'note';
     p.textContent = '현실 하루(자정)마다 이자 ' + rate + '% (소수점 버림) · ' + L.BANK_CAP.toLocaleString('ko-KR') + '코인까지 · 오래 비워도 이자는 ' +
@@ -14104,7 +14912,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var g = L.takePetGift(S, t, TZ, L.forestOk(S) ? fEnv(t) : null, Math.random);
     if (g) {
       petHearts.push({ x: p.x, y: p.y, t: 0 });
-      burst(p.x, p.y - 8, 8, 0, 40); sfx('harvest');
+      burst(p.x, p.y - 8, 8, 0, 40); sfx('petGift');
       toast(josa(nm, '이', '가') + ' 선물을 물고 왔다 · ' + L.itemInfo(g.id).name + (g.sold ? ' · 바구니가 꽉 차 팔았다 +' + g.sold : ' · 바구니에'), 2800);
       refresh(); return true;
     }
@@ -14223,7 +15031,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!id) return false;
     var out = L.landJunk(S, id, Math.random);
     tmapAfter('junk'); if (id === 'letter') rumorAfter('letter');   // stage 8 ③
-    burst(f.x, f.y, 8, 0, 50); sfx('catch');
+    bndAfterJunk('junk');   // 마을 음악회: 오카리나, after the junk and every old roll (no rng)
+    burst(f.x, f.y, 8, 0, 50); sfx('junkCatch');
     floatText('+' + L.junkById(id).name, ROD_BASE.x, ROD_BASE.y - 16);
     showJunk(out);
     refresh();
@@ -14369,8 +15178,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!mini || mini.done) return;
     if (mini.kind === 'pick') {
       var r = L.pickTap(mini.g, mini.t);
-      if (r === 'hit') { burstMini(); sfx('hit'); }
-      if (r === 'miss') sfx('error');
+      if (r === 'hit') { burstMini(); sfx('lockPick'); }
+      if (r === 'miss') sfx('lockMiss');
       if (r === 'miss') miniTip.textContent = '아깝다 · 한 번 더 놓치면 그냥 열려요';
       if (r === 'ok' || r === 'fail') endMini(r);
     } else { L.heatTap(mini.g); sfx('puff'); }
@@ -14396,10 +15205,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var m = mini;
     m.done = 0.9;
     miniTip.textContent = r === 'ok' ? '성공!' : '괜찮아요 · 평소대로 받아요';
-    sfx(r === 'ok' ? 'level' : 'lost');
+    sfx(r === 'ok' ? 'chestOpen' : 'chestFail');
     if (m.kind === 'pick') {
       var res = L.openChest(S, Math.random, r === 'ok' ? 1 : 0);
       chestResult(res, r === 'ok');
+      if (res) bndAfterJunk('chest');   // 마을 음악회: 오카리나, after the chest is already opened (no rng)
     } else finishHeat(r === 'ok');
     drawMini();
   }
@@ -15111,14 +15921,15 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     }
     if (L.bugJudge(bug.fl, p) !== 'catch') {
       bug.flee = { x: q.x, y: q.y, t: p, dx: q.x < 90 ? -1 : 1 };
-      sfx('swing');
+      sfx('netMiss');
       if (bugMissTips++ < 3) toast('휙 날아갔다 · 앉아서 날개를 접었을 때 눌러요', 2200);
       return true;
     }
     var id = bug.id, c = L.catchBug(S, id);
     bug = null; bugNextAt = p + 20e3 + Math.random() * 30e3;
     burst(q.x, q.y - 3, 10, 0, 40);
-    sfx('swing'); sfx(L.bugById(id).rarity === '흔함' ? 'catch' : 'catchRare');
+    var plain = L.bugById(id).rarity === '흔함';
+    sfx('swing'); sfx(plain ? 'bugCatch' : 'bugRare');
     showBugCard(id, c);
     refresh();
     return true;
@@ -15157,7 +15968,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (k.ok) toast(b.name + ' · 표본 상자에 넣었다' + (k.gift ? ' · 집 안에 표본 상자가 생겼다' : ''), 2800);
       else choice = 'release';
     }
-    if (choice === 'release') { sfx('coin'); var got = L.releaseBug(S, pd.id); floatText('+' + got, 90, 90); toast(josa(b.name, '을', '를') + ' 놓아주었다 · 고맙다며 +' + got, 2200); }
+    if (choice === 'release') { sfx('bugFree'); var got = L.releaseBug(S, pd.id); floatText('+' + got, 90, 90); toast(josa(b.name, '을', '를') + ' 놓아주었다 · 고맙다며 +' + got, 2200); }
     refresh();
   }
 
@@ -15829,7 +16640,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (!td.low) {
         if (p) { toast('통발 · 썰물이 되면 걷어요 · 지금 ' + L.trapCount(p, t) + '마리쯤 (최대 ' + L.TRAP_CAP + ')', 2400); return true; }
         if (!L.setTrap(S, k, t, TZ, td).ok) return true;
-        burst(sp[0], sp[1] - 6, 8, 0, 40); sfx('plant');
+        burst(sp[0], sp[1] - 6, 8, 0, 40); sfx('trapSet');
         toast('통발을 놓았다 · 물이 빠지면 걷으러 와요', 2400); refresh();
         return true;
       }
@@ -15838,7 +16649,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       var r = L.pullTrap(S, k, t, Math.random, TZ, td);
       if (!r) return true;
       if (!r.got.length) { toast('통발이 아직 비었다 · 밀물이 한 번 더 지나면', 2200); return true; }
-      burst(sp[0], sp[1] - 6, 12, 3, 50); sfx('harvest');
+      burst(sp[0], sp[1] - 6, 12, 3, 50); sfx('trapPull');
       floatText('+' + r.got.length, sp[0], sp[1] - 16);
       toast('통발을 걷었다 · ' + r.got.map(function (id) { return L.flatById(id).name; }).join(', ') + (r.sold ? ' · 꽉 차서 바로 팔았다 +' + r.sold : ''), 3000);
       refresh();
@@ -15868,7 +16679,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var f = L.flatById(r.id);
     flatLastDug = { id: r.id, at: performance.now() };
     burst(c.x, c.y + 8, won ? 16 : 8, won ? 4 : 3, won ? 70 : 40);
-    sfx('plant'); sfx(won ? 'level' : 'harvest');   // 소리: 삽질, then the find
+    sfx('dig'); sfx(won ? 'digRare' : 'digFind');   // 소리: 삽질, then the find
     floatText((won ? '★' : '+') + f.name + (r.n > 1 ? '×' + r.n : ''), c.x, c.y - 6);
     var tail = r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : r.first ? ' · 갯벌 도감 등록!' : ' · 바구니에';
     if (won) toast('도전 성공! ' + f.name + (r.n > 1 ? ' 두 개' : ' 하나 · 이번엔 덤이 없었다') + tail, 2600);
@@ -16245,9 +17056,10 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     tmapAfter('cave');   // stage 8 ③
     var rr = cellRect(c.k);
     sfx('pick');
-    if (r.done || (r.more && r.more.done)) sfx('level');
-    else if ((r.kind === 'part' && !r.dup) || (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함')) sfx('catchRare');
-    else sfx('harvest');
+    if (r.done || (r.more && r.more.done)) { sfx('fossilDone'); hapt([50, 50, 50, 50, 120], 400); }
+    else if (r.kind === 'part' && !r.dup) { sfx('fossilPart'); hapt([40, 50, 40], 400); }
+    else if (r.kind !== 'part' && L.oreById(r.id).rarity !== '흔함') { sfx('oreRare'); hapt(25); }
+    else { sfx('ore'); hapt(25); }   // 진동: pickaxe on a mineral
     burst(rr[0] + rr[2] / 2, rr[1] + rr[3] / 2, won ? 16 : 9, won ? 0 : 2, won ? 70 : 45);
     var parts = [mineText(r)];
     if (r.more) parts.push(mineText(r.more));
@@ -16489,7 +17301,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var k = L.starAt(g, (x - 14) / 1.26, (y - 44) / 1.4, 9);
     if (k < 0) return;
     var r = L.starTap(g, k), st = g.stars[k];
-    if (r === 'wrong') { sfx('error'); toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
+    if (r === 'wrong') { sfx('starWrong'); toast(g.wrong >= 2 ? '깜빡이는 별을 눌러 봐요' : '음… 그 별이 아닌 것 같다', 1400); return; }
     burst(chartX(st.x), chartY(st.y), r === 'done' ? 18 : 4, 0, r === 'done' ? 70 : 24);
     sfx(r === 'done' ? 'chime' : 'star', false, g.step - 1);   // 소리: each star a step higher, the whole shape a chime
     if (r !== 'done') return;
@@ -17268,6 +18080,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       p.textContent = cnt.n >= cnt.m ? '이 전시실은 가득 찼어요' : (can.length ? '' : '지금 기증할 수 있는 게 없어요 · ') + '아직 못 구한 것 ' + left + '개 · 힌트는 도감에';
       sheetEl.appendChild(p);
     });
+    recAnnex();   // 소리 도감: 별관 소리실 (not one of the six rooms; only with a 녹음기)
     var titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S));
     var p2 = document.createElement('p'); p2.className = 'note';
     p2.textContent = (titles.length ? '칭호: ' + titles.join(' · ') + ' · ' : '') + '기증해도 도감 기록은 그대로 · 바구니 물건은 하나만 빠져요';
@@ -17399,7 +18212,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   // boss phase change: shake, splash, and a blinking frame drawn by drawReelFrame
   function bossPhaseFx() {
-    sfx('sting');
+    sfx('sting'); hapt([70, 40, 70]);   // 진동: the boss lands a blow
     fxShake(5);
     burst(reelVis.x, reelVis.y, 20, 0, 110);
   }
@@ -17837,7 +18650,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function donkeyPetNow(at) {
     var r = L.donkeyPet(S, now(), TZ);
     if (!r) return;
-    donkeyHearts.push({ x: at.x, y: at.y, t: 0 }); sfx('pet');
+    donkeyHearts.push({ x: at.x, y: at.y, t: 0 }); sfx('donkeyPet');
     var nm = S.donkey.name;
     if (r.up) toast('♥ ' + nm + ' 친밀도 ' + r.up + ' · ' + L.DONKEY_ACTS[r.up], 3600);
     else toast(nm + ' · 귀를 쫑긋' + (r.gain ? '' : ' · 오늘은 충분히 쓰다듬었다'), 1500);
@@ -18418,9 +19231,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     ride.taps.push(ride.t);
     if (ride.kind === 'bal') {
       var seen = L.balloonJudge(ride.lay, [ride.t]);
-      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; sfx('shutter'); }
-      else sfx('tap');
-    } else sfx(ride.kind === 'bike' ? 'jump' : 'swing');   // 자전거 점프, 썰매 옆 줄로
+      if (seen.length && ride.seen.indexOf(seen[0]) < 0) { ride.seen.push(seen[0]); ride.flash = 0.35; rideTip.textContent = L.sightById(seen[0]).name + '!'; sfx('sight'); }
+      else sfx('balTap');
+    } else sfx(ride.kind === 'bike' ? 'jump' : 'sledSwerve');   // 자전거 점프, 썰매 옆 줄로
   }
   function startRide(kind, lay, title, tip, extra) {
     ride = { kind: kind, lay: lay, taps: [], t: 0, done: 0, flash: 0, seen: [], season: curEnv(now()).season };
@@ -18428,7 +19241,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     rideTitle.textContent = title; rideTip.textContent = tip;
     rideMenu.hidden = true; rideCv.hidden = false;
     rideStop.textContent = kind === 'bike' ? '그만 타기 (납품은 그대로)' : '그만 타기';
-    showRide(); drawRide(); sfx('whoosh');
+    showRide(); drawRide(); sfx('rideGo');
   }
 
   // ---------- 자전거 배달: 납품 first, then the ride for a tip ----------
@@ -18468,11 +19281,11 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     ride.t += dt; ride.flash = Math.max(0, ride.flash - dt);
     if (ride.kind === 'bike') {
       var b = L.bikeRun(ride.lay, ride.taps, ride.t);
-      if (b.crash) { sfx('bump'); endRide(false); return; }
+      if (b.crash) { sfx('crash'); hapt(120); endRide(false); return; }
     }
     if (ride.kind === 'sled') {
       var sr = L.sledRun(ride.lay, ride.taps, ride.t);
-      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; sfx('bump'); }
+      if (sr.bumps > (ride.bumps || 0)) { ride.bumps = sr.bumps; ride.flash = 0.3; sfx('bump'); hapt(60); }
     }
     if (ride.t >= rideLen()) endRide(false);
     drawRide();
@@ -18486,7 +19299,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       m.crash = run.crash;
       var f = L.bikeFinish(S, m.pay, run);
       msg = run.crash ? (quit ? '걸어서 갔다 · 납품은 그대로' : '꽈당! · 괜찮아요, 납품은 그대로') : '무사히 배달! · 팁 +' + f.tip + (run.flowers ? ' · 꽃 ' + run.flowers : '');
-      if (f && f.tip) fxCoinsDom(rideTitle);
+      if (f && f.tip) fxCoinsDom(rideTitle, 'tip');
     } else if (m.kind === 'sled') {
       if (quit) msg = '썰매에서 내렸다';
       else {
@@ -18501,7 +19314,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       msg = (seen.length ? '본 것 ' + seen.length + '가지' : '구름 사이를 둥실') + (out.first.length ? ' · 새로 ' + out.first.length + ' (+' + out.coins + ')' : '') +
         (out.all ? ' · 하늘 도감 완성!' : '') + (shot ? ' · 앨범 +' + shot : '');
     }
-    if (!quit) sfx(m.kind === 'bike' && m.crash ? 'lost' : 'catch');   // 소리: the ride's result (신기록·팁 add their own)
+    if (!quit) sfx(m.kind === 'bike' && m.crash ? 'rideFail' : 'rideDone');   // 소리: the ride's result (신기록·팁 add their own)
     rideTip.textContent = msg; rideStop.textContent = '닫기';
     toast(msg, 3200);
     refresh(); drawRide();
@@ -18563,7 +19376,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     ride.lay.forEach(function (e) {
       if (e.kind === 'flower' && e.t <= t && jumps.some(function (j) { return e.t >= j && e.t < j + L.BIKE_JUMP; })) {
         ride.picked = ride.picked || [];
-        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; sfx('harvest'); }
+        if (ride.picked.indexOf(e.t) < 0) { ride.picked.push(e.t); ride.flash = 0.25; sfx('flowerPick'); }
       }
     });
     var crashed = ride.done && ride.crash;
@@ -18824,7 +19637,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (!reduceMotion) burst(spot.x, spot.y - 2, 10, 3, 70);
     } else toyWalk(x, y, pt);
     if (toyFx.length > 8) toyFx.shift();
-    sfx(kind === 'splash' ? 'water' : kind === 'leaves' ? 'swing' : 'plant');   // 물웅덩이 첨벙, 낙엽 바스락, 눈 발자국
+    sfx(kind === 'splash' ? 'water' : kind === 'leaves' ? 'leaves' : 'snowStep');   // 물웅덩이 첨벙, 낙엽 바스락, 눈 발자국
     var r = L.toyPlay(S, kind, t, TZ, Math.random, L.bagBlocked(S)).reward;
     var fx = spot ? spot.x : x, fy = spot ? spot.y : y;
     if (r && r.id) { floatText(r.sold ? '+' + r.sold : '+도토리', fx, fy - 8); toast('낙엽 속에 도토리 하나' + (r.sold ? ' · 바구니가 꽉 차 팔았다 +' + r.sold : ' · 바구니에'), 2200); refresh(); }
@@ -20267,6 +21080,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       }
       r.appendChild(btn);
     });
+    bndTrader();   // 마을 음악회: 우쿨렐레 (apart from the 하루 하나 list)
   }
 
   // ----- 달력 row (renderToday) -----
@@ -20344,7 +21158,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function endDive(why) {
     var n = dv ? dv.n : 0;
     dv = null;
-    goScene(diveHome()); sfx('splash');
+    goScene(diveHome()); sfx('diveOut');
     toast((why === 'o2' ? '숨이 차서 물 위로 · ' : '물 위로 · ') + (n ? '이번에 ' + n + '가지 · ' : '') + '주운 것·밝힌 방은 그대로', 3000);
     refresh();
   }
@@ -20503,7 +21317,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var next = r.exits[d], can = L.diveCanEnter(S, next);
     var back = { w: [14, DIVE_MID], e: [W - 14, DIVE_MID], n: [90, 18], s: [90, H - 16] }[d];
     if (!can.ok) {
-      sfx('bump');
+      sfx('diveBlock'); hapt(60);
       dv.x = back[0]; dv.y = back[1]; dv.tx = dv.x + (d === 'w' ? 16 : d === 'e' ? -16 : 0); dv.ty = dv.y + (d === 'n' ? 16 : d === 's' ? -16 : 0);
       if (can.why === 'light') { dv.dark = 1.4; toast('너무 어둡다… 아무것도 안 보여 · 조선소에서 손전등을', 2800); }
       else if (can.why === 'key') toast('녹슨 문이 잠겨 있다 · 얕은 여 어딘가에 열쇠가', 2600);
@@ -20528,7 +21342,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!res) return;
     dv.n++;
     burst(t.x, t.y - 4, 8, r.zone === 'deep' ? 0 : 4, 30);
-    sfx(res.kind === 'pick' ? (res.first ? 'catchRare' : 'harvest') : res.kind === 'see' ? (res.first ? 'catchRare' : 'tap') : res.kind === 'log' ? 'harvest' : 'catchLegend');   // 소리: 열쇠·상자 = 보물
+    sfx(res.kind === 'pick' && res.first ? 'divePickNew' : res.kind === 'pick' ? 'divePick' : res.kind === 'see' && res.first ? 'diveSeeNew' : res.kind === 'see' ? 'diveSee' : res.kind === 'log' ? 'diveLog' : 'diveTreasure');   // 소리: 열쇠·상자 = 보물
     if (res.kind === 'pick') {
       floatText('+' + dx.name, t.x, t.y - 10);
       toast((res.first ? '★ 처음 · 해저 도감에 · ' : '') + dx.name + ' 주웠다' + (res.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + res.sold : ''), 2000);
@@ -20900,9 +21714,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     else if (a.game === 'slot') msg = ok ? '×' + win + '!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : '') : '꽝' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     else msg = ok ? '이겼다!' + (a.bet ? ' · +' + pay.toLocaleString('ko-KR') : ' (그냥 놀기)') : '아쉽다' + (a.bet ? ' · ' + a.bet.toLocaleString('ko-KR') + '코인을 잃었다' : '');
     arcTip.textContent = msg;
-    if (win !== null) sfx(ok ? 'level' : 'lost');
+    if (win !== null) sfx(ok ? 'arcWin' : 'arcLose');
     arcHeader(arcTitle.textContent);
-    if (pay) { fxCoinsDom(arcWallet); fxStamp(arcTip); }
+    if (pay) { fxCoinsDom(arcWallet, 'arc'); fxStamp(arcTip); }
     refresh();
     if (!arc || arc !== a || arcEl.hidden) return;
     arcActs.innerHTML = '';
@@ -20940,7 +21754,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         var p = holeAt(h);
         if (Math.abs(x - p[0]) > 17 || y < p[1] - 24 || y > p[1] + 5) continue;
         var r = L.moleTap(g, t, h);
-        if (r) { sfx(r === 'hog' ? 'error' : 'hit'); a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t }); }
+        if (r) { sfx(r === 'hog' ? 'moleHog' : 'hit'); a.fx.push({ k: r, x: p[0], y: p[1] - 12, t: t }); }
         return;
       }
     } else if (a.game === 'match') {
@@ -20948,7 +21762,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       for (var k = 0; k < g.cards.length; k++) {
         if (!hit(cardBox(k), x, y, 1)) continue;
         var f = L.matchFlip(g, k);
-        if (f) sfx(f === 'pair' ? 'hit' : 'tap');
+        if (f) sfx(f === 'pair' ? 'cardPair' : 'cardFlip');
         if (f === 'miss') a.hideAt = t + 700;
         if (f === 'pair' && L.matchOver(g)) a.endAt = t + 400;
         return;
@@ -20956,9 +21770,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     } else if (a.game === 'throw') {
       if (a.fly || a.endAt || t < a.ballAt) return;
       var hitIt = L.throwShot(g, t - a.ballAt);
-      if (hitIt !== null) { a.fly = { t: t, hit: hitIt }; sfx('cast'); }
+      if (hitIt !== null) { a.fly = { t: t, hit: hitIt }; sfx('ballThrow'); }
     } else if (!a.reels) {
-      a.reels = L.slotSpin(Math.random); a.spinAt = t; sfx('whoosh');
+      a.reels = L.slotSpin(Math.random); a.spinAt = t; sfx('slotSpin');
     }
   }
 
@@ -21207,7 +22021,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (got.c) { toast('자리 비운 사이 ' + got.n + '개 팔림 · +' + got.c.toLocaleString('ko-KR') + '코인', 3200); refresh(); save(); }
     mysPend.at = -1e9;
     mysRender();
-    if (got.c) fxCoinsDom(sheetEl.querySelector('.wallet'));
+    if (got.c) fxCoinsDom(sheetEl.querySelector('.wallet'), 'shop');
   }
   function mysWhy(res) { toast(MYS_WHY[res.why] || '안 돼요'); }
   function mysDone(text) { if (text) toast(text); mysPend.at = -1e9; refresh(); save(); mysRender(); }
@@ -21245,7 +22059,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     // 금고: sales since the sheet opened
     var pk = L.mysPeek(S, t, TZ);
     var rt = sheetRow(mysIcon('till'), '금고', pk.c ? pk.n + '개 팔림 · ' + pk.c.toLocaleString('ko-KR') + '코인' : '비었어요 · 열 때마다 지갑으로');
-    mysBtn(rt, '받기', function () { var g = L.mysCollect(S, now(), TZ); if (g.c) fxCoinsDom(sheetEl.querySelector('.wallet')); mysDone(g.c ? '+' + g.c.toLocaleString('ko-KR') + '코인' : ''); }, '금고 받기', !pk.c);
+    mysBtn(rt, '받기', function () { var g = L.mysCollect(S, now(), TZ); if (g.c) fxCoinsDom(sheetEl.querySelector('.wallet'), 'shop'); mysDone(g.c ? '+' + g.c.toLocaleString('ko-KR') + '코인' : ''); }, '금고 받기', !pk.c);
     // 진열대
     var used = 0; q.it.forEach(function (e) { if (e) used++; });
     mysH3('진열대', used + ' / ' + q.sl + '칸 · 칸마다 ' + L.MYS_STACK + '개까지');
@@ -22814,7 +23628,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!cmpStay()) return;
     var t = now(), r = L.cmpLight(S, cmpSiteNow(), t, TZ, curEnv(t).phase);
     if (!r.ok) { toast(CMP_WHY[r.why] || '불을 못 피워요', 2200); return; }
-    burst(78, 146, 14, 0, 50); sfx('puff');
+    burst(78, 146, 14, 0, 50); sfx('fireLight');
     toast('모닥불을 피웠다 · 아침까지 타요 · 불을 누르면 굽기', 2600);
     cmpDone();
   }
@@ -22824,7 +23638,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!r) return;
     var it = L.itemInfo(r.id);
     floatText('+' + it.name, 78, 128);
-    sfx(r.burnt ? 'lost' : 'harvest');
+    sfx(r.burnt ? 'burnt' : 'cookDone');
     toast(r.burnt ? '앗, 다 타 버렸다 · 탄 음식' : (r.first ? '★ 처음 · ' : '') + it.name + (r.sold ? ' · 바구니가 꽉 차 바로 팔았다 +' + r.sold : ' · 바구니에'), 2200);
     if (!quick || r.first) burst(78, 136, r.burnt ? 4 : 10, r.burnt ? 3 : 0, 30);
     cmpDone();
@@ -23088,6 +23902,624 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       return S.camp;
     };
   }
+  // ---------- 소리 도감: auto/tap recording, the ♪ chip, 도감 소리 tab, 상점 녹음기, 박물관 별관 소리실, 축음기, FF.rec ----------
+  // Every second the screen is described as a plain ctx and L.recNow says which sounds could be recorded here now.
+  // Auto: a sound whose conditions held REC_DWELL in a row goes in at ★1 (sound on or off; this is the logic tick, not audio).
+  // Tap: when the 환경음 plays one of those sounds, a ♪ chip shows at the left edge for a moment; tapping records ★2 / ★3.
+  // Nothing here runs, and no s.rec is made, until a 녹음기 is bought.
+  // per second, the new one-shots (ui/sound.js AMB_EV) while their sound's conditions hold; the old ones keep their own rates
+  var REC_RATE = { cuckoo: 0.08, woodpk: 0.05, oriole: 0.08, gull: 0.12, bigcicada: 0.06, bellbug: 0.3, toad: 0.15, kingfish: 0.05, scops: 0.05,
+    trickle: 0.3, fall: 0.1, bubble: 0.2, surf: 0.15, whale: 0.03, whistle: 0.04, boom: 0.2, windbell: 0.08, crunch: 0.15, mist: 0.04 };
+  var REC_DWELL = 20e3, REC_NOTE_MS = 2200;
+  var REC_WHY = { owned: '이미 있어요', rep: '신뢰도 ★' + L.REC_REP + '부터 살 수 있어요', coins: '코인이 모자라요',
+    closed: '녹음기와 박물관이 둘 다 있어야 해요', got: '이미 전시 중이에요', need: '아직 녹음하지 않은 소리예요', room: '없는 소리예요' };
+  var recLast = [], recLastAt = 0, recSince = {}, recNoteId = null, recNoteTimer = 0, recGramAt = 0;
+  var recNote = document.createElement('button');
+  recNote.type = 'button'; recNote.id = 'recNote'; recNote.hidden = true; recNote.textContent = '♪';
+  app.appendChild(recNote);
+
+  // a 12×12 mark: a note (got) or its faint outline (not yet)
+  function recIcon(got) {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(got ? ['......44....', '......444...', '......4.44..', '......4..4..', '......4.....', '......4.....', '......4.....', '...4444.....', '..44444.....', '..44444.....', '...444......', '............']
+            : ['......22....', '......2.2...', '......2..2..', '......2.....', '......2.....', '......2.....', '......2.....', '...2222.....', '..2....2....', '..2....2....', '...2222.....', '............'], 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  function recStars(q) { return '★★★'.slice(0, q) + '☆☆☆'.slice(0, 3 - q); }
+
+  // what is around now, as the pure ctx L.recNow reads (the 모닥불 check is the one the 환경음 uses)
+  function recCtx(t) {
+    var e = curEnv(t), v = view;
+    var site = cmpIsView(v) ? cmpSiteNow() : v === 'farm' && SCENES[scene].camp;
+    return { now: t, view: v, spot: v === 'farm' ? scene : '', phase: e.phase, season: e.season, weather: e.weather, festival: e.festival,
+      fire: !!(site && S.camp && L.cmpFireOn(S, site, t)), chime: v === 'yard' && L.decoPlaced(S, 'chime') };
+  }
+  function recTick(t) {
+    if (!L.recOk(S)) { if (!recNote.hidden) recNoteHide(); return; }
+    var p = performance.now();
+    if (p - recLastAt < 1000) return;
+    var dt = recLastAt ? Math.min(p - recLastAt, 5e3) : 0, since = {};
+    recLastAt = p;
+    recLast = L.recNow(recCtx(t));
+    recLast.forEach(function (id) {
+      since[id] = (recSince[id] || 0) + dt;
+      if (since[id] >= REC_DWELL && !L.recQ(S, id)) recGot(id, L.recTake(S, id, 'auto'));
+    });
+    recSince = since;
+    recGramTick(p);
+  }
+  function recGot(id, r) {
+    if (!r || !r.ok) return;
+    var d = L.recById(id), cnt = ' · 소리 ' + L.recCount(S) + ' / ' + L.REC_SOUNDS.length;
+    toast(r.q === 1 ? '녹음기 · 「' + d.name + '」 저절로 녹음 ★1' + cnt : (r.up ? '더 맑게 녹음 · 「' : '녹음 · 「') + d.name + '」 ' + recStars(r.q) + cnt, 3000);
+    r.ms.forEach(function (m, k) {
+      setTimeout(function () {
+        toast('★ 소리 ' + m.n + '개 · 칭호 「' + m.title + '」 · +' + m.coins + '코인' + (m.deco ? ' · 축음기' + (m.stored ? ' (보관함)' : ' (마당)') : ''), 4200);
+      }, 3200 + k * 4400);
+    });
+    refresh();
+  }
+
+  // ---------- ♪ chip: only when the 환경음 actually plays a sound that can be recorded here ----------
+  // called by ambTick (ui/sound.js) for each one-shot it books; adds nothing to the 환경음
+  function recHeard(ev) {
+    if (!ambOn || !L.recOk(S) || reel) return;
+    var id = recLast.filter(function (x) { return L.recById(x).ev === ev && L.recQ(S, x) < 3; })[0];
+    if (id) recNoteShow(id);
+  }
+  // the new one-shots, while a 녹음기 is owned and their sound's conditions hold (환경음 on only)
+  function recAmbAdd(w) {
+    if (!ambOn || !L.recOk(S)) return;
+    recLast.forEach(function (id) { var e = L.recById(id).ev; if (REC_RATE[e] && !w.ev[e]) w.ev[e] = REC_RATE[e]; });
+  }
+  function recNoteShow(id) {
+    recNoteId = id; recNote.hidden = false;
+    recNote.setAttribute('aria-label', '녹음하기 · ' + L.recById(id).name);
+    clearTimeout(recNoteTimer); recNoteTimer = setTimeout(recNoteHide, REC_NOTE_MS);
+  }
+  function recNoteHide() { clearTimeout(recNoteTimer); recNoteId = null; recNote.hidden = true; }
+  recNote.addEventListener('click', function () {
+    var id = recNoteId;
+    recNoteHide();
+    if (!id || !L.recOk(S)) return;
+    var r = L.recTake(S, id, 'tap');
+    if (r.ok) recGot(id, r); else toast('「' + L.recById(id).name + '」 이미 가장 맑게 ★★★', 2000);
+  });
+
+  // ---------- replay: one shot of the sound (the 도감 ▶, the 축음기) ----------
+  function recPlay(id, quiet) {
+    if (!quiet) sndWake();
+    if (!sndOn || !sndCtx || sndCtx.state !== 'running') { if (!quiet) toast('소리가 꺼져 있어요 · ⚙ 설정에서 켜기', 2000); return; }
+    try { AMB_EV[L.recById(id).ev](sndCtx.currentTime + 0.05, ambOn && sndAmb ? sndAmb : sndSfx); } catch (e) { /* a browser without some node type: stay quiet */ }
+  }
+  // the 축음기 in the 마당 plays one recorded sound every half minute or so
+  function recGramTick(p) {
+    if (view !== 'yard' || !ambOn || !sndAmb || !L.decoPlaced(S, L.REC_DECO)) { recGramAt = 0; return; }
+    if (!recGramAt) { recGramAt = p + 8e3; return; }
+    if (p < recGramAt) return;
+    recGramAt = p + 25e3 + Math.random() * 20e3;
+    var ids = Object.keys(S.rec.has);
+    if (ids.length) recPlay(ids[Math.floor(Math.random() * ids.length)], true);
+  }
+
+  // ---------- 도감 소리 tab (ui/records.js adds the tab once a 녹음기 is owned) ----------
+  function recDex() {
+    var h3 = document.createElement('h3'); h3.textContent = '소리';
+    var b = document.createElement('b'); b.textContent = L.recCount(S) + ' / ' + L.REC_SOUNDS.length; h3.appendChild(b); dexEl.appendChild(h3);
+    var p = document.createElement('p'); p.className = 'note';
+    p.textContent = '조건이 맞는 곳에 잠시 머물면 저절로 ★1 · ♪ 녹음은 환경음이 켜져 있어야 떠요(★2, 또 누르면 ★3)';
+    dexEl.appendChild(p);
+    var grp = '';
+    L.REC_SOUNDS.forEach(function (d) {
+      if (d.grp !== grp) {   // a heading per group (새·벌레·물가…), foldable like every 도감 section, with its own count
+        grp = d.grp;
+        var inG = L.REC_SOUNDS.filter(function (x) { return x.grp === grp; }), g = document.createElement('h3'), gb = document.createElement('b');
+        g.textContent = '소리 · ' + grp; gb.textContent = inG.filter(function (x) { return L.recQ(S, x.id); }).length + ' / ' + inG.length;
+        g.appendChild(gb); dexEl.appendChild(g);
+      }
+      var q = L.recQ(S, d.id), r = document.createElement('div'); r.className = 'dx' + (q ? '' : ' unk');
+      var ic = recIcon(!!q); ic.className = 'sq';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = q ? d.name : d.legend ? '??? (전설)' : '???';
+      var sm = document.createElement('small'); sm.textContent = d.hint; n.appendChild(sm);
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = q ? recStars(q) : '';
+      r.appendChild(ic); r.appendChild(n); r.appendChild(v);
+      if (q) {
+        var pl = document.createElement('button'); pl.type = 'button'; pl.className = 'recPlay'; pl.textContent = '▶';
+        pl.setAttribute('aria-label', d.name + ' 다시 듣기');
+        pl.addEventListener('click', function () { recPlay(d.id); });
+        r.appendChild(pl);
+      }
+      dexEl.appendChild(r);
+    });
+    h3 = document.createElement('h3'); h3.textContent = '모은 만큼 생기는 것'; dexEl.appendChild(h3);
+    L.REC_MS.forEach(function (m) {
+      var done = !!S.rec.got[m.id], r = document.createElement('div'); r.className = 'ms' + (done ? ' done' : '');
+      var bx = document.createElement('span'); bx.className = 'box';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = '칭호 「' + m.title + '」';
+      var sm = document.createElement('small'); sm.textContent = m.coins.toLocaleString('ko-KR') + '코인' + (m.deco ? ' · 마당 장식 축음기(모은 소리가 가끔 흘러나와요)' : ''); n.appendChild(sm);
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = m.n === L.REC_SOUNDS.length ? '전부' : m.n + '개';
+      r.appendChild(bx); r.appendChild(n); r.appendChild(v); dexEl.appendChild(r);
+    });
+  }
+
+  // ---------- 상점: 녹음기 ----------
+  function recShop() {
+    var h3 = document.createElement('h3'); h3.textContent = '녹음'; shopEl.appendChild(h3);
+    var own = L.recOk(S), why = L.recBuyWhy(S), r = document.createElement('div'); r.className = 'up';
+    var n = document.createElement('div'); n.className = 'n'; n.textContent = '녹음기';
+    var sm = document.createElement('small');
+    sm.textContent = own ? '도감 소리 탭 · ' + L.recCount(S) + ' / ' + L.REC_SOUNDS.length : '새·벌레·물소리 ' + L.REC_SOUNDS.length + '가지를 모은다 · 소리를 꺼 둬도 저절로 녹음';
+    n.appendChild(sm);
+    var bt = document.createElement('button'); bt.type = 'button';
+    if (own) { bt.textContent = '있음'; bt.disabled = true; bt.className = 'max'; }
+    else if (why === 'rep') { bt.textContent = '★' + L.REC_REP; bt.disabled = true; bt.className = 'max'; }
+    else {
+      bt.textContent = L.REC_COST.toLocaleString('ko-KR'); bt.setAttribute('aria-label', '녹음기 사기 ' + L.REC_COST + '코인');
+      if (S.coins < L.REC_COST) bt.classList.add('poor');
+      bt.addEventListener('click', function () {
+        var res = L.recBuy(S);
+        if (!res.ok) { toast(REC_WHY[res.why] || '살 수 없어요'); bt.classList.remove('shake'); void bt.offsetWidth; bt.classList.add('shake'); return; }
+        toast('녹음기 · 조건 맞는 곳에 머물면 저절로, ♪가 뜨면 눌러서 · 도감 소리 탭', 3400); recLastAt = 0; refresh(); renderShop();
+      });
+    }
+    r.appendChild(recIcon(true)); r.appendChild(n); r.appendChild(bt); shopEl.appendChild(r);
+  }
+
+  // ---------- 박물관 별관 소리실: its own section under the six rooms (their numbers never include it) ----------
+  function recAnnex() {
+    if (!L.recAnnexOk(S)) return;
+    var c = L.recAnnexCount(S), can = L.recAnnexCan(S);
+    var h3 = document.createElement('h3'); h3.textContent = '별관 · 소리실';
+    var b = document.createElement('b'); b.textContent = c.n + ' / ' + c.m; h3.appendChild(b); sheetEl.appendChild(h3);
+    can.forEach(function (id) {
+      var d = L.recById(id), it = sheetRow(recIcon(true), d.name, '녹음 ' + recStars(L.recQ(S, id)) + ' · 녹음은 도감에 그대로', 'gift');
+      it.appendChild(vBtn('기증', false, function () { recDoDonate(id); }, d.name + ' 기증하기'));
+    });
+    var titles = L.recTitles(S), p = document.createElement('p'); p.className = 'note';
+    p.textContent = (c.n >= c.m ? '소리실이 가득 찼어요' : (can.length ? '' : '지금 기증할 녹음이 없어요 · ') + '다 채우면 칭호 「' + L.REC_ANNEX.title + '」 · ' + L.REC_ANNEX.coins + '코인') +
+      ' · 별관은 전시실 수에 들지 않아요' + (titles.length ? ' · 소리 칭호: ' + titles.join(' · ') : '');
+    sheetEl.appendChild(p);
+  }
+  function recDoDonate(id) {
+    var res = L.recDonate(S, id), d = L.recById(id);
+    if (!res.ok) { toast(REC_WHY[res.why] || '아직이에요'); renderMuseum(); return; }
+    if (res.reward) toast('★ 별관 소리실 완성 · 칭호 「' + res.reward.title + '」 · +' + res.reward.coins + '코인', 4200);
+    else { var c = L.recAnnexCount(S); toast('「' + d.name + '」 녹음을 기증했다 · 소리실 ' + c.n + '/' + c.m, 2200); }
+    refresh(); renderMuseum();
+  }
+
+  // ---------- 마당: 축음기 (all sounds recorded) ----------
+  DRAW_DECO.gramophone = function (x, y, tt) {
+    px(x + 1, y + 12, 12, 6, 4); px(x + 2, y + 13, 10, 3, 3); px(x + 2, y + 11, 10, 1, 2);   // box, turntable
+    px(x + 4, y + 9, 2, 2, 4); px(x + 5, y + 6, 2, 3, 4);                                     // tone arm, neck
+    px(x + 6, y + 4, 3, 2, 4); px(x + 7, y + 2, 5, 2, 4); px(x + 8, y, 6, 2, 4);               // horn widening up and right
+    px(x + 9, y + 1, 4, 1, 1); px(x + 8, y + 3, 3, 1, 2);
+    if (Math.floor((tt || 0) * 2) % 6 === 0) px(x + 12, y - 2, 1, 1, 3);                       // a note now and then
+  };
+
+  // ---------- console hooks ----------
+  function addRecHooks(FF) {
+    // FF.rec() gives the 녹음기; FF.rec('all') records every sound ★1 (milestones paid); FF.recNow() = what could be recorded here
+    FF.rec = function (all) {
+      if (!L.recOk(S)) { S.rep = Math.max(S.rep, L.REC_REP); S.coins += L.REC_COST; L.recBuy(S); }
+      if (all === 'all') L.REC_SOUNDS.forEach(function (d) { recGot(d.id, L.recTake(S, d.id, 'auto')); });
+      recLastAt = 0; refresh(); return L.recCount(S);
+    };
+    FF.recNow = function () { return L.recNow(recCtx(now())); };
+    FF.recNote = function (id) { if (L.recOk(S) && L.recById(id)) recNoteShow(id); return recNoteId; };
+  }
+  // ---------- 마을 음악회: 악기 arrivals, the ♪ chip (마당 연주 / 광장 무대), the rhythm overlay, ⚙ 악기 rows, 상인 우쿨렐레, FF.band ----------
+  // Logic: logic/band.js. Nothing here runs, and no s.band is made, until the first instrument arrives.
+  // The round clock is the AudioContext's when sound and music are on (the backing tune is booked on it, so taps and music
+  // stay together); otherwise performance.now, and the game plays the same in silence.
+  var BND_TZ = -new Date().getTimezoneOffset();
+  var BND_LEAD = 2, BND_FALL = 1.6, BND_PLAY_STEPS = 64;   // seconds before the first note, seconds a note falls, 연주 = 8 bars
+  var BND_W = 120, BND_H = 160, BND_HIT = 136;              // board pixels; notes are judged at the BND_HIT line
+  var BND_KEYS = { 4: ['KeyD', 'KeyF', 'KeyJ', 'KeyK'], 5: ['KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK'], 6: ['KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL'] };
+  var BND_WHY = { ins: '악기가 ' + L.BND_SHOW_MIN + '개 있으면 무대에 설 수 있어요', time: '음악회는 저녁·밤에 열려요', done: '오늘 음악회는 끝났어요 · 내일 저녁에 또 열려요',
+    closed: '포구 기차역을 고치면 상인이 와요', coins: '코인이 모자라요', owned: '이미 있어요' };
+  var BND_FROM = { kid: '꼬마 도윤', fisher: '박 영감', teacher: '하늘 선생님', grandma: '순자 할머니' };
+  var BND_SHORT = { kid: '도윤', fisher: '박 영감', teacher: '선생님', grandma: '할머니' };   // several at once, one toast line
+  var BND_ICON = {
+    ocarina:   ['............', '............', '...44444....', '.442222244..', '42242242224.', '422222222224', '.4222222224.', '..44444444..', '............', '............', '............', '............'],
+    drum:      ['.4........4.', '..4......4..', '...4....4...', '..44444444..', '.4000000004.', '.4444444444.', '.4242424244.', '.4424242424.', '.4242424244.', '.4444444444.', '............', '............'],
+    harmonica: ['............', '............', '............', '444444444444', '400000000004', '404040404044', '400000000004', '444444444444', '.3333333333.', '............', '............', '............'],
+    xylo:      ['4444444444..', '............', '.44444444...', '............', '..444444....', '............', '...4444.....', '......3.....', '.....3......', '....3.......', '...44.......', '............'],
+    accordion: ['............', '444444444444', '420404040424', '420404040424', '420404040424', '420404040424', '444444444444', '............', '............', '............', '............', '............'],
+    uke:       ['..........44', '.........44.', '........4...', '.......4....', '......4.....', '..444.4.....', '.42224......', '4220224.....', '4202224.....', '4222224.....', '.42224......', '..444.......']
+  };
+  var bnd = null;   // { kind: 'menu' | 'round' | 'done', mode: 'play' | 'show', … }
+  var bndLastAt = 0;
+
+  var bndChip = document.createElement('button');
+  bndChip.type = 'button'; bndChip.id = 'bndChip'; bndChip.hidden = true;
+  app.appendChild(bndChip);
+  var bndEl = document.createElement('section');
+  bndEl.className = 'overlay'; bndEl.id = 'band'; bndEl.hidden = true; bndEl.setAttribute('aria-label', '연주');
+  app.appendChild(bndEl);
+  var bndHead = document.createElement('h2'), bndTitle = document.createElement('span'), bndWallet = document.createElement('span');
+  var bndCv = document.createElement('canvas'), bndTip = document.createElement('p'), bndPads = document.createElement('div');
+  var bndMenu = document.createElement('div'), bndActs = document.createElement('div');
+  bndWallet.className = 'wallet'; bndHead.appendChild(bndTitle); bndHead.appendChild(bndWallet);
+  bndCv.width = BND_W; bndCv.height = BND_H; bndTip.className = 'tip'; bndTip.setAttribute('aria-live', 'polite');
+  bndPads.className = 'pads'; bndMenu.className = 'menu'; bndActs.className = 'acts';
+  [bndHead, bndCv, bndPads, bndTip, bndMenu, bndActs].forEach(function (el) { bndEl.appendChild(el); });
+
+  function bndOn() { return !!bnd && bnd.kind === 'round'; }
+  function bndIcon(id) {
+    var c = document.createElement('canvas'); c.width = 12; c.height = 12;
+    spr(BND_ICON[id], 0, 0, false, c.getContext('2d'));
+    return c;
+  }
+  function bndButton(text, fn, cls, label) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = text;
+    if (cls) b.className = cls;
+    if (label) b.setAttribute('aria-label', label);
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function bndPhase() { return curEnv(now()).phase; }
+
+  // ---------- the tick: resident instruments (handed over in person, in the 마을), the chip ----------
+  // the resident whose instruments can be handed over now: '' = everyone (on the 마을 street), an id = inside their home, null = not here
+  function bndHere() { return view === 'village' ? '' : view === 'home' ? vilCur : null; }
+  function bndTick(t) {
+    if (!L.bndOk(S) && !(bndHere() !== null && L.bndDue(S).length)) { if (!bndChip.hidden) bndChip.hidden = true; return; }
+    var p = performance.now();
+    if (p - bndLastAt < 1000) return;
+    bndLastAt = p;
+    var who = bndHere(), ids = who === null ? [] : L.bndTakeDue(S, who);
+    if (ids.length) {   // one toast line in their own voice, however many come at once (the toast is one line: the head comes first)
+      var ds = ids.map(L.bndById), names = ds.map(function (d) { return d.name; });
+      sfx('bandGet');
+      toast(ds.length === 1 ? BND_FROM[ds[0].from] + ': 이 ' + names[0] + ' 받아요 · 마당 ♪ 연주'
+        : ds.map(function (d) { return BND_SHORT[d.from]; }).join('·') + ': ' + (ds.length === 2 ? '이 ' + names.join('·') + ' 받아요' : '악기 ' + ds.length + '개 받아요 · ' + names.join('·')), 4200);
+      refresh();
+    }
+    bndChipShow(t);
+  }
+  function bndChipShow(t) {
+    var why = L.bndShowWhy(S, t, BND_TZ, bndPhase());
+    var mode = view === 'yard' && L.bndOk(S) ? 'play' : view === 'village' && why === 'ok' ? 'show' : '';
+    bndChip.hidden = !mode || !bndEl.hidden;
+    if (!mode) return;
+    bndChip.dataset.mode = mode;
+    bndChip.textContent = mode === 'play' ? '♪ 연주' : '♪ 무대';
+    bndChip.classList.toggle('on', mode === 'show');
+    bndChip.setAttribute('aria-label', mode === 'play' ? '연주하기 · 오늘 보상 ' + L.bndPlayLeft(S, t, BND_TZ) + '번 남음' : '광장 음악회 · 지금 열림');
+  }
+  bndChip.addEventListener('click', function () {
+    if (!L.bndOk(S)) return;
+    if (bndChip.dataset.mode === 'play') { bndOpen('play'); return; }
+    var why = L.bndShowWhy(S, now(), BND_TZ, bndPhase());
+    if (why === 'ok') bndOpen('show'); else toast(BND_WHY[why], 2400);
+  });
+
+  // ---------- 오카리나: called right after a junk catch / an opened chest (their own result is already given) ----------
+  function bndAfterJunk(src) {
+    var id = L.bndFind(S, src);
+    if (!id) return;
+    setTimeout(function () { sfx('bandFind'); toast('잡동사니 틈에 오카리나가! · 배경음악에 ' + L.bndById(id).adds + ' · 마당 ♪ 연주', 4200); }, 1600);
+    refresh();
+  }
+
+  // ---------- overlay: menu ----------
+  function bndShow(round) {
+    dexEl.hidden = true; shopEl.hidden = true; bagEl.hidden = true; calEl.hidden = true; sheetEl.hidden = true;
+    bndEl.hidden = false; bndChip.hidden = true;
+    bndPads.hidden = !round;
+    bndMenu.hidden = !!round;
+    bndWallet.textContent = S.coins.toLocaleString('ko-KR') + '코인';
+  }
+  function bndOpen(mode) {
+    var show = mode === 'show', fest = L.bndFestDay(now(), BND_TZ);
+    bnd = { kind: 'menu', mode: mode, lanes: show ? L.bndShowLanes(S) : 4, phase: bndPhase() };
+    bndTitle.textContent = show ? (fest ? '축제 특별 공연' : '마을 음악회') : '연주';
+    bndEl.setAttribute('aria-label', bndTitle.textContent);
+    bndShow(false);
+    var left = L.bndPlayLeft(S, now(), BND_TZ);
+    bndTip.textContent = show ? (fest ? L.FESTIVALS[fest].name + ' 날 · 보상 ×' + L.BND_FEST_MUL + ' · 은부터 음악회 곡' : '오늘 한 번 · 주민들이 보러 왔어요')
+      : left ? '오늘 보상 ' + left + ' / ' + L.BND_PLAY_CAP + '번 남음' : '오늘 보상은 끝 · 그냥 연주는 얼마든지';
+    bndMenu.innerHTML = ''; bndActs.innerHTML = '';
+    bndDrawStage();
+    var h3 = document.createElement('h3'); h3.textContent = '악기';
+    var b = document.createElement('b'); b.textContent = L.bndCount(S) + ' / ' + L.BND_INS.length; h3.appendChild(b); bndMenu.appendChild(h3);
+    L.BND_INS.forEach(function (d) {
+      var has = L.bndHas(S, d.id), r = document.createElement('div'); r.className = 'up' + (has ? '' : ' idle');
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = has ? d.name : '???';
+      var sm = document.createElement('small'); sm.textContent = has ? d.adds : d.hint; n.appendChild(sm);
+      r.appendChild(has ? bndIcon(d.id) : document.createElement('span')); r.appendChild(n);
+      if (has) {
+        var on = !S.band.mute[d.id], bt = bndButton(on ? '켬' : '끔', function () {
+          L.bndMute(S, d.id, !S.band.mute[d.id]);
+          var now2 = !S.band.mute[d.id]; bt.textContent = now2 ? '켬' : '끔'; bt.setAttribute('aria-pressed', String(now2)); bt.classList.toggle('on', now2);
+          refresh();
+        }, on ? 'on' : '', d.name + ' 배경음악에 켜기');
+        bt.setAttribute('aria-pressed', String(on));
+        r.appendChild(bt);
+      }
+      bndMenu.appendChild(r);
+    });
+    var note = document.createElement('p'); note.className = 'note';
+    note.textContent = '음표가 선에 닿을 때 그 줄을 탭 · 키보드 ' + BND_KEYS[bnd.lanes].map(function (k) { return k.slice(3); }).join(' ') +
+      (show ? ' · 동·은·금 · 첫 금에 칭호 「' + L.BND_TITLE + '」' + (L.bndTitles(S).length ? ' (받음)' : '') : '') + ' · 소리를 꺼도 할 수 있어요';
+    bndMenu.appendChild(note);
+    bndMenu.appendChild(bndButton(show ? '무대에 서기' : '연주 시작', bndStart, 'go'));
+    bndActs.appendChild(bndButton('닫기', bndClose));
+  }
+  function bndClose() {
+    if (bnd && bnd.back) { var g = bnd.back.g; try { g.gain.setTargetAtTime(0, sndCtx.currentTime, 0.05); } catch (e) { /* context gone */ } setTimeout(function () { g.disconnect(); }, 600); }
+    bnd = null; bndEl.hidden = true; bndLastAt = 0;
+  }
+
+  // ---------- the round ----------
+  // the melody of steps [0, n) of a track, timed with its swing → { mel: [{ t, m, hz, len }], dur }
+  function bndMel(tr, n) {
+    var t = 0, mel = [];
+    for (var i = 0; i < n; i++) {
+      (tr.steps[i] || []).forEach(function (ev) { if (ev[0] === 'lead') mel.push({ t: t, m: Math.round(69 + 12 * Math.log(ev[1] / 440) / Math.LN2), hz: ev[1], len: ev[2] }); });
+      t += tr.eighth * (i % 2 ? 1 - tr.swing : 1 + tr.swing);
+    }
+    return { mel: mel, dur: t };
+  }
+  function bndStart() {
+    var show = bnd.mode === 'show';
+    if (show && L.bndShowWhy(S, now(), BND_TZ, bnd.phase) !== 'ok') { toast(BND_WHY[L.bndShowWhy(S, now(), BND_TZ, bnd.phase)], 2400); bndOpen('show'); return; }
+    var name = show && S.band.song ? 'band' : bnd.phase, tr = musBuild(MUS[name]);
+    var n = show ? tr.n : Math.min(BND_PLAY_STEPS, tr.n), m = bndMel(tr, n);
+    var chart = L.bndChart(m.mel, bnd.lanes);
+    chart.forEach(function (c, k) { c.hz = m.mel[k].hz; c.len = m.mel[k].len * tr.eighth; c.hit = null; });
+    bnd.kind = 'round'; bnd.tr = tr; bnd.n = n; bnd.chart = chart; bnd.hits = { perfect: 0, good: 0, miss: 0 }; bnd.flash = [];
+    bnd.end = chart.length ? chart[chart.length - 1].t + 1.2 : 1; bnd.combo = 0; bnd.cheer = 0;
+    bnd.audio = !!(sndOn && musOn && sndCtx && sndCtx.state === 'running' && sndMus);
+    if (bnd.audio) {
+      bnd.t0 = sndCtx.currentTime + BND_LEAD;
+      var g = sndCtx.createGain(); g.connect(sndMus);
+      var back = Object.create(tr); back.steps = tr.steps.map(function (st) { return (st || []).filter(function (ev) { return ev[0] !== 'lead'; }); });
+      bnd.back = { tr: back, g: g, step: 0, at: bnd.t0 };
+    } else bnd.p0 = performance.now() + BND_LEAD * 1000;
+    bnd.last = -BND_LEAD;
+    bndShow(true);
+    bndPads.innerHTML = '';
+    for (var k = 0; k < bnd.lanes; k++) (function (lane) {
+      var b = bndButton(BND_KEYS[bnd.lanes][lane].slice(3), function () {}, '', (lane + 1) + '번 줄');
+      b.addEventListener('pointerdown', function (e) { e.preventDefault(); bndTap(lane); });
+      bndPads.appendChild(b);
+    })(k);
+    bndPads.style.setProperty('--n', bnd.lanes);
+    bndTip.textContent = bnd.audio ? '음악에 맞춰 · 선에 닿을 때 탭' : '소리 없이 · 선에 닿을 때 탭';
+    bndActs.innerHTML = ''; bndActs.appendChild(bndButton('그만', function () { bndClose(); }));
+  }
+  // seconds since the first note's time (negative in the lead-in)
+  function bndT() {
+    if (bnd.audio && (!sndOn || !sndCtx || sndCtx.state !== 'running')) {   // muted mid-round: carry on from here on the page clock
+      bnd.audio = false; bnd.p0 = performance.now() - bnd.last * 1000;
+      if (bnd.back) { bnd.back.g.disconnect(); bnd.back = null; }
+    }
+    bnd.last = bnd.audio ? sndCtx.currentTime - bnd.t0 : (performance.now() - bnd.p0) / 1000;
+    return bnd.last;
+  }
+  function bndTap(lane) {
+    if (!bndOn()) return;
+    var gt = bndT(), best = null, off = 1e9;
+    bnd.chart.forEach(function (c) {
+      if (c.hit || c.lane !== lane) return;
+      var o = (gt - c.t) * 1000;
+      if (Math.abs(o) < Math.abs(off)) { off = o; best = c; }
+    });
+    var j = best && L.bndJudge(off);
+    if (!j) { sfx('bandMiss'); bnd.flash.push({ lane: lane, at: gt, bad: true }); bndTip.textContent = '조금 이르게 · 음표가 선에 닿을 때'; return; }
+    if (j === 'perfect') hapt(12);   // 진동: a tick on an exact hit only
+    best.hit = j; bnd.hits[j]++; bnd.combo++; bnd.cheer = gt;
+    bnd.flash.push({ lane: lane, at: gt });
+    bndTip.textContent = (j === 'perfect' ? '딱!' : '좋아요') + (bnd.combo > 2 ? ' · ' + bnd.combo + '연속' : '');
+    if (bnd.audio) try { MUS_INST[bnd.tr.lead[0]](bnd.back.g, best.hz, sndCtx.currentTime, best.len * 0.95, bnd.tr.lead[1]); } catch (e) { /* stay quiet */ }
+  }
+  // called every frame by loop.js frame() (whichever window hosts the game, so a round keeps going when PiP opens or closes)
+  function bndFrame() {
+    if (!bndOn()) return;
+    var gt = bndT();
+    if (bnd.back) {   // book the backing up to a quarter second ahead on the audio clock
+      var ln = bnd.back, stop = sndCtx.currentTime + 0.25;
+      while (ln.step < bnd.n && ln.at < stop) {
+        if (ln.at >= sndCtx.currentTime - 0.02) musStep(ln, ln.at);
+        ln.at += ln.tr.eighth * (ln.step % 2 ? 1 - ln.tr.swing : 1 + ln.tr.swing); ln.step++;
+      }
+    }
+    bnd.chart.forEach(function (c) {
+      if (!c.hit && (gt - c.t) * 1000 > L.BND_WIN.good) { c.hit = 'miss'; bnd.hits.miss++; bnd.combo = 0; }
+    });
+    bndDraw(gt);
+    if (gt >= bnd.end) bndEnd();
+  }
+  function bndEnd() {
+    var share = L.bndScore(bnd.hits, bnd.chart.length), show = bnd.mode === 'show', g, res;
+    if (show) res = L.bndShowPay(S, share, now(), BND_TZ, bnd.phase);
+    else res = L.bndPlayPay(S, share, now(), BND_TZ);
+    g = res.ok ? res.grade : L.bndGrade(share);
+    if (bnd.back) { var bg = bnd.back.g; setTimeout(function () { bg.disconnect(); }, 3000); bnd.back = null; }
+    bnd.kind = 'done';
+    sfx(show ? 'bandCheer' : 'bandEnd');
+    bndShow(false);
+    bndMenu.innerHTML = ''; bndActs.innerHTML = '';
+    bndDrawStage(g);
+    bndTip.textContent = (g ? L.BND_GRADE_NAME[g] + ' · ' : '') + Math.round(share * 100) + '점 · 딱 ' + bnd.hits.perfect + ' · 좋아요 ' + bnd.hits.good + ' · 놓침 ' + bnd.hits.miss;
+    var lines = [];
+    if (!res.ok) lines.push(BND_WHY[res.why] || '보상 없이 끝났어요');
+    else if (show) {
+      lines.push('+' + res.coins.toLocaleString('ko-KR') + '코인' + (res.fest ? ' (축제 ×' + L.BND_FEST_MUL + ')' : ''));
+      if (res.grade) lines.push('관객 모두 친밀도 +' + (res.fest ? L.BND_FEST_MUL : 1));
+      if (res.title) lines.push('칭호 「' + L.BND_TITLE + '」');
+      if (res.song) lines.push('음악회 곡 해금 · 축제 날 밤에 흘러요');
+    } else {
+      lines.push(res.coins ? '+' + res.coins + '코인 · 오늘 보상 ' + res.left + '번 남음' : '오늘 보상은 끝 · 그냥 연주');
+      if (res.who) lines.push(L.residentById(res.who).name + ' 친밀도 +1');
+    }
+    lines.forEach(function (x) { var p = document.createElement('p'); p.className = 'note'; p.textContent = x; bndMenu.appendChild(p); });
+    if (res.ok && res.title) setTimeout(function () { toast('★ 칭호 「' + L.BND_TITLE + '」 · 음악회 금', 4200); }, 600);
+    // 친밀도 level-ups said the way every other path says them (after the 칭호 toast when there is one)
+    var ups = !res.ok ? [] : show ? [].concat.apply([], res.ups.map(function (u) { return u.ups; })) : res.ups;
+    if (ups.length) setTimeout(function () { upsToast(ups, lines[1]); }, res.title ? 4900 : 0);
+    if (!show) bndMenu.appendChild(bndButton('한 번 더', function () { bndOpen('play'); }, 'go'));
+    bndActs.appendChild(bndButton('닫기', bndClose));
+    bndWallet.textContent = S.coins.toLocaleString('ko-KR') + '코인';
+    refresh();
+  }
+
+  // ---------- drawing (the board canvas: lanes, notes, the hit line, the audience) ----------
+  function bndDraw(gt) {
+    var c2 = bndCv.getContext('2d'), saved = ctx; ctx = c2;
+    try {
+      var n = bnd.lanes, lw = BND_W / n, show = bnd.mode === 'show';
+      px(0, 0, BND_W, BND_H, 0);
+      px(0, 0, Math.round(BND_W * Math.max(0, Math.min(1, gt / bnd.end))), 2, 3);   // how far along
+      for (var k = 1; k < n; k++) px(Math.round(k * lw), 2, 1, BND_HIT, 1);
+      bnd.flash = bnd.flash.filter(function (f) { return gt - f.at < 0.14; });
+      bnd.flash.forEach(function (f) { px(Math.round(f.lane * lw) + 1, reduceMotion ? BND_HIT - 10 : 2, Math.round(lw) - 1, reduceMotion ? 10 : BND_HIT - 2, f.bad ? 1 : 2); });
+      px(0, BND_HIT, BND_W, 2, 4);
+      bnd.chart.forEach(function (c) {
+        if (c.hit && c.hit !== 'miss') return;
+        var y = BND_HIT - (c.t - gt) / BND_FALL * BND_HIT;
+        if (y < -6 || y > BND_HIT + 10) return;
+        var x = Math.round(c.lane * lw) + 2, w = Math.round(lw) - 4;
+        if (c.hit === 'miss') { px(x, y - 2, w, 4, 2); return; }
+        px(x, y - 3, w, 6, 4); px(x + 1, y - 2, w - 2, 4, 0); px(x + 2, y - 1, w - 4, 2, 3);
+      });
+      if (show) bndAudience(gt);
+      else px(0, BND_HIT + 2, BND_W, BND_H - BND_HIT - 2, 1);
+    } finally { ctx = saved; }
+  }
+  // residents in a row under the stage; a good note lifts them a pixel (not with reduced motion)
+  function bndAudience(gt, still) {
+    px(0, BND_HIT + 2, BND_W, BND_H - BND_HIT - 2, 1);
+    L.BND_FANS.forEach(function (id, k) {
+      var hop = !still && !reduceMotion && gt - bnd.cheer < 0.15 && (k + Math.floor(gt * 8)) % 2 ? 1 : 0;
+      spr(FACE[id], 8 + k * 23, BND_H - 12 - hop);
+    });
+  }
+  // the menu / result picture: the stage with every owned instrument on it, the audience below, the grade on a ribbon
+  function bndDrawStage(grade) {
+    var c2 = bndCv.getContext('2d'), saved = ctx; ctx = c2;
+    try {
+      px(0, 0, BND_W, BND_H, 0);
+      px(6, 20, 108, 4, 4); for (var k = 0; k < 9; k++) px(8 + k * 12, 24, 6, 5, k % 2 ? 2 : 3);   // bunting
+      px(4, 92, 112, 4, 4); px(6, 96, 108, 28, 3); px(6, 96, 108, 1, 4);                            // the stage
+      L.BND_INS.forEach(function (d, k) {
+        var x = 10 + (k % 3) * 36, y = 52 + Math.floor(k / 3) * 26;
+        if (L.bndHas(S, d.id)) spr(BND_ICON[d.id], x + 6, y);
+        else { px(x + 6, y + 10, 12, 2, 1); }
+      });
+      if (grade) {
+        px(30, 4, 60, 12, 4); px(31, 5, 58, 10, 0);
+        for (var g = 0; g < 3; g++) px(42 + g * 13, 7, 9, 6, g < grade ? 4 : 1);   // ■■■ = 금, ■■□ = 은, ■□□ = 동
+      }
+      if (bnd && bnd.mode === 'show') bndAudience(0, true);
+      else px(0, BND_HIT + 2, BND_W, BND_H - BND_HIT - 2, 1);
+    } finally { ctx = saved; }
+  }
+
+  // ---------- keys (input.js asks first): Esc closes, the lane letters tap, nothing reaches the pond behind ----------
+  function bndKey(e) {
+    if (!bnd || bndEl.hidden) return false;
+    if (e.key === 'Escape') { e.preventDefault(); bndClose(); return true; }
+    if (bndOn()) {
+      var lane = BND_KEYS[bnd.lanes].indexOf(e.code);
+      if (lane >= 0) { e.preventDefault(); if (!e.repeat) bndTap(lane); return true; }
+    }
+    if (e.code === 'Space') { e.preventDefault(); return true; }
+    return false;
+  }
+  bndCv.addEventListener('pointerdown', function (e) {
+    if (!bndOn()) return;
+    e.preventDefault();
+    var r = bndCv.getBoundingClientRect();
+    bndTap(Math.max(0, Math.min(bnd.lanes - 1, Math.floor((e.clientX - r.left) / r.width * bnd.lanes))));
+  });
+
+  // ---------- music: the concert song on a festival night, silence under a round that books its own backing ----------
+  // called by musTick with the phase; with no s.band it hands the phase straight back
+  function bndTrack(p) {
+    if (!S.band) return p;
+    if (bndOn() && bnd.audio) return '';
+    return L.bndSongNow(S, now(), BND_TZ, p) ? 'band' : p;
+  }
+  // 마을 음악회 곡 (first 금, or a 은 on a festival day): G major, 100 bpm, a light village march; 전자 피아노 lead, plucked arp
+  MUS.band = {
+    bpm: 100, swing: 0.06, lead: ['epiano', 0.05], voice: { arp: 'pluck' }, bassV: 0.075, arpV: 0.014, form: 'ABAC',
+    bass: 'r . 5 . r . 5 .', arp: '. 3 . 5 . 3 . o', drum: 'k . h . s . h h',
+    A: { ch: 'G Em C D', mel: 'D5 . G5 . B5 - A5 G5 | E5 - G5 . B4 . E5 . | C5 . E5 G5 E5 - C5 . | D5 - F#5 . A5 - - .' },
+    B: { ch: 'C D Bm Em', mel: 'E5 . G5 . C6 - B5 A5 | F#5 - A5 . D5 . F#5 . | B4 . D5 F#5 B5 - A5 . | G5 - - - E5 - . .' },
+    C: { ch: 'C D G G', mel: 'E5 . G5 . A5 - G5 E5 | F#5 - A5 . D6 - C6 . | B5 . A5 G5 D5 - B4 . | G5 - - - - - . .' }
+  };
+
+  // ---------- ⚙ 설정: one row per instrument owned (renderSet) ----------
+  function bndSettings() {
+    if (!L.bndOk(S)) return;
+    var h3 = document.createElement('h3'); h3.textContent = '악기'; setEl.appendChild(h3);
+    L.BND_INS.forEach(function (d) {
+      if (!L.bndHas(S, d.id)) return;
+      var lb = document.createElement('label'); lb.className = 'setRow';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !S.band.mute[d.id];
+      cb.addEventListener('change', function () { L.bndMute(S, d.id, !cb.checked); refresh(); });
+      var tx = document.createElement('span'); tx.textContent = d.name;
+      var sm = document.createElement('small'); sm.textContent = '배경음악에 ' + d.adds; tx.appendChild(sm);
+      lb.appendChild(cb); lb.appendChild(tx); setEl.appendChild(lb);
+    });
+  }
+
+  // ---------- 상점: what each instrument is and where it comes from (only once one is owned) ----------
+  function bndShop() {
+    if (!L.bndOk(S)) return;
+    var h3 = document.createElement('h3'); h3.textContent = '악기';
+    var b = document.createElement('b'); b.textContent = L.bndCount(S) + ' / ' + L.BND_INS.length; h3.appendChild(b); shopEl.appendChild(h3);
+    L.BND_INS.forEach(function (d) {
+      var has = L.bndHas(S, d.id), r = document.createElement('div'); r.className = 'up';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = has ? d.name : '???';
+      var sm = document.createElement('small'); sm.textContent = has ? '배경음악에 ' + d.adds + ' · ⚙ 설정에서 끄기' : d.hint; n.appendChild(sm);
+      var bt = document.createElement('button'); bt.type = 'button'; bt.disabled = true; bt.className = 'max'; bt.textContent = has ? '있음' : '—';
+      r.appendChild(has ? bndIcon(d.id) : document.createElement('span')); r.appendChild(n); r.appendChild(bt); shopEl.appendChild(r);
+    });
+  }
+
+  // ---------- 떠돌이 상인: 우쿨렐레, apart from his 하루 하나 list (renderTrader) ----------
+  function bndTrader() {
+    var h3 = document.createElement('h3'); h3.textContent = '악기';
+    var hb = document.createElement('b'); hb.textContent = '따로'; h3.appendChild(hb); sheetEl.appendChild(h3);
+    var has = L.bndHas(S, 'uke'), r = sheetRow(bndIcon('uke'), '우쿨렐레', '배경음악에 리듬 반주 · 하루 하나와 따로', has ? 'idle' : '');
+    var bt = document.createElement('button'); bt.type = 'button';
+    if (has) { bt.textContent = '있음'; bt.disabled = true; bt.className = 'max'; }
+    else {
+      bt.textContent = L.BND_UKE_COST.toLocaleString('ko-KR'); bt.setAttribute('aria-label', '우쿨렐레 사기 ' + L.BND_UKE_COST + '코인');
+      if (S.coins < L.BND_UKE_COST) bt.classList.add('poor');
+      bt.addEventListener('click', function () {
+        var res = L.bndBuyUke(S);
+        if (!res.ok) { toast(BND_WHY[res.why] || '살 수 없어요'); bt.classList.remove('shake'); void bt.offsetWidth; bt.classList.add('shake'); return; }
+        sfx('bandBuy'); toast('우쿨렐레 · 상인: 줄은 갓 갈았어요! · 마당 ♪ 연주', 3000); bndLastAt = 0; refresh(); renderTrader();
+      });
+    }
+    r.appendChild(bt);
+  }
+
+  // ---------- console hooks ----------
+  function addBandHooks(FF) {
+    // FF.band('drum') / FF.band('all') gives instruments; FF.band() = s.band
+    FF.band = function (id) {
+      (id === 'all' ? L.BND_INS.map(function (d) { return d.id; }) : id ? [id] : []).forEach(function (k) { L.bndGive(S, k); });
+      bndLastAt = 0; refresh(); return S.band;
+    };
+    FF.bandPlay = function () { if (L.bndOk(S)) bndOpen('play'); return bnd && bnd.mode; };
+    FF.bandShow = function () { var why = L.bndShowWhy(S, now(), BND_TZ, bndPhase()); if (why === 'ok') bndOpen('show'); return why; };
+    FF.bandStart = function () { if (bnd && bnd.kind === 'menu') bndStart(); return bnd && { kind: bnd.kind, lanes: bnd.lanes, notes: bnd.chart && bnd.chart.length, audio: bnd.audio }; };
+    FF.bandTap = function (lane) { bndTap(lane); return bnd && bnd.hits; };
+    // plays the next note on time (a perfect hand) → hits so far
+    FF.bandAuto = function () {
+      if (!bndOn()) return null;
+      var gt = bndT(), c = bnd.chart.filter(function (x) { return !x.hit && Math.abs(gt - x.t) * 1000 <= L.BND_WIN.perfect; })[0];
+      if (c) bndTap(c.lane);
+      return bnd.hits;
+    };
+    FF.bandState = function () { return bnd && { kind: bnd.kind, mode: bnd.mode, lanes: bnd.lanes, audio: bnd.audio, t: bnd.last, hits: bnd.hits, end: bnd.end }; };
+  }
   // ---------- 지금 있는 곳: the place tag under the header and the arrival card ----------
   // One name table for every view (the canvas aria-label reads it too). The 'farm' view is named by its fishing spot
   // (L.SPOTS names), home-made camp views by L.CMP_SITES, a resident's room by the resident.
@@ -23125,7 +24557,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var first = !plcKey;
     plcKey = key;
     if (first || reel || mini || chal || rideOn() || arcOn() || view === 'dive' || view === 'stars') return;
-    sfx('whoosh');
+    // 소리: the place's own palette — 동굴 echo, 실내 short, 마을 bells, 바다 wide, 민물 water, the rest earth and wood
+    sfx(view === 'cave' ? 'arriveCave' : view === 'house' || view === 'home' || view === 'museum' || view === 'trnride' ? 'arriveIn' : view === 'village' || view === 'port' || view === 'trnonsen' ? 'arriveTown' : view === 'farm' && PLC_SALT[scene] || view === 'island' || view === 'farisle' || view === 'flat' ? 'arriveSea' : view === 'farm' || view === 'trnvalley' ? 'arriveWater' : 'arriveLand');
     plcBannerB.textContent = nm;
     plcBannerS.textContent = view === 'farm' ? (PLC_SALT[scene] ? '바다 물고기' : '민물고기') : '';
     plcBannerS.hidden = view !== 'farm';
@@ -23170,6 +24603,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     tickFest(t);       // stage 5B: festival on/off, header chip
     tickNotice(t);     // a short condition opened an uncaught fish/find here
     trnTick(t);        // 기차 여행: 온천욕 chip
+    recTick(t);      // 소리 도감: auto recording, ♪ chip, 축음기 (nothing without a 녹음기)
+    bndTick(t);        // 마을 음악회: resident instruments, ♪ 연주/무대 chip (nothing without an instrument)
     plcTick();         // 지금 있는 곳: the place tag, the arrival card on a new spot
     renderTray();
     updateTitle();
@@ -23184,6 +24619,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     tickMini(dt);      // stage 5B: 자물쇠 / 불 조절 도전
     tickRide(dt);      // stage 9 ③: 자전거·썰매·열기구
     tickArcade(dt);    // 게임장: the round on its own board
+    bndFrame();        // 마을 음악회: the round on its own board (nothing unless a round is on)
     mysTick();         // 내 가게: customers while the game is open
     ctx.clearRect(0, 0, W, H);
     ctx.save();
@@ -23396,6 +24832,8 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   addIsleHooks(globalThis.FF);    // stage 7 섬: FF.isle(), FF.drift(id), FF.lighthouse(k)
   addShipHooks(globalThis.FF);    // stage 9 ①: FF.ship(t), FF.far(id)
   addEventsHooks(globalThis.FF);  // stage 8 ①: FF.boom, FF.boomNext, FF.day, FF.diary
+  addRecHooks(globalThis.FF);     // 소리 도감: FF.rec('all'), FF.recNow(), FF.recNote(id)
+  addBandHooks(globalThis.FF);    // 마을 음악회: FF.band('all'), FF.bandPlay(), FF.bandShow(), FF.bandStart(), FF.bandAuto()
   addMuseumHooks(globalThis.FF);  // stage 7 박물관: FF.museum(room), FF.museumFill(room, left)
   addTemperHooks(globalThis.FF);  // stage 8 ② 손맛: FF.temper(id), FF.records(), FF.hookFish(id, size)
   addTreasureHooks(globalThis.FF); // stage 8 ③: FF.tmap(id), FF.rumor(n), FF.dig(id)
