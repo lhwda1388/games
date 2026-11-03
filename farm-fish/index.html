@@ -343,7 +343,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
 #boomChip,#trnBathChip{display:flex;align-items:center;gap:3px;padding:2px 5px;font:700 11px var(--mono)}
 #boomChip canvas,#trnBathChip canvas{width:14px;height:14px;image-rendering:pixelated;flex:none}
 #evCard{position:absolute;left:50%;top:70px;transform:translateX(-50%);width:296px;max-width:calc(100% - 24px);z-index:6;
-  display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 12px 7px;box-shadow:3px 3px 0 var(--g4);cursor:pointer}
+  display:flex;flex-direction:column;gap:2px;text-align:left;white-space:normal;overflow-wrap:anywhere;padding:9px 12px 7px;box-shadow:3px 3px 0 var(--g4);cursor:pointer}
 #evCard:active{transform:translateX(-50%) translateY(2px);box-shadow:none}
 #evCard[hidden]{display:none}
 #evCard .lt{font:700 11px var(--mono);color:var(--g3)}
@@ -24981,7 +24981,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '17c9db271c16';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '2a8e1baae936';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
