@@ -2,6 +2,7 @@
   function doStrike() {
     var f = S.fish, res = L.strike(S, now(), Math.random, curEnv(now()));
     if (!res) return;
+    haptTap();   // 진동: the strike tap itself (pointerdown / Space). ponytail: iOS tick from pointerdown needs a real-device check
     if (res.type === 'scared') {
       // the fish bolts away from the bobber; the wait starts over
       scareFx = { t: 0, x: f.x + 4, y: f.y + 3, dir: f.x > POND.cx ? 1 : -1 };

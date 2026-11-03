@@ -199,7 +199,7 @@
     });
     var j = best && L.bndJudge(off);
     if (!j) { sfx('bandMiss'); bnd.flash.push({ lane: lane, at: gt, bad: true }); bndTip.textContent = '조금 이르게 · 음표가 선에 닿을 때'; return; }
-    if (j === 'perfect') hapt(12);   // 진동: a tick on an exact hit only
+    if (j === 'perfect') haptTap(12);   // 진동: a tick on an exact hit only. ponytail: bndTap runs in pointerdown/keydown (timing stays there); iOS tick from pointerdown needs a real-device check
     best.hit = j; bnd.hits[j]++; bnd.combo++; bnd.cheer = gt;
     bnd.flash.push({ lane: lane, at: gt });
     bndTip.textContent = (j === 'perfect' ? '딱!' : '좋아요') + (bnd.combo > 2 ? ' · ' + bnd.combo + '연속' : '');

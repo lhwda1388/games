@@ -20,13 +20,13 @@
     setVolRow('setMus', musOn, '음악', '시간마다 바뀌는 배경 음악', musSet, 'music');
     setVolRow('setAmb', ambOn, '환경음', '물소리·빗소리·새·벌레 · 음악을 꺼도 들려요', ambSet, 'ambient');
     bndSettings();   // 마을 음악회: 악기마다 켜고 끄기 (only once one is owned)
-    if (haptOK()) {   // 진동: only where the browser can buzz
+    if (haptOK() || haptIOS()) {   // 진동: only where the browser can buzz
       h3 = document.createElement('h3'); h3.textContent = '진동'; setEl.appendChild(h3);
       var vl = document.createElement('label'); vl.className = 'setRow';
       var vc = document.createElement('input'); vc.type = 'checkbox'; vc.checked = haptOn;
       vc.addEventListener('change', function () { haptSet(vc.checked); });
       var vt = document.createElement('span'); vt.textContent = '진동';
-      var vs = document.createElement('small'); vs.textContent = '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만'; vt.appendChild(vs);
+      var vs = document.createElement('small'); vs.textContent = haptOK() ? '입질·줄 끊김·부딪힘·곡괭이 · 폰에서만' : '아이폰은 터치할 때만 짧게'; vt.appendChild(vs);
       vl.appendChild(vc); vl.appendChild(vt); setEl.appendChild(vl);
     }
     if (!pipOK) return;
