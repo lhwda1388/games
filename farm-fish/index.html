@@ -42,13 +42,7 @@ html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;overflow-x:c
 body{font-family:var(--font);color:var(--g4);-webkit-font-smoothing:antialiased}
 #stage{position:fixed;inset:0;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);place-items:center}
 #app{position:relative;width:360px;height:480px;flex:none;transform-origin:center;background:var(--bg);
-  user-select:none;-webkit-user-select:none;touch-action:none;outline:2px solid var(--g4);
-  --ex:0px;clip-path:inset(calc(-1*var(--ex) - 2px) -2px)}
-/* tall screens (phone portrait): fit() sets --ex = the spare height above/below the 360×480 board, in board px.
- * The header and every bottom strip slide out to the screen edges, full-board sheets stretch with them; the pond stays put. */
-#app #hud{translate:0 calc(-1*var(--ex))}
-#app #tray,#app #tideTag,#app #vilBar,#app #itemBar,#app #bndChip{translate:0 var(--ex)}
-#app .overlay,#app #ttl,#app #pwaSheet{top:calc(-1*var(--ex));bottom:calc(-1*var(--ex))}
+  user-select:none;-webkit-user-select:none;touch-action:none;overflow:hidden;outline:2px solid var(--g4)}
 #hud{position:absolute;left:0;top:0;right:0;height:36px;box-sizing:border-box;display:flex;align-items:center;gap:6px;
   padding:0 8px;background:var(--g0);border-bottom:2px solid var(--g4)}
 .coin{width:10px;height:10px;background:var(--g0);border:2px solid var(--g4);box-shadow:inset -2px -2px 0 var(--g2);flex:none}
@@ -25439,9 +25433,6 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var w = curWin.innerWidth, h = curWin.innerHeight;
     var s = Math.min(w / 360, h / 480);
     app.style.transform = 'scale(' + s + ')';
-    var ex = Math.max(0, (h / s - 480) / 2);   // spare board px above and below (tall screens)
-    app.style.setProperty('--ex', ex + 'px');
-    app.style.outlineColor = ex ? 'transparent' : '';   // the board frame would cut across the gaps
     // the main-tab hint sits over the pond, scaled with the game, clear of the toast line
     if (curWin === window) pipHint.style.transform = 'translate(-50%,-50%) translateY(' + Math.round(80 * s) + 'px) scale(' + s + ')';
   }
@@ -25559,7 +25550,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = 'd05b4c68ca9e';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = '823084997962';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
