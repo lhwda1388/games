@@ -5496,8 +5496,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
 
   // ---------- 새 소식: newest first, one card per update. Add an entry at the top when a deploy has news ----------
-  // id = deploy date (YYYY-MM-DD, sorts as text). Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
+  // id = deploy date (YYYY-MM-DD, sorts as text); a second update the same day adds a letter suffix (b, c…), only the date is shown. Seen state is localStorage 'farmfish.news' (ui/events.js), never the save.
   var NEWS = [
+    { id: '2026-11-03b', title: '낚시·밭이 더 쫄깃하게', lines: ['오늘의 현상수배 · 달력에 뜬 물고기를 그 크기 이상 낚으면 큰 보상', '연속 손맛 · 놓치지 않고 이어 낚으면 3·5·10연속 보너스', '밭 연쇄 · 쉬지 않고 이어 거두면 가끔 하나 더'] },
     { id: '2026-11-03', title: '정식 출시', lines: ['「📲 앱으로 설치」 · 타이틀과 ⚙ 설정에서 홈 화면에 설치', '⚙ 세이브 백업 · 내보내기·복사·붙여넣어 불러오기', '처음 오면 타이틀 화면과 6단계 안내'] }
   ];
   // entries to show now: newer than the last seen id; a player with no farm yet gets none (nothing was "new" to them)
@@ -9127,6 +9128,92 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     FX_PARTICLES: FX_PARTICLES, FX_LIVE: FX_LIVE, FX_FLOATS: FX_FLOATS, FX_COMBO_MS: FX_COMBO_MS, FX_COUNT_MS: FX_COUNT_MS, FX_HITSTOP_MS: FX_HITSTOP_MS,
     fxEase: fxEase, fxCount: fxCount, fxRoom: fxRoom, fxStale: fxStale, fxPrune: fxPrune, fxPush: fxPush, fxCombo: fxCombo, fxTier: fxTier
   });
+  // ---------- 오늘의 현상수배 · 연속 손맛 · 밭 연쇄: small rewards on the two core loops ----------
+  // 현상수배: one fish + a minimum size per real day (local key 'YYYY-MM-DD'), picked from fish the player can really
+  // catch today: an open home spot (연못·강·바다), this season, no weather/window/festival/unlock gate (time of day is
+  // fine: a game day is one real hour). The pick is fixed on first use of the day, so opening a spot mid-day doesn't swap it.
+  // s.bounty = { key, id, min, done, wk, wn, t, h } is made lazily; older saves have none.
+  var BOUNTY_SPOTS = ['pond', 'river', 'sea'];
+  var BOUNTY_SIZE = 0.6;          // target = min + 60% of the fish's size range (roughly one bite in four of that fish)
+  var BOUNTY_MUL = 5;             // reward coins = fish price × this, once a day
+  var BOUNTY_WEEK_N = 5;          // fulfilled this many times in one real week (Monday start) → the 칭호, once
+  var BOUNTY_TITLE = '현상수배 사냥꾼';
+
+  function bountyPool(s, season) {
+    return FISH.filter(function (f) {
+      var sp = f.spot || 'pond';
+      return BOUNTY_SPOTS.indexOf(sp) >= 0 && spotUnlocked(s, sp) && f.rarity !== '전설' && !f.window && !f.unlock && !f.egg &&
+        !f.share && !f.weather && !f.fest && (!f.season || f.season === season);
+    });
+  }
+  function bountyMin(f) { return Math.ceil(f.min + (f.max - f.min) * BOUNTY_SIZE); }
+  // real week number of a day key (day 4 since the epoch was a Monday)
+  function bountyWeek(key) { return Math.floor((dayNum(key) - 4) / 7); }
+  function bountyPick(s, key, season) {
+    var pool = bountyPool(s, season), f = pool[Math.floor(seedRng(strHash('bounty:' + key))() * pool.length)];
+    return { id: f.id, min: bountyMin(f) };
+  }
+  // today's bounty (made on the first call of a new day; the week count and 칭호 carry over)
+  function ensureBounty(s, key, season) {
+    var b = s.bounty;
+    if (b && b.key === key) return b;
+    var p = bountyPick(s, key, season);
+    s.bounty = { key: key, id: p.id, min: p.min, done: false, wk: b ? b.wk : bountyWeek(key), wn: b ? b.wn : 0, t: !!(b && b.t), h: false };
+    return s.bounty;
+  }
+  function bountyWeekN(s, key) { return s.bounty && s.bounty.wk === bountyWeek(key) ? s.bounty.wn : 0; }
+  function bountyCoins(id) { return fishById(id).price * BOUNTY_MUL; }
+  // after landFish: a matching catch fulfils today's bounty once → { coins, wn, title } | null
+  function bountyCatch(s, roll, key, season) {
+    var b = ensureBounty(s, key, season);
+    if (b.done || roll.id !== b.id || !(roll.size >= b.min)) return null;
+    var wk = bountyWeek(key);
+    if (b.wk !== wk) { b.wk = wk; b.wn = 0; }
+    b.done = true; b.wn++;
+    var coins = bountyCoins(b.id), title = b.wn >= BOUNTY_WEEK_N && !b.t;
+    s.coins += coins;
+    if (title) b.t = true;
+    return { coins: coins, wn: b.wn, title: title ? BOUNTY_TITLE : null };
+  }
+  function bountyTitles(s) { return s.bounty && s.bounty.t ? [BOUNTY_TITLE] : []; }
+
+  // ---------- 연속 손맛: landed fish in a row. Runtime only (the UI keeps n; a reload starts over at 0) ----------
+  // Junk never reaches the reel, so it neither counts nor breaks; a missed bite or a scared fish doesn't break either.
+  var STREAK_COINS = { 3: 30, 5: 80, 10: 250 };   // n-th fish in a row → coins
+  var STREAK_EVERY = 10;                          // past the last step, every 10th in a row pays the top step again
+  function streakBonus(n) { return STREAK_COINS[n] || (n > STREAK_EVERY && n % STREAK_EVERY === 0 ? STREAK_COINS[STREAK_EVERY] : 0); }
+  // res = the reel result: 'caught' adds one (and pays a milestone), 'escaped' / 'snap' reset → { n, coins }
+  function streakAfter(s, n, res) {
+    if (res !== 'caught') return { n: 0, coins: 0 };
+    n = (n || 0) + 1;
+    var c = streakBonus(n);
+    s.coins += c;
+    return { n: n, coins: c };
+  }
+
+  // ---------- 밭 연쇄: the 수확 streak ui/fx.js counts (fxCombo, FX_COMBO_MS) now pays a little ----------
+  var CHAIN_MIN = 5;      // from the 5th harvest in a row
+  var CHAIN_P = 0.25;     // each harvest has this chance of one more of the same crop
+  // n = the streak length including this harvest, coins = one piece's value → { sold } (an extra piece) | null
+  function chainExtra(s, crop, coins, n, rng) {
+    if (!(n >= CHAIN_MIN) || rng() >= CHAIN_P) return null;
+    return { sold: bagAdd(s, crop, coins) };
+  }
+
+  // ---------- save: called by decode() ----------
+  function decodeBounty(o, s) {
+    var q = o.bounty, n = function (x) { return typeof x === 'number' && isFinite(x); };
+    if (!q || typeof q !== 'object' || !DAY_RE.test(q.key) || !fishById(q.id) || !n(q.min) || !n(q.wk) || !n(q.wn) || q.wn < 0) return;
+    s.bounty = { key: q.key, id: q.id, min: q.min, done: q.done === true, wk: Math.floor(q.wk), wn: Math.min(7, Math.floor(q.wn)), t: q.t === true, h: q.h === true };
+  }
+
+  expose({
+    BOUNTY_SPOTS: BOUNTY_SPOTS, BOUNTY_SIZE: BOUNTY_SIZE, BOUNTY_MUL: BOUNTY_MUL, BOUNTY_WEEK_N: BOUNTY_WEEK_N, BOUNTY_TITLE: BOUNTY_TITLE,
+    bountyPool: bountyPool, bountyMin: bountyMin, bountyWeek: bountyWeek, ensureBounty: ensureBounty, bountyWeekN: bountyWeekN,
+    bountyCoins: bountyCoins, bountyCatch: bountyCatch, bountyTitles: bountyTitles,
+    STREAK_COINS: STREAK_COINS, STREAK_EVERY: STREAK_EVERY, streakBonus: streakBonus, streakAfter: streakAfter,
+    CHAIN_MIN: CHAIN_MIN, CHAIN_P: CHAIN_P, chainExtra: chainExtra, decodeBounty: decodeBounty
+  });
   // ---------- 놀거리 수첩: one line per place/activity, open or locked from the real state (s.guide, optional) ----------
   // s.guide = { seen: { id: true }, tip: { scene: true } } is made on first use; older saves simply have none.
   // Lock hints are built from the same constants the game checks, so they never drift from the real numbers.
@@ -9182,6 +9269,10 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     { id: 'today', name: '오늘의 날', how: '현실 하루마다 ' + DAYS.length + '가지 중 하나 (큰 물고기·장날·고양이 잔치…) · 그날 첫 접속에 카드 · 달력 맨 위에서 다시 보기', lock: '' },
     { id: 'diary', name: '자리 비운 사이 일기', how: (DIARY_AWAY / 60e3) + '분 넘게 비웠다 오면 그동안 생긴 일 카드 · 눌러 닫기 · 도감 기록 탭에 최근 ' + DIARY_KEEP + '개', lock: '' },
     { id: 'news', name: '새 소식', how: '업데이트가 있으면 처음 열 때 카드로 한 번 · 지난 소식은 ⚙ 설정에서 다시 보기', lock: '' },
+    // 현상수배 · 연속 손맛 · 밭 연쇄 (logic/bounty.js)
+    { id: 'bounty', name: '오늘의 현상수배', how: '현실 하루마다 열린 낚시터(연못·강·바다)의 이번 계절 물고기 한 종과 크기 · 달력 오늘의 날 아래, 그날 첫 캐스팅 때 한 번 알림 · 그 크기 이상 낚으면 그 물고기 값 ×' + BOUNTY_MUL + ' (하루 한 번) · 한 주에 ' + BOUNTY_WEEK_N + '번 채우면 칭호 「' + BOUNTY_TITLE + '」', lock: '' },
+    { id: 'streak', name: '연속 손맛', how: '물고기를 놓치지 않고 이어 낚으면 ' + Object.keys(STREAK_COINS).map(function (n) { return n + '연속 +' + STREAK_COINS[n]; }).join(' · ') + '코인, 그 뒤 ' + STREAK_EVERY + '마리마다 +' + STREAK_COINS[STREAK_EVERY] + ' · 도망가거나 줄이 끊기면 0부터 · 잡동사니는 세지도 끊지도 않음', lock: '' },
+    { id: 'chain', name: '밭 연쇄', how: '다 자란 작물을 ' + (FX_COMBO_MS / 1000) + '초 안에 이어 거두면 연쇄(×2 ×3…) · ' + CHAIN_MIN + '연쇄부터 거둘 때마다 ' + Math.round(CHAIN_P * 100) + '% 확률로 같은 작물 +1', lock: '' },
     // stage 8 ③
     { id: 'rumor', name: '소문 수첩', how: '마을 주민 대화·병 편지·손님에게서 가끔 소문 · 들은 소문은 도감 기록 탭에 모인다', lock: '' },
     // stage 9 ②
@@ -9477,6 +9568,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       decodeCamp(o, s);    // 캠핑: s.camp (세트·텐트·장비·불·석쇠·잠·아침 선물·도장; optional)
       decodeRec(o, s);     // 소리 도감: s.rec (녹음기·녹음한 것·보상·별관; optional)
       decodeBand(o, s);    // 마을 음악회: s.band (악기·끈 악기·연주 횟수·음악회 날·칭호·곡; optional)
+      decodeBounty(o, s);  // 오늘의 현상수배: s.bounty (오늘 목표·이번 주 횟수·칭호; optional)
       decodeGuide(o, s);   // 놀거리 수첩: s.guide (seen entries, scene tips; optional)
       // last: the basket again, now that every block that adds slots (house, 당나귀…) is known
       if (Array.isArray(o.bag)) {
@@ -11145,6 +11237,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var extra = won ? L.premiumHarvest(S, hv) : 0;
     burst(r.x + 22, r.y + 14, won ? 18 : 10, won ? 4 : 3, won ? 80 : 60);
     fxHarvest(r.x + 22, r.y + 16, iconCanvas(hv.crop), won, hv.crop);   // stage 8 ④: pop, dirt, ×2 ×3
+    chainAfterHarvest(hv, r);   // 밭 연쇄: from 5 in a row, sometimes one more
     if (hv.sold) fxCoins(r.x + 22, r.y + 6, hv.sold + extra);
     floatText(hv.sold ? '+' + (hv.sold + extra) : (won ? '★' : '+') + L.CROPS[hv.crop].name, r.x + 22, r.y + 4);
     if (hv.boom) floatText('대풍년 +' + hv.boom, r.x + 22, r.y - 6);   // stage 8
@@ -11256,12 +11349,14 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       fxCatch(f, reelVis.x, reelVis.y, out.sold);   // stage 8 ④: rare shake, legend beam, fly to the basket / coins
       floatText(out.sold ? '+' + out.sold : '+' + f.name, ROD_BASE.x, ROD_BASE.y - 16);
       showResult(f, reelRoll, out);
+      bountyAfterReel(res, reelRoll);   // 연속 손맛 + 오늘의 현상수배
       milestones();
     } else {
       L.loseFish(S);
       sfx(res === 'snap' ? 'snap' : 'lost'); hapt(120);   // 진동: one thud
       toast(res === 'snap' ? '툭… 줄이 끊어졌다' : (f.power >= 1.6 ? '묵직한 녀석이 도망갔다…' : '도망갔다…'), 2600);
       burst(reelVis.x, reelVis.y, 6, 2, 40);
+      bountyAfterReel(res, reelRoll);   // 연속 손맛 resets
     }
     reel = null; reelRoll = null;
     lastFishRes = performance.now();
@@ -11330,6 +11425,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         if (!inPond(bx, by, 0.7)) { bx = POND.cx + (x - POND.cx) * 0.8; by = POND.cy + (y - POND.cy) * 0.8; }
         L.cast(S, now(), Math.random, Math.round(bx), Math.round(by), curEnv(now()));
         castAnim = { t: 0 }; sfx('cast');
+        bountyHint();   // 오늘의 현상수배: the day's first cast says what's wanted
         return refresh();
       }
       if (S.fish.phase === 'wait') {
@@ -18252,7 +18348,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       sheetEl.appendChild(p);
     });
     recAnnex();   // 소리 도감: 별관 소리실 (not one of the six rooms; only with a 녹음기)
-    var titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S));
+    var titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S), L.bountyTitles(S));
     var p2 = document.createElement('p'); p2.className = 'note';
     p2.textContent = (titles.length ? '칭호: ' + titles.join(' · ') + ' · ' : '') + '기증해도 도감 기록은 그대로 · 바구니 물건은 하나만 빠져요';
     sheetEl.appendChild(p2);
@@ -18280,7 +18376,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // ---------- 도감: one progress line ----------
   function renderMuseumDex() {
     if (!L.museumOk(S) && !S.museum) return;
-    var t = L.museumTotal(S), titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S));
+    var t = L.museumTotal(S), titles = L.museumTitles(S).concat(L.portTitles(S), L.diveTitles(S), L.cmpTitles(S), L.bountyTitles(S));
     dexHead('박물관', t.n, t.m, L.MUSEUM_ROOM_IDS.map(function (r) { var c = L.museumCount(S, r); return L.MUSEUM_ROOMS[r].name + ' ' + c.n + '/' + c.m; }).join(' · ') +
       (titles.length ? ' · 칭호 ' + titles.join('·') : '') + ' (이동 › 마을)');
   }
@@ -18512,14 +18608,14 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   function newsBoot() {
     var seen = null;
     try { seen = localStorage.getItem(NEWS_KEY); } catch (e) { return; }   // storage blocked: no card (it would come back every visit)
-    L.newsDue(L.NEWS, seen, hadSave).forEach(function (n) { showCard({ kicker: '새 소식 · ' + n.id, title: n.title, lines: n.lines }); });
+    L.newsDue(L.NEWS, seen, hadSave).forEach(function (n) { showCard({ kicker: '새 소식 · ' + n.id.slice(0, 10), title: n.title, lines: n.lines }); });
     try { localStorage.setItem(NEWS_KEY, L.NEWS[0].id); } catch (e) { /* storage blocked */ }
   }
   // ⚙ 설정: the last few, to read again
   function newsSettings() {
     var h3 = document.createElement('h3'); h3.textContent = '새 소식'; setEl.appendChild(h3);
     L.NEWS.slice(0, 3).forEach(function (n) {
-      var p = document.createElement('p'); p.className = 'note'; p.textContent = n.id + ' · ' + n.title + ' — ' + n.lines.join(' · ');
+      var p = document.createElement('p'); p.className = 'note'; p.textContent = n.id.slice(0, 10) + ' · ' + n.title + ' — ' + n.lines.join(' · ');
       setEl.appendChild(p);
     });
   }
@@ -18543,6 +18639,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var bm = boomNow(now());
     note(bm ? '지금 ' + L.BOOM_NAME[bm.kind] + ' · ' + L.BOOM_PLACE_NAME[bm.place] + ' · ' + fmtReal(bm.end - now()) + ' 남음'
       : '입질 폭풍·대풍년은 언젠가 온다 · 오면 위에 표시가 뜬다');
+    bountyCal();   // 오늘의 현상수배 (ui/bounty.js)
   }
   function renderDiary() {
     var list = S.diary || [];
@@ -18573,6 +18670,62 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     };
     // FF.diary(minutesAway): a card as if the last save was that long ago (lines from the state now)
     FF.diary = function (min) { return diaryFrom({ from: now() - (min || 120) * 60e3, snap: L.diarySnap(S, now(), ETZ) }); };
+  }
+  // ---------- 오늘의 현상수배 (달력 줄, 그날 첫 캐스팅 안내, 달성 toast) · 연속 손맛 · 밭 연쇄 ----------
+  function bountyNow(t) { return L.ensureBounty(S, todayKey(t), curEnv(t).season); }
+  function bountyText(b) {
+    var f = L.fishById(b.id);
+    return f.name + ' ' + b.min + 'cm 이상 (' + L.SPOTS[f.spot || 'pond'].name + ') · 보상 ' + L.bountyCoins(b.id) + '코인';
+  }
+  // 달력: under 오늘의 날 (events.js renderDayCal)
+  function bountyCal() {
+    var t = now(), b = bountyNow(t);
+    note('오늘의 현상수배 · ' + bountyText(b) + (b.done ? ' · 달성!' : '') + ' · 이번 주 ' + L.bountyWeekN(S, todayKey(t)) + '/' + L.BOUNTY_WEEK_N +
+      (b.t ? ' · 칭호 「' + L.BOUNTY_TITLE + '」' : ''));
+  }
+  // the day's first cast: one quiet toast (saved, so a reload doesn't repeat it)
+  function bountyHint() {
+    var b = bountyNow(now());
+    if (b.h || b.done) return;
+    b.h = true;
+    toast('오늘의 현상수배 · ' + bountyText(b) + ' · 달력', 3600);
+  }
+
+  // 연속 손맛: runtime only (a reload starts over at 0)
+  var catchRun = 0;
+  // pond.js endReel, after landFish (caught) or loseFish (escaped / snap); the bounty toast goes last so it wins
+  function bountyAfterReel(res, roll) {
+    var st = L.streakAfter(S, catchRun, res);
+    catchRun = st.n;
+    if (st.coins) { toast('★ ' + st.n + '연속 손맛! +' + st.coins, 2600); fxCoins(ROD_BASE.x, ROD_BASE.y - 8, st.coins); }
+    if (res !== 'caught') return;
+    var t = now(), r = L.bountyCatch(S, roll, todayKey(t), curEnv(t).season);
+    if (!r) return;
+    fxCoins(ROD_BASE.x, ROD_BASE.y - 8, r.coins);
+    toast(r.title ? '★ 현상수배 달성 +' + r.coins + ' · 이번 주 ' + r.wn + '번 · 칭호 「' + r.title + '」' : '★ 오늘의 현상수배 달성! +' + r.coins + ' · 이번 주 ' + r.wn + '/' + L.BOUNTY_WEEK_N, 4200);
+  }
+
+  // 밭 연쇄: farm.js doHarvest, right after fxHarvest counted the streak (harvestRun)
+  function chainAfterHarvest(hv, r) {
+    var ex = L.chainExtra(S, hv.crop, hv.coins, harvestRun ? harvestRun.n : 0, Math.random);
+    if (!ex) return;
+    floatText('연쇄 +1 ' + L.CROPS[hv.crop].name, r.x + 22, r.y - 16);
+    if (ex.sold) fxCoins(r.x + 22, r.y - 6, ex.sold);
+    else if (!reduceMotion) fxAdd({ k: 'pop', img: iconCanvas(hv.crop), x: r.x + 30, y: r.y + 16, h: 18, big: false, dur: 520 });
+  }
+
+  // ---------- FF test hooks ----------
+  function addBountyHooks(FF) {
+    // FF.bounty() = today's bounty; FF.bounty('carp') makes that fish today's target; FF.bounty('land') lands a big enough one
+    FF.bounty = function (cmd) {
+      var t = now(), b = bountyNow(t);
+      if (cmd === 'land') { var f = L.fishById(b.id); L.landFish(S, { id: b.id, size: f.max }); bountyAfterReel('caught', { id: b.id, size: f.max }); }
+      else if (cmd && L.fishById(cmd)) { b.id = cmd; b.min = L.bountyMin(L.fishById(cmd)); b.done = false; b.h = false; }
+      refresh();
+      return { text: bountyText(b), done: b.done, week: L.bountyWeekN(S, todayKey(t)), title: b.t };
+    };
+    // FF.streak(n) sets the 연속 손맛 count (the next catch is n + 1); FF.streak() = the count
+    FF.streak = function (n) { if (n !== undefined) catchRun = Math.max(0, n | 0); return catchRun; };
   }
   // ---------- 소문과 보물 지도 (stage 8 ③): map pictures, piece/rumor toasts, 꾹 눌러 파기, 기록 tab, FF hooks ----------
   // A map is a 90×100 crop of the real scene background around the X (1:1 pixels), plus the landmarks that are drawn
@@ -24981,7 +25134,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '2a8e1baae936';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'b3611560b993';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
@@ -25594,6 +25747,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   addIsleHooks(globalThis.FF);    // stage 7 섬: FF.isle(), FF.drift(id), FF.lighthouse(k)
   addShipHooks(globalThis.FF);    // stage 9 ①: FF.ship(t), FF.far(id)
   addEventsHooks(globalThis.FF);  // stage 8 ①: FF.boom, FF.boomNext, FF.day, FF.diary
+  addBountyHooks(globalThis.FF);  // 현상수배·연속 손맛: FF.bounty(cmd | fishId), FF.streak(n)
   addRecHooks(globalThis.FF);     // 소리 도감: FF.rec('all'), FF.recNow(), FF.recNote(id)
   addBandHooks(globalThis.FF);    // 마을 음악회: FF.band('all'), FF.bandPlay(), FF.bandShow(), FF.bandStart(), FF.bandAuto()
   addMuseumHooks(globalThis.FF);  // stage 7 박물관: FF.museum(room), FF.museumFill(room, left)
