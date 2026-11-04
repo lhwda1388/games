@@ -4,7 +4,7 @@
 // Scope is this folder only: requests outside it are left alone and never cached. The origin is shared
 // with other games, so only our own 'farmfish-' caches are ever deleted.
 'use strict';
-var SW_VERSION = 'fda5454030ef';
+var SW_VERSION = '70860f39a992';
 var SW_PREFIX = 'farmfish-';
 var SW_CACHE = SW_PREFIX + SW_VERSION;
 var SW_SCOPE = (self.registration && self.registration.scope) || new URL('./', self.location.href).href;
