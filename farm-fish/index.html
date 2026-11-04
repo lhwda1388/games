@@ -11380,7 +11380,37 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     bandCheer: function (t) {
       for (var k = 0; k < 16; k++) sndHiss('bandpass', 1400 + Math.random() * 1200, 1100, t + k * 0.055 + Math.random() * 0.03, 0.035, 0.06);
       return sndBells([784, 988, 1175, 1568], t + 0.1, 0.06, 0.4, 0.03, 3.5);
-    }
+    },
+    // ---- 2026-11-04 신기능 ----
+    // 완벽한 챔질 (just after the strike's splash): a bright ping, one step higher per 콤보 (arg = perfRun)
+    perfect:  function (t, n) { var f = 1047 * Math.pow(2, Math.min(5, (n || 1) - 1) * 2 / 12); sndOsc('triangle', f, f, t + 0.1, 0.12, 0.05); return sndFM(f * 1.5, 3.5, 1.2, t + 0.18, 0.4, 0.035); },
+    // 아슬아슬: a held breath let out (noise falling), then a small relieved two-note
+    close:    function (t) { sndHiss('lowpass', 2400, 400, t, 0.35, 0.06); return sndSeq('sine', [880, 1175], t + 0.2, 0.09, 0.14, 0.04); },
+    // 희귀·전설 입질 (on top of the bite): a quick sparkle
+    biteRare: function (t, tier) { return sndBells(tier > 1 ? [1568, 2093, 2637, 3136] : [1568, 2093, 2637], t + 0.05, 0.05, 0.12, 0.022, 3.5); },
+    // 표식 달고 놓아주기: a soft splash, then a little rising tag-bell
+    tagFree:  function (t) { sndHiss('lowpass', 1800, 300, t, 0.2, 0.08); sndDrop(500, t + 0.05, 0.05); return sndBells([784, 1047], t + 0.22, 0.1, 0.3, 0.03, 2); },
+    // 그때 그 녀석!: the tag-bell answered, higher, with a sparkle
+    tagBack:  function (t) { sndBells([1047, 1319, 1568], t, 0.08, 0.3, 0.035, 2); return sndOsc('triangle', 2093, 2093, t + 0.3, 0.4, 0.025); },
+    // 낚싯대 세워두기: the stake knocked in twice
+    propSet:  function (t) { sndWood(220, t, 0.08, 0.06); return sndWood(200, t + 0.13, 0.1, 0.07); },
+    // 세워 둔 낚싯대에 걸려 있다: the holder's little bell jingles
+    propBite: function (t) { return sndBells([1760, 1568, 1760, 1568], t, 0.06, 0.1, 0.03, 2.7); },
+    // 작물 미끼 만들기: a squelchy chop
+    baitMake: function (t) { sndWood(330, t, 0.05, 0.05); return sndHiss('bandpass', 900, 500, t + 0.04, 0.12, 0.06); },
+    // 물고기 거름 만들기: a sack filled (shuffle) and tied (thump)
+    fgrMake:  function (t) { sndHiss('bandpass', 1200, 600, t, 0.25, 0.07); return sndWood(110, t + 0.24, 0.12, 0.08); },
+    // 반려동물 첨벙
+    pfhHop:   function (t) { sndHiss('lowpass', 2600, 400, t, 0.18, 0.1); sndDrop(380, t + 0.03, 0.06); return sndDrop(560, t + 0.09, 0.045); },
+    // 옆자리 낚시꾼이 왔다 / 내기에서 졌다
+    nbfHello: function (t) { return sndSeq('sine', [784, 988, 1175], t, 0.11, 0.12, 0.035); },
+    nbfLose:  function (t) { return sndSeq('triangle', [659, 587, 523], t, 0.12, 0.12, 0.04); },
+    nbfWin:   function (t) { sndSeq('triangle', [659, 784, 1047], t, 0.08, 0.1, 0.04); return sndOsc('triangle', 1319, 1319, t + 0.26, 0.3, 0.03); },
+    nbfBye:   function (t) { return sndSeq('sine', [1175, 988, 784], t, 0.13, 0.14, 0.03); },
+    pfhGet:   function (t) { sndPluck(523, t, 0.25, 0.06); return sndPluck(784, t + 0.1, 0.35, 0.06); },
+    // 레시피 실험: ingredients in the pot (plops); 이상한 요리: a lopsided boing
+    rcxPot:   function (t) { sndDrop(300, t, 0.06); sndDrop(420, t + 0.09, 0.05); return sndHiss('bandpass', 2200, 1600, t + 0.15, 0.3, 0.025); },
+    rcxOdd:   function (t) { sndDrop(300, t, 0.06); sndOsc('square', 330, 140, t + 0.12, 0.35, 0.025); return sndOsc('sine', 170, 230, t + 0.45, 0.25, 0.05); }
   };
   var SND_GAPS = { tick: 150, swim: 700, beep: 300 };
   // the gap rule is kept per family: each sound that split off an older one shares that one's gap and last-played time, so
@@ -11409,7 +11439,10 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     fireLight: 'puff',
     donkeyPet: 'pet',
     ballThrow: 'cast',
-    bandGet: 'level', bandFind: 'catchRare', bandBuy: 'buy', bandMiss: 'error', bandEnd: 'chime', fishTalk: 'chime', bandCheer: 'catchLegend'
+    bandGet: 'level', bandFind: 'catchRare', bandBuy: 'buy', bandMiss: 'error', bandEnd: 'chime', fishTalk: 'chime', bandCheer: 'catchLegend',
+    perfect: 'hit', close: 'jump', biteRare: 'shutter', tagFree: 'splash', tagBack: 'chime', propSet: 'plant', propBite: 'beep',   // not the family of the sound they play next to
+    baitMake: 'pick', fgrMake: 'puff', pfhHop: 'splash', pfhGet: 'pet', nbfHello: 'chime', nbfLose: 'lost', nbfWin: 'coin', nbfBye: 'chime',
+    rcxPot: 'water', rcxOdd: 'error'
   };
   // tuned sounds keep their pitch (each 별 a scale step, the 크기 slider's reference ping); only their length varies
   var SND_TUNED = { star: true, chime: true, volPing: true };
@@ -12310,7 +12343,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     shake = 2;
     burst(f.x, f.y, 10, 0, 60);
     fxStrike(f.x, f.y);   // stage 8 ④: hit-stop + splash
-    if (res.roll.perfect) { floatText(perfRun > 1 ? '완벽한 챔질! ×' + perfRun : '완벽한 챔질!', f.x, f.y - 14); fxShake(3); burst(f.x, f.y, 8, 4, 70); hapt([30, 40, 30]); }
+    if (res.roll.perfect) { floatText(perfRun > 1 ? '완벽한 챔질! ×' + perfRun : '완벽한 챔질!', f.x, f.y - 14); fxShake(3); burst(f.x, f.y, 8, 4, 70); hapt([30, 40, 30]); sfx('perfect', false, perfRun); }
     if (res.roll.perfect) nbfAfter('perfect');   // 옆자리 낚시꾼: 훈수
   }
   function endReel(res) {
@@ -12319,7 +12352,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     var f = L.fishById(reelRoll.id);
     if (res === 'caught') {
       var out = L.landFish(S, reelRoll);
-      if (reel.tension > 0.85) { floatText('아슬아슬!', reelVis.x, reelVis.y - 22); fxShake(2); }   // landed a hair before the line would snap
+      if (reel.tension > 0.85) { floatText('아슬아슬!', reelVis.x, reelVis.y - 22); fxShake(2); sfx('close'); }   // landed a hair before the line would snap
       contestAfterCatch(reelRoll);   // stage 10 ①: 낚시 대회 + 결산 카드 counts
       burst(reelVis.x, reelVis.y, 14, 0, 80);
       fxCatch(f, reelVis.x, reelVis.y, out.sold);   // stage 8 ④: rare shake, legend beam, fly to the basket / coins
@@ -12548,7 +12581,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (f === 'missed') { toast('놓쳤다… 다시 던져보자'); sfx('missed'); perfRun = 0; }
       if (f === 'bite') {
         var bt = L.fxTier(L.fishById(S.fish.roll.id));   // 희귀·전설 입질은 더 세게: the player gets a heads-up before the strike
-        sfx('bite'); hapt(bt ? [60, 40, 60, 40, 60] : [40, 60, 40]); burst(S.fish.x, S.fish.y, 6 + bt * 6, 0, 45 + bt * 20); shake = Math.max(shake, 1 + bt * 1.5);
+        sfx('bite'); if (bt) sfx('biteRare', false, bt); hapt(bt ? [60, 40, 60, 40, 60] : [40, 60, 40]); burst(S.fish.x, S.fish.y, 6 + bt * 6, 0, 45 + bt * 20); shake = Math.max(shake, 1 + bt * 1.5);
       }
       if (f && f !== 'nibble') save();
     }
@@ -19834,7 +19867,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!r) return false;
     var bt = L.fxTier(L.fishById(S.fish.roll.id));
     burst(S.fish.x, S.fish.y, 6 + bt * 6, 0, 45 + bt * 20); shake = Math.max(shake, 1 + bt * 1.5);
-    var msg = function () { toast('세워 둔 낚싯대에 뭔가 걸려 있다! · 찌를 눌러 챔질' + (L.pfhGuard(S) ? ' · ' + josa(S.pet.name, '이', '가') + ' 지키고 있었다' : ''), 3200); };
+    var msg = function () { sfx('propBite'); toast('세워 둔 낚싯대에 뭔가 걸려 있다! · 찌를 눌러 챔질' + (L.pfhGuard(S) ? ' · ' + josa(S.pet.name, '이', '가') + ' 지키고 있었다' : ''), 3200); };
     if (booted) msg(); else setTimeout(msg, 3100);   // after the boot 「다녀오셨어요」
     save();
     return true;
@@ -19854,6 +19887,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   }
   propChip.addEventListener('click', function () {
     if (!L.propRod(S, todayKey(now()))) return;
+    sfx('propSet');
     toast('낚싯대를 세워 두었다 · 다른 일 하다 와도 걸린 건 기다린다', 2800);
     propChipTick(now()); save();
   });
@@ -20084,7 +20118,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (hop > 0.5 && hop < 1) {
       px(p.x - 7, p.y - 5, 3, 1, 3); px(p.x - 8, p.y - 6, 1, 3, 3);   // facing home (flipped): mouth on the left
     }
-    if (pfhHop && hop >= 0.4 && !pfhHop.splash) { pfhHop.splash = true; burst(PFH_AT.x + 14, PFH_AT.y - 2, 8, 0, 35); }
+    if (pfhHop && hop >= 0.4 && !pfhHop.splash) { pfhHop.splash = true; sfx('pfhHop'); burst(PFH_AT.x + 14, PFH_AT.y - 2, 8, 0, 35); }
   }
   // loop.js tick: watched waiting at the 연못 (not on a trip, not propped) gives the pet its chance
   function pfhTick(t) {
@@ -20100,6 +20134,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     pfhHop = { at: performance.now() / 1000, id: r.id };
     setTimeout(function () {
       if (!S.pet) return;
+      sfx('pfhGet');
       toast((cat ? '🐟 ' + josa(nm, '이', '가') + ' ' + josa(fn, '을', '를') + ' 물어 왔다' : '🐾 ' + josa(nm, '이', '가') + ' 첨벙! ' + josa(fn, '을', '를') + ' 건져 왔다') +
         ' · ' + r.size + 'cm' + (r.sold ? ' · 바구니가 꽉 차 팔았다 +' + r.sold : ' · 바구니에') + (r.up ? ' · ♥ 친밀도 ' + r.up : ''), 3200);
       refresh();
@@ -20171,7 +20206,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         var res = L.baitMake(S, id);
         if (!res.ok) { toast(BAIT_WHY[res.why] || '못 만들어요'); return; }
         if (!L.baitOnNow(S)) L.baitPick(S, id);   // nothing chosen yet: the new one goes on
-        toast(b.name + ' · ' + res.n + '번', 1800);
+        sfx('baitMake'); toast(b.name + ' · ' + res.n + '번', 1800);
         save(); refresh(); renderBait(); baitTick();
       }, b.name + ' 만들기 (' + L.CROPS[id].name + ' 1개)', !have || n + L.BAIT_USES > L.BAIT_MAX);
       baitBtn(r, on === id ? '고름' : '고르기', function () { L.baitPick(S, id); save(); renderBait(); baitTick(); }, b.name + ' 고르기', !n || on === id);
@@ -20219,7 +20254,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     a.appendChild(act('만들기', function () {
       var res = L.fgrMake(S, from);
       if (!res.ok) { toast(FGR_WHY[res.why] || '못 만들어요'); return; }
-      toast('물고기 거름 · ' + res.n + '포대 · 씨앗 줄에서 골라 뿌려요', 2200);
+      sfx('fgrMake'); toast('물고기 거름 · ' + res.n + '포대 · 씨앗 줄에서 골라 뿌려요', 2200);
       save(); refresh(); renderFgr();
     }, { cls: 'max b', label: name + '로 물고기 거름 만들기', off: !ok || L.fgrN(S) >= L.FGR_MAX }));
     r.appendChild(a);
@@ -20292,9 +20327,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
         return;
       }
       rcxSel = [];
-      if (res.odd) toast('이상한 요리 · ' + res.line + ' (' + L.itemInfo(res.used).name + ' 하나만 썼어요)', 3600);
+      if (res.odd) { sfx('rcxOdd'); toast('이상한 요리 · ' + res.line + ' (' + L.itemInfo(res.used).name + ' 하나만 썼어요)', 3600); }
       else if (res.first) { toast('★ 새 레시피 발견! · ' + res.r.name + ' · 레시피 수첩에 기록 · ' + fmtGame(res.r.time), 4000); burst(12, 150, 10, 0, 40); }
-      else toast(res.r.name + ' 끓이는 중 · ' + fmtGame(res.r.time));
+      else { sfx('rcxPot'); toast(res.r.name + ' 끓이는 중 · ' + fmtGame(res.r.time)); }
       refresh(); renderBag();
     }, { cls: rcxSel.length >= 2 && L.freePot(S) >= 0 ? 'go' : 'poor', label: '고른 재료로 끓여 보기' });
     pot.appendChild(go);
@@ -20518,7 +20553,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       nbfChk = w;
       nbfV = L.nbfTry(S, t, Math.random, !!reel, YTZ);
       if (!nbfV) return;
-      nbfSay(L.nbfHello(nbfV), 5000);
+      nbfSay(L.nbfHello(nbfV), 5000); sfx('nbfHello');
       save();
       return;
     }
@@ -20530,8 +20565,9 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     }
     var r = L.nbfTick(S, nbfV, t, !!reel);
     if (!r) return;
-    if (r.lose) nbfSay(r.text + ' (내기는 졌지만 잃는 건 없어요)', 5000);
+    if (r.lose) { sfx('nbfLose'); nbfSay(r.text + ' (내기는 졌지만 잃는 건 없어요)', 5000); }
     if (r.bye) {
+      sfx('nbfBye');
       nbfSay(r.text + ' (친밀도 +' + r.pts + ')', 6000);
       nbfUps(r.ups);
       nbfV = null;
@@ -20543,7 +20579,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
     if (!nbfV || nbfV.gone || !nbfHere()) return;
     if (ev === 'catch') {
       var w = L.nbfCatch(S, nbfV, now());
-      if (w) { nbfSay(w.text + ' (+' + w.coins + '코인 · 친밀도 +' + w.pts + ')', 5500); nbfUps(w.ups); save(); return; }
+      if (w) { sfx('nbfWin'); nbfSay(w.text + ' (+' + w.coins + '코인 · 친밀도 +' + w.pts + ')', 5500); nbfUps(w.ups); save(); return; }
     }
     var c = L.nbfTalk(nbfV, ev, Math.random);
     if (c) nbfSay(c, c.length > 40 ? 7000 : 4000);
@@ -20598,6 +20634,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       var tg = document.createElement('div'); tg.className = 'tag';
       tg.textContent = '그때 그 녀석! ' + tagCm(back.from) + ' → ' + tagCm(back.to);
       resultEl.insertBefore(tg, resultEl.querySelector('.tag'));
+      if (!shn) sfx('tagBack');   // 반짝이 keeps its own sound
       if (!shn) toast('🏷 그때 그 녀석! ' + back.days + '일 전 놓아준 ' + f.name + ' ' + tagCm(back.from) + ' → ' + tagCm(back.to), 4000);   // 반짝이 keeps its toast
       clearTimeout(showResult.t);
       showResult.t = setTimeout(hideResult, 4200 + wait);
@@ -20612,7 +20649,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
       if (used) return;
       used = true;
       var r = L.tagFree(S, roll, out.coins, now(), sp);
-      hideResult();
+      hideResult(); sfx('tagFree');
       toast('🏷 ' + josa(f.name, '을', '를') + ' 표식 달고 놓아주었다 · 하루 지나면 이 낚시터에서 더 커져 돌아올지도' +
         (r.back ? ' (바로 팔린 ' + r.back + '코인은 돌려놓았어요)' : ''), 3600);
       save(); refresh();
@@ -27065,7 +27102,7 @@ input[type=range]:focus-visible{outline:2px dashed var(--g4);outline-offset:2px}
   // iOS 홈 화면 앱 has its own localStorage: a player with a farm in Safari would open an empty one there
   var PWA_IOS_SAVE = '사파리에서 ⚙ 복사 → 앱에서 ⚙ 붙여넣어 불러오기';
   var PWA_APP_TIP = 'Safari에서 하던 농장이 있으면 ⚙ → 불러오기';
-  var PWA_BUILD = '70860f39a992';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
+  var PWA_BUILD = 'd78b21015a53';   // build.js fills in the same id sw.js carries; a worker with another id = a newer build
   // in-app browsers (메신저·SNS 안의 브라우저): no install hint at all, installing from there goes nowhere useful
   var PWA_INAPP = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|FBIOS|\bLine\/|DaumApps|Daum|everytimeApp|BAND\/|Snapchat|Twitter|; wv\)/i;
   var pwaPrompt = null, pwaReg = null, pwaChecked = 0, pwaSheetEl = null;
